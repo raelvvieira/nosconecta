@@ -11,8 +11,7 @@ import {
   Legend,
 } from "recharts";
 import { Info } from "lucide-react";
-import type { CashFlowPoint } from "@/lib/finance/selectors";
-import type { Granularity } from "@/lib/finance/types";
+import type { CashFlowPoint, Granularity } from "@/lib/finance/queries.functions";
 import { formatBRL } from "@/lib/finance/format";
 
 const COLORS = {

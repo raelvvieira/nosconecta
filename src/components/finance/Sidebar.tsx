@@ -28,9 +28,9 @@ export function Sidebar() {
     <aside className="hidden lg:flex w-[240px] shrink-0 flex-col border-r border-border/60 bg-background/60 backdrop-blur-xl">
       <div className="px-6 pt-6 pb-8 flex items-center gap-2">
         <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-violet text-primary-foreground grid place-items-center font-bold text-base shadow-sm">
-          O
+          N
         </div>
-        <span className="font-semibold text-lg tracking-tight">OdontoCare</span>
+        <span className="font-semibold text-lg tracking-tight">NÓS Conecta</span>
       </div>
 
       <nav className="px-3 flex-1">

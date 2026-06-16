@@ -1,11 +1,9 @@
-import { getUpcomingPayables } from "@/lib/finance/selectors";
-import { TODAY_REF as TODAY } from "@/lib/finance/mock-data";
 import { formatBRL, formatDateBRFull } from "@/lib/finance/format";
 import { cn } from "@/lib/utils";
 
 const dueTone = (iso: string) => {
-  const d = new Date(iso);
-  const today = new Date(TODAY);
+  const d = new Date(iso + "T00:00:00");
+  const today = new Date();
   today.setHours(0, 0, 0, 0);
   const diff = Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   if (diff <= 3) return "warning" as const;
@@ -13,8 +11,15 @@ const dueTone = (iso: string) => {
   return "neutral" as const;
 };
 
-export function UpcomingPayables() {
-  const items = getUpcomingPayables(5);
+export interface PayableItem {
+  id: string;
+  description: string;
+  amount: number;
+  due_date: string;
+  category_name: string | null;
+}
+
+export function UpcomingPayables({ items }: { items: PayableItem[] }) {
   return (
     <section className="surface-card p-6">
       <div className="flex items-center justify-between mb-4">
@@ -38,7 +43,7 @@ export function UpcomingPayables() {
               className="grid grid-cols-[1.2fr_1.2fr_0.9fr_0.9fr] items-center py-3 border-b border-border/40 last:border-0 text-sm"
             >
               <span className="truncate">{t.description}</span>
-              <span className="text-muted-foreground truncate">{t.category?.name}</span>
+              <span className="text-muted-foreground truncate">{t.category_name ?? "—"}</span>
               <span className="text-right tabular-nums font-medium">{formatBRL(t.amount)}</span>
               <span className="text-right flex items-center justify-end gap-2">
                 <span className="text-muted-foreground tabular-nums">{formatDateBRFull(t.due_date)}</span>

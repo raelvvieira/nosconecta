@@ -77,10 +77,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Financeiro · OdontoCare" },
+      { title: "Financeiro · NÓS Conecta" },
       { name: "description", content: "Sistema de gestão financeira para clínicas odontológicas." },
-      { name: "author", content: "OdontoCare" },
-      { property: "og:title", content: "Financeiro · OdontoCare" },
+      { name: "author", content: "NÓS Conecta" },
+      { property: "og:title", content: "Financeiro · NÓS Conecta" },
       { property: "og:description", content: "Visão geral financeira da clínica." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
