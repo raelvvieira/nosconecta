@@ -1,5 +1,5 @@
 import { TrendingUp, AlertCircle, Sparkles, CalendarDays } from "lucide-react";
-import type { Insight } from "@/lib/finance/selectors";
+import type { Insight } from "@/lib/finance/queries.functions";
 import { cn } from "@/lib/utils";
 
 const iconMap = {
