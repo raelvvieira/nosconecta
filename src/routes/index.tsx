@@ -73,9 +73,9 @@ function FinanceiroVisaoGeral() {
   }, []);
 
   const setPeriod = (p: Period) =>
-    router.navigate({ to: "/", search: (prev) => ({ ...prev, period: p }) });
+    router.navigate({ to: "/", search: (prev: z.infer<typeof searchSchema>) => ({ ...prev, period: p }) });
   const setGranularity = (g: Granularity) =>
-    router.navigate({ to: "/", search: (prev) => ({ ...prev, granularity: g }) });
+    router.navigate({ to: "/", search: (prev: z.infer<typeof searchSchema>) => ({ ...prev, granularity: g }) });
 
   const rangeLabel = `${formatDateBRFull(data.range.from)} – ${formatDateBRFull(data.range.to)}`;
   const { kpis } = data;

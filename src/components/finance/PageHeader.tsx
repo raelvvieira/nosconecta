@@ -1,13 +1,12 @@
 import { Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Period } from "@/lib/finance/types";
+import type { Period } from "@/lib/finance/queries.functions";
 
 const options: { label: string; value: Period }[] = [
   { label: "Hoje", value: "today" },
   { label: "7 dias", value: "7d" },
   { label: "30 dias", value: "30d" },
   { label: "90 dias", value: "90d" },
-  { label: "Personalizado", value: "custom" },
 ];
 
 export function PageHeader({
