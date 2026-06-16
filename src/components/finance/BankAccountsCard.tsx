@@ -1,5 +1,4 @@
 import { Landmark, Banknote, Zap } from "lucide-react";
-import { getAccounts, getTotalAvailable } from "@/lib/finance/selectors";
 import { formatBRL } from "@/lib/finance/format";
 
 const iconFor = (type: string) => {
@@ -13,10 +12,21 @@ const iconFor = (type: string) => {
   }
 };
 
-export function BankAccountsCard() {
-  const accounts = getAccounts();
-  const total = getTotalAvailable();
+export interface BankAccountItem {
+  id: string;
+  name: string;
+  type: string;
+  last_digits: string | null;
+  current_balance: number;
+}
 
+export function BankAccountsCard({
+  accounts,
+  total,
+}: {
+  accounts: BankAccountItem[];
+  total: number;
+}) {
   return (
     <section className="surface-card p-6 flex flex-col">
       <div className="flex items-center justify-between mb-5">
@@ -34,7 +44,9 @@ export function BankAccountsCard() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{acc.name}</p>
-                <p className="text-xs text-muted-foreground tabular-nums">•••• {acc.last_digits}</p>
+                {acc.last_digits && (
+                  <p className="text-xs text-muted-foreground tabular-nums">•••• {acc.last_digits}</p>
+                )}
               </div>
               <p className="text-sm font-semibold tabular-nums">{formatBRL(acc.current_balance)}</p>
             </li>

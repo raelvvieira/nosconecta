@@ -1,5 +1,3 @@
-import { getUpcomingReceivables } from "@/lib/finance/selectors";
-import { TODAY_REF as TODAY } from "@/lib/finance/mock-data";
 import { formatBRL, formatDateBRFull } from "@/lib/finance/format";
 import { cn } from "@/lib/utils";
 
@@ -12,8 +10,8 @@ const initials = (name: string) =>
     .toUpperCase();
 
 const dueLabel = (iso: string) => {
-  const d = new Date(iso);
-  const today = new Date(TODAY);
+  const d = new Date(iso + "T00:00:00");
+  const today = new Date();
   today.setHours(0, 0, 0, 0);
   const diff = Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   if (diff === 0) return { text: "Hoje", tone: "warning" as const };
@@ -22,8 +20,15 @@ const dueLabel = (iso: string) => {
   return { text: formatDateBRFull(iso), tone: "neutral" as const };
 };
 
-export function UpcomingReceivables() {
-  const items = getUpcomingReceivables(5);
+export interface ReceivableItem {
+  id: string;
+  description: string;
+  amount: number;
+  due_date: string;
+  patient_name: string | null;
+}
+
+export function UpcomingReceivables({ items }: { items: ReceivableItem[] }) {
   return (
     <section className="surface-card p-6">
       <div className="flex items-center justify-between mb-4">
@@ -41,6 +46,7 @@ export function UpcomingReceivables() {
       <ul>
         {items.map((t) => {
           const d = dueLabel(t.due_date);
+          const name = t.patient_name ?? "—";
           return (
             <li
               key={t.id}
@@ -48,9 +54,9 @@ export function UpcomingReceivables() {
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-soft to-info-soft grid place-items-center text-[10px] font-semibold text-foreground/70">
-                  {initials(t.patient?.name ?? "?")}
+                  {initials(name)}
                 </div>
-                <span className="truncate">{t.patient?.name}</span>
+                <span className="truncate">{name}</span>
               </div>
               <span className="text-muted-foreground truncate">{t.description}</span>
               <span className="text-right tabular-nums font-medium">{formatBRL(t.amount)}</span>
