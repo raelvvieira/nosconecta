@@ -14,16 +14,279 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      financial_accounts: {
+        Row: {
+          company_id: string
+          created_at: string
+          current_balance: number
+          id: string
+          last_digits: string | null
+          name: string
+          type: Database["public"]["Enums"]["account_type"]
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          current_balance?: number
+          id?: string
+          last_digits?: string | null
+          name: string
+          type: Database["public"]["Enums"]["account_type"]
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          current_balance?: number
+          id?: string
+          last_digits?: string | null
+          name?: string
+          type?: Database["public"]["Enums"]["account_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      financial_categories: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+          type: Database["public"]["Enums"]["category_type"]
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+          type: Database["public"]["Enums"]["category_type"]
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          type?: Database["public"]["Enums"]["category_type"]
+        }
+        Relationships: []
+      }
+      financial_transactions: {
+        Row: {
+          account_id: string | null
+          amount: number
+          category_id: string | null
+          company_id: string
+          created_at: string
+          description: string
+          due_date: string
+          id: string
+          paid_date: string | null
+          patient_id: string | null
+          professional_id: string | null
+          source_id: string | null
+          source_type: string | null
+          status: Database["public"]["Enums"]["transaction_status"]
+          type: Database["public"]["Enums"]["transaction_type"]
+          updated_at: string
+        }
+        Insert: {
+          account_id?: string | null
+          amount: number
+          category_id?: string | null
+          company_id: string
+          created_at?: string
+          description: string
+          due_date: string
+          id?: string
+          paid_date?: string | null
+          patient_id?: string | null
+          professional_id?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status: Database["public"]["Enums"]["transaction_status"]
+          type: Database["public"]["Enums"]["transaction_type"]
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          category_id?: string | null
+          company_id?: string
+          created_at?: string
+          description?: string
+          due_date?: string
+          id?: string
+          paid_date?: string | null
+          patient_id?: string | null
+          professional_id?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: Database["public"]["Enums"]["transaction_status"]
+          type?: Database["public"]["Enums"]["transaction_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_transactions_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "financial_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_transactions_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_transactions_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ledger_entries: {
+        Row: {
+          account_id: string
+          amount: number
+          created_at: string
+          entry_type: Database["public"]["Enums"]["entry_type"]
+          id: string
+          transaction_id: string
+        }
+        Insert: {
+          account_id: string
+          amount: number
+          created_at?: string
+          entry_type: Database["public"]["Enums"]["entry_type"]
+          id?: string
+          transaction_id: string
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          created_at?: string
+          entry_type?: Database["public"]["Enums"]["entry_type"]
+          id?: string
+          transaction_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ledger_entries_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ledger_entries_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "financial_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patients: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      professionals: {
+        Row: {
+          commission_pct: number
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          commission_pct?: number
+          company_id: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          commission_pct?: number
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      finance_cash_flow_series: {
+        Args: {
+          p_company_id: string
+          p_from: string
+          p_granularity: string
+          p_to: string
+        }
+        Returns: {
+          bucket: string
+          expense: number
+          future_receivable: number
+          income: number
+        }[]
+      }
+      finance_revenue_by_category: {
+        Args: { p_company_id: string; p_from: string; p_to: string }
+        Returns: {
+          category_id: string
+          name: string
+          total: number
+        }[]
+      }
+      finance_revenue_by_professional: {
+        Args: { p_company_id: string; p_from: string; p_to: string }
+        Returns: {
+          commission_pct: number
+          name: string
+          professional_id: string
+          total: number
+        }[]
+      }
     }
     Enums: {
-      [_ in never]: never
+      account_type: "bank" | "cash" | "pix" | "credit"
+      category_type: "income" | "expense"
+      entry_type: "debit" | "credit"
+      transaction_status: "pending" | "paid" | "overdue" | "cancelled"
+      transaction_type: "receivable" | "payable"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +413,12 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      account_type: ["bank", "cash", "pix", "credit"],
+      category_type: ["income", "expense"],
+      entry_type: ["debit", "credit"],
+      transaction_status: ["pending", "paid", "overdue", "cancelled"],
+      transaction_type: ["receivable", "payable"],
+    },
   },
 } as const
