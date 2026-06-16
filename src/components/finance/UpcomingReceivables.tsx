@@ -1,4 +1,4 @@
-import { getUpcomingReceivables, TODAY_REF } from "@/lib/finance/selectors";
+import { getUpcomingReceivables } from "@/lib/finance/selectors";
 import { TODAY_REF as TODAY } from "@/lib/finance/mock-data";
 import { formatBRL, formatDateBRFull } from "@/lib/finance/format";
 import { cn } from "@/lib/utils";
