@@ -5,11 +5,17 @@ import {
   TrendingUp,
   Percent,
   Settings,
-  Sun,
   LogOut,
+  Sparkles,
 } from "lucide-react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const items = [
   { label: "Visão Geral", icon: LayoutGrid, to: "/" },
@@ -25,66 +31,89 @@ const REAL_ROUTES = new Set(["/", "/pagamentos", "/recebimentos", "/planejamento
 export function Sidebar() {
   const { pathname } = useLocation();
   return (
-    <aside className="hidden lg:flex w-[240px] shrink-0 flex-col border-r border-border/60 bg-background/60 backdrop-blur-xl">
-      <div className="px-6 pt-6 pb-8 flex items-center gap-2">
-        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-violet text-primary-foreground grid place-items-center font-bold text-base shadow-sm">
+    <TooltipProvider delayDuration={150}>
+      <aside className="hidden lg:flex w-[88px] shrink-0 flex-col items-center bg-sidebar border-r border-border py-6 gap-6">
+        {/* Logo */}
+        <div className="h-11 w-11 rounded-2xl bg-gradient-primary text-white grid place-items-center font-bold text-lg shadow-soft">
           N
         </div>
-        <span className="font-semibold text-lg tracking-tight">NÓS Conecta</span>
-      </div>
 
-      <nav className="px-3 flex-1">
-        <p className="px-3 text-[11px] font-medium tracking-wider text-muted-foreground uppercase mb-2">
-          Financeiro
-        </p>
-        <ul className="space-y-0.5">
+        {/* Nav */}
+        <nav className="flex-1 flex flex-col items-center gap-2">
           {items.map((it) => {
             const active = pathname === it.to || (it.to !== "/" && pathname.startsWith(it.to));
             const isReal = REAL_ROUTES.has(it.to);
             const className = cn(
-              "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors text-left",
+              "h-12 w-12 grid place-items-center rounded-2xl transition-colors",
               active
-                ? "bg-accent/70 text-accent-foreground font-medium"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                ? "bg-[#1B1B1F] text-white"
+                : "text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground",
+              !isReal && "opacity-40 cursor-not-allowed",
             );
+            const inner = <it.icon className="h-[18px] w-[18px]" strokeWidth={1.75} />;
             return (
-              <li key={it.label}>
-                {isReal ? (
-                  <Link to={it.to} className={className}>
-                    <it.icon className="h-4 w-4" strokeWidth={1.75} />
-                    {it.label}
-                  </Link>
-                ) : (
-                  <button type="button" className={className} disabled>
-                    <it.icon className="h-4 w-4" strokeWidth={1.75} />
-                    {it.label}
-                  </button>
-                )}
-              </li>
+              <Tooltip key={it.label}>
+                <TooltipTrigger asChild>
+                  {isReal ? (
+                    <Link to={it.to} className={className} aria-label={it.label}>
+                      {inner}
+                    </Link>
+                  ) : (
+                    <button type="button" className={className} disabled aria-label={it.label}>
+                      {inner}
+                    </button>
+                  )}
+                </TooltipTrigger>
+                <TooltipContent side="right" className="font-medium">
+                  {it.label}
+                </TooltipContent>
+              </Tooltip>
             );
           })}
-        </ul>
-      </nav>
+        </nav>
 
-      <div className="p-3 border-t border-border/60 space-y-2">
-        <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-muted/40">
-          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-info to-violet text-white grid place-items-center text-xs font-semibold">
-            G
-          </div>
-          <div className="leading-tight">
-            <p className="text-sm font-medium">Dr. Guilherme</p>
-            <p className="text-xs text-muted-foreground">Administrador</p>
-          </div>
+        {/* Footer */}
+        <div className="flex flex-col items-center gap-3">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="h-11 w-11 rounded-2xl bg-gradient-primary text-white grid place-items-center shadow-soft hover:opacity-90 transition-opacity"
+                aria-label="Upgrade Premium"
+              >
+                <Sparkles className="h-[18px] w-[18px]" strokeWidth={1.75} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Upgrade Premium</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="h-10 w-10 rounded-full bg-[#FAFAFA] border border-border text-foreground grid place-items-center text-xs font-semibold hover:bg-muted transition-colors"
+                aria-label="Conta"
+              >
+                N
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">NÓS Conecta · Administrador</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="h-10 w-10 grid place-items-center rounded-2xl text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground transition-colors"
+                aria-label="Sair"
+              >
+                <LogOut className="h-[18px] w-[18px]" strokeWidth={1.75} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Sair</TooltipContent>
+          </Tooltip>
         </div>
-        <div className="flex items-center gap-1 px-2">
-          <button className="h-8 w-8 grid place-items-center rounded-lg text-muted-foreground hover:bg-muted/60">
-            <Sun className="h-4 w-4" />
-          </button>
-          <button className="h-8 w-8 grid place-items-center rounded-lg text-muted-foreground hover:bg-muted/60">
-            <LogOut className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    </aside>
+      </aside>
+    </TooltipProvider>
   );
 }

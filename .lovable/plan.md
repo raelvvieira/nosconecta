@@ -1,88 +1,93 @@
-# Planejamento — Ajustes UX + Backend
+## Redesign Visual — Linguagem "Fintech Premium"
 
-## Parte 1 — Ajustes de UX (frontend)
+Aplicar a linguagem visual da referência (Apple Wallet / Revolut / Arc) sem alterar funcionalidades, fluxos ou arquitetura. Foco inicial: tokens globais + Sidebar + página Pagamentos. As demais páginas (Visão Geral, Recebimentos, Planejamento) consumirão automaticamente os novos tokens; ajustes finos delas ficam para passes seguintes.
 
-### 1.1 Excluir cenário (`ScenarioSimulator.tsx`)
-- Botão `Trash2` ghost no hover de cada card, canto superior direito.
-- `AlertDialog` shadcn confirmando ("Excluir cenário?" + nome).
-- Estado local da lista (inicializado com dados do backend). Após excluir, chama mutation `deleteScenario` e invalida query.
-- Empty state: "Nenhum cenário simulado" + CTA "Criar cenário".
+### 1. Tokens globais (`src/styles.css`)
 
-### 1.2 Fechar insights um a um (`SmartInsightsCard.tsx`)
-- Botão `X` ghost em cada item, visível no hover.
-- Estado local `dismissedIds`. Transição fade.
-- Rodapé: "X de Y insights" + link "Restaurar" se houver dispensados.
+Reescrever a paleta para o novo sistema:
 
-### 1.3 Gerar mais insights
-- Botão "Gerar mais insights" (`Sparkles`, `outline`) no header do card.
-- Chama `generateMoreInsights` no backend → retorna 2 novos itens.
-- Skeleton enquanto carrega; toast `sonner` "2 novos insights gerados".
-- Empty state: "Nenhum insight ativo" + botão "Gerar insights".
+- `--background`: `#F6F6F7` (nunca branco puro)
+- `--card`: `#FFFFFF`
+- `--card-dark`: `#1B1B1F` (novo token — usado apenas em blocos "premium": saldo, metas, planejamento — máx. 5% da UI)
+- `--border`: `#F0F0F2`
+- `--input-border`: `#ECECEC`
+- `--primary`: coral `#FF7A59`
+- `--primary-foreground`: branco
+- `--accent-pink`: `#F55F95`
+- `--accent-peach`: `#FFB086`
+- `--accent-cream`: `#FFF2EC`
+- `--ring`: coral
+- Sombras: `--shadow-sm: 0 4px 20px rgba(0,0,0,.03)`, `--shadow-md: 0 10px 30px rgba(0,0,0,.04)` (nada mais forte)
+- Radius: cards `24px`, inputs/botões `14px`, modais `28px` → reconfigurar `--radius` base + utilitários
+- Utilitário `--gradient-primary: linear-gradient(135deg,#F55F95 0%,#FF7A59 50%,#FFB086 100%)` — usar somente em CTA principal, banner e upgrade
+- Reescala de chart colors para tons da nova paleta (coral, rosa, pêssego, creme + neutros suaves) sem grades fortes
+- Tokens semânticos (`success`, `danger`, `warning`) em versões mais "soft" para badges
 
----
+### 2. Sidebar (`src/components/finance/Sidebar.tsx`)
 
-## Parte 2 — Backend do Planejamento
+- Largura `88px` (colapsada por padrão, sem texto ao lado dos ícones)
+- Fundo `#FFFFFF`, sem borda direita pesada
+- Itens: ícone `18px`, área clicável `48x48`, radius `16px`, gap generoso (~12-16px)
+- Item ativo: fundo `#1B1B1F`, ícone branco
+- Hover: fundo `#FAFAFA`
+- Logo no topo reduzido para quadrado 48px
+- Card "Plano Premium" no rodapé: reduzir a um botão circular com gradiente (tooltip "Upgrade") OU mover para um avatar discreto
+- Avatar do usuário no rodapé: círculo 40px com iniciais, sem texto
+- Labels só aparecem em tooltip on-hover
 
-Reutiliza `financial_transactions` e `financial_accounts`. Sem duplicação de dados.
+### 3. Header das páginas (`PageHeader.tsx`)
 
-### 2.1 Novas tabelas (migration)
+- Altura `80px`, fundo `transparent`
+- Título grande (32-38px, weight 700), subtítulo leve
+- Botões à direita: primário com gradiente coral→rosa, secundários em branco com borda `#ECECEC`
 
-**`financial_goals`** — metas financeiras da clínica.
-- Campos: `id`, `company_id`, `name`, `goal_type` (enum: `revenue|profit|cash|receivables`), `target_amount numeric`, `period` (enum: `monthly|quarterly|yearly|custom`), `start_date`, `end_date`, `created_at`, `updated_at`.
-- RLS pública leitura/escrita (mesmo padrão das outras tabelas financeiras atuais do projeto).
-- GRANT padrão + trigger `updated_at`.
+### 4. Página Pagamentos (`src/routes/pagamentos.tsx`)
 
-**`financial_scenarios`** — cenários salvos pelo usuário.
-- Campos: `id`, `company_id`, `name`, `scenario_type` (enum: `hire_employee|equipment_purchase|new_professional|marketing_investment|custom`), `description`, `monthly_cost numeric`, `monthly_revenue numeric`, `one_time_cost numeric`, `start_date`, `end_date`, `created_at`, `updated_at`.
-- Mesmas regras de RLS + GRANT + trigger.
+Manter toda a lógica e estrutura de dados. Apenas reorganizar visualmente:
 
-### 2.2 Camada de serviço — `src/lib/finance/planning.functions.ts`
+**KPIs em mosaico (não 4 cards iguais):**
+- Card grande (col-span-2): "Pago no período" com valor 38px + micrográfico/indicador
+- Cards médios: "A pagar" e "Em atraso"
+- Card escuro pequeno (`#1B1B1F`, texto branco): "Total previsto" — único bloco grafite na página, gera contraste premium
 
-Server functions com `createServerFn` (público, sem auth, alinhado ao padrão atual das demais funções financeiras do projeto).
+**Filtros:**
+- Inputs com `bg-white`, `border #ECECEC`, radius `14px`, altura `44px`
+- Focus: borda coral
+- Botão "Filtros" secundário branco; remover o destaque rosa atual
 
-| Função | Método | Retorno |
-|---|---|---|
-| `getPlanningSummary` | GET | `{ currentBalance, projectedBalance30, projectedBalance90, financialRunwayDays }` |
-| `getCashProjection` | GET `{ period: 30\|60\|90\|180 }` | `Array<{ date, balance, projected, goal, risk }>` |
-| `getForecastSummary` | GET | `{ expectedReceivables, expectedPayables, projectedNet }` |
-| `getFinancialTimeline` | GET `{ limit? }` | `Array<{ id, date, type, title, amount, balanceAfter }>` |
-| `listGoals` / `createGoal` / `updateGoal` / `deleteGoal` | GET/POST | metas + cálculo de `realizado`/`projeção`/`percentual` |
-| `listScenarios` / `createScenario` / `deleteScenario` | GET/POST | cenários persistidos |
-| `simulateScenario` | POST `{ scenarioType, monthlyCost, monthlyRevenue?, oneTimeCost?, period }` | `{ currentProjection, simulatedProjection, impact }` |
-| `getInsights` | GET | `Array<Insight>` insights determinísticos baseados em dados reais |
-| `generateMoreInsights` | POST `{ excludeIds: string[] }` | mais 2 insights de um pool extra |
+**Tabela:**
+- Eliminar sensação de tabela: sem header colorido, divisores `#F5F5F5`, row-height `72px`
+- Hover row `#FAFAFA`
+- Badges de categoria/status em versões soft (ex.: bg `#FFF2EC`, texto coral); status "Pago" em verde soft
+- Avatar/ícone do fornecedor à esquerda em círculo cinza claro
 
-### 2.3 Cálculos (executados no backend)
+**Lateral direita:**
+- "Gastos por Categoria": donut sem contorno, legenda com dots coloridos suaves
+- "Próximos vencimentos": lista com row-height generoso, sem divisores fortes
+- Botão "Ver todos" como secundário (não outline rosa)
 
-- **Saldo atual**: `SUM(financial_accounts.current_balance)` por `company_id`.
-- **Projetado 30/90 dias**: `saldoAtual + SUM(receivable pending due_date<=hoje+N) − SUM(payable pending due_date<=hoje+N)`.
-- **Fôlego financeiro**: `saldoAtual / (SUM(payable paid últimos 90 dias) / 90)`.
-- **Projeção diária** (gráfico): laço dia-a-dia somando eventos pendentes vencendo naquele dia ao saldo do dia anterior. `risk = saldo<0`. `goal` vem da meta ativa `goal_type='cash'`.
-- **Timeline**: pendentes ordenados por `due_date`, calcula `balanceAfter` cumulativo.
-- **Insights**: regras determinísticas (receita prevista vs mês anterior, risco de caixa, evolução de meta, top categoria, top profissional).
+**Card "Novo Pagamento":** botão com gradiente oficial (único uso de gradiente na página).
 
-### 2.4 Frontend (route `/planejamento` + componentes)
+### 5. Componentes shadcn afetados (estilos via tokens)
 
-- Substituir `planning-mock.ts` por chamadas via `useServerFn` + `useSuspenseQuery`.
-- Loader pré-carrega `summary`, `projection(range)`, `forecastSummary`, `timeline`, `goals`, `scenarios`, `insights`.
-- `range` continua em search param.
-- Componentes `CashProjectionChart`, `FinancialTimeline`, `ScenarioSimulator`, `FinancialGoalsCard`, `SmartInsightsCard`, `ProjectionSummaryCard` passam a receber props do servidor.
-- Mutations (criar cenário, excluir cenário, gerar mais insights, criar/editar meta) invalidam as queries correspondentes.
+`button.tsx`, `card.tsx`, `input.tsx`, `select.tsx`, `badge.tsx`, `table.tsx` — atualizar variantes default para refletir radius 14/24, sombras suaves, bordas `#F0F0F2`. Adicionar variante `premium` no Button (gradiente).
 
-### 2.5 Seed mínimo
-Inserir via tool `insert` algumas metas e cenários de exemplo para `company_id` atual, garantindo que a página tenha conteúdo visível no primeiro acesso.
+### 6. Escopo desta entrega
 
----
+Incluído:
+- Tokens em `styles.css`
+- Sidebar redesenhada
+- PageHeader
+- Variantes de Button/Card/Input/Badge/Table
+- Página Pagamentos totalmente recomposta no novo visual
 
-## Ordem de execução
-1. Migration (`financial_goals`, `financial_scenarios`).
-2. `planning.functions.ts` com todas as server fns + cálculos.
-3. Ajustes nos componentes (UX 1.1, 1.2, 1.3) já consumindo o backend.
-4. Route `/planejamento` atualizada (loader + queries + mutations).
-5. Seed de exemplo.
-6. Remover `planning-mock.ts`.
+Fora deste passe (entregas seguintes, mesma linguagem):
+- Visão Geral, Recebimentos, Planejamento — herdam os tokens automaticamente, mas o "mosaico" de KPIs e os blocos escuros premium serão refinados em passes dedicados para evitar uma única entrega gigante.
 
-## Fora do escopo
-- Auth/multi-tenant real (usa `company_id` padrão do projeto, como as demais páginas financeiras).
-- IA real para insights (mantém regras determinísticas).
-- Edição de cenário (apenas criar/excluir).
+### Detalhes técnicos
+
+- `src/styles.css`: substituir bloco `:root` (e `.dark`) por paleta nova em hex/oklch; adicionar `--card-dark`, `--gradient-primary`, `--shadow-sm/md`; trocar `--font-sans` para um par premium (ex.: `"Geist", "Inter"` via `<link>` no `__root.tsx`)
+- Garantir Tailwind v4: nenhum hex hardcoded em componentes — tudo via classes utilitárias (`bg-card`, `bg-primary`, `text-primary`, `border-border`, `shadow-sm`, `rounded-2xl`)
+- Para o bloco escuro, criar utilitário `.card-dark` (`@utility`) com fundo `#1B1B1F`, texto branco, radius 24px
+- Para o gradiente: utilitário `.bg-gradient-primary`
+- Sem mudanças em rotas, loaders, server functions ou schema

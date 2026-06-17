@@ -4,15 +4,14 @@ import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@ta
 import { useState } from "react";
 import { z } from "zod";
 import {
-  Plus, Upload, Download, BarChart3, Clock, AlertCircle, CalendarDays, Search, Filter,
-  MoreHorizontal, Check, Trash2,
+  Plus, Upload, Download, Search, Filter,
+  MoreHorizontal, Check, Trash2, ArrowUpRight, ArrowDownRight, CalendarDays,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 
 import { Sidebar } from "@/components/finance/Sidebar";
 import { DateRangePicker } from "@/components/finance/DateRangePicker";
-import { KpiCard } from "@/components/finance/KpiCard";
 import { NewPaymentSheet } from "@/components/finance/payables/NewPaymentSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,24 +83,24 @@ export const Route = createFileRoute("/pagamentos")({
 });
 
 const METHODS: Record<string, { label: string; color: string }> = {
-  pix: { label: "PIX", color: "text-emerald-600" },
-  boleto: { label: "Boleto", color: "text-amber-600" },
-  ted: { label: "TED", color: "text-sky-600" },
+  pix: { label: "PIX", color: "text-success" },
+  boleto: { label: "Boleto", color: "text-warning" },
+  ted: { label: "TED", color: "text-info" },
   cartao: { label: "Cartão", color: "text-violet" },
   dinheiro: { label: "Dinheiro", color: "text-foreground" },
 };
 
-const STATUS_BADGE: Record<string, string> = {
-  paid: "bg-success-soft text-success",
-  pending: "bg-warning-soft text-warning",
-  overdue: "bg-danger-soft text-danger",
-  cancelled: "bg-muted text-muted-foreground",
+const STATUS_BADGE: Record<string, "success" | "warning" | "danger" | "secondary"> = {
+  paid: "success",
+  pending: "warning",
+  overdue: "danger",
+  cancelled: "secondary",
 };
 const STATUS_LABEL: Record<string, string> = {
   paid: "Pago", pending: "Pendente", overdue: "Atrasado", cancelled: "Cancelado",
 };
 
-const CHART_COLORS = ["#7c3aed", "#f97316", "#8b5cf6", "#06b6d4", "#94a3b8", "#22c55e", "#ec4899", "#eab308"];
+const CHART_COLORS = ["#FF7A59", "#F55F95", "#FFB086", "#7C5CFA", "#1F9D55", "#2F6FE0", "#C7821F", "#9A9AA1"];
 
 const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("pt-BR");
 
@@ -134,7 +133,6 @@ function PagamentosPage() {
     onError: (e: any) => toast.error(e?.message ?? "Erro"),
   });
 
-  // pagination on the (already-filtered) transactions
   const page = search.page ?? 1;
   const totalPages = Math.max(1, Math.ceil(data.transactions.length / PER_PAGE));
   const rows = data.transactions.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -143,86 +141,81 @@ function PagamentosPage() {
     <div className="app-bg min-h-screen flex">
       <Sidebar />
 
-      <main className="flex-1 min-w-0 px-6 lg:px-10 py-8 space-y-6">
+      <main className="flex-1 min-w-0 px-8 lg:px-12 py-8 space-y-8">
         {/* Header */}
-        <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
+        <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 min-h-[80px]">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Pagamentos</h1>
-            <p className="text-sm text-muted-foreground mt-1">Gerencie todas as despesas da clínica</p>
+            <h1 className="text-[34px] leading-tight font-bold tracking-tight">Pagamentos</h1>
+            <p className="text-sm text-muted-foreground mt-1.5">Gerencie todas as despesas da clínica</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => setSheetOpen(true)} className="bg-primary hover:bg-primary/90 gap-2">
+            <Button onClick={() => setSheetOpen(true)} variant="premium">
               <Plus className="h-4 w-4" /> Novo Pagamento
             </Button>
-            <Button variant="outline" className="gap-2"><Upload className="h-4 w-4" /> Importar</Button>
-            <Button variant="outline" className="gap-2"><Download className="h-4 w-4" /> Exportar</Button>
+            <Button variant="secondary"><Upload className="h-4 w-4" /> Importar</Button>
+            <Button variant="secondary"><Download className="h-4 w-4" /> Exportar</Button>
           </div>
         </header>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-          <KpiCard
+        {/* KPI Mosaic */}
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
+          <KpiLight
+            className="md:col-span-2"
             label="Pago no período"
             value={formatBRL(data.kpis.paidInPeriod.current)}
-            icon={BarChart3}
+            delta={data.kpis.paidInPeriod.deltaPct}
+            footer="vs período anterior"
             tone="success"
-            deltaPct={data.kpis.paidInPeriod.deltaPct}
-            footer={<span className="text-muted-foreground">vs período anterior</span>}
           />
-          <KpiCard
+          <KpiLight
+            className="md:col-span-2"
             label="A pagar"
             value={formatBRL(data.kpis.toPay.total)}
-            icon={Clock}
-            tone="violet"
-            footer={
-              <span className="inline-flex items-center px-2 py-1 rounded-full bg-violet-soft text-violet font-medium">
-                {data.kpis.toPay.count} pagamentos
-              </span>
-            }
+            footer={`${data.kpis.toPay.count} pagamentos`}
+            tone="coral"
           />
-          <KpiCard
+          <KpiLight
+            className="md:col-span-2"
             label="Em atraso"
             value={formatBRL(data.kpis.overdue.current)}
-            icon={AlertCircle}
+            delta={data.kpis.overdue.deltaPct}
+            footer="vs mês anterior"
             tone="danger"
-            deltaPct={data.kpis.overdue.deltaPct}
-            footer={<span className="text-muted-foreground">vs mês anterior</span>}
           />
-          <KpiCard
-            label="Total previsto"
+          <KpiDark
+            className="md:col-span-6"
+            label="Total previsto no período"
             value={formatBRL(data.kpis.forecastTotal)}
-            icon={CalendarDays}
-            tone="warning"
-            footer={<span className="text-muted-foreground">Este período</span>}
+            hint="Soma de pagamentos pendentes, atrasados e já pagos no intervalo selecionado"
           />
         </div>
 
         {/* Main grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
           {/* Table card */}
-          <section className="surface-card p-5 space-y-4">
-            {/* Search + filters */}
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <section className="surface-card p-8 space-y-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative flex-1 min-w-[240px] max-w-md">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar despesa..."
-                  className="pl-9"
+                  className="pl-11"
                   value={qLocal}
                   onChange={(e) => setQLocal(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") setSearch({ q: qLocal || undefined, page: 1 }); }}
                   onBlur={() => setSearch({ q: qLocal || undefined, page: 1 })}
                 />
               </div>
+              <Button variant="secondary"><Filter className="h-4 w-4" /> Filtros</Button>
             </div>
 
-            <div className="flex flex-wrap items-end gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
               <FilterField label="Período">
                 <DateRangePicker
                   from={search.from}
                   to={search.to}
                   onChange={(r) => setSearch({ from: r.from, to: r.to, page: 1 })}
-                  className="h-10 px-3"
+                  className="h-11 px-4 rounded-[14px] border-[#ECECEC] bg-white"
                 />
               </FilterField>
               <FilterField label="Categoria">
@@ -270,15 +263,14 @@ function PagamentosPage() {
                   options={[{ value: "all", label: "Todos" }, ...Object.entries(METHODS).map(([k, v]) => ({ value: k, label: v.label }))]}
                 />
               </FilterField>
-              <Button variant="outline" className="h-10 gap-2"><Filter className="h-4 w-4" /> Mais filtros</Button>
             </div>
 
             {/* Table */}
-            <div className="overflow-x-auto -mx-1">
+            <div className="overflow-x-auto -mx-2">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs text-muted-foreground border-b">
-                    <th className="py-3 px-3 w-8">
+                  <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <th className="py-3 px-3 w-8 font-medium">
                       <Checkbox
                         checked={rows.length > 0 && rows.every(r => selected.has(r.id))}
                         onCheckedChange={(c) => {
@@ -289,26 +281,27 @@ function PagamentosPage() {
                         }}
                       />
                     </th>
-                    <th className="py-3 pr-4">Vencimento</th>
-                    <th className="py-3 pr-4">Fornecedor</th>
-                    <th className="py-3 pr-4">Categoria</th>
-                    <th className="py-3 pr-4">Conta</th>
-                    <th className="py-3 pr-4">Valor</th>
-                    <th className="py-3 pr-4">Status</th>
-                    <th className="py-3 pr-4">Método</th>
-                    <th className="py-3 pr-4">Ações</th>
+                    <th className="py-3 pr-4 font-medium">Vencimento</th>
+                    <th className="py-3 pr-4 font-medium">Fornecedor</th>
+                    <th className="py-3 pr-4 font-medium">Categoria</th>
+                    <th className="py-3 pr-4 font-medium">Conta</th>
+                    <th className="py-3 pr-4 font-medium">Valor</th>
+                    <th className="py-3 pr-4 font-medium">Status</th>
+                    <th className="py-3 pr-4 font-medium">Método</th>
+                    <th className="py-3 pr-4 font-medium text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 && (
-                    <tr><td colSpan={9} className="py-12 text-center text-muted-foreground">Nenhum pagamento encontrado.</td></tr>
+                    <tr><td colSpan={9} className="py-16 text-center text-muted-foreground">Nenhum pagamento encontrado.</td></tr>
                   )}
                   {rows.map((t) => {
                     const status = t.effective_status;
                     const method = METHODS[t.payment_method ?? ""] ?? { label: t.payment_method ?? "—", color: "text-foreground" };
+                    const supplierInitials = (t.supplier_name ?? "??").split(" ").map(s => s[0]).slice(0, 2).join("").toUpperCase();
                     return (
-                      <tr key={t.id} className="border-b last:border-0 hover:bg-muted/30">
-                        <td className="py-3 px-3">
+                      <tr key={t.id} className="border-t border-[#F5F5F5] hover:bg-[#FAFAFA] transition-colors h-[72px]">
+                        <td className="px-3">
                           <Checkbox
                             checked={selected.has(t.id)}
                             onCheckedChange={(c) => {
@@ -318,26 +311,31 @@ function PagamentosPage() {
                             }}
                           />
                         </td>
-                        <td className={cn("py-3 pr-4 tabular-nums", status === "overdue" && "text-danger font-medium")}>{fmtDate(t.due_date)}</td>
-                        <td className="py-3 pr-4">
-                          <div className="font-medium">{t.supplier_name ?? "—"}</div>
-                          <div className="text-xs text-muted-foreground">{t.description}</div>
+                        <td className={cn("pr-4 tabular-nums text-foreground", status === "overdue" && "text-danger font-medium")}>{fmtDate(t.due_date)}</td>
+                        <td className="pr-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="h-9 w-9 shrink-0 rounded-full bg-[#F2F2F4] text-foreground grid place-items-center text-[11px] font-semibold">
+                              {supplierInitials}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-medium truncate">{t.supplier_name ?? "—"}</div>
+                              <div className="text-xs text-muted-foreground truncate">{t.description}</div>
+                            </div>
+                          </div>
                         </td>
-                        <td className="py-3 pr-4">
-                          {t.category_name && <Badge variant="secondary" className="font-normal">{t.category_name}</Badge>}
+                        <td className="pr-4">
+                          {t.category_name && <Badge variant="default">{t.category_name}</Badge>}
                         </td>
-                        <td className="py-3 pr-4 text-muted-foreground">{t.account_name ?? "—"}</td>
-                        <td className="py-3 pr-4 tabular-nums font-medium">{formatBRL(t.amount)}</td>
-                        <td className="py-3 pr-4">
-                          <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium", STATUS_BADGE[status])}>
-                            {STATUS_LABEL[status]}
-                          </span>
+                        <td className="pr-4 text-muted-foreground">{t.account_name ?? "—"}</td>
+                        <td className="pr-4 tabular-nums font-semibold">{formatBRL(t.amount)}</td>
+                        <td className="pr-4">
+                          <Badge variant={STATUS_BADGE[status]}>{STATUS_LABEL[status]}</Badge>
                         </td>
-                        <td className={cn("py-3 pr-4", method.color)}>{method.label}</td>
-                        <td className="py-3 pr-4">
+                        <td className={cn("pr-4 font-medium", method.color)}>{t.payment_method ? method.label : "—"}</td>
+                        <td className="pr-4 text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <button className="h-8 w-8 grid place-items-center rounded hover:bg-muted">
+                              <button className="h-9 w-9 grid place-items-center rounded-full hover:bg-[#F2F2F4] text-muted-foreground">
                                 <MoreHorizontal className="h-4 w-4" />
                               </button>
                             </DropdownMenuTrigger>
@@ -360,7 +358,7 @@ function PagamentosPage() {
               </table>
             </div>
 
-            <div className="flex items-center justify-between pt-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
               <p className="text-xs text-muted-foreground">
                 Mostrando {rows.length === 0 ? 0 : (page - 1) * PER_PAGE + 1} a {(page - 1) * PER_PAGE + rows.length} de {data.transactions.length} resultados
               </p>
@@ -385,7 +383,7 @@ function PagamentosPage() {
           </section>
 
           {/* Right column */}
-          <aside className="space-y-5">
+          <aside className="space-y-6">
             <CategoryBreakdownCard items={data.categoryBreakdown} />
             <UpcomingCard items={data.upcomingDueDates} />
             <RecurringCard items={data.recurringPayments} />
@@ -404,10 +402,73 @@ function PagamentosPage() {
   );
 }
 
+/* ---------------- KPI cards ---------------- */
+
+function KpiLight({
+  label, value, delta, footer, tone, className,
+}: {
+  label: string; value: string; delta?: number; footer?: string;
+  tone: "success" | "danger" | "coral"; className?: string;
+}) {
+  const positive = delta !== undefined && delta >= 0;
+  const deltaCls =
+    positive ? "bg-success-soft text-success" : "bg-danger-soft text-danger";
+  return (
+    <div className={cn("surface-card p-7 flex flex-col gap-6", className)}>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
+        <span
+          className={cn(
+            "h-9 w-9 grid place-items-center rounded-full shrink-0",
+            tone === "success" && "bg-success-soft text-success",
+            tone === "danger" && "bg-danger-soft text-danger",
+            tone === "coral" && "bg-coral-soft text-coral",
+          )}
+        >
+          {tone === "success" ? <ArrowDownRight className="h-4 w-4" /> :
+            tone === "danger" ? <ArrowUpRight className="h-4 w-4" /> :
+            <CalendarDays className="h-4 w-4" />}
+        </span>
+      </div>
+      <p className="text-[34px] leading-none font-bold tracking-tight tabular-nums">{value}</p>
+      <div className="flex items-center justify-between text-xs">
+        {delta !== undefined ? (
+          <span className={cn("inline-flex items-center gap-1 px-2 py-1 rounded-full font-medium", deltaCls)}>
+            {positive ? "↑" : "↓"} {Math.abs(delta).toFixed(0)}%
+          </span>
+        ) : <span />}
+        {footer && <span className="text-muted-foreground">{footer}</span>}
+      </div>
+    </div>
+  );
+}
+
+function KpiDark({
+  label, value, hint, className,
+}: { label: string; value: string; hint?: string; className?: string }) {
+  return (
+    <div className={cn("card-dark p-8 flex flex-col md:flex-row md:items-end md:justify-between gap-6", className)}>
+      <div>
+        <p className="text-[13px] font-medium text-white/60">{label}</p>
+        <p className="text-[38px] leading-none font-bold tracking-tight tabular-nums mt-3">{value}</p>
+        {hint && <p className="text-xs text-white/50 mt-3 max-w-md">{hint}</p>}
+      </div>
+      <button
+        type="button"
+        className="self-start md:self-end inline-flex items-center gap-2 rounded-[14px] bg-white/10 hover:bg-white/15 transition-colors text-white px-4 py-2.5 text-sm font-medium"
+      >
+        Ver detalhes <ArrowUpRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+/* ---------------- Filters ---------------- */
+
 function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <p className="text-xs text-muted-foreground">{label}</p>
+    <div className="space-y-1.5 min-w-0">
+      <p className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">{label}</p>
       {children}
     </div>
   );
@@ -418,7 +479,7 @@ function FilterSelect({
 }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; placeholder?: string }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-10 w-[140px]"><SelectValue placeholder={placeholder} /></SelectTrigger>
+      <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
       <SelectContent>
         {options.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
       </SelectContent>
@@ -426,28 +487,29 @@ function FilterSelect({
   );
 }
 
+/* ---------------- Sidebar cards ---------------- */
+
 function CategoryBreakdownCard({ items }: { items: PayablesOverview["categoryBreakdown"] }) {
-  const data = items.slice(0, 8);
+  const data = items.slice(0, 7);
   return (
-    <div className="surface-card p-5">
-      <h3 className="font-medium mb-4">Gastos por Categoria</h3>
-      <div className="flex flex-col sm:flex-row items-center gap-4">
-        <div className="h-28 w-28 shrink-0">
+    <div className="surface-card p-6">
+      <h3 className="font-semibold text-base mb-5">Gastos por Categoria</h3>
+      <div className="flex items-center gap-5">
+        <div className="h-[120px] w-[120px] shrink-0">
           <ResponsiveContainer>
             <PieChart>
-              <Pie data={data} dataKey="total" innerRadius={36} outerRadius={54} stroke="none">
+              <Pie data={data} dataKey="total" innerRadius={42} outerRadius={58} paddingAngle={2} stroke="none">
                 {data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <ul className="flex-1 min-w-0 w-full space-y-1.5 text-[13px]">
+        <ul className="flex-1 min-w-0 space-y-2 text-[13px]">
           {data.map((c, i) => (
             <li key={c.id} className="flex items-center gap-2">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-              <span className="min-w-0 flex-1 truncate">{c.name}</span>
-              <span className="w-9 text-right text-muted-foreground tabular-nums shrink-0">{c.pct.toFixed(0)}%</span>
-              <span className="min-w-[88px] text-right tabular-nums font-medium whitespace-nowrap shrink-0">{formatBRL(c.total)}</span>
+              <span className="min-w-0 flex-1 truncate text-foreground">{c.name}</span>
+              <span className="text-muted-foreground tabular-nums shrink-0 w-9 text-right">{c.pct.toFixed(0)}%</span>
             </li>
           ))}
         </ul>
@@ -458,44 +520,44 @@ function CategoryBreakdownCard({ items }: { items: PayablesOverview["categoryBre
 
 function UpcomingCard({ items }: { items: PayablesOverview["upcomingDueDates"] }) {
   return (
-    <div className="surface-card p-5">
-      <h3 className="font-medium mb-3">Próximos vencimentos</h3>
-      <ul className="space-y-3">
+    <div className="surface-card p-6">
+      <h3 className="font-semibold text-base mb-4">Próximos vencimentos</h3>
+      <ul className="space-y-4">
         {items.length === 0 && <li className="text-sm text-muted-foreground">Nenhum vencimento próximo.</li>}
         {items.map(i => (
-          <li key={i.id} className="flex items-center justify-between text-sm">
+          <li key={i.id} className="flex items-center justify-between text-sm gap-3">
             <div className="min-w-0">
               <p className="font-medium truncate">{i.description}</p>
-              <p className="text-xs text-muted-foreground">Vence em {i.days_until} dia{i.days_until === 1 ? "" : "s"}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Vence em {i.days_until} dia{i.days_until === 1 ? "" : "s"}</p>
             </div>
-            <span className="tabular-nums font-medium">{formatBRL(i.amount)}</span>
+            <span className="tabular-nums font-semibold shrink-0">{formatBRL(i.amount)}</span>
           </li>
         ))}
       </ul>
-      <Button variant="ghost" size="sm" className="w-full mt-3">Ver todos</Button>
+      <Button variant="secondary" className="w-full mt-5">Ver todos</Button>
     </div>
   );
 }
 
 function RecurringCard({ items }: { items: PayablesOverview["recurringPayments"] }) {
   return (
-    <div className="surface-card p-5">
-      <h3 className="font-medium mb-3">Pagamentos recorrentes</h3>
-      <ul className="space-y-3">
+    <div className="surface-card p-6">
+      <h3 className="font-semibold text-base mb-4">Pagamentos recorrentes</h3>
+      <ul className="space-y-4">
         {items.length === 0 && <li className="text-sm text-muted-foreground">Nenhum pagamento recorrente.</li>}
         {items.map(i => (
-          <li key={i.id} className="flex items-center justify-between text-sm">
+          <li key={i.id} className="flex items-center justify-between text-sm gap-3">
             <div className="min-w-0">
               <p className="font-medium truncate">{i.description}</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 {i.recurrence_type === "weekly" ? "Semanal" : i.recurrence_type === "yearly" ? "Anual" : `Todo dia ${i.day_of_month ?? "—"}`}
               </p>
             </div>
-            <span className="tabular-nums font-medium">{formatBRL(i.amount)}</span>
+            <span className="tabular-nums font-semibold shrink-0">{formatBRL(i.amount)}</span>
           </li>
         ))}
       </ul>
-      <Button variant="ghost" size="sm" className="w-full mt-3">Ver todos</Button>
+      <Button variant="secondary" className="w-full mt-5">Ver todos</Button>
     </div>
   );
 }
