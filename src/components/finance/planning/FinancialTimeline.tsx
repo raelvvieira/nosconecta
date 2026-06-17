@@ -2,11 +2,11 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
-import { TIMELINE_EVENTS } from "./planning-mock";
+import type { TimelineEvent } from "@/lib/finance/planning.functions";
 
 const MONTHS_PT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-export function FinancialTimeline() {
+export function FinancialTimeline({ events }: { events: TimelineEvent[] }) {
   return (
     <div className="surface-card p-5 flex flex-col">
       <div className="flex items-center justify-between mb-4">
@@ -14,11 +14,11 @@ export function FinancialTimeline() {
       </div>
 
       <ul className="space-y-3 flex-1">
-        {TIMELINE_EVENTS.length === 0 && (
+        {events.length === 0 && (
           <li className="text-sm text-muted-foreground">Nenhum evento financeiro previsto.</li>
         )}
-        {TIMELINE_EVENTS.map((e) => {
-          const d = new Date(e.date);
+        {events.map((e) => {
+          const d = new Date(e.date + "T00:00:00");
           const isIn = e.amount > 0;
           return (
             <li key={e.id} className="flex items-center gap-4 p-2 -mx-2 rounded-xl hover:bg-muted/40 transition-colors">
