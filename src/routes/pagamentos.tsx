@@ -431,23 +431,23 @@ function CategoryBreakdownCard({ items }: { items: PayablesOverview["categoryBre
   return (
     <div className="surface-card p-5">
       <h3 className="font-medium mb-4">Gastos por Categoria</h3>
-      <div className="flex items-center gap-4">
-        <div className="h-32 w-32 shrink-0">
+      <div className="flex flex-col sm:flex-row items-center gap-4">
+        <div className="h-28 w-28 shrink-0">
           <ResponsiveContainer>
             <PieChart>
-              <Pie data={data} dataKey="total" innerRadius={40} outerRadius={60} stroke="none">
+              <Pie data={data} dataKey="total" innerRadius={36} outerRadius={54} stroke="none">
                 {data.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <ul className="flex-1 space-y-1.5 text-sm">
+        <ul className="flex-1 min-w-0 w-full space-y-1.5 text-[13px]">
           {data.map((c, i) => (
             <li key={c.id} className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-              <span className="flex-1 truncate">{c.name}</span>
-              <span className="text-muted-foreground tabular-nums">{c.pct.toFixed(0)}%</span>
-              <span className="tabular-nums font-medium">{formatBRL(c.total)}</span>
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+              <span className="min-w-0 flex-1 truncate">{c.name}</span>
+              <span className="w-9 text-right text-muted-foreground tabular-nums shrink-0">{c.pct.toFixed(0)}%</span>
+              <span className="min-w-[88px] text-right tabular-nums font-medium whitespace-nowrap shrink-0">{formatBRL(c.total)}</span>
             </li>
           ))}
         </ul>
