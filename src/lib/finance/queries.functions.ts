@@ -144,16 +144,18 @@ async function sumAmount(
 
 export const getFinanceOverview = createServerFn({ method: "GET" })
   .inputValidator(
-    (input: { companyId?: string; period?: Period; granularity?: Granularity }) => ({
+    (input: { companyId?: string; period?: Period; granularity?: Granularity; from?: string; to?: string }) => ({
       companyId: input.companyId ?? "demo",
       period: input.period ?? "30d",
       granularity: input.granularity ?? "daily",
+      from: input.from,
+      to: input.to,
     }),
   )
   .handler(async ({ data }): Promise<OverviewData> => {
     const supabase = getServerSupabase();
-    const { companyId, period, granularity } = data;
-    const range = periodToRange(period);
+    const { companyId, period, granularity, from, to } = data;
+    const range = periodToRange(period, from, to);
     const prev = previousRange(range);
     const fromStr = toDateStr(range.from);
     const toStr = toDateStr(range.to);
