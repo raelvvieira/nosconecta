@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RecebimentosRouteImport } from './routes/recebimentos'
+import { Route as PlanejamentoRouteImport } from './routes/planejamento'
 import { Route as PagamentosRouteImport } from './routes/pagamentos'
 import { Route as IndexRouteImport } from './routes/index'
 
 const RecebimentosRoute = RecebimentosRouteImport.update({
   id: '/recebimentos',
   path: '/recebimentos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlanejamentoRoute = PlanejamentoRouteImport.update({
+  id: '/planejamento',
+  path: '/planejamento',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PagamentosRoute = PagamentosRouteImport.update({
@@ -32,30 +38,34 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/pagamentos': typeof PagamentosRoute
+  '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/pagamentos': typeof PagamentosRoute
+  '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/pagamentos': typeof PagamentosRoute
+  '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/pagamentos' | '/recebimentos'
+  fullPaths: '/' | '/pagamentos' | '/planejamento' | '/recebimentos'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/pagamentos' | '/recebimentos'
-  id: '__root__' | '/' | '/pagamentos' | '/recebimentos'
+  to: '/' | '/pagamentos' | '/planejamento' | '/recebimentos'
+  id: '__root__' | '/' | '/pagamentos' | '/planejamento' | '/recebimentos'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PagamentosRoute: typeof PagamentosRoute
+  PlanejamentoRoute: typeof PlanejamentoRoute
   RecebimentosRoute: typeof RecebimentosRoute
 }
 
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/recebimentos'
       fullPath: '/recebimentos'
       preLoaderRoute: typeof RecebimentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/planejamento': {
+      id: '/planejamento'
+      path: '/planejamento'
+      fullPath: '/planejamento'
+      preLoaderRoute: typeof PlanejamentoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pagamentos': {
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PagamentosRoute: PagamentosRoute,
+  PlanejamentoRoute: PlanejamentoRoute,
   RecebimentosRoute: RecebimentosRoute,
 }
 export const routeTree = rootRouteImport

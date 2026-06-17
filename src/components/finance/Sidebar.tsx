@@ -2,10 +2,8 @@ import {
   LayoutGrid,
   ArrowDownCircle,
   ArrowUpCircle,
-  Wallet,
+  TrendingUp,
   Percent,
-  GitMerge,
-  FileBarChart,
   Settings,
   Sun,
   LogOut,
@@ -17,12 +15,12 @@ const items = [
   { label: "Visão Geral", icon: LayoutGrid, to: "/" },
   { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" },
   { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" },
-  { label: "Fluxo de Caixa", icon: Wallet, to: "/fluxo-de-caixa" },
+  { label: "Planejamento", icon: TrendingUp, to: "/planejamento" },
   { label: "Comissões", icon: Percent, to: "/comissoes" },
-  { label: "Conciliação", icon: GitMerge, to: "/conciliacao" },
-  { label: "Relatórios", icon: FileBarChart, to: "/relatorios" },
   { label: "Configurações", icon: Settings, to: "/configuracoes" },
 ] as const;
+
+const REAL_ROUTES = new Set(["/", "/pagamentos", "/recebimentos", "/planejamento"]);
 
 export function Sidebar() {
   const { pathname } = useLocation();
@@ -42,7 +40,7 @@ export function Sidebar() {
         <ul className="space-y-0.5">
           {items.map((it) => {
             const active = pathname === it.to || (it.to !== "/" && pathname.startsWith(it.to));
-            const isReal = it.to === "/" || it.to === "/pagamentos" || it.to === "/recebimentos";
+            const isReal = REAL_ROUTES.has(it.to);
             const className = cn(
               "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors text-left",
               active
