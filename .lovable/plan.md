@@ -1,40 +1,53 @@
-## Página Financeiro > Recebimentos (frontend + mock)
+## Backend para a página Recebimentos
 
-Criar a rota `/recebimentos` reaproveitando o design system já existente (mesmas cores, cards, glassmorphism leve, tipografia, filtros, drawer e tabela das páginas Visão Geral e Pagamentos). Sem backend, sem migrations, sem chamadas a Supabase — apenas dados mockados em arquivo local.
+Conectar a página `/recebimentos` aos dados reais já existentes em `financial_transactions` (filtrando `type='receivable'`), espelhando o padrão de `payables.functions.ts`. Sem novas tabelas — a sugestão `treatment_financial_plans` fica como futuro escopo (não é necessário para a tela atual).
 
-### Arquivos novos
+### Backend (novo)
 
-- `src/routes/recebimentos.tsx` — rota com `validateSearch` (status, search, period, from, to) usando o mesmo padrão de `pagamentos.tsx`. Estado totalmente local + URL params; nenhum `useServerFn`/`useSuspenseQuery`.
-- `src/lib/finance/receivables-mock.ts` — tipos + mocks:
-  - `Receivable` (id, patientName, patientAvatar, procedure, professional, amount, dueDate, receivedDate?, status: `received|pending|overdue|canceled`, paymentMethod, installmentNumber?, installmentTotal?, isRecurring, recurrenceType?, notes?)
-  - Arrays mock: ~24 receivables, séries do gráfico (12 meses com recebido/previsto/atrasado/meta), top procedimentos (donut), top dentistas, inadimplentes, recorrentes.
-- `src/components/finance/receivables/`
-  - `ReceivablesHeader.tsx` — título, subtítulo, 3 botões (Novo Recebimento, Registrar Recebimento, Exportar).
-  - `ReceivableKpis.tsx` — 4 KPI cards reusando `KpiCard` existente (Recebido no período, A receber, Em atraso, Ticket médio) com os badges/legendas pedidos.
-  - `ReceivablesEvolutionChart.tsx` — gráfico de colunas agrupadas (Recharts) + linha de meta, tooltip completo, seletor Diário/Semanal/Mensal. Reusa tokens do `CashFlowChart`.
-  - `TopProceduresCard.tsx` — donut + lista com % e valor.
-  - `TopDentistsCard.tsx` — ranking com avatar + valor.
-  - `DefaultersCard.tsx` — lista de inadimplentes (nome + valor devido).
-  - `RecurringReceivablesCard.tsx` — lista (nome, periodicidade, valor/mês).
-  - `ReceivablesFilters.tsx` — busca + selects (Período, Paciente, Profissional, Procedimento, Status, Forma de pagamento) + botão "Mais filtros" (apenas visual). Reutiliza `DateRangePicker`.
-  - `ReceivablesTabs.tsx` — abas Todos/Recebidos/Pendentes/Atrasados/Parcelados/Recorrentes (estilo CRM, mesmo visual do `Tabs` shadcn já usado).
-  - `ReceivablesTable.tsx` — tabela com checkbox, paciente (avatar+nome), procedimento, profissional, valor, vencimento, badge de status, forma de pagamento, menu de ações (Editar, Registrar Recebimento, Duplicar, Cancelar, Excluir) + paginação visual.
-  - `NewReceivableSheet.tsx` — drawer lateral direito com seções Paciente / Financeiro / Datas / Parcelamento (toggle + entrada/qtd/valor/resumo) / Recorrência (toggle + semanal/mensal/anual) / Observações. Rodapé Cancelar + Salvar. Mesmo padrão visual de `NewPaymentSheet`.
-  - `RegisterReceiptDialog.tsx` — modal rápido (Valor, Conta Financeira, Forma de Pagamento, Data de Recebimento, Observação) + botões Cancelar/Confirmar.
+`src/lib/finance/receivables.functions.ts` com server functions:
 
-### Atualizações
+- **`getReceivablesOverview`** — input: `companyId`, `from`, `to`, `patient`, `professional`, `category`, `method`, `status` (`all|received|pending|overdue|installments|recurring`), `q`. Retorna em um único objeto:
+  - `kpis`: `receivedInPeriod` (variação vs período anterior), `toReceive` (total + nº de parcelas futuras pendentes), `overdue` (total + nº de pacientes inadimplentes únicos), `averageTicket` (média do `amount` de receivables pagos no período).
+  - `evolution`: série mensal dos últimos 12 meses com `received`, `expected` (pending no mês), `overdue` (vencidos no mês), `goal` (meta fixa baseada em média + 10% — placeholder até existir tabela de metas).
+  - `topProcedures`: usa `finance_revenue_by_category` (categorias income) → `{ id, name, total, pct }`.
+  - `topDentists`: usa `finance_revenue_by_professional` → `{ id, name, total }`.
+  - `defaulters`: agrupa `status='overdue'` por `patient_id`, join em `patients`, ordena por valor desc, limit 5.
+  - `recurringReceivables`: `is_recurring=true` AND `type='receivable'`, limit 8.
+  - `transactions`: lista filtrada (até 500), com joins em `patients`, `professionals`, `financial_categories`, `financial_accounts`. Cada linha já vem com `effective_status` (`pending` + `due_date<hoje` → `overdue`).
+  - `accounts`, `patients`, `professionals`, `categories`: listas para popular os filtros e o drawer.
 
-- `src/components/finance/Sidebar.tsx` — adicionar item "Recebimentos" apontando para `/recebimentos` (entre Visão Geral e Pagamentos), seguindo o mesmo highlight ativo.
-- Nenhuma alteração em arquivos de backend, migrations, `queries.functions.ts`, `payables.functions.ts` ou supabase types.
+- **`createReceivable`** — input: `patient_id`, `procedure` (category_id), `professional_id`, `amount`, `due_date`, `account_id`, `payment_method`, `notes`, `markReceivedNow`, `installments` (1..60), `isRecurring`, `recurrenceType` (`weekly|monthly|yearly`). Mesma lógica de `createPayable` adaptada para `type='receivable'`, gerando N parcelas com `parent_transaction_id` quando `installments>1`, ou marcando `is_recurring/recurrence_type` quando recorrente. Quando `markReceivedNow=true`, cria com `status='paid'` e `paid_date=hoje`.
 
-### Comportamento
+- **`markReceivableReceived`** — input: `id`, `paid_date?`. `UPDATE` → `status='paid', paid_date`.
 
-- Filtros, abas e busca operam em memória sobre o mock. Submits dos drawer/modal só fecham e mostram toast de sucesso (sem persistência).
-- Mantém glassmorphism leve, cards arredondados, badges de status (verde/amarelo/vermelho/cinza) iguais aos já usados em Pagamentos.
-- Layout idêntico à referência: grid principal (KPIs + gráfico + filtros + tabela) à esquerda e coluna direita com os 4 cards (Top procedimentos, Top dentistas, Inadimplentes, Recorrentes).
+- **`deleteReceivable`** — input: `id`. Hard delete.
 
-### Fora do escopo
+- **`cancelReceivable`** — input: `id`. `UPDATE` → `status='cancelled'`.
 
-- Backend, persistência, RLS, edge functions.
-- Exportação real (botão é placeholder com toast).
-- Edição inline na tabela.
+### Frontend
+
+`src/routes/recebimentos.tsx`:
+- Trocar mocks por `useSuspenseQuery` + `useServerFn(getReceivablesOverview)`, no padrão do `pagamentos.tsx` (incluindo `loader` com `ensureQueryData` + `queryOptions`).
+- `validateSearch`: já existe; manter `from`, `to`, `patient`, `professional`, `procedure` (mapeia para `category_id`), `status`, `method`, `q`, `page`.
+- KPIs, gráfico (12 meses, granularidade visual mantida — selector continua client-side só para o label, dado mensal por padrão), cards laterais (Top procedimentos, Top dentistas, Inadimplentes, Recorrentes) e tabela passam a usar os dados do server.
+- Tabela: paciente (nome do join), procedimento (category_name ou description), profissional (join), valor, vencimento, badge de status (usar `effective_status`), forma de pagamento, menu de ações conectado às mutations (`markReceivableReceived`, `cancelReceivable`, `deleteReceivable`) com `toast` + `invalidateQueries(["receivables-overview"])`.
+- Botão "Registrar Recebimento" no menu de ações abre `RegisterReceiptDialog` já vinculado a uma `id` selecionada; ao confirmar chama `markReceivableReceived`.
+
+`src/components/finance/receivables/NewReceivableSheet.tsx`:
+- Receber `patients`, `professionals`, `categories`, `accounts` via props.
+- Trocar inputs livres por `Select` populados com as listas.
+- Submit chama `useServerFn(createReceivable)`; toast de sucesso e invalida cache.
+
+`src/components/finance/receivables/RegisterReceiptDialog.tsx`:
+- Aceitar prop `transactionId?: string`; se presente, ao confirmar chama `markReceivableReceived({ data: { id, paid_date } })`.
+- Sem id (uso "registro rápido" do header) → mantém modal informativo com toast (sem persistência), já que não há transação alvo.
+
+`src/lib/finance/receivables-mock.ts` → **deletar** depois que tudo estiver migrado.
+
+### Fora do escopo (citado pela IA, mas não pedido agora)
+- Tabela `treatment_financial_plans` e tabela `procedures` própria (hoje "procedimento" = category income; descrição livre na transação).
+- Job automático de geração de recorrências futuras (cron).
+- Endpoint REST separado (`GET /finance/receivables/chart`) — a função única `getReceivablesOverview` já entrega tudo em uma chamada, igual ao padrão do payables/overview.
+
+### Migration?
+Não é necessária. Toda a estrutura (`financial_transactions` com `patient_id`, `professional_id`, `category_id`, `account_id`, `payment_method`, `installment_*`, `is_recurring`, `recurrence_type`, `parent_transaction_id`) já existe e está populada com dados de demonstração (220 receivables no `demo`).
