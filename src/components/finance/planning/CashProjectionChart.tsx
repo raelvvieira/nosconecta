@@ -1,12 +1,12 @@
 import {
-  ComposedChart, Line, Area, XAxis, YAxis, Tooltip, CartesianGrid,
+  ComposedChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   ReferenceArea, ReferenceLine, ResponsiveContainer,
 } from "recharts";
 import { useState } from "react";
 import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
-import { buildProjection, type RangeDays } from "./planning-mock";
+import type { ProjectionPoint, RangeDays } from "@/lib/finance/planning.functions";
 
 const RANGES: { label: string; value: RangeDays }[] = [
   { label: "30 dias", value: 30 },
@@ -37,13 +37,14 @@ function ChartTooltip({ active, payload, label }: any) {
 }
 
 export function CashProjectionChart({
+  data,
   range,
   onRangeChange,
 }: {
+  data: ProjectionPoint[];
   range: RangeDays;
   onRangeChange: (r: RangeDays) => void;
 }) {
-  const data = buildProjection(range);
   const [open, setOpen] = useState(false);
 
   return (

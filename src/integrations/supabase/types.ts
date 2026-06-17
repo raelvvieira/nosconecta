@@ -71,6 +71,90 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_goals: {
+        Row: {
+          company_id: string
+          created_at: string
+          end_date: string | null
+          goal_type: Database["public"]["Enums"]["goal_type"]
+          id: string
+          name: string
+          period: Database["public"]["Enums"]["goal_period"]
+          start_date: string
+          target_amount: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          end_date?: string | null
+          goal_type: Database["public"]["Enums"]["goal_type"]
+          id?: string
+          name: string
+          period?: Database["public"]["Enums"]["goal_period"]
+          start_date?: string
+          target_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          end_date?: string | null
+          goal_type?: Database["public"]["Enums"]["goal_type"]
+          id?: string
+          name?: string
+          period?: Database["public"]["Enums"]["goal_period"]
+          start_date?: string
+          target_amount?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      financial_scenarios: {
+        Row: {
+          company_id: string
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          monthly_cost: number
+          monthly_revenue: number
+          name: string
+          one_time_cost: number
+          scenario_type: Database["public"]["Enums"]["scenario_type"]
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          monthly_cost?: number
+          monthly_revenue?: number
+          name: string
+          one_time_cost?: number
+          scenario_type: Database["public"]["Enums"]["scenario_type"]
+          start_date?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          monthly_cost?: number
+          monthly_revenue?: number
+          name?: string
+          one_time_cost?: number
+          scenario_type?: Database["public"]["Enums"]["scenario_type"]
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       financial_transactions: {
         Row: {
           account_id: string | null
@@ -316,6 +400,14 @@ export type Database = {
       account_type: "bank" | "cash" | "pix" | "credit"
       category_type: "income" | "expense"
       entry_type: "debit" | "credit"
+      goal_period: "monthly" | "quarterly" | "yearly" | "custom"
+      goal_type: "revenue" | "profit" | "cash" | "receivables"
+      scenario_type:
+        | "hire_employee"
+        | "equipment_purchase"
+        | "new_professional"
+        | "marketing_investment"
+        | "custom"
       transaction_status: "pending" | "paid" | "overdue" | "cancelled"
       transaction_type: "receivable" | "payable"
     }
@@ -448,6 +540,15 @@ export const Constants = {
       account_type: ["bank", "cash", "pix", "credit"],
       category_type: ["income", "expense"],
       entry_type: ["debit", "credit"],
+      goal_period: ["monthly", "quarterly", "yearly", "custom"],
+      goal_type: ["revenue", "profit", "cash", "receivables"],
+      scenario_type: [
+        "hire_employee",
+        "equipment_purchase",
+        "new_professional",
+        "marketing_investment",
+        "custom",
+      ],
       transaction_status: ["pending", "paid", "overdue", "cancelled"],
       transaction_type: ["receivable", "payable"],
     },

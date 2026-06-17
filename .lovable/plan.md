@@ -1,93 +1,88 @@
-# Planejamento Financeiro — Plano
+# Planejamento — Ajustes UX + Backend
 
-## 1. Correção do card "Gastos por Categoria" (`src/routes/pagamentos.tsx`)
+## Parte 1 — Ajustes de UX (frontend)
 
-O problema atual: dentro do card, o donut ocupa 128px e a lista flexível recebe largura reduzida, fazendo os valores (`R$ 12.000,00`) serem cortados quando o card está em sidebar estreita.
+### 1.1 Excluir cenário (`ScenarioSimulator.tsx`)
+- Botão `Trash2` ghost no hover de cada card, canto superior direito.
+- `AlertDialog` shadcn confirmando ("Excluir cenário?" + nome).
+- Estado local da lista (inicializado com dados do backend). Após excluir, chama mutation `deleteScenario` e invalida query.
+- Empty state: "Nenhum cenário simulado" + CTA "Criar cenário".
 
-Correções:
-- Reduzir donut para `h-28 w-28` e usar `gap-3`.
-- Aplicar `min-w-0` na `ul` e remover `flex-1` da `span` do nome (usar `min-w-0 truncate` apenas no nome).
-- Alinhar pct e valor em colunas fixas (`w-10 text-right`, `min-w-[88px] text-right`) com `tabular-nums` e `whitespace-nowrap`.
-- Reduzir `text-sm` da lista para `text-[13px]` para caber confortavelmente.
-- Em telas muito estreitas, empilhar (`flex-col sm:flex-row`).
+### 1.2 Fechar insights um a um (`SmartInsightsCard.tsx`)
+- Botão `X` ghost em cada item, visível no hover.
+- Estado local `dismissedIds`. Transição fade.
+- Rodapé: "X de Y insights" + link "Restaurar" se houver dispensados.
 
-## 2. Sidebar (`src/components/finance/Sidebar.tsx`)
+### 1.3 Gerar mais insights
+- Botão "Gerar mais insights" (`Sparkles`, `outline`) no header do card.
+- Chama `generateMoreInsights` no backend → retorna 2 novos itens.
+- Skeleton enquanto carrega; toast `sonner` "2 novos insights gerados".
+- Empty state: "Nenhum insight ativo" + botão "Gerar insights".
 
-- Remover itens: **Fluxo de Caixa**, **Conciliação**, **Relatórios**.
-- Adicionar item **Planejamento** (ícone `LineChart` ou `TrendingUp`) apontando para `/planejamento`.
-- Atualizar `isReal` para incluir `/planejamento`.
-- Manter Comissões e Configurações como placeholders desabilitados.
+---
 
-Nova ordem: Visão Geral · Recebimentos · Pagamentos · Planejamento · Comissões · Configurações.
+## Parte 2 — Backend do Planejamento
 
-## 3. Nova página `/planejamento` (apenas frontend, dados mockados)
+Reutiliza `financial_transactions` e `financial_accounts`. Sem duplicação de dados.
 
-Arquivo: `src/routes/planejamento.tsx` + componentes em `src/components/finance/planning/`.
+### 2.1 Novas tabelas (migration)
 
-### Estrutura (mesmo design system: `surface-card`, `PageHeader`, glassmorphism leve)
+**`financial_goals`** — metas financeiras da clínica.
+- Campos: `id`, `company_id`, `name`, `goal_type` (enum: `revenue|profit|cash|receivables`), `target_amount numeric`, `period` (enum: `monthly|quarterly|yearly|custom`), `start_date`, `end_date`, `created_at`, `updated_at`.
+- RLS pública leitura/escrita (mesmo padrão das outras tabelas financeiras atuais do projeto).
+- GRANT padrão + trigger `updated_at`.
 
-**Header** — `PageHeader` reutilizado:
-- Título: "Planejamento Financeiro"
-- Subtítulo: "Projeções, cenários e previsões para sua clínica"
-- Ações: `Novo Cenário` (primary), `Exportar`, `Compartilhar` (outline)
+**`financial_scenarios`** — cenários salvos pelo usuário.
+- Campos: `id`, `company_id`, `name`, `scenario_type` (enum: `hire_employee|equipment_purchase|new_professional|marketing_investment|custom`), `description`, `monthly_cost numeric`, `monthly_revenue numeric`, `one_time_cost numeric`, `start_date`, `end_date`, `created_at`, `updated_at`.
+- Mesmas regras de RLS + GRANT + trigger.
 
-**Linha 1 — 4 KPIs** (`KpiCard` reaproveitado):
-- Saldo Atual — R$ 28.800 — ↑ 12% vs mês anterior
-- Saldo Projetado 30 Dias — R$ 42.300 — ↑ 18% projeção
-- Saldo Projetado 90 Dias — R$ 71.900 — ↑ 34% projeção
-- Fôlego Financeiro — 64 dias — badge "Acima do recomendado" + tooltip explicativo
+### 2.2 Camada de serviço — `src/lib/finance/planning.functions.ts`
 
-**Linha 2 — Grid 2 colunas (8/4)**
+Server functions com `createServerFn` (público, sem auth, alinhado ao padrão atual das demais funções financeiras do projeto).
 
-- **Projeção de Saldo de Caixa** (`ComposedChart` Recharts)
-  - Linha sólida: Saldo Atual
-  - Linha tracejada: Saldo Projetado
-  - Linha discreta: Meta Financeira
-  - `ReferenceArea` vermelho suave: Zona de Risco (abaixo de R$ 0)
-  - Seletor de período: 30 / 60 / 90 / 180 dias (via search param `range`)
-  - Tooltip customizado
+| Função | Método | Retorno |
+|---|---|---|
+| `getPlanningSummary` | GET | `{ currentBalance, projectedBalance30, projectedBalance90, financialRunwayDays }` |
+| `getCashProjection` | GET `{ period: 30\|60\|90\|180 }` | `Array<{ date, balance, projected, goal, risk }>` |
+| `getForecastSummary` | GET | `{ expectedReceivables, expectedPayables, projectedNet }` |
+| `getFinancialTimeline` | GET `{ limit? }` | `Array<{ id, date, type, title, amount, balanceAfter }>` |
+| `listGoals` / `createGoal` / `updateGoal` / `deleteGoal` | GET/POST | metas + cálculo de `realizado`/`projeção`/`percentual` |
+| `listScenarios` / `createScenario` / `deleteScenario` | GET/POST | cenários persistidos |
+| `simulateScenario` | POST `{ scenarioType, monthlyCost, monthlyRevenue?, oneTimeCost?, period }` | `{ currentProjection, simulatedProjection, impact }` |
+| `getInsights` | GET | `Array<Insight>` insights determinísticos baseados em dados reais |
+| `generateMoreInsights` | POST `{ excludeIds: string[] }` | mais 2 insights de um pool extra |
 
-- **Resumo da Projeção** (sidebar direita)
-  - Recebimentos previstos — R$ 120.000 (verde)
-  - Pagamentos previstos — R$ 78.000 (vermelho)
-  - Saldo líquido projetado — R$ 42.000
-  - Donut compacto Recharts (Recebimentos / Pagamentos / Saldo líquido) com label central "R$ 42k"
+### 2.3 Cálculos (executados no backend)
 
-**Linha 3 — Grid 3 colunas**
+- **Saldo atual**: `SUM(financial_accounts.current_balance)` por `company_id`.
+- **Projetado 30/90 dias**: `saldoAtual + SUM(receivable pending due_date<=hoje+N) − SUM(payable pending due_date<=hoje+N)`.
+- **Fôlego financeiro**: `saldoAtual / (SUM(payable paid últimos 90 dias) / 90)`.
+- **Projeção diária** (gráfico): laço dia-a-dia somando eventos pendentes vencendo naquele dia ao saldo do dia anterior. `risk = saldo<0`. `goal` vem da meta ativa `goal_type='cash'`.
+- **Timeline**: pendentes ordenados por `due_date`, calcula `balanceAfter` cumulativo.
+- **Insights**: regras determinísticas (receita prevista vs mês anterior, risco de caixa, evolução de meta, top categoria, top profissional).
 
-- **Timeline Financeira** (col-span-2): lista de ~7 eventos (Recebimento, Folha, Aluguel, Laboratório, Equipamento, Imposto). Cada item: card de data (dia/mês), ícone direcional ↑/↓, tipo+descrição, valor com sinal, "Saldo após evento". Botão "Ver todos os eventos".
+### 2.4 Frontend (route `/planejamento` + componentes)
 
-- **Simulador de Cenários** (col-span-1, ao lado da timeline conforme imagem): cards de cenário (Nova Contratação - Recepcionista R$ 2.500/mês → -R$ 7.500 em 90d; Novo Equipamento - Scanner R$ 35.000 → -R$ 22.000; Novo Dentista → +R$ 19.440). Cada cenário tem nome, subtítulo, valor base, impacto colorido e chevron. Botão "Ver todos os cenários".
+- Substituir `planning-mock.ts` por chamadas via `useServerFn` + `useSuspenseQuery`.
+- Loader pré-carrega `summary`, `projection(range)`, `forecastSummary`, `timeline`, `goals`, `scenarios`, `insights`.
+- `range` continua em search param.
+- Componentes `CashProjectionChart`, `FinancialTimeline`, `ScenarioSimulator`, `FinancialGoalsCard`, `SmartInsightsCard`, `ProjectionSummaryCard` passam a receber props do servidor.
+- Mutations (criar cenário, excluir cenário, gerar mais insights, criar/editar meta) invalidam as queries correspondentes.
 
-**Linha 4 — Sidebar direita ocupa as três últimas linhas (conforme imagem de referência)**
+### 2.5 Seed mínimo
+Inserir via tool `insert` algumas metas e cenários de exemplo para `company_id` atual, garantindo que a página tenha conteúdo visível no primeiro acesso.
 
-A imagem mostra grid com 2 colunas principais à esquerda (Timeline + Simulador) e coluna direita com:
-- **Metas Financeiras**: Meta Mensal R$ 120.000, Realizado R$ 87.000, Projeção R$ 132.000, barra de progresso, "109% da meta".
-- **Insights Inteligentes**: 4 itens com ícone + frase (receita projetada 18% maior, saldo negativo em 14/ago, ortodontia 47% receita futura, segunda-feira gera mais faturamento).
+---
 
-Layout final aproximado:
-```text
-[ KPI ][ KPI ][ KPI ][ KPI ]
-[  Projeção de Saldo (8) ][ Resumo + Donut (4) ]
-[ Timeline (5) ][ Simulador (4) ][ Metas + Insights (3) ]
-```
+## Ordem de execução
+1. Migration (`financial_goals`, `financial_scenarios`).
+2. `planning.functions.ts` com todas as server fns + cálculos.
+3. Ajustes nos componentes (UX 1.1, 1.2, 1.3) já consumindo o backend.
+4. Route `/planejamento` atualizada (loader + queries + mutations).
+5. Seed de exemplo.
+6. Remover `planning-mock.ts`.
 
-### Componentes novos
-- `planning/CashProjectionChart.tsx`
-- `planning/ProjectionSummaryCard.tsx`
-- `planning/FinancialTimeline.tsx`
-- `planning/ScenarioSimulator.tsx`
-- `planning/FinancialGoalsCard.tsx`
-- `planning/SmartInsightsCard.tsx`
-- `planning/planning-mock.ts` — todos os dados mockados e tipos
-
-### Estados visuais
-Hover em cards e itens, loading skeletons opcionais (não usados pois mock síncrono), empty states em listas (mensagem `text-muted-foreground`).
-
-### Rota
-- Criar `src/routes/planejamento.tsx` com `createFileRoute("/planejamento")`, `validateSearch` para `range: 30|60|90|180` (default 90).
-- O Vite plugin atualiza `routeTree.gen.ts` automaticamente.
-
-## Out of scope
-- Backend, migrations, server functions.
-- Funcionalidade real dos botões Novo Cenário / Exportar / Compartilhar (apenas UI).
+## Fora do escopo
+- Auth/multi-tenant real (usa `company_id` padrão do projeto, como as demais páginas financeiras).
+- IA real para insights (mantém regras determinísticas).
+- Edição de cenário (apenas criar/excluir).

@@ -1,17 +1,16 @@
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { formatBRL } from "@/lib/finance/format";
-import {
-  FORECAST_RECEIVABLES, FORECAST_PAYABLES, FORECAST_NET,
-} from "./planning-mock";
+import type { ForecastSummary } from "@/lib/finance/planning.functions";
 
 const COLORS = ["hsl(150 65% 45%)", "hsl(0 75% 60%)", "oklch(0.58 0.20 290)"];
 
-export function ProjectionSummaryCard() {
-  const total = FORECAST_RECEIVABLES + FORECAST_PAYABLES + Math.max(0, FORECAST_NET);
+export function ProjectionSummaryCard({ forecast }: { forecast: ForecastSummary }) {
+  const { expectedReceivables, expectedPayables, projectedNet } = forecast;
+  const total = expectedReceivables + expectedPayables + Math.max(0, projectedNet) || 1;
   const data = [
-    { name: "Recebimentos", value: FORECAST_RECEIVABLES },
-    { name: "Pagamentos", value: FORECAST_PAYABLES },
-    { name: "Saldo líquido", value: Math.max(0, FORECAST_NET) },
+    { name: "Recebimentos", value: expectedReceivables },
+    { name: "Pagamentos", value: expectedPayables },
+    { name: "Saldo líquido", value: Math.max(0, projectedNet) },
   ];
   const pct = (v: number) => Math.round((v / total) * 100);
 
@@ -22,15 +21,15 @@ export function ProjectionSummaryCard() {
       <ul className="space-y-3 text-sm">
         <li className="flex items-center justify-between">
           <span className="text-muted-foreground">Recebimentos previstos</span>
-          <span className="tabular-nums font-medium text-success">{formatBRL(FORECAST_RECEIVABLES)}</span>
+          <span className="tabular-nums font-medium text-success">{formatBRL(expectedReceivables)}</span>
         </li>
         <li className="flex items-center justify-between">
           <span className="text-muted-foreground">Pagamentos previstos</span>
-          <span className="tabular-nums font-medium text-danger">{formatBRL(FORECAST_PAYABLES)}</span>
+          <span className="tabular-nums font-medium text-danger">{formatBRL(expectedPayables)}</span>
         </li>
         <li className="flex items-center justify-between pt-2 border-t border-border/60">
           <span className="text-muted-foreground">Saldo líquido projetado</span>
-          <span className="tabular-nums font-semibold text-violet">{formatBRL(FORECAST_NET)}</span>
+          <span className="tabular-nums font-semibold text-violet">{formatBRL(projectedNet)}</span>
         </li>
       </ul>
 
@@ -45,7 +44,7 @@ export function ProjectionSummaryCard() {
           </ResponsiveContainer>
           <div className="absolute inset-0 grid place-items-center text-center pointer-events-none">
             <div>
-              <p className="text-lg font-semibold tracking-tight tabular-nums">R$ {(FORECAST_NET / 1000).toFixed(0)}k</p>
+              <p className="text-lg font-semibold tracking-tight tabular-nums">R$ {(projectedNet / 1000).toFixed(0)}k</p>
               <p className="text-[10px] text-muted-foreground">Saldo líquido</p>
             </div>
           </div>
