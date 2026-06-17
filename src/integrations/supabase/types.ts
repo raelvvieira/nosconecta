@@ -81,12 +81,20 @@ export type Database = {
           description: string
           due_date: string
           id: string
+          installment_number: number | null
+          installment_total: number | null
+          is_recurring: boolean
+          notes: string | null
           paid_date: string | null
+          parent_transaction_id: string | null
           patient_id: string | null
+          payment_method: string | null
           professional_id: string | null
+          recurrence_type: string | null
           source_id: string | null
           source_type: string | null
           status: Database["public"]["Enums"]["transaction_status"]
+          supplier_name: string | null
           type: Database["public"]["Enums"]["transaction_type"]
           updated_at: string
         }
@@ -99,12 +107,20 @@ export type Database = {
           description: string
           due_date: string
           id?: string
+          installment_number?: number | null
+          installment_total?: number | null
+          is_recurring?: boolean
+          notes?: string | null
           paid_date?: string | null
+          parent_transaction_id?: string | null
           patient_id?: string | null
+          payment_method?: string | null
           professional_id?: string | null
+          recurrence_type?: string | null
           source_id?: string | null
           source_type?: string | null
           status: Database["public"]["Enums"]["transaction_status"]
+          supplier_name?: string | null
           type: Database["public"]["Enums"]["transaction_type"]
           updated_at?: string
         }
@@ -117,12 +133,20 @@ export type Database = {
           description?: string
           due_date?: string
           id?: string
+          installment_number?: number | null
+          installment_total?: number | null
+          is_recurring?: boolean
+          notes?: string | null
           paid_date?: string | null
+          parent_transaction_id?: string | null
           patient_id?: string | null
+          payment_method?: string | null
           professional_id?: string | null
+          recurrence_type?: string | null
           source_id?: string | null
           source_type?: string | null
           status?: Database["public"]["Enums"]["transaction_status"]
+          supplier_name?: string | null
           type?: Database["public"]["Enums"]["transaction_type"]
           updated_at?: string
         }
@@ -139,6 +163,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "financial_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_transactions_parent_transaction_id_fkey"
+            columns: ["parent_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "financial_transactions"
             referencedColumns: ["id"]
           },
           {

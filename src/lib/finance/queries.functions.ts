@@ -73,7 +73,12 @@ function getServerSupabase() {
   );
 }
 
-function periodToRange(period: Period): { from: Date; to: Date } {
+function periodToRange(period: Period, customFrom?: string, customTo?: string): { from: Date; to: Date } {
+  if (customFrom && customTo) {
+    const f = new Date(customFrom + "T00:00:00");
+    const t = new Date(customTo + "T23:59:59");
+    return { from: f, to: t };
+  }
   const to = new Date();
   to.setHours(23, 59, 59, 999);
   const from = new Date();
@@ -139,16 +144,18 @@ async function sumAmount(
 
 export const getFinanceOverview = createServerFn({ method: "GET" })
   .inputValidator(
-    (input: { companyId?: string; period?: Period; granularity?: Granularity }) => ({
+    (input: { companyId?: string; period?: Period; granularity?: Granularity; from?: string; to?: string }) => ({
       companyId: input.companyId ?? "demo",
       period: input.period ?? "30d",
       granularity: input.granularity ?? "daily",
+      from: input.from,
+      to: input.to,
     }),
   )
   .handler(async ({ data }): Promise<OverviewData> => {
     const supabase = getServerSupabase();
-    const { companyId, period, granularity } = data;
-    const range = periodToRange(period);
+    const { companyId, period, granularity, from, to } = data;
+    const range = periodToRange(period, from, to);
     const prev = previousRange(range);
     const fromStr = toDateStr(range.from);
     const toStr = toDateStr(range.to);

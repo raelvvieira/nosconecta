@@ -18,21 +18,24 @@ import { CommissionsTable } from "@/components/finance/CommissionsTable";
 
 import { z } from "zod";
 import { getFinanceOverview, type Granularity, type Period } from "@/lib/finance/queries.functions";
-import { formatBRL, formatDateBRFull } from "@/lib/finance/format";
+import { formatBRL } from "@/lib/finance/format";
 
 const searchSchema = z.object({
   period: z.enum(["today", "7d", "30d", "90d"]).default("30d"),
   granularity: z.enum(["daily", "weekly", "monthly"]).default("daily"),
+  from: z.string().optional(),
+  to: z.string().optional(),
 });
 
+type SearchParams = z.infer<typeof searchSchema>;
+
 const overviewQueryOptions = (
-  fetcher: (args: { data: { period: Period; granularity: Granularity } }) => Promise<Awaited<ReturnType<typeof getFinanceOverview>>>,
-  period: Period,
-  granularity: Granularity,
+  fetcher: (args: { data: { period: Period; granularity: Granularity; from?: string; to?: string } }) => Promise<Awaited<ReturnType<typeof getFinanceOverview>>>,
+  params: { period: Period; granularity: Granularity; from?: string; to?: string },
 ) =>
   queryOptions({
-    queryKey: ["finance-overview", period, granularity],
-    queryFn: () => fetcher({ data: { period, granularity } }),
+    queryKey: ["finance-overview", params.period, params.granularity, params.from ?? "", params.to ?? ""],
+    queryFn: () => fetcher({ data: params }),
     staleTime: 30_000,
   });
 
@@ -44,11 +47,9 @@ export const Route = createFileRoute("/")({
     ],
   }),
   validateSearch: searchSchema,
-  loaderDeps: ({ search: { period, granularity } }) => ({ period, granularity }),
+  loaderDeps: ({ search }) => ({ period: search.period, granularity: search.granularity, from: search.from, to: search.to }),
   loader: ({ context, deps }) =>
-    context.queryClient.ensureQueryData(
-      overviewQueryOptions(getFinanceOverview as any, deps.period, deps.granularity),
-    ),
+    context.queryClient.ensureQueryData(overviewQueryOptions(getFinanceOverview as any, deps)),
   errorComponent: ({ error }) => (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="max-w-md text-center space-y-2">
@@ -62,22 +63,22 @@ export const Route = createFileRoute("/")({
 });
 
 function FinanceiroVisaoGeral() {
-  const { period, granularity } = Route.useSearch();
+  const { period, granularity, from, to } = Route.useSearch();
   const router = useRouter();
   const fetchOverview = useServerFn(getFinanceOverview);
-  const { data } = useSuspenseQuery(overviewQueryOptions(fetchOverview as any, period, granularity));
+  const { data } = useSuspenseQuery(overviewQueryOptions(fetchOverview as any, { period, granularity, from, to }));
 
-  // keep document title fresh
   useEffect(() => {
     document.title = "Financeiro · NÓS Conecta";
   }, []);
 
   const setPeriod = (p: Period) =>
-    router.navigate({ to: "/", search: (prev: z.infer<typeof searchSchema>) => ({ ...prev, period: p }) });
+    router.navigate({ to: "/", search: (prev: SearchParams) => ({ ...prev, period: p, from: undefined, to: undefined }) });
   const setGranularity = (g: Granularity) =>
-    router.navigate({ to: "/", search: (prev: z.infer<typeof searchSchema>) => ({ ...prev, granularity: g }) });
+    router.navigate({ to: "/", search: (prev: SearchParams) => ({ ...prev, granularity: g }) });
+  const setRange = (r: { from?: string; to?: string }) =>
+    router.navigate({ to: "/", search: (prev: SearchParams) => ({ ...prev, from: r.from, to: r.to }) });
 
-  const rangeLabel = `${formatDateBRFull(data.range.from)} – ${formatDateBRFull(data.range.to)}`;
   const { kpis } = data;
 
   return (
@@ -85,7 +86,13 @@ function FinanceiroVisaoGeral() {
       <Sidebar />
 
       <main className="flex-1 min-w-0 px-6 lg:px-10 py-8 space-y-6">
-        <PageHeader period={period} onPeriodChange={setPeriod} rangeLabel={rangeLabel} />
+        <PageHeader
+          period={period}
+          onPeriodChange={setPeriod}
+          from={from}
+          to={to}
+          onRangeChange={setRange}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
           <KpiCard

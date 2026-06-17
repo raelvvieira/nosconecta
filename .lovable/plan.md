@@ -1,63 +1,80 @@
-## 1. Rebrand
+## 1. Visão Geral — período personalizado
 
-- Trocar "OdontoCare" por "NÓS Conecta" em `src/components/finance/Sidebar.tsx` (logo no topo).
-- Atualizar `<title>` em `src/routes/__root.tsx`.
+- Adicionar opção "Personalizado" em `PageHeader`: ao clicar no chip de data abre um `Popover` com `Calendar` (shadcn, modo `range`) para escolher `from`/`to`.
+- Estender `searchSchema` em `src/routes/index.tsx` com `from?` e `to?` (ISO `yyyy-mm-dd`). Quando presentes, sobrepõem `period`.
+- `getFinanceOverview` passa a aceitar `from`/`to` opcionais; `periodToRange` usa esses valores quando enviados, caso contrário cai no preset.
+- O chip mostra o range atual e fica clicável (igual à referência `18/03/2026 – 16/06/2026`).
 
-## 2. Ativar Lovable Cloud
+## 2. Página Pagamentos (`/pagamentos`)
 
-Habilitar o backend integrado (Postgres + Data API). Sem auth nesta fase — a página segue pública, mas já preparada para multi-tenant via `company_id` (com um valor fixo de "demo" por enquanto).
+Nova rota `src/routes/pagamentos.tsx` espelhando o mock enviado.
 
-## 3. Schema (migration única)
+### 2.1 Migration (sem tabelas novas)
 
-Tabelas no schema `public`, todas com `GRANT` para `anon`/`authenticated`/`service_role` e RLS permissiva nesta fase (leitura pública), já que ainda não há login:
+Adicionar colunas em `financial_transactions`:
+- `payment_method text` (pix, boleto, ted, cartao, dinheiro)
+- `supplier_name text`
+- `installment_number int`, `installment_total int`
+- `parent_transaction_id uuid references financial_transactions(id) on delete cascade`
+- `is_recurring boolean default false`
+- `recurrence_type text` (monthly, weekly, yearly)
+- Índices: `(company_id, type, status, due_date)`, `(parent_transaction_id)`.
 
-- `financial_accounts` — id, company_id, name, type (`bank|cash|pix|credit`), current_balance, timestamps.
-- `financial_categories` — id, company_id, name, type (`income|expense`).
-- `financial_transactions` — id, company_id, type (`receivable|payable`), status (`pending|paid|overdue|cancelled`), description, amount, due_date, paid_date, patient_id, professional_id, account_id, category_id, source_type, source_id, timestamps. Índices em `(company_id, status, due_date)` e `(company_id, type, paid_date)`.
-- `ledger_entries` — id, transaction_id, account_id, entry_type (`debit|credit`), amount, created_at.
-- Enums Postgres para `transaction_type`, `transaction_status`, `account_type`, `category_type`, `entry_type`.
+Trigger leve para marcar `overdue` automaticamente na leitura não é necessário — calculamos `overdue = pending AND due_date < today` no backend (mantém código mais simples e correto). Mas como o schema já tem o status `overdue`, ainda respeitamos registros gravados com esse valor.
 
-Sem tabelas separadas para receitas/despesas/fluxo — tudo derivado de `financial_transactions`.
+Seed: adicionar ~10 fornecedores e ~25 transações `payable` extras (com `supplier_name`, `payment_method`, algumas parceladas, 2 recorrentes) para popular a tela.
 
-## 4. Seed (na própria migration)
+### 2.2 Server functions (`src/lib/finance/payables.functions.ts`)
 
-Inserir, para `company_id = 'demo'`:
-- 3 contas (Santander, Caixa, Pix).
-- ~8 categorias (Consulta, Implante, Ortodontia, Clareamento, Aluguel, Folha, Materiais, Marketing).
-- ~6 profissionais e ~30 pacientes fictícios (apenas como UUIDs referenciados — sem tabela própria nesta fase; `patient_id`/`professional_id` são uuid livres por enquanto).
-- ~250 transações distribuídas em 150 dias (passado + futuro), com mistura de `paid`, `pending` e `overdue`, suficiente para preencher todos os gráficos.
+Todas via `createServerFn` com cliente publishable server-side (mesma pattern do overview):
 
-## 5. Server functions (TanStack `createServerFn`)
+- `getPayablesOverview({ companyId, from, to, filters })` → retorna tudo da página numa chamada:
+  - KPIs: `paidInPeriod`, `toPay`, `overdue`, `forecastTotal` (paid+pending+overdue do período, baseado em `due_date`), com `deltaPct` vs período anterior em `paidInPeriod` e `overdue`.
+  - `categoryBreakdown` (donut) — soma por `category_id` no período (status ≠ cancelled).
+  - `upcomingDueDates` — 5 próximos `pending` por `due_date >= today`.
+  - `recurringPayments` — `is_recurring = true`, mostrando próxima ocorrência.
+  - `accounts` e `categories` (para filtros e form).
+  - `transactions` — lista paginada de despesas no range, com filtros (search, category, account, supplier, status, payment_method) e ordenação por `due_date`.
 
-Arquivo `src/lib/finance/queries.functions.ts`. Cliente Supabase publishable server-side, leitura via Data API. Todas recebem `{ companyId, from, to }` quando aplicável:
+- `createPayable({ ... })` — insere uma transação `type=payable`. Regras:
+  - `markPaidNow=true` → `status=paid`, `paid_date=hoje`; caso contrário `status=pending`.
+  - Quando `installmentTotal>1`: gera N linhas (`installment_number=i`, `installment_total=N`, `parent_transaction_id` = id da primeira), `due_date` incrementado mês a mês, `amount` = total / N (último ajusta resto), `description` recebe sufixo " (i/N)". Cada parcela tem status próprio (a primeira pode ir como `paid` se solicitado).
+  - Quando `isRecurring=true` (sem parcelar): grava a transação "âncora" com `is_recurring=true`, `recurrence_type`. Não gera ocorrências futuras agora — exibimos no widget "Pagamentos recorrentes"; geração das próximas pode vir depois.
+  - Valida com Zod: `description`, `amount>0`, `due_date`, opcionais `category_id`, `account_id`, `payment_method`, `supplier_name`.
 
-- `getFinanceOverview` — devolve KPIs agregados (revenue, expenses, netProfit, margin, overdue, variações vs. período anterior).
-- `getCashFlowSeries` — agrega por `day|week|month`, retorna `[{date, income, expense, future_receivable, balance}]`.
-- `getUpcomingReceivables` / `getUpcomingPayables` — 5 próximos por `due_date`.
-- `getBankAccounts` — saldo atual de cada conta.
-- `getRevenueByCategory` (procedimentos) e `getRevenueByProfessional` — agrupamentos com totais.
-- `getCommissions` — soma por profissional × percentual configurável (default 30%, hardcoded por enquanto, campo preparado para futura tabela `professional_commissions`).
-- `getInsights` — derivado das demais (maior categoria, dia mais lucrativo, variação MoM, alerta de inadimplência).
+- `markPayablePaid({ id, paid_date? })` — atualiza `status=paid`, `paid_date` (default hoje). Usado pelo botão "Marcar como pago" da tabela.
 
-Cálculos pesados ficam no Postgres via SQL (RPC functions `security definer` quando precisar `GROUP BY` com `date_trunc`); o frontend só consome resultados prontos.
+- `deletePayable({ id })` — exclui (CASCADE remove parcelas filhas se for o pai).
 
-## 6. Frontend — trocar mock por dados reais
+Status `overdue` derivado: queries que listam KPIs tratam `pending AND due_date < today` como atraso quando agregam (sem mutar o registro). Para registros já gravados como `overdue`, somam normalmente.
 
-- Remover `src/lib/finance/mock-data.ts` do caminho de render (manter arquivo só como referência ou deletar).
-- `src/lib/finance/selectors.ts` deixa de ser usado pela página; lógica migra para as server functions.
-- `src/routes/index.tsx` passa a usar TanStack Query (`ensureQueryData` no loader + `useSuspenseQuery` nos componentes) chamando as server functions, com `companyId = 'demo'` fixo e o período/granularidade atuais como `loaderDeps`.
-- Componentes (`KpiCard`, `CashFlowChart`, etc.) continuam puros — só mudam as props que recebem.
-- Adicionar `errorComponent` e `notFoundComponent` na rota.
+### 2.3 Frontend
 
-## 7. Fora de escopo agora
+Componentes em `src/components/finance/payables/`:
+- `PayablesHeader` (título + botões Novo Pagamento / Importar / Exportar). Importar/Exportar ficam como botões estáticos (sem ação) nesta entrega.
+- `PayableKpis` (4 cards reaproveitando `KpiCard`).
+- `PayableFilters` (período com date range, categoria, conta, fornecedor, status, método, "Mais filtros" estático).
+- `PayablesTable` (checkboxes, vencimento, fornecedor, categoria badge, conta com ícone, valor, status badge, método, ações `...` com "Marcar como pago" / "Excluir"). Paginação client-side (8/página).
+- `CategoryBreakdownCard` (donut Recharts + lista com %).
+- `UpcomingDueDatesCard` e `RecurringPaymentsCard`.
+- `NewPaymentSheet` (Sheet shadcn lateral): seções Informações básicas, Financeiro, Datas, Opções (3 switches: Marcar como pago agora, Parcelar despesa, Pagamento recorrente — quando ligadas mostram inputs de qtd parcelas / tipo de recorrência), Observações. Usa `useMutation` chamando `createPayable`, invalida `["payables-overview"]`.
 
-- Autenticação / multi-tenant real (preparado via `company_id`, mas sem login).
-- Tabelas de pacientes/profissionais/consultas (apenas UUIDs referenciados).
-- Configuração de percentual de comissão por profissional (hardcoded).
-- Outras páginas do menu lateral.
+Rota `/pagamentos`:
+- `validateSearch`: `from`, `to`, `category`, `account`, `supplier`, `status`, `method`, `page`, `q`.
+- Loader pré-carrega `getPayablesOverview` com `ensureQueryData`; componente usa `useSuspenseQuery`.
+- `Sidebar` ganha `useLocation` para destacar item ativo e `Link` para `/` e `/pagamentos`.
 
-## Notas técnicas
+## 3. Fora de escopo
 
-- Cliente Supabase server-side: publishable key + `SUPABASE_URL`, sem persistência de sessão.
-- Toda função server é pública (sem `requireSupabaseAuth`) porque a página é pública nesta fase; segurança vem das policies (`SELECT TO anon` apenas em colunas seguras) e do filtro fixo por `company_id`.
-- Sem `supabaseAdmin` em rota cliente-reachable.
+- Geração antecipada de ocorrências recorrentes futuras (apenas marca a anchor).
+- Importar/Exportar reais.
+- Edição inline da transação (somente marcar pago / excluir).
+- Outras páginas do menu (Recebimentos, Fluxo de Caixa etc.) continuam como stubs.
+
+## Detalhes técnicos
+
+- Cálculo de "overdue" no backend: `status = 'overdue' OR (status = 'pending' AND due_date < CURRENT_DATE)`.
+- `paid_date` usado para KPI "Pago no período"; demais KPIs (a pagar, atraso, previsto) usam `due_date` dentro do range.
+- Date range no front: shadcn `Calendar mode="range"` + `date-fns` (já no projeto) para `format`.
+- Sidebar: trocar `active: true` hardcoded por comparação com `useLocation().pathname`.
+- Todas as mutações usam `useServerFn` + `useMutation` + `queryClient.invalidateQueries`.
