@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { useMutation } from "@tanstack/react-query";
 
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
@@ -11,28 +13,56 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { FINANCIAL_ACCOUNTS } from "@/lib/finance/receivables-mock";
+import { markReceivableReceived } from "@/lib/finance/receivables.functions";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
+type Opt = { id: string; name: string };
+
 export function RegisterReceiptDialog({
-  open,
-  onOpenChange,
+  open, onOpenChange, transactionId, accounts = [], onConfirmed,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  transactionId?: string | null;
+  accounts?: Opt[];
+  onConfirmed?: () => void;
 }) {
-  const [amount, setAmount] = useState("");
+  const mark = useServerFn(markReceivableReceived);
   const [accountId, setAccountId] = useState("");
   const [method, setMethod] = useState("pix");
   const [date, setDate] = useState(todayStr());
   const [notes, setNotes] = useState("");
 
+  useEffect(() => {
+    if (open) {
+      setAccountId(""); setMethod("pix"); setDate(todayStr()); setNotes("");
+    }
+  }, [open]);
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      if (!transactionId) throw new Error("Selecione um recebimento.");
+      return mark({
+        data: { id: transactionId, paid_date: date, account_id: accountId || null, payment_method: method },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Recebimento registrado");
+      onOpenChange(false);
+      onConfirmed?.();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erro ao registrar"),
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Recebimento registrado (mock)");
-    setAmount(""); setAccountId(""); setMethod("pix"); setDate(todayStr()); setNotes("");
-    onOpenChange(false);
+    if (!transactionId) {
+      toast.info("Selecione um recebimento da tabela para registrar.");
+      onOpenChange(false);
+      return;
+    }
+    mutation.mutate();
   };
 
   return (
@@ -40,26 +70,24 @@ export function RegisterReceiptDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Registrar Recebimento</DialogTitle>
-          <DialogDescription>Registre rapidamente uma entrada financeira.</DialogDescription>
+          <DialogDescription>
+            {transactionId ? "Confirme os dados do recebimento abaixo." : "Selecione um recebimento na tabela e use a ação \"Registrar recebimento\"."}
+          </DialogDescription>
         </DialogHeader>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <Label>Valor recebido *</Label>
-            <Input inputMode="decimal" placeholder="R$ 0,00" value={amount} onChange={(e) => setAmount(e.target.value)} required />
-          </div>
-          <div className="space-y-2">
-            <Label>Conta financeira *</Label>
+            <Label>Conta financeira</Label>
             <Select value={accountId} onValueChange={setAccountId}>
               <SelectTrigger><SelectValue placeholder="Selecione a conta" /></SelectTrigger>
               <SelectContent>
-                {FINANCIAL_ACCOUNTS.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                {accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Forma de pagamento *</Label>
+              <Label>Forma de pagamento</Label>
               <Select value={method} onValueChange={setMethod}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -83,7 +111,9 @@ export function RegisterReceiptDialog({
           </div>
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit">Confirmar recebimento</Button>
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? "Registrando..." : "Confirmar recebimento"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

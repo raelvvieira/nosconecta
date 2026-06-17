@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { useMutation } from "@tanstack/react-query";
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
@@ -11,52 +13,83 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { FINANCIAL_ACCOUNTS } from "@/lib/finance/receivables-mock";
+import { createReceivable } from "@/lib/finance/receivables.functions";
 import { formatBRL } from "@/lib/finance/format";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
+type Opt = { id: string; name: string };
+
 export function NewReceivableSheet({
-  open,
-  onOpenChange,
+  open, onOpenChange, patients, professionals, categories, accounts, onCreated,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  patients: Opt[];
+  professionals: Opt[];
+  categories: Opt[];
+  accounts: Opt[];
+  onCreated?: () => void;
 }) {
-  const [patient, setPatient] = useState("");
-  const [procedure, setProcedure] = useState("");
-  const [professional, setProfessional] = useState("");
+  const create = useServerFn(createReceivable);
+
+  const [patientId, setPatientId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [description, setDescription] = useState("");
+  const [professionalId, setProfessionalId] = useState("");
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState("");
   const [method, setMethod] = useState("pix");
-  const [issueDate, setIssueDate] = useState(todayStr());
   const [dueDate, setDueDate] = useState(todayStr());
-  const [receivedDate, setReceivedDate] = useState("");
+  const [markReceivedNow, setMarkReceivedNow] = useState(false);
   const [installmentsOn, setInstallmentsOn] = useState(false);
-  const [downPayment, setDownPayment] = useState("");
   const [installments, setInstallments] = useState(2);
   const [recurring, setRecurring] = useState(false);
   const [recurrenceType, setRecurrenceType] = useState<"weekly" | "monthly" | "yearly">("monthly");
   const [notes, setNotes] = useState("");
 
   const amountNum = Number((amount || "0").replace(",", "."));
-  const downNum = Number((downPayment || "0").replace(",", "."));
-  const perInstallment = installmentsOn && installments > 0
-    ? Math.max(0, (amountNum - downNum) / installments)
-    : 0;
+  const perInstallment = installmentsOn && installments > 0 ? amountNum / installments : 0;
 
   const reset = () => {
-    setPatient(""); setProcedure(""); setProfessional(""); setAmount("");
-    setAccountId(""); setMethod("pix"); setIssueDate(todayStr()); setDueDate(todayStr());
-    setReceivedDate(""); setInstallmentsOn(false); setDownPayment(""); setInstallments(2);
-    setRecurring(false); setRecurrenceType("monthly"); setNotes("");
+    setPatientId(""); setCategoryId(""); setDescription(""); setProfessionalId(""); setAmount("");
+    setAccountId(""); setMethod("pix"); setDueDate(todayStr()); setMarkReceivedNow(false);
+    setInstallmentsOn(false); setInstallments(2); setRecurring(false);
+    setRecurrenceType("monthly"); setNotes("");
   };
+
+  const mutation = useMutation({
+    mutationFn: () => create({
+      data: {
+        description: description.trim() || categories.find(c => c.id === categoryId)?.name || "Recebimento",
+        amount: amountNum,
+        due_date: dueDate,
+        patient_id: patientId || null,
+        professional_id: professionalId || null,
+        category_id: categoryId || null,
+        account_id: accountId || null,
+        payment_method: method,
+        notes: notes || null,
+        markReceivedNow,
+        installments: installmentsOn ? installments : 1,
+        isRecurring: recurring,
+        recurrenceType,
+      },
+    }),
+    onSuccess: () => {
+      toast.success("Recebimento criado");
+      reset();
+      onOpenChange(false);
+      onCreated?.();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erro ao criar recebimento"),
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Recebimento criado (mock)");
-    reset();
-    onOpenChange(false);
+    if (!amountNum || amountNum <= 0) return toast.error("Informe um valor válido");
+    if (!dueDate) return toast.error("Informe a data de vencimento");
+    mutation.mutate();
   };
 
   return (
@@ -73,22 +106,33 @@ export function NewReceivableSheet({
           <section className="space-y-3">
             <h3 className="text-sm font-medium">Paciente</h3>
             <div className="space-y-2">
-              <Label>Paciente *</Label>
-              <Input placeholder="Buscar paciente..." value={patient} onChange={(e) => setPatient(e.target.value)} required />
+              <Label>Paciente</Label>
+              <Select value={patientId} onValueChange={setPatientId}>
+                <SelectTrigger><SelectValue placeholder="Selecione o paciente" /></SelectTrigger>
+                <SelectContent>
+                  {patients.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
-              <Label>Procedimento *</Label>
-              <Input placeholder="Ex: Implante unitário" value={procedure} onChange={(e) => setProcedure(e.target.value)} required />
+              <Label>Procedimento</Label>
+              <Select value={categoryId} onValueChange={setCategoryId}>
+                <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
-              <Label>Profissional responsável *</Label>
-              <Select value={professional} onValueChange={setProfessional}>
+              <Label>Descrição</Label>
+              <Input placeholder="Ex: Implante unitário" value={description} onChange={(e) => setDescription(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Profissional responsável</Label>
+              <Select value={professionalId} onValueChange={setProfessionalId}>
                 <SelectTrigger><SelectValue placeholder="Selecione o profissional" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Dr. João Santos">Dr. João Santos</SelectItem>
-                  <SelectItem value="Dra. Ana Paula">Dra. Ana Paula</SelectItem>
-                  <SelectItem value="Dr. Carlos Mendes">Dr. Carlos Mendes</SelectItem>
-                  <SelectItem value="Dra. Fernanda Lima">Dra. Fernanda Lima</SelectItem>
+                  {professionals.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -101,16 +145,16 @@ export function NewReceivableSheet({
               <Input inputMode="decimal" placeholder="R$ 0,00" value={amount} onChange={(e) => setAmount(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label>Conta financeira *</Label>
+              <Label>Conta financeira</Label>
               <Select value={accountId} onValueChange={setAccountId}>
                 <SelectTrigger><SelectValue placeholder="Selecione a conta" /></SelectTrigger>
                 <SelectContent>
-                  {FINANCIAL_ACCOUNTS.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                  {accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Forma de pagamento *</Label>
+              <Label>Forma de pagamento</Label>
               <Select value={method} onValueChange={setMethod}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -127,19 +171,13 @@ export function NewReceivableSheet({
 
           <section className="space-y-3">
             <h3 className="text-sm font-medium">Datas</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Emissão *</Label>
-                <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Vencimento *</Label>
-                <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
-              </div>
-            </div>
             <div className="space-y-2">
-              <Label>Data de recebimento</Label>
-              <Input type="date" value={receivedDate} onChange={(e) => setReceivedDate(e.target.value)} />
+              <Label>Vencimento *</Label>
+              <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="now" className="font-normal">Já recebido</Label>
+              <Switch id="now" checked={markReceivedNow} onCheckedChange={setMarkReceivedNow} />
             </div>
           </section>
 
@@ -151,15 +189,9 @@ export function NewReceivableSheet({
             </div>
             {installmentsOn && (
               <div className="space-y-3 rounded-xl bg-muted/40 p-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Entrada</Label>
-                    <Input inputMode="decimal" placeholder="R$ 0,00" value={downPayment} onChange={(e) => setDownPayment(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Qtd. parcelas</Label>
-                    <Input type="number" min={2} max={60} value={installments} onChange={(e) => setInstallments(Number(e.target.value))} />
-                  </div>
+                <div className="space-y-2">
+                  <Label>Qtd. parcelas</Label>
+                  <Input type="number" min={2} max={60} value={installments} onChange={(e) => setInstallments(Number(e.target.value))} />
                 </div>
                 <div className="rounded-lg bg-background p-3 text-sm">
                   <p className="text-muted-foreground text-xs">Resumo</p>
@@ -194,19 +226,16 @@ export function NewReceivableSheet({
 
           <section className="space-y-3">
             <h3 className="text-sm font-medium">Observações</h3>
-            <Textarea
-              placeholder="Adicione observações (opcional)"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              maxLength={200}
-              rows={3}
-            />
+            <Textarea placeholder="Adicione observações (opcional)" value={notes}
+              onChange={(e) => setNotes(e.target.value)} maxLength={200} rows={3} />
             <p className="text-[11px] text-muted-foreground text-right">{notes.length}/200</p>
           </section>
 
           <div className="flex items-center gap-3 pt-4 border-t">
             <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" className="flex-1">Salvar recebimento</Button>
+            <Button type="submit" className="flex-1" disabled={mutation.isPending}>
+              {mutation.isPending ? "Salvando..." : "Salvar recebimento"}
+            </Button>
           </div>
         </form>
       </SheetContent>
