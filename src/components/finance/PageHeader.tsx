@@ -1,6 +1,6 @@
-import { Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Period } from "@/lib/finance/queries.functions";
+import { DateRangePicker } from "./DateRangePicker";
 
 const options: { label: string; value: Period }[] = [
   { label: "Hoje", value: "today" },
@@ -12,12 +12,17 @@ const options: { label: string; value: Period }[] = [
 export function PageHeader({
   period,
   onPeriodChange,
-  rangeLabel,
+  from,
+  to,
+  onRangeChange,
 }: {
   period: Period;
   onPeriodChange: (p: Period) => void;
-  rangeLabel: string;
+  from?: string;
+  to?: string;
+  onRangeChange: (r: { from?: string; to?: string }) => void;
 }) {
+  const isCustom = !!(from && to);
   return (
     <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6">
       <div>
@@ -26,10 +31,7 @@ export function PageHeader({
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 px-4 h-11 rounded-xl bg-card/70 backdrop-blur border border-border/70 text-sm text-foreground/80 shadow-sm">
-          <span className="tabular-nums">{rangeLabel}</span>
-          <Calendar className="h-4 w-4 text-muted-foreground ml-2" />
-        </div>
+        <DateRangePicker from={from} to={to} onChange={onRangeChange} />
 
         <div className="flex items-center p-1 rounded-xl bg-card/70 backdrop-blur border border-border/70 shadow-sm">
           {options.map((o) => (
@@ -38,7 +40,7 @@ export function PageHeader({
               onClick={() => onPeriodChange(o.value)}
               className={cn(
                 "px-4 h-9 text-sm rounded-lg transition-all",
-                period === o.value
+                !isCustom && period === o.value
                   ? "bg-primary text-primary-foreground shadow-sm font-medium"
                   : "text-muted-foreground hover:text-foreground",
               )}
