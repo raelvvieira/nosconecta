@@ -73,7 +73,12 @@ function getServerSupabase() {
   );
 }
 
-function periodToRange(period: Period): { from: Date; to: Date } {
+function periodToRange(period: Period, customFrom?: string, customTo?: string): { from: Date; to: Date } {
+  if (customFrom && customTo) {
+    const f = new Date(customFrom + "T00:00:00");
+    const t = new Date(customTo + "T23:59:59");
+    return { from: f, to: t };
+  }
   const to = new Date();
   to.setHours(23, 59, 59, 999);
   const from = new Date();
