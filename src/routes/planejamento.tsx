@@ -51,7 +51,7 @@ function PlanningPage() {
   const navigate = useNavigate({ from: "/planejamento" });
 
   const setRange = (r: RangeDays) =>
-    navigate({ search: (prev) => ({ ...prev, range: r }) });
+    navigate({ search: (prev: { range: RangeDays }) => ({ ...prev, range: r }) });
 
   return (
     <TooltipProvider delayDuration={200}>
