@@ -19,7 +19,6 @@ import { RegisterReceiptDialog } from "@/components/finance/receivables/Register
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -35,7 +34,6 @@ import { formatBRL } from "@/lib/finance/format";
 import {
   RECEIVABLES, EVOLUTION_SERIES, TOP_PROCEDURES, TOP_DENTISTS, DEFAULTERS,
   RECURRING_RECEIVABLES, KPIS, STATUS_BADGE, STATUS_LABEL, PAYMENT_METHODS,
-  type ReceivableStatus,
 } from "@/lib/finance/receivables-mock";
 
 const searchSchema = z.object({
@@ -549,5 +547,3 @@ function RecurringCard() {
   );
 }
 
-// Suppress unused import warning (kept for tabs typing parity)
-void Badge;
