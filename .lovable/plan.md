@@ -1,53 +1,93 @@
-## Backend para a página Recebimentos
+# Planejamento Financeiro — Plano
 
-Conectar a página `/recebimentos` aos dados reais já existentes em `financial_transactions` (filtrando `type='receivable'`), espelhando o padrão de `payables.functions.ts`. Sem novas tabelas — a sugestão `treatment_financial_plans` fica como futuro escopo (não é necessário para a tela atual).
+## 1. Correção do card "Gastos por Categoria" (`src/routes/pagamentos.tsx`)
 
-### Backend (novo)
+O problema atual: dentro do card, o donut ocupa 128px e a lista flexível recebe largura reduzida, fazendo os valores (`R$ 12.000,00`) serem cortados quando o card está em sidebar estreita.
 
-`src/lib/finance/receivables.functions.ts` com server functions:
+Correções:
+- Reduzir donut para `h-28 w-28` e usar `gap-3`.
+- Aplicar `min-w-0` na `ul` e remover `flex-1` da `span` do nome (usar `min-w-0 truncate` apenas no nome).
+- Alinhar pct e valor em colunas fixas (`w-10 text-right`, `min-w-[88px] text-right`) com `tabular-nums` e `whitespace-nowrap`.
+- Reduzir `text-sm` da lista para `text-[13px]` para caber confortavelmente.
+- Em telas muito estreitas, empilhar (`flex-col sm:flex-row`).
 
-- **`getReceivablesOverview`** — input: `companyId`, `from`, `to`, `patient`, `professional`, `category`, `method`, `status` (`all|received|pending|overdue|installments|recurring`), `q`. Retorna em um único objeto:
-  - `kpis`: `receivedInPeriod` (variação vs período anterior), `toReceive` (total + nº de parcelas futuras pendentes), `overdue` (total + nº de pacientes inadimplentes únicos), `averageTicket` (média do `amount` de receivables pagos no período).
-  - `evolution`: série mensal dos últimos 12 meses com `received`, `expected` (pending no mês), `overdue` (vencidos no mês), `goal` (meta fixa baseada em média + 10% — placeholder até existir tabela de metas).
-  - `topProcedures`: usa `finance_revenue_by_category` (categorias income) → `{ id, name, total, pct }`.
-  - `topDentists`: usa `finance_revenue_by_professional` → `{ id, name, total }`.
-  - `defaulters`: agrupa `status='overdue'` por `patient_id`, join em `patients`, ordena por valor desc, limit 5.
-  - `recurringReceivables`: `is_recurring=true` AND `type='receivable'`, limit 8.
-  - `transactions`: lista filtrada (até 500), com joins em `patients`, `professionals`, `financial_categories`, `financial_accounts`. Cada linha já vem com `effective_status` (`pending` + `due_date<hoje` → `overdue`).
-  - `accounts`, `patients`, `professionals`, `categories`: listas para popular os filtros e o drawer.
+## 2. Sidebar (`src/components/finance/Sidebar.tsx`)
 
-- **`createReceivable`** — input: `patient_id`, `procedure` (category_id), `professional_id`, `amount`, `due_date`, `account_id`, `payment_method`, `notes`, `markReceivedNow`, `installments` (1..60), `isRecurring`, `recurrenceType` (`weekly|monthly|yearly`). Mesma lógica de `createPayable` adaptada para `type='receivable'`, gerando N parcelas com `parent_transaction_id` quando `installments>1`, ou marcando `is_recurring/recurrence_type` quando recorrente. Quando `markReceivedNow=true`, cria com `status='paid'` e `paid_date=hoje`.
+- Remover itens: **Fluxo de Caixa**, **Conciliação**, **Relatórios**.
+- Adicionar item **Planejamento** (ícone `LineChart` ou `TrendingUp`) apontando para `/planejamento`.
+- Atualizar `isReal` para incluir `/planejamento`.
+- Manter Comissões e Configurações como placeholders desabilitados.
 
-- **`markReceivableReceived`** — input: `id`, `paid_date?`. `UPDATE` → `status='paid', paid_date`.
+Nova ordem: Visão Geral · Recebimentos · Pagamentos · Planejamento · Comissões · Configurações.
 
-- **`deleteReceivable`** — input: `id`. Hard delete.
+## 3. Nova página `/planejamento` (apenas frontend, dados mockados)
 
-- **`cancelReceivable`** — input: `id`. `UPDATE` → `status='cancelled'`.
+Arquivo: `src/routes/planejamento.tsx` + componentes em `src/components/finance/planning/`.
 
-### Frontend
+### Estrutura (mesmo design system: `surface-card`, `PageHeader`, glassmorphism leve)
 
-`src/routes/recebimentos.tsx`:
-- Trocar mocks por `useSuspenseQuery` + `useServerFn(getReceivablesOverview)`, no padrão do `pagamentos.tsx` (incluindo `loader` com `ensureQueryData` + `queryOptions`).
-- `validateSearch`: já existe; manter `from`, `to`, `patient`, `professional`, `procedure` (mapeia para `category_id`), `status`, `method`, `q`, `page`.
-- KPIs, gráfico (12 meses, granularidade visual mantida — selector continua client-side só para o label, dado mensal por padrão), cards laterais (Top procedimentos, Top dentistas, Inadimplentes, Recorrentes) e tabela passam a usar os dados do server.
-- Tabela: paciente (nome do join), procedimento (category_name ou description), profissional (join), valor, vencimento, badge de status (usar `effective_status`), forma de pagamento, menu de ações conectado às mutations (`markReceivableReceived`, `cancelReceivable`, `deleteReceivable`) com `toast` + `invalidateQueries(["receivables-overview"])`.
-- Botão "Registrar Recebimento" no menu de ações abre `RegisterReceiptDialog` já vinculado a uma `id` selecionada; ao confirmar chama `markReceivableReceived`.
+**Header** — `PageHeader` reutilizado:
+- Título: "Planejamento Financeiro"
+- Subtítulo: "Projeções, cenários e previsões para sua clínica"
+- Ações: `Novo Cenário` (primary), `Exportar`, `Compartilhar` (outline)
 
-`src/components/finance/receivables/NewReceivableSheet.tsx`:
-- Receber `patients`, `professionals`, `categories`, `accounts` via props.
-- Trocar inputs livres por `Select` populados com as listas.
-- Submit chama `useServerFn(createReceivable)`; toast de sucesso e invalida cache.
+**Linha 1 — 4 KPIs** (`KpiCard` reaproveitado):
+- Saldo Atual — R$ 28.800 — ↑ 12% vs mês anterior
+- Saldo Projetado 30 Dias — R$ 42.300 — ↑ 18% projeção
+- Saldo Projetado 90 Dias — R$ 71.900 — ↑ 34% projeção
+- Fôlego Financeiro — 64 dias — badge "Acima do recomendado" + tooltip explicativo
 
-`src/components/finance/receivables/RegisterReceiptDialog.tsx`:
-- Aceitar prop `transactionId?: string`; se presente, ao confirmar chama `markReceivableReceived({ data: { id, paid_date } })`.
-- Sem id (uso "registro rápido" do header) → mantém modal informativo com toast (sem persistência), já que não há transação alvo.
+**Linha 2 — Grid 2 colunas (8/4)**
 
-`src/lib/finance/receivables-mock.ts` → **deletar** depois que tudo estiver migrado.
+- **Projeção de Saldo de Caixa** (`ComposedChart` Recharts)
+  - Linha sólida: Saldo Atual
+  - Linha tracejada: Saldo Projetado
+  - Linha discreta: Meta Financeira
+  - `ReferenceArea` vermelho suave: Zona de Risco (abaixo de R$ 0)
+  - Seletor de período: 30 / 60 / 90 / 180 dias (via search param `range`)
+  - Tooltip customizado
 
-### Fora do escopo (citado pela IA, mas não pedido agora)
-- Tabela `treatment_financial_plans` e tabela `procedures` própria (hoje "procedimento" = category income; descrição livre na transação).
-- Job automático de geração de recorrências futuras (cron).
-- Endpoint REST separado (`GET /finance/receivables/chart`) — a função única `getReceivablesOverview` já entrega tudo em uma chamada, igual ao padrão do payables/overview.
+- **Resumo da Projeção** (sidebar direita)
+  - Recebimentos previstos — R$ 120.000 (verde)
+  - Pagamentos previstos — R$ 78.000 (vermelho)
+  - Saldo líquido projetado — R$ 42.000
+  - Donut compacto Recharts (Recebimentos / Pagamentos / Saldo líquido) com label central "R$ 42k"
 
-### Migration?
-Não é necessária. Toda a estrutura (`financial_transactions` com `patient_id`, `professional_id`, `category_id`, `account_id`, `payment_method`, `installment_*`, `is_recurring`, `recurrence_type`, `parent_transaction_id`) já existe e está populada com dados de demonstração (220 receivables no `demo`).
+**Linha 3 — Grid 3 colunas**
+
+- **Timeline Financeira** (col-span-2): lista de ~7 eventos (Recebimento, Folha, Aluguel, Laboratório, Equipamento, Imposto). Cada item: card de data (dia/mês), ícone direcional ↑/↓, tipo+descrição, valor com sinal, "Saldo após evento". Botão "Ver todos os eventos".
+
+- **Simulador de Cenários** (col-span-1, ao lado da timeline conforme imagem): cards de cenário (Nova Contratação - Recepcionista R$ 2.500/mês → -R$ 7.500 em 90d; Novo Equipamento - Scanner R$ 35.000 → -R$ 22.000; Novo Dentista → +R$ 19.440). Cada cenário tem nome, subtítulo, valor base, impacto colorido e chevron. Botão "Ver todos os cenários".
+
+**Linha 4 — Sidebar direita ocupa as três últimas linhas (conforme imagem de referência)**
+
+A imagem mostra grid com 2 colunas principais à esquerda (Timeline + Simulador) e coluna direita com:
+- **Metas Financeiras**: Meta Mensal R$ 120.000, Realizado R$ 87.000, Projeção R$ 132.000, barra de progresso, "109% da meta".
+- **Insights Inteligentes**: 4 itens com ícone + frase (receita projetada 18% maior, saldo negativo em 14/ago, ortodontia 47% receita futura, segunda-feira gera mais faturamento).
+
+Layout final aproximado:
+```text
+[ KPI ][ KPI ][ KPI ][ KPI ]
+[  Projeção de Saldo (8) ][ Resumo + Donut (4) ]
+[ Timeline (5) ][ Simulador (4) ][ Metas + Insights (3) ]
+```
+
+### Componentes novos
+- `planning/CashProjectionChart.tsx`
+- `planning/ProjectionSummaryCard.tsx`
+- `planning/FinancialTimeline.tsx`
+- `planning/ScenarioSimulator.tsx`
+- `planning/FinancialGoalsCard.tsx`
+- `planning/SmartInsightsCard.tsx`
+- `planning/planning-mock.ts` — todos os dados mockados e tipos
+
+### Estados visuais
+Hover em cards e itens, loading skeletons opcionais (não usados pois mock síncrono), empty states em listas (mensagem `text-muted-foreground`).
+
+### Rota
+- Criar `src/routes/planejamento.tsx` com `createFileRoute("/planejamento")`, `validateSearch` para `range: 30|60|90|180` (default 90).
+- O Vite plugin atualiza `routeTree.gen.ts` automaticamente.
+
+## Out of scope
+- Backend, migrations, server functions.
+- Funcionalidade real dos botões Novo Cenário / Exportar / Compartilhar (apenas UI).
