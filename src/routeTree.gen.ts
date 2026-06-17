@@ -9,9 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RecebimentosRouteImport } from './routes/recebimentos'
 import { Route as PagamentosRouteImport } from './routes/pagamentos'
 import { Route as IndexRouteImport } from './routes/index'
 
+const RecebimentosRoute = RecebimentosRouteImport.update({
+  id: '/recebimentos',
+  path: '/recebimentos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PagamentosRoute = PagamentosRouteImport.update({
   id: '/pagamentos',
   path: '/pagamentos',
@@ -26,31 +32,42 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/pagamentos': typeof PagamentosRoute
+  '/recebimentos': typeof RecebimentosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/pagamentos': typeof PagamentosRoute
+  '/recebimentos': typeof RecebimentosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/pagamentos': typeof PagamentosRoute
+  '/recebimentos': typeof RecebimentosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/pagamentos'
+  fullPaths: '/' | '/pagamentos' | '/recebimentos'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/pagamentos'
-  id: '__root__' | '/' | '/pagamentos'
+  to: '/' | '/pagamentos' | '/recebimentos'
+  id: '__root__' | '/' | '/pagamentos' | '/recebimentos'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PagamentosRoute: typeof PagamentosRoute
+  RecebimentosRoute: typeof RecebimentosRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/recebimentos': {
+      id: '/recebimentos'
+      path: '/recebimentos'
+      fullPath: '/recebimentos'
+      preLoaderRoute: typeof RecebimentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pagamentos': {
       id: '/pagamentos'
       path: '/pagamentos'
@@ -71,17 +88,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PagamentosRoute: PagamentosRoute,
+  RecebimentosRoute: RecebimentosRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
