@@ -173,7 +173,7 @@ function PlanningPage() {
                   </p>
                 </div>
               </div>
-              <p className="md:hidden text-[17px] font-semibold tracking-tight tabular-nums leading-none">
+              <p className="md:hidden text-sm font-semibold tracking-tight tabular-nums leading-none">
                 {summary.financialRunwayDays} dias
               </p>
               <div className="flex items-center justify-between">

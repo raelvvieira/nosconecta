@@ -53,7 +53,7 @@ export function KpiCard({
       </div>
 
       {/* Mobile only: value full width */}
-      <p className="md:hidden text-[17px] font-semibold tracking-tight tabular-nums leading-none">{value}</p>
+      <p className="md:hidden text-sm font-semibold tracking-tight tabular-nums leading-none">{value}</p>
 
       <div className="flex items-center justify-between text-xs">
         {deltaPct !== undefined ? (
