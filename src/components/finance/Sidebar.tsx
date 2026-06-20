@@ -216,76 +216,113 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* Mobile bottom navigation — island style */}
-      <div
-        className="lg:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50"
-        style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+      {/* Mobile bottom navigation — premium floating card */}
+      <nav
+        className="lg:hidden fixed z-50"
+        style={{
+          left: 16,
+          right: 16,
+          bottom: 14,
+          height: 92,
+          borderRadius: 28,
+          background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(250,250,250,1) 100%)",
+          boxShadow: "0 8px 30px rgba(15,23,42,0.08), 0 2px 8px rgba(15,23,42,0.04)",
+          border: "1px solid rgba(226,232,240,0.6)",
+          paddingTop: 12,
+          paddingBottom: 10,
+          paddingLeft: 8,
+          paddingRight: 8,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-around",
+          marginBottom: "env(safe-area-inset-bottom)",
+        }}
       >
-        <nav className="bg-white rounded-[28px] shadow-xl shadow-black/10 flex items-end px-3 py-2 gap-1">
-          {/* Left items */}
-          {[
-            { label: "Financeiro", icon: LayoutGrid, to: "/" as const },
-            { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" as const },
-          ].map((item) => {
-            const active = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
-            const isReal = REAL_ROUTES.has(item.to);
-            const inner = (
-              <span className="flex flex-col items-center gap-1 py-1 px-2.5">
-                <span className={cn("rounded-xl p-1.5", active ? "bg-primary/10" : "")}>
-                  <item.icon
-                    className={cn("h-[18px] w-[18px]", active ? "text-primary" : "text-muted-foreground")}
-                    strokeWidth={active ? 2 : 1.75}
-                  />
-                </span>
-                <span className={cn("text-[10px] font-medium leading-none", active ? "text-primary" : "text-muted-foreground")}>
-                  {item.label}
-                </span>
-              </span>
-            );
-            return isReal ? (
-              <Link key={item.label} to={item.to} aria-label={item.label}>{inner}</Link>
-            ) : (
-              <button key={item.label} type="button" disabled className="opacity-40" aria-label={item.label}>{inner}</button>
-            );
-          })}
+        {[
+          { label: "Financeiro", icon: LayoutGrid, to: "/" as const },
+          { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" as const },
+          { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" as const },
+          { label: "Planejamento", icon: TrendingUp, to: "/planejamento" as const },
+          { label: "Mais", icon: Menu, to: null as unknown as "/" },
+        ].map((item) => {
+          const active = item.to
+            ? pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to))
+            : false;
+          const isReal = item.to ? REAL_ROUTES.has(item.to) : false;
 
-          {/* FAB center */}
-          <button
-            type="button"
-            className="h-14 w-14 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#FF9A3C] text-white shadow-lg flex items-center justify-center -mt-5 mx-1 shrink-0"
-            aria-label="Adicionar"
-          >
-            <Plus className="h-6 w-6" strokeWidth={2.5} />
-          </button>
-
-          {/* Right items */}
-          {[
-            { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" as const },
-            { label: "Mais", icon: Menu, to: null },
-          ].map((item) => {
-            const active = item.to ? (pathname === item.to || pathname.startsWith(item.to)) : false;
-            const isReal = item.to ? REAL_ROUTES.has(item.to) : false;
-            const inner = (
-              <span className="flex flex-col items-center gap-1 py-1 px-2.5">
-                <span className={cn("rounded-xl p-1.5", active ? "bg-primary/10" : "")}>
-                  <item.icon
-                    className={cn("h-[18px] w-[18px]", active ? "text-primary" : "text-muted-foreground")}
-                    strokeWidth={active ? 2 : 1.75}
-                  />
-                </span>
-                <span className={cn("text-[10px] font-medium leading-none", active ? "text-primary" : "text-muted-foreground")}>
-                  {item.label}
-                </span>
+          const inner = (
+            <span
+              style={{
+                minWidth: 60,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                transition: "transform 0.25s ease",
+                transform: active ? "translateY(-2px)" : "translateY(0)",
+              }}
+            >
+              <span
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 999,
+                  background: active ? "rgba(255,107,87,0.12)" : "transparent",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.25s ease",
+                }}
+              >
+                <item.icon
+                  style={{
+                    width: 24,
+                    height: 24,
+                    color: active ? "#FF6B57" : "#6B7280",
+                    transition: "all 0.25s ease",
+                  }}
+                  strokeWidth={2}
+                />
               </span>
-            );
-            return item.to && isReal ? (
-              <Link key={item.label} to={item.to} aria-label={item.label}>{inner}</Link>
-            ) : (
-              <button key={item.label} type="button" disabled className="opacity-40" aria-label={item.label}>{inner}</button>
-            );
-          })}
-        </nav>
-      </div>
+              <span
+                style={{
+                  fontFamily: "Inter, sans-serif",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  lineHeight: 1,
+                  color: active ? "#FF6B57" : "#6B7280",
+                  transition: "color 0.25s ease",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {item.label}
+              </span>
+            </span>
+          );
+
+          return item.to && isReal ? (
+            <Link
+              key={item.label}
+              to={item.to}
+              aria-label={item.label}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              {inner}
+            </Link>
+          ) : (
+            <button
+              key={item.label}
+              type="button"
+              disabled={!isReal}
+              aria-label={item.label}
+              style={{ opacity: isReal ? 1 : 0.4, display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              {inner}
+            </button>
+          );
+        })}
+      </nav>
     </TooltipProvider>
   );
 }
