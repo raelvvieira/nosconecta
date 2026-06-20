@@ -159,7 +159,7 @@ function PagamentosPage() {
         </header>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
           <KpiCard
             label="Pago no período"
             value={formatBRL(data.kpis.paidInPeriod.current)}
