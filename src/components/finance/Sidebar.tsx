@@ -9,6 +9,7 @@ import {
   Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
+  Menu,
 } from "lucide-react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -214,6 +215,57 @@ export function Sidebar() {
           )}
         </div>
       </aside>
+
+      {/* Mobile bottom navigation */}
+      <nav
+        className="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur-md border-t border-border flex items-stretch"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        {[
+          { label: "Financeiro", icon: LayoutGrid, to: "/" as const },
+          { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" as const },
+          { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" as const },
+          { label: "Planejamento", icon: TrendingUp, to: "/planejamento" as const },
+        ].map((item) => {
+          const active = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+          const isReal = REAL_ROUTES.has(item.to);
+          const inner = (
+            <span className="flex flex-col items-center gap-1 py-2 px-1">
+              <item.icon
+                className={cn("h-5 w-5", active ? "text-primary" : "text-muted-foreground")}
+                strokeWidth={active ? 2 : 1.75}
+              />
+              <span
+                className={cn(
+                  "text-[10px] font-medium leading-none",
+                  active ? "text-primary" : "text-muted-foreground",
+                )}
+              >
+                {item.label}
+              </span>
+            </span>
+          );
+          return (
+            <div key={item.label} className="flex-1 flex items-stretch justify-center">
+              {isReal ? (
+                <Link to={item.to} className="flex-1 flex items-center justify-center" aria-label={item.label}>
+                  {inner}
+                </Link>
+              ) : (
+                <button type="button" disabled className="flex-1 flex items-center justify-center opacity-40" aria-label={item.label}>
+                  {inner}
+                </button>
+              )}
+            </div>
+          );
+        })}
+        <div className="flex-1 flex items-center justify-center">
+          <button type="button" disabled className="flex-1 flex items-center justify-center opacity-40 flex-col gap-1 py-2">
+            <Menu className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+            <span className="text-[10px] font-medium text-muted-foreground leading-none">Mais</span>
+          </button>
+        </div>
+      </nav>
     </TooltipProvider>
   );
 }

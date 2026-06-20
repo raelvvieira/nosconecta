@@ -155,20 +155,20 @@ function RecebimentosPage() {
     <div className="app-bg min-h-screen flex">
       <Sidebar />
 
-      <main className="flex-1 min-w-0 px-6 lg:px-10 py-8 space-y-6">
+      <main className="flex-1 min-w-0 px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-24 lg:pb-8">
         <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Recebimentos</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Recebimentos</h1>
             <p className="text-sm text-muted-foreground mt-1">Acompanhe todas as entradas financeiras da clínica</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={() => setSheetOpen(true)} variant="premium">
               <Plus className="h-4 w-4" /> Novo Recebimento
             </Button>
-            <Button variant="outline" className="gap-2" onClick={() => { setReceiptTarget(null); setReceiptOpen(true); }}>
+            <Button variant="outline" className="hidden md:inline-flex gap-2" onClick={() => { setReceiptTarget(null); setReceiptOpen(true); }}>
               <ClipboardCheck className="h-4 w-4" /> Registrar Recebimento
             </Button>
-            <Button variant="outline" className="gap-2" onClick={() => toast.success("Exportação iniciada")}>
+            <Button variant="outline" className="hidden md:inline-flex gap-2" onClick={() => toast.success("Exportação iniciada")}>
               <Download className="h-4 w-4" /> Exportar
             </Button>
           </div>
@@ -177,7 +177,7 @@ function RecebimentosPage() {
         <div className="grid grid-cols-1 2xl:grid-cols-[1fr_340px] gap-5">
           <div className="space-y-5 min-w-0">
             {/* KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5">
               <KpiCard
                 label="Recebido no período"
                 value={formatBRL(data.kpis.receivedInPeriod.current)}

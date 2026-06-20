@@ -142,24 +142,24 @@ function PagamentosPage() {
     <div className="app-bg min-h-screen flex">
       <Sidebar />
 
-      <main className="flex-1 min-w-0 px-8 lg:px-12 py-8 space-y-8">
+      <main className="flex-1 min-w-0 px-4 md:px-8 lg:px-12 py-6 md:py-8 space-y-6 md:space-y-8 pb-24 lg:pb-8">
         {/* Header */}
         <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 min-h-[80px]">
           <div>
-            <h1 className="text-[34px] leading-tight font-bold tracking-tight">Pagamentos</h1>
-            <p className="text-sm text-muted-foreground mt-1.5">Gerencie todas as despesas da clínica</p>
+            <h1 className="text-2xl md:text-[34px] leading-tight font-bold tracking-tight">Pagamentos</h1>
+            <p className="text-sm text-muted-foreground mt-1 md:mt-1.5">Gerencie todas as despesas da clínica</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={() => setSheetOpen(true)} variant="premium">
               <Plus className="h-4 w-4" /> Novo Pagamento
             </Button>
-            <Button variant="secondary"><Upload className="h-4 w-4" /> Importar</Button>
-            <Button variant="secondary"><Download className="h-4 w-4" /> Exportar</Button>
+            <Button variant="secondary" className="hidden md:inline-flex"><Upload className="h-4 w-4" /> Importar</Button>
+            <Button variant="secondary" className="hidden md:inline-flex"><Download className="h-4 w-4" /> Exportar</Button>
           </div>
         </header>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5">
           <KpiCard
             label="Pago no período"
             value={formatBRL(data.kpis.paidInPeriod.current)}

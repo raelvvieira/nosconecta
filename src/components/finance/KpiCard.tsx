@@ -34,17 +34,17 @@ export function KpiCard({
   return (
     <div
       className={cn(
-        "surface-card p-6 flex flex-col gap-5 transition-shadow hover:shadow-lg",
+        "surface-card p-4 md:p-6 flex flex-col gap-3 md:gap-5 transition-shadow hover:shadow-lg",
         highlight && "ring-1 ring-primary/20 bg-gradient-to-br from-card to-violet-soft/30",
       )}
     >
-      <div className="flex items-start gap-4">
-        <div className={cn("h-12 w-12 rounded-2xl grid place-items-center", styles.iconBg)}>
-          <Icon className={cn("h-5 w-5", styles.iconText)} strokeWidth={2} />
+      <div className="flex items-start gap-3 md:gap-4">
+        <div className={cn("h-10 w-10 md:h-12 md:w-12 rounded-2xl grid place-items-center shrink-0", styles.iconBg)}>
+          <Icon className={cn("h-4 w-4 md:h-5 md:w-5", styles.iconText)} strokeWidth={2} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="text-2xl font-semibold tracking-tight tabular-nums mt-1">{value}</p>
+          <p className="text-xs md:text-sm text-muted-foreground">{label}</p>
+          <p className="text-xl md:text-2xl font-semibold tracking-tight tabular-nums mt-0.5 md:mt-1">{value}</p>
         </div>
       </div>
 
