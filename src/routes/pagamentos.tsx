@@ -5,12 +5,13 @@ import { useState } from "react";
 import { z } from "zod";
 import {
   Plus, Upload, Download, Search, Filter,
-  MoreHorizontal, Check, Trash2, ArrowUpRight, ArrowDownRight, CalendarDays,
+  MoreHorizontal, Check, Trash2, ArrowUpRight, ArrowDownRight, CalendarDays, TrendingUp,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 
 import { Sidebar } from "@/components/finance/Sidebar";
+import { KpiCard } from "@/components/finance/KpiCard";
 import { DateRangePicker } from "@/components/finance/DateRangePicker";
 import { NewPaymentSheet } from "@/components/finance/payables/NewPaymentSheet";
 import { Button } from "@/components/ui/button";
@@ -157,36 +158,42 @@ function PagamentosPage() {
           </div>
         </header>
 
-        {/* KPI Mosaic */}
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
-          <KpiLight
-            className="md:col-span-2"
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+          <KpiCard
             label="Pago no período"
             value={formatBRL(data.kpis.paidInPeriod.current)}
-            delta={data.kpis.paidInPeriod.deltaPct}
-            footer="vs período anterior"
+            icon={ArrowDownRight}
             tone="success"
+            deltaPct={data.kpis.paidInPeriod.deltaPct}
+            footer={<span className="text-muted-foreground">vs período anterior</span>}
           />
-          <KpiLight
-            className="md:col-span-2"
+          <KpiCard
             label="A pagar"
             value={formatBRL(data.kpis.toPay.total)}
-            footer={`${data.kpis.toPay.count} pagamentos`}
-            tone="coral"
+            icon={CalendarDays}
+            tone="warning"
+            footer={
+              <span className="inline-flex items-center px-2 py-1 rounded-full bg-warning-soft text-warning font-medium">
+                {data.kpis.toPay.count} pagamentos
+              </span>
+            }
           />
-          <KpiLight
-            className="md:col-span-2"
+          <KpiCard
             label="Em atraso"
             value={formatBRL(data.kpis.overdue.current)}
-            delta={data.kpis.overdue.deltaPct}
-            footer="vs mês anterior"
+            icon={ArrowUpRight}
             tone="danger"
+            deltaPct={data.kpis.overdue.deltaPct}
+            footer={<span className="text-muted-foreground">vs mês anterior</span>}
           />
-          <KpiDark
-            className="md:col-span-6"
+          <KpiCard
             label="Total previsto no período"
             value={formatBRL(data.kpis.forecastTotal)}
-            hint="Soma de pagamentos pendentes, atrasados e já pagos no intervalo selecionado"
+            icon={TrendingUp}
+            tone="violet"
+            highlight
+            footer={<span className="text-muted-foreground">no intervalo selecionado</span>}
           />
         </div>
 
@@ -398,67 +405,6 @@ function PagamentosPage() {
         accounts={data.accounts}
         onCreated={invalidate}
       />
-    </div>
-  );
-}
-
-/* ---------------- KPI cards ---------------- */
-
-function KpiLight({
-  label, value, delta, footer, tone, className,
-}: {
-  label: string; value: string; delta?: number; footer?: string;
-  tone: "success" | "danger" | "coral"; className?: string;
-}) {
-  const positive = delta !== undefined && delta >= 0;
-  const deltaCls =
-    positive ? "bg-success-soft text-success" : "bg-danger-soft text-danger";
-  return (
-    <div className={cn("surface-card p-7 flex flex-col gap-6", className)}>
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
-        <span
-          className={cn(
-            "h-9 w-9 grid place-items-center rounded-full shrink-0",
-            tone === "success" && "bg-success-soft text-success",
-            tone === "danger" && "bg-danger-soft text-danger",
-            tone === "coral" && "bg-coral-soft text-coral",
-          )}
-        >
-          {tone === "success" ? <ArrowDownRight className="h-4 w-4" /> :
-            tone === "danger" ? <ArrowUpRight className="h-4 w-4" /> :
-            <CalendarDays className="h-4 w-4" />}
-        </span>
-      </div>
-      <p className="text-[34px] leading-none font-bold tracking-tight tabular-nums">{value}</p>
-      <div className="flex items-center justify-between text-xs">
-        {delta !== undefined ? (
-          <span className={cn("inline-flex items-center gap-1 px-2 py-1 rounded-full font-medium", deltaCls)}>
-            {positive ? "↑" : "↓"} {Math.abs(delta).toFixed(0)}%
-          </span>
-        ) : <span />}
-        {footer && <span className="text-muted-foreground">{footer}</span>}
-      </div>
-    </div>
-  );
-}
-
-function KpiDark({
-  label, value, hint, className,
-}: { label: string; value: string; hint?: string; className?: string }) {
-  return (
-    <div className={cn("card-dark p-8 flex flex-col md:flex-row md:items-end md:justify-between gap-6", className)}>
-      <div>
-        <p className="text-[13px] font-medium text-white/60">{label}</p>
-        <p className="text-[38px] leading-none font-bold tracking-tight tabular-nums mt-3">{value}</p>
-        {hint && <p className="text-xs text-white/50 mt-3 max-w-md">{hint}</p>}
-      </div>
-      <button
-        type="button"
-        className="self-start md:self-end inline-flex items-center gap-2 rounded-[14px] bg-white/10 hover:bg-white/15 transition-colors text-white px-4 py-2.5 text-sm font-medium"
-      >
-        Ver detalhes <ArrowUpRight className="h-4 w-4" />
-      </button>
     </div>
   );
 }

@@ -162,7 +162,7 @@ function RecebimentosPage() {
             <p className="text-sm text-muted-foreground mt-1">Acompanhe todas as entradas financeiras da clínica</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => setSheetOpen(true)} className="bg-primary hover:bg-primary/90 gap-2">
+            <Button onClick={() => setSheetOpen(true)} variant="premium">
               <Plus className="h-4 w-4" /> Novo Recebimento
             </Button>
             <Button variant="outline" className="gap-2" onClick={() => { setReceiptTarget(null); setReceiptOpen(true); }}>
