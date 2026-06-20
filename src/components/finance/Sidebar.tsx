@@ -216,56 +216,76 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* Mobile bottom navigation */}
-      <nav
-        className="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-white/95 backdrop-blur-md border-t border-border flex items-stretch"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      {/* Mobile bottom navigation — island style */}
+      <div
+        className="lg:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50"
+        style={{ marginBottom: "env(safe-area-inset-bottom)" }}
       >
-        {[
-          { label: "Financeiro", icon: LayoutGrid, to: "/" as const },
-          { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" as const },
-          { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" as const },
-          { label: "Planejamento", icon: TrendingUp, to: "/planejamento" as const },
-        ].map((item) => {
-          const active = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
-          const isReal = REAL_ROUTES.has(item.to);
-          const inner = (
-            <span className="flex flex-col items-center gap-1 py-2 px-1">
-              <item.icon
-                className={cn("h-5 w-5", active ? "text-primary" : "text-muted-foreground")}
-                strokeWidth={active ? 2 : 1.75}
-              />
-              <span
-                className={cn(
-                  "text-[10px] font-medium leading-none",
-                  active ? "text-primary" : "text-muted-foreground",
-                )}
-              >
-                {item.label}
+        <nav className="bg-white rounded-[28px] shadow-xl shadow-black/10 flex items-end px-3 py-2 gap-1">
+          {/* Left items */}
+          {[
+            { label: "Financeiro", icon: LayoutGrid, to: "/" as const },
+            { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" as const },
+          ].map((item) => {
+            const active = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+            const isReal = REAL_ROUTES.has(item.to);
+            const inner = (
+              <span className="flex flex-col items-center gap-1 py-1 px-2.5">
+                <span className={cn("rounded-xl p-1.5", active ? "bg-primary/10" : "")}>
+                  <item.icon
+                    className={cn("h-[18px] w-[18px]", active ? "text-primary" : "text-muted-foreground")}
+                    strokeWidth={active ? 2 : 1.75}
+                  />
+                </span>
+                <span className={cn("text-[10px] font-medium leading-none", active ? "text-primary" : "text-muted-foreground")}>
+                  {item.label}
+                </span>
               </span>
-            </span>
-          );
-          return (
-            <div key={item.label} className="flex-1 flex items-stretch justify-center">
-              {isReal ? (
-                <Link to={item.to} className="flex-1 flex items-center justify-center" aria-label={item.label}>
-                  {inner}
-                </Link>
-              ) : (
-                <button type="button" disabled className="flex-1 flex items-center justify-center opacity-40" aria-label={item.label}>
-                  {inner}
-                </button>
-              )}
-            </div>
-          );
-        })}
-        <div className="flex-1 flex items-center justify-center">
-          <button type="button" disabled className="flex-1 flex items-center justify-center opacity-40 flex-col gap-1 py-2">
-            <Menu className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
-            <span className="text-[10px] font-medium text-muted-foreground leading-none">Mais</span>
+            );
+            return isReal ? (
+              <Link key={item.label} to={item.to} aria-label={item.label}>{inner}</Link>
+            ) : (
+              <button key={item.label} type="button" disabled className="opacity-40" aria-label={item.label}>{inner}</button>
+            );
+          })}
+
+          {/* FAB center */}
+          <button
+            type="button"
+            className="h-14 w-14 rounded-full bg-gradient-to-br from-[#FF6B6B] to-[#FF9A3C] text-white shadow-lg flex items-center justify-center -mt-5 mx-1 shrink-0"
+            aria-label="Adicionar"
+          >
+            <Plus className="h-6 w-6" strokeWidth={2.5} />
           </button>
-        </div>
-      </nav>
+
+          {/* Right items */}
+          {[
+            { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" as const },
+            { label: "Mais", icon: Menu, to: null },
+          ].map((item) => {
+            const active = item.to ? (pathname === item.to || pathname.startsWith(item.to)) : false;
+            const isReal = item.to ? REAL_ROUTES.has(item.to) : false;
+            const inner = (
+              <span className="flex flex-col items-center gap-1 py-1 px-2.5">
+                <span className={cn("rounded-xl p-1.5", active ? "bg-primary/10" : "")}>
+                  <item.icon
+                    className={cn("h-[18px] w-[18px]", active ? "text-primary" : "text-muted-foreground")}
+                    strokeWidth={active ? 2 : 1.75}
+                  />
+                </span>
+                <span className={cn("text-[10px] font-medium leading-none", active ? "text-primary" : "text-muted-foreground")}>
+                  {item.label}
+                </span>
+              </span>
+            );
+            return item.to && isReal ? (
+              <Link key={item.label} to={item.to} aria-label={item.label}>{inner}</Link>
+            ) : (
+              <button key={item.label} type="button" disabled className="opacity-40" aria-label={item.label}>{inner}</button>
+            );
+          })}
+        </nav>
+      </div>
     </TooltipProvider>
   );
 }

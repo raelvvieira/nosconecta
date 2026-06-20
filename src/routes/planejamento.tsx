@@ -122,7 +122,7 @@ function PlanningPage() {
           </header>
 
           {/* KPIs */}
-          <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+          <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5">
             <KpiCard
               label="Saldo Atual"
               value={formatBRL(summary.currentBalance)}
@@ -148,14 +148,14 @@ function PlanningPage() {
               footer={<span className="text-muted-foreground">projeção</span>}
             />
 
-            <div className="surface-card p-6 flex flex-col gap-5 transition-shadow hover:shadow-lg">
-              <div className="flex items-start gap-4">
-                <div className="h-12 w-12 rounded-2xl grid place-items-center bg-warning-soft">
-                  <Shield className="h-5 w-5 text-warning" strokeWidth={2} />
+            <div className="surface-card p-4 md:p-6 flex flex-col gap-3 md:gap-5 transition-shadow hover:shadow-lg">
+              <div className="flex items-start gap-3 md:gap-4">
+                <div className="h-9 w-9 md:h-12 md:w-12 rounded-xl md:rounded-2xl grid place-items-center bg-warning-soft shrink-0">
+                  <Shield className="h-4 w-4 md:h-5 md:w-5 text-warning" strokeWidth={2} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-sm text-muted-foreground">Fôlego Financeiro</p>
+                    <p className="text-[11px] md:text-sm text-muted-foreground">Fôlego Financeiro</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button type="button" className="text-muted-foreground hover:text-foreground">
@@ -168,11 +168,14 @@ function PlanningPage() {
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-2xl font-semibold tracking-tight tabular-nums mt-1">
+                  <p className="hidden md:block text-2xl font-semibold tracking-tight tabular-nums mt-1">
                     {summary.financialRunwayDays} dias
                   </p>
                 </div>
               </div>
+              <p className="md:hidden text-[17px] font-semibold tracking-tight tabular-nums leading-none">
+                {summary.financialRunwayDays} dias
+              </p>
               <div className="flex items-center justify-between">
                 <Badge variant="secondary" className={`border-0 font-medium ${summary.financialRunwayDays >= 60 ? "bg-success-soft text-success" : "bg-warning-soft text-warning"}`}>
                   {summary.financialRunwayDays >= 60 ? "✓ Acima do recomendado" : "Atenção ao caixa"}

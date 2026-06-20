@@ -38,15 +38,22 @@ export function KpiCard({
         highlight && "ring-1 ring-primary/20 bg-gradient-to-br from-card to-violet-soft/30",
       )}
     >
+      {/* Mobile: icon + label row; Desktop: icon + (label + value column) */}
       <div className="flex items-start gap-3 md:gap-4">
-        <div className={cn("h-10 w-10 md:h-12 md:w-12 rounded-2xl grid place-items-center shrink-0", styles.iconBg)}>
+        <div className={cn("h-9 w-9 md:h-12 md:w-12 rounded-xl md:rounded-2xl grid place-items-center shrink-0", styles.iconBg)}>
           <Icon className={cn("h-4 w-4 md:h-5 md:w-5", styles.iconText)} strokeWidth={2} />
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs md:text-sm text-muted-foreground">{label}</p>
-          <p className="text-xl md:text-2xl font-semibold tracking-tight tabular-nums mt-0.5 md:mt-1">{value}</p>
+        {/* Desktop only: label + value stacked next to icon */}
+        <div className="hidden md:flex flex-1 min-w-0 flex-col">
+          <p className="text-sm text-muted-foreground">{label}</p>
+          <p className="text-2xl font-semibold tracking-tight tabular-nums mt-1">{value}</p>
         </div>
+        {/* Mobile only: label next to icon */}
+        <p className="md:hidden text-[11px] leading-tight text-muted-foreground pt-0.5 flex-1 min-w-0">{label}</p>
       </div>
+
+      {/* Mobile only: value full width */}
+      <p className="md:hidden text-[17px] font-semibold tracking-tight tabular-nums leading-none">{value}</p>
 
       <div className="flex items-center justify-between text-xs">
         {deltaPct !== undefined ? (
