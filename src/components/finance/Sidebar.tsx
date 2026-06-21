@@ -68,6 +68,7 @@ export function Sidebar() {
       <aside
         className={cn(
           "hidden lg:flex shrink-0 flex-col bg-sidebar border-r border-border py-6 gap-6 transition-[width] duration-200",
+          "lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden",
           collapsed ? "w-[88px] items-center px-0" : "w-[240px] items-stretch px-4",
         )}
       >
@@ -110,7 +111,7 @@ export function Sidebar() {
         {/* Nav */}
         <nav
           className={cn(
-            "flex-1 flex flex-col gap-2",
+            "flex-1 min-h-0 overflow-y-auto flex flex-col gap-2",
             collapsed ? "items-center" : "items-stretch",
           )}
         >
