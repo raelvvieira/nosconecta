@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 
 import { Sidebar } from "@/components/finance/Sidebar";
+import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
 import { DateRangePicker } from "@/components/finance/DateRangePicker";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { NewReceivableSheet } from "@/components/finance/receivables/NewReceivableSheet";
@@ -124,6 +125,8 @@ function RecebimentosPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [qLocal, setQLocal] = useState(search.q ?? "");
 
+  useRegisterMobileFab({ label: "Novo Recebimento", onClick: () => setSheetOpen(true) });
+
   const setSearch = (patch: Partial<Search>) =>
     router.navigate({ to: "/recebimentos", search: (prev: Search) => ({ ...prev, ...patch }) });
 
@@ -162,7 +165,7 @@ function RecebimentosPage() {
             <p className="text-sm text-muted-foreground mt-1">Acompanhe todas as entradas financeiras da clínica</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => setSheetOpen(true)} variant="premium">
+            <Button onClick={() => setSheetOpen(true)} variant="premium" className="hidden lg:inline-flex">
               <Plus className="h-4 w-4" /> Novo Recebimento
             </Button>
             <Button variant="outline" className="hidden md:inline-flex gap-2" onClick={() => { setReceiptTarget(null); setReceiptOpen(true); }}>
