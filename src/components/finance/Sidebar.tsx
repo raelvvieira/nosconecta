@@ -38,6 +38,8 @@ export function Sidebar() {
   const { pathname } = useLocation();
   const [collapsed, setCollapsed] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const fabCtx = useMobileFab();
+  const fab = fabCtx?.fab ?? null;
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -217,112 +219,150 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* Mobile bottom navigation — premium floating card */}
+      {/* Mobile bottom navigation — premium floating card with central FAB */}
       <nav
         className="lg:hidden fixed z-50"
         style={{
           left: 16,
           right: 16,
           bottom: 14,
-          height: 92,
-          borderRadius: 28,
+          height: 68,
+          borderRadius: 24,
           background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(250,250,250,1) 100%)",
           boxShadow: "0 8px 30px rgba(15,23,42,0.08), 0 2px 8px rgba(15,23,42,0.04)",
           border: "1px solid rgba(226,232,240,0.6)",
-          paddingTop: 12,
-          paddingBottom: 10,
-          paddingLeft: 8,
-          paddingRight: 8,
+          paddingLeft: 6,
+          paddingRight: 6,
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-around",
+          justifyContent: "space-between",
           marginBottom: "env(safe-area-inset-bottom)",
+          position: "fixed",
         }}
       >
-        {[
-          { label: "Financeiro", icon: LayoutGrid, to: "/" as const },
-          { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" as const },
-          { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" as const },
-          { label: "Planejamento", icon: TrendingUp, to: "/planejamento" as const },
-          { label: "Mais", icon: Menu, to: null as unknown as "/" },
-        ].map((item) => {
-          const active = item.to
-            ? pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to))
-            : false;
-          const isReal = item.to ? REAL_ROUTES.has(item.to) : false;
+        {(() => {
+          const navItems = [
+            { label: "Financeiro", icon: LayoutGrid, to: "/" as const },
+            { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" as const },
+            { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" as const },
+            { label: "Planejamento", icon: TrendingUp, to: "/planejamento" as const },
+          ];
+          // Render: 2 items | FAB | 2 items
+          const left = navItems.slice(0, 2);
+          const right = navItems.slice(2);
 
-          const inner = (
-            <span
-              style={{
-                minWidth: 60,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-                transition: "transform 0.25s ease",
-                transform: active ? "translateY(-2px)" : "translateY(0)",
-              }}
-            >
+          const renderItem = (item: (typeof navItems)[number]) => {
+            const active = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+            const isReal = REAL_ROUTES.has(item.to);
+
+            const inner = (
               <span
                 style={{
-                  width: 40,
-                  height: 40,
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 3,
+                  paddingTop: 4,
+                  transition: "transform 0.25s ease",
+                }}
+              >
+                <span
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 999,
+                    background: active ? "rgba(255,107,87,0.12)" : "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.25s ease",
+                  }}
+                >
+                  <item.icon
+                    style={{
+                      width: 18,
+                      height: 18,
+                      color: active ? "#FF6B57" : "#6B7280",
+                    }}
+                    strokeWidth={2}
+                  />
+                </span>
+                <span
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontSize: 9.5,
+                    fontWeight: 500,
+                    letterSpacing: "-0.01em",
+                    lineHeight: 1,
+                    color: active ? "#FF6B57" : "#6B7280",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {item.label}
+                </span>
+              </span>
+            );
+
+            const wrapperStyle: React.CSSProperties = {
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minWidth: 0,
+            };
+
+            return isReal ? (
+              <Link key={item.label} to={item.to} aria-label={item.label} style={wrapperStyle}>
+                {inner}
+              </Link>
+            ) : (
+              <button
+                key={item.label}
+                type="button"
+                disabled
+                aria-label={item.label}
+                style={{ ...wrapperStyle, opacity: 0.4 }}
+              >
+                {inner}
+              </button>
+            );
+          };
+
+          return (
+            <>
+              {left.map(renderItem)}
+
+              {/* Central FAB */}
+              <button
+                type="button"
+                onClick={() => fab?.onClick()}
+                disabled={!fab}
+                aria-label={fab?.label ?? "Adicionar"}
+                className="bg-gradient-primary shadow-soft"
+                style={{
+                  width: 56,
+                  height: 56,
                   borderRadius: 999,
-                  background: active ? "rgba(255,107,87,0.12)" : "transparent",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  transition: "all 0.25s ease",
+                  color: "white",
+                  transform: "translateY(-18px)",
+                  flexShrink: 0,
+                  border: "4px solid white",
+                  opacity: fab ? 1 : 0.4,
+                  transition: "transform 0.2s ease, opacity 0.2s ease",
                 }}
               >
-                <item.icon
-                  style={{
-                    width: 24,
-                    height: 24,
-                    color: active ? "#FF6B57" : "#6B7280",
-                    transition: "all 0.25s ease",
-                  }}
-                  strokeWidth={2}
-                />
-              </span>
-              <span
-                style={{
-                  fontFamily: "Inter, sans-serif",
-                  fontSize: 11,
-                  fontWeight: 500,
-                  lineHeight: 1,
-                  color: active ? "#FF6B57" : "#6B7280",
-                  transition: "color 0.25s ease",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {item.label}
-              </span>
-            </span>
-          );
+                <Plus style={{ width: 26, height: 26 }} strokeWidth={2.5} />
+              </button>
 
-          return item.to && isReal ? (
-            <Link
-              key={item.label}
-              to={item.to}
-              aria-label={item.label}
-              style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-            >
-              {inner}
-            </Link>
-          ) : (
-            <button
-              key={item.label}
-              type="button"
-              disabled={!isReal}
-              aria-label={item.label}
-              style={{ opacity: isReal ? 1 : 0.4, display: "flex", alignItems: "center", justifyContent: "center" }}
-            >
-              {inner}
-            </button>
+              {right.map(renderItem)}
+            </>
           );
-        })}
+        })()}
       </nav>
     </TooltipProvider>
   );
