@@ -111,7 +111,7 @@ export function Sidebar() {
         {/* Nav */}
         <nav
           className={cn(
-            "flex-1 flex flex-col gap-2",
+            "flex-1 min-h-0 overflow-y-auto flex flex-col gap-2",
             collapsed ? "items-center" : "items-stretch",
           )}
         >
