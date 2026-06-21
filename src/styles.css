@@ -216,27 +216,26 @@
   box-shadow: var(--shadow-elev);
 }
 
-/* Glass scrollbar — minimal, low-contrast */
-* {
+@utility custom-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(15, 23, 42, 0.12) transparent;
-}
-*::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-*::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.10);
-  border-radius: 999px;
-  background-clip: padding-box;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background: rgba(15, 23, 42, 0.22);
-  background-clip: padding-box;
-}
-*::-webkit-scrollbar-corner {
-  background: transparent;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 14%, transparent) transparent;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--foreground) 12%, transparent);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    transition: background 0.2s ease;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--foreground) 24%, transparent);
+    background-clip: padding-box;
+  }
 }
