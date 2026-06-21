@@ -102,9 +102,9 @@ export function Sidebar() {
   };
 
   // Module-level items (primary menu)
-  const modules: { label: string; icon: LucideIcon; onClick?: () => void; disabled?: boolean }[] = [
-    { label: "Agenda", icon: Calendar, onClick: () => { setView("agenda"); navigate({ to: "/agenda" }); } },
-    { label: "Financeiro", icon: Wallet, onClick: () => { setView("financeiro"); navigate({ to: "/" }); } },
+  const modules: { label: string; icon: LucideIcon; to: "/agenda" | "/"; disabled?: boolean }[] = [
+    { label: "Agenda", icon: Calendar, to: "/agenda" },
+    { label: "Financeiro", icon: Wallet, to: "/" },
   ];
 
   return (
