@@ -1,49 +1,60 @@
-# Tab bar mobile premium com botão "+" central
+# Plano: Menu primário + sidebar fixa + scroll isolado
 
-## Escopo
-Apenas a navegação inferior em `src/components/finance/Sidebar.tsx` (bloco `<nav className="lg:hidden ...">`). O sidebar de desktop permanece intacto.
+## 1. Menu primário (módulos)
 
-## Mudanças
+Novo estado em `Sidebar.tsx`: `view: "modules" | "financeiro"`. Por padrão, se a rota atual for `/`, `/recebimentos`, `/pagamentos`, `/planejamento`, `/comissoes`, `/configuracoes` → abre direto em `"financeiro"`. Caso contrário (futuro `/agenda`) → `"modules"`.
 
-### 1. Ajustes de legibilidade (mobile)
-- Reduzir altura da ilha de 92px → ~72px e padding interno.
-- Reduzir fonte dos labels de 11px → 10px, com `letter-spacing: -0.01em`.
-- Reduzir ícones de 24px → 20px e bolha ativa de 40px → 36px.
-- Garantir `min-width` por item suficiente para evitar sobreposição "RecebimentosPagamentos" (usar `flex-1` + `text-center` + `truncate` desativado, labels curtos cabem em 10px).
+### View "modules"
+Lista vertical de cards/botões grandes, mesmo estilo visual dos itens atuais:
+- **Agenda** (ícone `Calendar`) — desabilitado (opacity 40, cursor not-allowed), sem rota ainda.
+- **Financeiro** (ícone `Wallet` ou `LayoutGrid`) — ao clicar, muda `view` para `"financeiro"` (não navega; o submenu aparece).
 
-### 2. Botão central "+" (estilo da imagem de referência)
-- Inserir um 5º slot no meio da tab bar: botão circular de 56px com `bg-gradient-primary` (mesmo degradê laranja/rosa dos botões `variant="premium"`), ícone `Plus` branco, sombra `shadow-soft`, levemente elevado (`translateY(-14px)`) para "sair" da ilha.
-- Mantém os 4 itens de navegação existentes (Financeiro, Recebimentos, Pagamentos, Planejamento) + "Mais", com o "+" entre Pagamentos e Planejamento (ou centralizado entre os 4 — definir como item central do array, totalizando 5 itens de navegação + 1 botão flutuante no meio via layout `grid-cols-5` com o "+" sobreposto absolutamente no centro).
+Header da sidebar continua com logo "N" + "NÓS Conecta" + botão collapse.
 
-Estrutura final do array visível no mobile:
-`Financeiro | Recebimentos | [ + ] | Pagamentos | Planejamento` — e o "Mais" some, OU mantemos os 5 atuais e o "+" fica absolutamente posicionado no centro sobreposto. **Proposta:** manter os 5 atuais (Financeiro, Recebimentos, Pagamentos, Planejamento, Mais) e o botão "+" flutua absolutamente acima do centro da ilha, sem ocupar slot — fiel à imagem de referência onde o "+" se destaca acima dos itens.
+### View "financeiro"
+Mostra o submenu atual (Visão Geral, Recebimentos, Pagamentos, Planejamento, Comissões, Configurações).
 
-### 3. Ação contextual do botão "+"
-- Criar contexto leve `MobileFabContext` em `src/components/finance/mobile-fab-context.tsx` com `{ label, onClick }` e hook `useRegisterMobileFab({ label, onClick })`.
-- Provider montado em `src/routes/__root.tsx` envolvendo o `<Outlet />`.
-- A `Sidebar` consome o contexto: se houver ação registrada, clicar no "+" dispara `onClick`; senão, o botão fica oculto/desabilitado.
-- Cada rota registra sua ação via `useRegisterMobileFab` dentro de `useEffect`:
-  - `/recebimentos` → abre `NewReceivableSheet` (mesma ação do botão "+ Novo recebimento").
-  - `/pagamentos` → abre `NewPaymentSheet`.
-  - `/planejamento` → abre o fluxo "+ Novo Cenário".
-  - `/` e outras → sem registro, "+" não aparece (ou aparece neutro — definir: **ocultar quando não registrado**).
+No topo do submenu, **botão "Voltar"** (chevron-left + label "Módulos") que retorna `view` para `"modules"`. Quando `collapsed`, vira ícone-só com tooltip "Voltar aos módulos".
 
-### 4. Esconder CTAs duplicados no mobile
-Nos cabeçalhos de `src/routes/recebimentos.tsx`, `src/routes/pagamentos.tsx` e `src/routes/planejamento.tsx`, envolver o botão "+ Novo ..." com `className="hidden lg:inline-flex"` (ou wrapper `lg:block hidden`) para que apareça só no desktop. Desktop continua com sidebar lateral + botão no header, sem alteração visual.
+Pequeno label discreto acima da lista: "Financeiro" em uppercase/muted (seção atual).
 
-## Detalhes técnicos
+## 2. Sidebar fixa + footer ancorado
 
-- O FAB usa `position: absolute; top: -18px; left: 50%; transform: translateX(-50%)` dentro da ilha (que precisa de `position: relative`).
-- Gradiente: reaproveitar a classe `bg-gradient-primary` já usada no logo da sidebar e no botão Premium.
-- A altura reduzida da ilha (72px) + margem extra superior na página (`pb-[110px] lg:pb-0` no main) garante que o "+" elevado não corte conteúdo. Verificar `padding-bottom` global do main em `__root.tsx`.
-- Tipagem do contexto: `{ fab: { label: string; onClick: () => void } | null; setFab: (...) => void }`. Hook faz `useEffect(() => { setFab(...); return () => setFab(null) }, [deps])`.
+Layout atual: `<aside>` é flex column dentro de um container que já scrolla junto com o conteúdo. Mudanças:
 
-## Arquivos afetados
-- `src/components/finance/Sidebar.tsx` — redesign do bloco mobile.
-- `src/components/finance/mobile-fab-context.tsx` — **novo**.
-- `src/routes/__root.tsx` — montar provider.
-- `src/routes/recebimentos.tsx` — registrar FAB + esconder CTA no mobile.
-- `src/routes/pagamentos.tsx` — idem.
-- `src/routes/planejamento.tsx` — idem.
+- O shell em `__root.tsx` vira: `<div className="h-screen flex overflow-hidden">` com `<Sidebar />` (imóvel) + `<main className="flex-1 overflow-y-auto custom-scroll">`.
+- `<aside>` recebe `h-screen sticky top-0` (ou simplesmente fica dentro do flex de altura fixa).
+- Estrutura interna: `flex flex-col h-full` — bloco do topo (logo + nav) com `flex-1 overflow-y-auto` se necessário, footer (Plano Premium / conta / Sair) com `mt-auto`. Já existe esse padrão; só garantir que o `mt-auto` empurra o footer para baixo dentro da altura total da viewport.
 
-Desktop não muda em nada.
+## 3. Scrollbar glass minimalista (apenas no `<main>`)
+
+Adicionar utilitário em `src/styles.css`:
+
+```css
+.custom-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.custom-scroll::-webkit-scrollbar-track { background: transparent; }
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--foreground) 12%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--foreground) 22%, transparent);
+  background-clip: padding-box;
+}
+.custom-scroll { scrollbar-width: thin; scrollbar-color: rgba(15,23,42,0.15) transparent; }
+```
+
+Aplicado só ao `<main>`. `body`/`html` ficam `overflow: hidden` (via classes no shell).
+
+## 4. Arquivos afetados
+
+- `src/components/finance/Sidebar.tsx` — novo state `view`, nova view "modules", botão voltar, footer com `mt-auto`.
+- `src/routes/__root.tsx` — wrapper `h-screen flex overflow-hidden` + `<main className="flex-1 overflow-y-auto custom-scroll">`. Mobile mantém comportamento atual (FAB island já é fixed).
+- `src/styles.css` — utilitário `.custom-scroll`.
+
+## Fora de escopo
+- Não criar rota `/agenda` (apenas item desabilitado no menu primário).
+- Desktop only para o menu primário; mobile continua com a ilha inferior (Agenda pode entrar depois).
+- Sem alteração de business logic.

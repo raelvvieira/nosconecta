@@ -10,9 +10,13 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Calendar,
+  Wallet,
+  ChevronLeft,
+  type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useMobileFab } from "@/components/finance/mobile-fab-context";
 import {
@@ -22,16 +26,30 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-const items = [
+type FinanceItem = {
+  label: string;
+  icon: LucideIcon;
+  to: "/" | "/recebimentos" | "/pagamentos" | "/planejamento" | "/comissoes" | "/configuracoes";
+};
+
+const financeItems: FinanceItem[] = [
   { label: "Visão Geral", icon: LayoutGrid, to: "/" },
   { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" },
   { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" },
   { label: "Planejamento", icon: TrendingUp, to: "/planejamento" },
   { label: "Comissões", icon: Percent, to: "/comissoes" },
   { label: "Configurações", icon: Settings, to: "/configuracoes" },
-] as const;
+];
 
 const REAL_ROUTES = new Set(["/", "/pagamentos", "/recebimentos", "/planejamento"]);
+const FINANCE_PATHS = new Set([
+  "/",
+  "/recebimentos",
+  "/pagamentos",
+  "/planejamento",
+  "/comissoes",
+  "/configuracoes",
+]);
 const STORAGE_KEY = "sidebar-collapsed";
 
 export function Sidebar() {
@@ -40,6 +58,18 @@ export function Sidebar() {
   const [mounted, setMounted] = useState(false);
   const fabCtx = useMobileFab();
   const fab = fabCtx?.fab ?? null;
+
+  const inFinance = useMemo(
+    () => FINANCE_PATHS.has(pathname) || financeItems.some((i) => i.to !== "/" && pathname.startsWith(i.to)),
+    [pathname],
+  );
+
+  const [view, setView] = useState<"modules" | "financeiro">(inFinance ? "financeiro" : "modules");
+
+  // Switch view automatically when the route changes into the finance area
+  useEffect(() => {
+    if (inFinance) setView("financeiro");
+  }, [inFinance]);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -63,11 +93,18 @@ export function Sidebar() {
     );
   };
 
+  // Module-level items (primary menu)
+  const modules: { label: string; icon: LucideIcon; onClick?: () => void; disabled?: boolean }[] = [
+    { label: "Agenda", icon: Calendar, disabled: true },
+    { label: "Financeiro", icon: Wallet, onClick: () => setView("financeiro") },
+  ];
+
   return (
     <TooltipProvider delayDuration={150}>
       <aside
         className={cn(
           "hidden lg:flex shrink-0 flex-col bg-sidebar border-r border-border py-6 gap-6 transition-[width] duration-200",
+          "h-screen sticky top-0",
           collapsed ? "w-[88px] items-center px-0" : "w-[240px] items-stretch px-4",
         )}
       >
@@ -78,12 +115,7 @@ export function Sidebar() {
             collapsed ? "flex-col gap-3" : "justify-between",
           )}
         >
-          <div
-            className={cn(
-              "flex items-center gap-3",
-              collapsed && "flex-col",
-            )}
-          >
+          <div className={cn("flex items-center gap-3", collapsed && "flex-col")}>
             <div className="h-11 w-11 rounded-2xl bg-gradient-primary text-white grid place-items-center font-bold text-lg shadow-soft shrink-0">
               N
             </div>
@@ -110,46 +142,112 @@ export function Sidebar() {
         {/* Nav */}
         <nav
           className={cn(
-            "flex-1 flex flex-col gap-2",
+            "flex-1 flex flex-col gap-2 min-h-0",
             collapsed ? "items-center" : "items-stretch",
           )}
         >
-          {items.map((it) => {
-            const active = pathname === it.to || (it.to !== "/" && pathname.startsWith(it.to));
-            const isReal = REAL_ROUTES.has(it.to);
-            const className = cn(
-              "flex items-center rounded-2xl transition-colors",
-              collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
-              active
-                ? "bg-[#1B1B1F] text-white"
-                : "text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground",
-              !isReal && "opacity-40 cursor-not-allowed",
-            );
-            const inner = (
-              <>
-                <it.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-                {!collapsed && (
-                  <span className="text-sm font-medium truncate">{it.label}</span>
-                )}
-              </>
-            );
-            const trigger = isReal ? (
-              <Link to={it.to} className={className} aria-label={it.label}>
-                {inner}
-              </Link>
-            ) : (
-              <button type="button" className={className} disabled aria-label={it.label}>
-                {inner}
-              </button>
-            );
-            return <div key={it.label}>{maybeTooltip(trigger, it.label)}</div>;
-          })}
+          {view === "modules" ? (
+            <>
+              {!collapsed && (
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
+                  Módulos
+                </span>
+              )}
+              {modules.map((m) => {
+                const className = cn(
+                  "flex items-center rounded-2xl transition-colors",
+                  collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
+                  m.disabled
+                    ? "text-muted-foreground opacity-40 cursor-not-allowed"
+                    : "text-foreground hover:bg-[#FAFAFA]",
+                );
+                const inner = (
+                  <>
+                    <m.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+                    {!collapsed && <span className="text-sm font-medium truncate">{m.label}</span>}
+                  </>
+                );
+                return (
+                  <div key={m.label}>
+                    {maybeTooltip(
+                      <button
+                        type="button"
+                        className={className}
+                        onClick={m.onClick}
+                        disabled={m.disabled}
+                        aria-label={m.label}
+                      >
+                        {inner}
+                      </button>,
+                      m.label,
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          ) : (
+            <>
+              {/* Back to modules */}
+              {maybeTooltip(
+                <button
+                  type="button"
+                  onClick={() => setView("modules")}
+                  className={cn(
+                    "flex items-center rounded-2xl text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground transition-colors",
+                    collapsed ? "h-10 w-10 justify-center" : "h-9 w-full px-3 gap-2 mb-1",
+                  )}
+                  aria-label="Voltar aos módulos"
+                >
+                  <ChevronLeft className="h-[16px] w-[16px] shrink-0" strokeWidth={2} />
+                  {!collapsed && <span className="text-xs font-medium">Módulos</span>}
+                </button>,
+                "Voltar aos módulos",
+              )}
+
+              {!collapsed && (
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
+                  Financeiro
+                </span>
+              )}
+
+              {financeItems.map((it) => {
+                const active = pathname === it.to || (it.to !== "/" && pathname.startsWith(it.to));
+                const isReal = REAL_ROUTES.has(it.to);
+                const className = cn(
+                  "flex items-center rounded-2xl transition-colors",
+                  collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
+                  active
+                    ? "bg-[#1B1B1F] text-white"
+                    : "text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground",
+                  !isReal && "opacity-40 cursor-not-allowed",
+                );
+                const inner = (
+                  <>
+                    <it.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+                    {!collapsed && (
+                      <span className="text-sm font-medium truncate">{it.label}</span>
+                    )}
+                  </>
+                );
+                const trigger = isReal ? (
+                  <Link to={it.to} className={className} aria-label={it.label}>
+                    {inner}
+                  </Link>
+                ) : (
+                  <button type="button" className={className} disabled aria-label={it.label}>
+                    {inner}
+                  </button>
+                );
+                return <div key={it.label}>{maybeTooltip(trigger, it.label)}</div>;
+              })}
+            </>
+          )}
         </nav>
 
-        {/* Footer */}
+        {/* Footer (pinned bottom) */}
         <div
           className={cn(
-            "flex gap-3",
+            "flex gap-3 mt-auto",
             collapsed ? "flex-col items-center" : "flex-col items-stretch",
           )}
         >
@@ -163,9 +261,7 @@ export function Sidebar() {
               aria-label="Upgrade Premium"
             >
               <Sparkles className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-              {!collapsed && (
-                <span className="text-sm font-semibold">Plano Premium</span>
-              )}
+              {!collapsed && <span className="text-sm font-semibold">Plano Premium</span>}
             </button>,
             "Upgrade Premium",
           )}
@@ -243,7 +339,6 @@ export function Sidebar() {
             { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" as const },
             { label: "Planejamento", icon: TrendingUp, to: "/planejamento" as const },
           ];
-          // Render: 2 items | FAB | 2 items
           const left = navItems.slice(0, 2);
           const right = navItems.slice(2);
 
@@ -330,7 +425,6 @@ export function Sidebar() {
             <>
               {left.map(renderItem)}
 
-              {/* Central FAB */}
               <button
                 type="button"
                 onClick={() => fab?.onClick()}
