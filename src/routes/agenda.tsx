@@ -1,0 +1,182 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { Plus, Lock, MoreHorizontal } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Sidebar } from "@/components/finance/Sidebar";
+import { AgendaStatsCards } from "@/components/agenda/AgendaStatsCards";
+import { WeeklyCalendar } from "@/components/agenda/WeeklyCalendar";
+import { AppointmentDrawer } from "@/components/agenda/AppointmentDrawer";
+import { BlockedTimeDrawer } from "@/components/agenda/BlockedTimeDrawer";
+import { RightSidebar } from "@/components/agenda/RightSidebar";
+import type { Appointment, AgendaFilters } from "@/components/agenda/types";
+import {
+  appointments as initialAppts,
+  blockedTimes as initialBlocked,
+  waitingList,
+  professionals,
+  rooms,
+} from "@/components/agenda/mock-data";
+
+export const Route = createFileRoute("/agenda")({
+  head: () => ({
+    meta: [
+      { title: "Agenda · NÓS Conecta" },
+      { name: "description", content: "Gerencie os agendamentos da sua clínica." },
+    ],
+  }),
+  errorComponent: ({ error }) => (
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="max-w-md text-center space-y-2">
+        <h1 className="text-xl font-semibold">Erro ao carregar agenda</h1>
+        <p className="text-sm text-muted-foreground">{error.message}</p>
+      </div>
+    </div>
+  ),
+  notFoundComponent: () => <div className="p-8">Página não encontrada.</div>,
+  component: AgendaPage,
+});
+
+function AgendaPage() {
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [appointments, setAppointments] = useState<Appointment[]>(initialAppts);
+  const [blocked, setBlocked] = useState(initialBlocked);
+  const [filters, setFilters] = useState<AgendaFilters>({
+    professionalId: "",
+    roomId: "",
+    type: "",
+    status: "",
+  });
+
+  const [apptDrawerOpen, setApptDrawerOpen] = useState(false);
+  const [blockDrawerOpen, setBlockDrawerOpen] = useState(false);
+  const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
+
+  const todayStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
+
+  const handleSaveAppt = (data: Partial<Appointment>) => {
+    if (selectedAppt) {
+      setAppointments((prev) => prev.map((a) => (a.id === selectedAppt.id ? { ...a, ...data } : a)));
+    } else {
+      const newAppt: Appointment = {
+        id: String(Date.now()),
+        patientName: data.patientName ?? "",
+        procedureName: data.procedureName ?? "",
+        professionalId: data.professionalId ?? "",
+        professionalName: data.professionalName ?? "",
+        roomId: data.roomId ?? "",
+        roomName: data.roomName ?? "",
+        date: data.date ?? todayStr,
+        startTime: data.startTime ?? "09:00",
+        endTime: data.endTime ?? "10:00",
+        status: data.status ?? "pending",
+        type: data.type ?? "consultation",
+        expectedRevenue: data.expectedRevenue ?? 0,
+        notes: data.notes,
+        generateFinancial: data.generateFinancial ?? true,
+      };
+      setAppointments((prev) => [...prev, newAppt]);
+    }
+    setSelectedAppt(null);
+  };
+
+  const handleSaveBlock = (data: Partial<typeof blocked[number]>) => {
+    setBlocked((prev) => [...prev, { id: String(Date.now()), ...data } as typeof blocked[number]]);
+  };
+
+  const handleApptClick = (appt: Appointment) => {
+    setSelectedAppt(appt);
+    setApptDrawerOpen(true);
+  };
+
+  return (
+    <div className="min-h-screen flex" style={{ background: "#F8F8FA" }}>
+      <Sidebar />
+
+      <main className="flex-1 min-w-0 px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-28 lg:pb-8">
+        {/* Header */}
+        <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#111827]">Agenda</h1>
+            <p className="text-sm mt-1" style={{ color: "#6B7280" }}>
+              Gerencie os agendamentos da sua clínica
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={() => { setSelectedAppt(null); setApptDrawerOpen(true); }}
+              className="gap-2 text-white font-semibold rounded-xl"
+              style={{ background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)" }}
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Novo Agendamento</span>
+              <span className="sm:hidden">Agendar</span>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setBlockDrawerOpen(true)}
+              className="gap-2 rounded-xl border-[#EEF2F7] text-[#374151] hover:bg-[#F8F8FA]"
+            >
+              <Lock className="h-4 w-4" />
+              <span className="hidden sm:inline">Bloqueio de Horário</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2 rounded-xl border-[#EEF2F7] text-[#374151] hover:bg-[#F8F8FA]"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </div>
+        </header>
+
+        {/* Stats */}
+        <AgendaStatsCards appointments={appointments} date={todayStr} />
+
+        {/* Main layout */}
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-5">
+          {/* Calendar */}
+          <div className="xl:col-span-3">
+            <WeeklyCalendar
+              appointments={appointments}
+              blockedTimes={blocked}
+              filters={filters}
+              selectedDate={selectedDate}
+              onDateChange={setSelectedDate}
+              onAppointmentClick={handleApptClick}
+              professionals={professionals}
+              rooms={rooms}
+              onFiltersChange={setFilters}
+            />
+          </div>
+
+          {/* Right sidebar */}
+          <div className="hidden xl:block">
+            <RightSidebar
+              selectedDate={selectedDate}
+              appointments={appointments}
+              waitingList={waitingList}
+              filters={filters}
+              onDateChange={setSelectedDate}
+              onFiltersChange={setFilters}
+            />
+          </div>
+        </div>
+      </main>
+
+      {/* Drawers */}
+      <AppointmentDrawer
+        open={apptDrawerOpen}
+        appointment={selectedAppt}
+        defaultDate={todayStr}
+        onClose={() => { setApptDrawerOpen(false); setSelectedAppt(null); }}
+        onSave={handleSaveAppt}
+      />
+      <BlockedTimeDrawer
+        open={blockDrawerOpen}
+        defaultDate={todayStr}
+        onClose={() => setBlockDrawerOpen(false)}
+        onSave={handleSaveBlock}
+      />
+    </div>
+  );
+}

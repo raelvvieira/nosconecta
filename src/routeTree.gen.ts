@@ -9,11 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as RecebimentosRouteImport } from './routes/recebimentos'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
 import { Route as PagamentosRouteImport } from './routes/pagamentos'
 import { Route as IndexRouteImport } from './routes/index'
 
+const AgendaRoute = AgendaRouteImport.update({
+  id: '/agenda',
+  path: '/agenda',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RecebimentosRoute = RecebimentosRouteImport.update({
   id: '/recebimentos',
   path: '/recebimentos',
@@ -37,12 +43,14 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/agenda': typeof AgendaRoute
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/agenda': typeof AgendaRoute
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
@@ -50,20 +58,22 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/agenda': typeof AgendaRoute
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/pagamentos' | '/planejamento' | '/recebimentos'
+  fullPaths: '/' | '/agenda' | '/pagamentos' | '/planejamento' | '/recebimentos'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/pagamentos' | '/planejamento' | '/recebimentos'
-  id: '__root__' | '/' | '/pagamentos' | '/planejamento' | '/recebimentos'
+  to: '/' | '/agenda' | '/pagamentos' | '/planejamento' | '/recebimentos'
+  id: '__root__' | '/' | '/agenda' | '/pagamentos' | '/planejamento' | '/recebimentos'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AgendaRoute: typeof AgendaRoute
   PagamentosRoute: typeof PagamentosRoute
   PlanejamentoRoute: typeof PlanejamentoRoute
   RecebimentosRoute: typeof RecebimentosRoute
@@ -71,6 +81,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/agenda': {
+      id: '/agenda'
+      path: '/agenda'
+      fullPath: '/agenda'
+      preLoaderRoute: typeof AgendaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/recebimentos': {
       id: '/recebimentos'
       path: '/recebimentos'
@@ -104,6 +121,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AgendaRoute: AgendaRoute,
   PagamentosRoute: PagamentosRoute,
   PlanejamentoRoute: PlanejamentoRoute,
   RecebimentosRoute: RecebimentosRoute,

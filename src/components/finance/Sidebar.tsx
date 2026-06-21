@@ -13,6 +13,7 @@ import {
   Calendar,
   Wallet,
   ChevronLeft,
+  CalendarDays,
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "@tanstack/react-router";
@@ -50,6 +51,7 @@ const FINANCE_PATHS = new Set([
   "/comissoes",
   "/configuracoes",
 ]);
+const AGENDA_PATHS = new Set(["/agenda"]);
 const STORAGE_KEY = "sidebar-collapsed";
 
 export function Sidebar() {
@@ -63,13 +65,18 @@ export function Sidebar() {
     () => FINANCE_PATHS.has(pathname) || financeItems.some((i) => i.to !== "/" && pathname.startsWith(i.to)),
     [pathname],
   );
+  const inAgenda = useMemo(() => AGENDA_PATHS.has(pathname), [pathname]);
 
-  const [view, setView] = useState<"modules" | "financeiro">(inFinance ? "financeiro" : "modules");
+  type SidebarView = "modules" | "financeiro" | "agenda";
+  const [view, setView] = useState<SidebarView>(
+    inFinance ? "financeiro" : inAgenda ? "agenda" : "modules",
+  );
 
-  // Switch view automatically when the route changes into the finance area
+  // Switch view automatically when the route changes
   useEffect(() => {
     if (inFinance) setView("financeiro");
-  }, [inFinance]);
+    else if (inAgenda) setView("agenda");
+  }, [inFinance, inAgenda]);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -95,7 +102,7 @@ export function Sidebar() {
 
   // Module-level items (primary menu)
   const modules: { label: string; icon: LucideIcon; onClick?: () => void; disabled?: boolean }[] = [
-    { label: "Agenda", icon: Calendar, disabled: true },
+    { label: "Agenda", icon: Calendar, onClick: () => setView("agenda") },
     { label: "Financeiro", icon: Wallet, onClick: () => setView("financeiro") },
   ];
 
@@ -146,7 +153,49 @@ export function Sidebar() {
             collapsed ? "items-center" : "items-stretch",
           )}
         >
-          {view === "modules" ? (
+          {view === "agenda" ? (
+            <>
+              {maybeTooltip(
+                <button
+                  type="button"
+                  onClick={() => setView("modules")}
+                  className={cn(
+                    "flex items-center rounded-2xl text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground transition-colors",
+                    collapsed ? "h-10 w-10 justify-center" : "h-9 w-full px-3 gap-2 mb-1",
+                  )}
+                  aria-label="Voltar aos módulos"
+                >
+                  <ChevronLeft className="h-[16px] w-[16px] shrink-0" strokeWidth={2} />
+                  {!collapsed && <span className="text-xs font-medium">Módulos</span>}
+                </button>,
+                "Voltar aos módulos",
+              )}
+
+              {!collapsed && (
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
+                  Agenda
+                </span>
+              )}
+
+              {maybeTooltip(
+                <Link
+                  to="/agenda"
+                  className={cn(
+                    "flex items-center rounded-2xl transition-colors",
+                    collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
+                    pathname === "/agenda"
+                      ? "bg-[#1B1B1F] text-white"
+                      : "text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground",
+                  )}
+                  aria-label="Agenda"
+                >
+                  <CalendarDays className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+                  {!collapsed && <span className="text-sm font-medium truncate">Agenda</span>}
+                </Link>,
+                "Agenda",
+              )}
+            </>
+          ) : view === "modules" ? (
             <>
               {!collapsed && (
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
