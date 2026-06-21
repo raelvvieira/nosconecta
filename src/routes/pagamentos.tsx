@@ -11,7 +11,6 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 
 import { Sidebar } from "@/components/finance/Sidebar";
-import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { DateRangePicker } from "@/components/finance/DateRangePicker";
 import { NewPaymentSheet } from "@/components/finance/payables/NewPaymentSheet";
@@ -119,8 +118,6 @@ function PagamentosPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [qLocal, setQLocal] = useState(search.q ?? "");
 
-  useRegisterMobileFab({ label: "Novo Pagamento", onClick: () => setSheetOpen(true) });
-
   const setSearch = (patch: Partial<Search>) =>
     router.navigate({ to: "/pagamentos", search: (prev: Search) => ({ ...prev, ...patch }) });
 
@@ -153,7 +150,7 @@ function PagamentosPage() {
             <p className="text-sm text-muted-foreground mt-1 md:mt-1.5">Gerencie todas as despesas da clínica</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => setSheetOpen(true)} variant="premium" className="hidden lg:inline-flex">
+            <Button onClick={() => setSheetOpen(true)} variant="premium">
               <Plus className="h-4 w-4" /> Novo Pagamento
             </Button>
             <Button variant="secondary" className="hidden md:inline-flex"><Upload className="h-4 w-4" /> Importar</Button>

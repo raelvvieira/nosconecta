@@ -12,7 +12,6 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
-import { MobileFabProvider } from "@/components/finance/mobile-fab-context";
 
 function NotFoundComponent() {
   return (
@@ -126,9 +125,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <MobileFabProvider>
-        <Outlet />
-      </MobileFabProvider>
+      <Outlet />
       <Toaster richColors position="top-right" />
     </QueryClientProvider>
   );

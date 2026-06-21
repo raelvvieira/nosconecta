@@ -1,48 +1,53 @@
-# Sidebar fixo no desktop + scrollbar glass minimalista
+## O que está acontecendo
 
-## 1. Sidebar desktop fixo em tela cheia
+A mensagem **"Preview has not been built yet. Either your project has an error or the preview is currently being built"** aparece quando o Lovable recebe um commit (vindo do GitHub/Claude) mas o build do preview ainda não terminou — ou falhou. Ou seja: o problema não é o "commit" em si, é o que esse commit contém.
 
-Em `src/components/finance/Sidebar.tsx`, no `<aside>` da versão desktop (`hidden lg:flex ...`), adicionar:
+No seu projeto, o build atual passa apenas com warnings (todos de `inputValidator()` deprecated, nenhum erro). Então, na maioria das vezes, basta aguardar 30–90s após o commit. Quando demora muito ou nunca aparece, é porque alguma alteração quebrou o build.
 
-- `lg:sticky lg:top-0`
-- `lg:h-screen` (em vez de altura natural)
-- `lg:overflow-hidden` no aside, e `overflow-y-auto` apenas no `<nav>` interno (caso a lista de itens cresça no futuro)
+## Checklist a rodar no Claude antes de commitar
 
-Resultado: ao rolar a página, o menu lateral fica parado. Logo no topo, itens no meio (`flex-1`), e o rodapé (Plano Premium / NÓS Conecta · Administrador / Sair) permanece fixado na parte de baixo do sidebar — exatamente como na imagem anotada.
+### 1. Rodar o build localmente
+Antes de cada commit, no terminal do Claude:
+```bash
+bun run build
+```
+Se terminar com `✓ built in ...s` sem `error`, o preview do Lovable também vai buildar. Se aparecer `error during build`, **não commite** — corrija primeiro.
 
-Nenhuma alteração no layout mobile (a "ilha" inferior continua igual).
+### 2. Rodar o typecheck
+```bash
+bunx tsc --noEmit
+```
+Esse projeto usa `strict: true`. Qualquer import que não resolve, prop faltante ou tipo errado derruba o build do Lovable mesmo que rode no `vite dev`.
 
-## 2. Scrollbar global minimalista (glass)
+### 3. Regras específicas deste projeto (TanStack Start)
+Coisas que silenciosamente quebram o preview:
 
-Em `src/styles.css`, adicionar regras globais para a barra de rolagem do conteúdo principal (WebKit + Firefox):
+- **Não criar pasta `src/pages/`** — TanStack Start usa só `src/routes/`. Misturar as duas convenções gera rota duplicada `/`.
+- **Não editar `src/routeTree.gen.ts`** — é auto-gerado. Apague-o se conflitar; o Vite regenera.
+- **Não editar `src/integrations/supabase/client.ts`, `client.server.ts`, `auth-middleware.ts`, `auth-attacher.ts`, `types.ts`** nem o `.env` com `VITE_SUPABASE_*` — são gerados pelo Lovable Cloud.
+- **Toda rota com `loader` precisa de `errorComponent` e `notFoundComponent`**, e a root precisa de `notFoundComponent`. Faltando isso o build até passa, mas erros em runtime viram 500 sem stack.
+- **Não chamar server function com `requireSupabaseAuth` de `loader` de rota pública** — o prerender do `build:dev` roda sem sessão e falha com `Unauthorized`. Use dentro de componente via `useServerFn` + `useQuery`, ou coloque a rota em `_authenticated/`.
+- **Import com caminho inexistente** (ex.: `@/components/X` que não existe) quebra o build na hora. Sempre criar o arquivo antes de importar.
+- **Pacotes Node-only** (sharp, canvas, puppeteer, child_process, fs.watch) não funcionam no runtime Cloudflare Worker. Se for adicionar dependência, confirmar que tem suporte a edge/Workers.
+- **JSX desbalanceado / try sem catch / import duplicado** — o code-splitter do TanStack é mais estrito que o bundler normal e falha onde o `vite dev` perdoaria.
 
-```css
-/* Glass scrollbar */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(15, 23, 42, 0.12) transparent;
-}
-*::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-*::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.10);
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background-clip: padding-box;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background: rgba(15, 23, 42, 0.22);
-  background-clip: padding-box;
-}
+### 4. Não tocar em arquivos de configuração sem necessidade
+Mudanças em `vite.config.ts`, `src/server.ts`, `src/router.tsx`, `src/start.ts`, `package.json` e `bun.lock` são as que mais derrubam preview. Se precisar mexer, rode build local antes.
+
+### 5. Workflow recomendado
+```bash
+# antes do commit
+bun install            # se mexeu em package.json
+bunx tsc --noEmit      # checa tipos
+bun run build          # confirma que builda
+# só então: git add / commit / push
 ```
 
-A barra fica fina (6px), translúcida, quase invisível em repouso e ganha um pouco de contraste no hover — estilo glass discreto.
+### 6. Quando o erro aparecer mesmo assim
+- Aguarde 1–2 minutos (preview pode estar buildando).
+- Abra o Lovable e veja a mensagem detalhada do build na aba de chat — ela mostra o stack trace do que falhou.
+- Se o commit anterior buildava e o novo não, é algo no diff — reverta arquivo por arquivo no Claude até identificar.
 
-## Arquivos alterados
-- `src/components/finance/Sidebar.tsx` — classes do `<aside>` desktop
-- `src/styles.css` — regras de scrollbar global
+## Resumo
 
-Sem mudanças em rotas, lógica ou no FAB mobile.
+Rode `bun run build` (e idealmente `bunx tsc --noEmit`) localmente antes de cada `git push`. Evite editar os arquivos auto-gerados do Lovable Cloud, não crie `src/pages/`, e respeite as convenções do TanStack Start. Isso elimina ~95% das ocorrências dessa mensagem.

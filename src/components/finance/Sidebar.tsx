@@ -14,12 +14,10 @@ import {
   Users,
   Stethoscope,
   DollarSign,
-  Plus,
 } from "lucide-react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { useMobileFab } from "@/components/finance/mobile-fab-context";
 import {
   Tooltip,
   TooltipContent,
@@ -58,8 +56,6 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [activeModule, setActiveModule] = useState<Module>("financeiro");
-  const fabCtx = useMobileFab();
-  const fab = fabCtx?.fab ?? null;
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -96,7 +92,6 @@ export function Sidebar() {
       <aside
         className={cn(
           "hidden lg:flex shrink-0 flex-col bg-sidebar border-r border-border py-6 gap-4 transition-[width] duration-200",
-          "lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden",
           collapsed ? "w-[88px] items-center px-0" : "w-[240px] items-stretch px-4",
         )}
       >
@@ -143,7 +138,9 @@ export function Sidebar() {
                 aria-label={mod.label}
                 className={cn(
                   "flex items-center rounded-xl transition-colors font-medium text-sm",
-                  collapsed ? "h-10 w-10 justify-center" : "flex-1 h-9 px-3 gap-2",
+                  collapsed
+                    ? "h-10 w-10 justify-center"
+                    : "flex-1 h-9 px-3 gap-2",
                   isActive
                     ? "bg-[#1B1B1F] text-white"
                     : "text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground",
@@ -163,7 +160,7 @@ export function Sidebar() {
         {/* Nav */}
         <nav
           className={cn(
-            "flex-1 min-h-0 overflow-y-auto flex flex-col gap-2",
+            "flex-1 flex flex-col gap-2",
             collapsed ? "items-center" : "items-stretch",
           )}
         >
@@ -238,7 +235,9 @@ export function Sidebar() {
             >
               {collapsed ? "N" : (
                 <>
-                  <span className="h-8 w-8 rounded-full bg-[#FAFAFA] border border-border grid place-items-center text-xs font-semibold shrink-0">N</span>
+                  <span className="h-8 w-8 rounded-full bg-[#FAFAFA] border border-border grid place-items-center text-xs font-semibold shrink-0">
+                    N
+                  </span>
                   <span className="flex flex-col text-left leading-tight min-w-0">
                     <span className="text-sm font-medium text-foreground truncate">NÓS Conecta</span>
                     <span className="text-[11px] text-muted-foreground truncate">Administrador</span>
@@ -271,7 +270,17 @@ export function Sidebar() {
         className="lg:hidden fixed z-50 left-1/2 -translate-x-1/2"
         style={{ bottom: 14 + 92 + 8 }}
       >
-        <div style={{ display: "flex", gap: 4, background: "white", borderRadius: 999, boxShadow: "0 2px 12px rgba(15,23,42,0.08)", border: "1px solid rgba(226,232,240,0.7)", padding: "4px" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 4,
+            background: "white",
+            borderRadius: 999,
+            boxShadow: "0 2px 12px rgba(15,23,42,0.08)",
+            border: "1px solid rgba(226,232,240,0.7)",
+            padding: "4px",
+          }}
+        >
           {modules.map((mod) => {
             const isActive = activeModule === mod.id;
             return (
@@ -279,8 +288,24 @@ export function Sidebar() {
                 key={mod.id}
                 type="button"
                 onClick={() => setActiveModule(mod.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  paddingLeft: 12,
+                  paddingRight: 12,
+                  paddingTop: 6,
+                  paddingBottom: 6,
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  lineHeight: 1,
+                  whiteSpace: "nowrap" as const,
+                  transition: "all 0.2s ease",
+                  background: isActive ? "#1B1B1F" : "transparent",
+                  color: isActive ? "white" : "#6B7280",
+                }}
                 aria-label={mod.label}
-                style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 12, paddingRight: 12, paddingTop: 6, paddingBottom: 6, borderRadius: 999, fontSize: 12, fontWeight: 500, lineHeight: 1, whiteSpace: "nowrap" as const, transition: "all 0.2s ease", background: isActive ? "#1B1B1F" : "transparent", color: isActive ? "white" : "#6B7280" }}
               >
                 <mod.icon style={{ width: 13, height: 13 }} strokeWidth={2} />
                 {mod.label}
@@ -293,59 +318,56 @@ export function Sidebar() {
       {/* Mobile bottom navigation — premium floating card */}
       <nav
         className="lg:hidden fixed z-50"
-        style={{ left: 16, right: 16, bottom: 14, height: 92, borderRadius: 28, background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(250,250,250,1) 100%)", boxShadow: "0 8px 30px rgba(15,23,42,0.08), 0 2px 8px rgba(15,23,42,0.04)", border: "1px solid rgba(226,232,240,0.6)", paddingTop: 12, paddingBottom: 10, paddingLeft: 8, paddingRight: 8, display: "flex", alignItems: "center", justifyContent: "space-around", marginBottom: "env(safe-area-inset-bottom)" }}
+        style={{
+          left: 16,
+          right: 16,
+          bottom: 14,
+          height: 92,
+          borderRadius: 28,
+          background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(250,250,250,1) 100%)",
+          boxShadow: "0 8px 30px rgba(15,23,42,0.08), 0 2px 8px rgba(15,23,42,0.04)",
+          border: "1px solid rgba(226,232,240,0.6)",
+          paddingTop: 12,
+          paddingBottom: 10,
+          paddingLeft: 8,
+          paddingRight: 8,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-around",
+          marginBottom: "env(safe-area-inset-bottom)",
+        }}
       >
         {activeModule === "financeiro" ? (
           <>
             {[
               { label: "Financeiro", icon: LayoutGrid, to: "/" as const },
               { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" as const },
-            ].map((item) => {
-              const active = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
-              const inner = (
-                <span style={{ minWidth: 52, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, transition: "transform 0.25s ease", transform: active ? "translateY(-2px)" : "translateY(0)" }}>
-                  <span style={{ width: 40, height: 40, borderRadius: 999, background: active ? "rgba(255,107,87,0.12)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.25s ease" }}>
-                    <item.icon style={{ width: 24, height: 24, color: active ? "#FF6B57" : "#6B7280", transition: "all 0.25s ease" }} strokeWidth={2} />
-                  </span>
-                  <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, lineHeight: 1, color: active ? "#FF6B57" : "#6B7280", transition: "color 0.25s ease", whiteSpace: "nowrap" as const }}>{item.label}</span>
-                </span>
-              );
-              return (
-                <Link key={item.label} to={item.to} aria-label={item.label} style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{inner}</Link>
-              );
-            })}
-
-            {/* FAB — action registered by current page */}
-            <button
-              type="button"
-              onClick={() => fab?.onClick()}
-              disabled={!fab}
-              aria-label={fab?.label ?? "Adicionar"}
-              style={{ width: 52, height: 52, borderRadius: 999, background: "linear-gradient(135deg, #FF6B6B 0%, #FF9A3C 100%)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(255,107,87,0.4)", border: "none", cursor: fab ? "pointer" : "default", opacity: fab ? 1 : 0.6, flexShrink: 0, marginTop: -10, transition: "opacity 0.2s ease" }}
-            >
-              <Plus style={{ width: 22, height: 22 }} strokeWidth={2.5} />
-            </button>
-
-            {[
               { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" as const },
               { label: "Planejamento", icon: TrendingUp, to: "/planejamento" as const },
+              { label: "Mais", icon: Menu, to: null as unknown as "/" },
             ].map((item) => {
-              const active = pathname === item.to || pathname.startsWith(item.to);
+              const active = item.to
+                ? pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to))
+                : false;
+              const isReal = item.to ? REAL_ROUTES.has(item.to) : false;
               const inner = (
-                <span style={{ minWidth: 52, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, transition: "transform 0.25s ease", transform: active ? "translateY(-2px)" : "translateY(0)" }}>
+                <span style={{ minWidth: 60, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, transition: "transform 0.25s ease", transform: active ? "translateY(-2px)" : "translateY(0)" }}>
                   <span style={{ width: 40, height: 40, borderRadius: 999, background: active ? "rgba(255,107,87,0.12)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.25s ease" }}>
                     <item.icon style={{ width: 24, height: 24, color: active ? "#FF6B57" : "#6B7280", transition: "all 0.25s ease" }} strokeWidth={2} />
                   </span>
-                  <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, lineHeight: 1, color: active ? "#FF6B57" : "#6B7280", transition: "color 0.25s ease", whiteSpace: "nowrap" as const }}>{item.label}</span>
+                  <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, lineHeight: 1, color: active ? "#FF6B57" : "#6B7280", transition: "color 0.25s ease", whiteSpace: "nowrap" as const }}>
+                    {item.label}
+                  </span>
                 </span>
               );
-              return (
+              return item.to && isReal ? (
                 <Link key={item.label} to={item.to} aria-label={item.label} style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{inner}</Link>
+              ) : (
+                <button key={item.label} type="button" disabled={!isReal} aria-label={item.label} style={{ opacity: isReal ? 1 : 0.4, display: "flex", alignItems: "center", justifyContent: "center" }}>{inner}</button>
               );
             })}
           </>
         ) : (
-          /* Agenda module placeholder items */
           <>
             {[
               { label: "Agenda", icon: CalendarDays },
@@ -357,7 +379,9 @@ export function Sidebar() {
                   <span style={{ width: 40, height: 40, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <item.icon style={{ width: 24, height: 24, color: "#6B7280" }} strokeWidth={2} />
                   </span>
-                  <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, lineHeight: 1, color: "#6B7280", whiteSpace: "nowrap" as const }}>{item.label}</span>
+                  <span style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 500, lineHeight: 1, color: "#6B7280", whiteSpace: "nowrap" as const }}>
+                    {item.label}
+                  </span>
                 </span>
               </button>
             ))}
