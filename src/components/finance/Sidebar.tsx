@@ -9,11 +9,12 @@ import {
   Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
-  Menu,
+  Plus,
 } from "lucide-react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useMobileFab } from "@/components/finance/mobile-fab-context";
 import {
   Tooltip,
   TooltipContent,
