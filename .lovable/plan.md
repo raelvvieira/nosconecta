@@ -1,53 +1,49 @@
-## O que está acontecendo
+# Tab bar mobile premium com botão "+" central
 
-A mensagem **"Preview has not been built yet. Either your project has an error or the preview is currently being built"** aparece quando o Lovable recebe um commit (vindo do GitHub/Claude) mas o build do preview ainda não terminou — ou falhou. Ou seja: o problema não é o "commit" em si, é o que esse commit contém.
+## Escopo
+Apenas a navegação inferior em `src/components/finance/Sidebar.tsx` (bloco `<nav className="lg:hidden ...">`). O sidebar de desktop permanece intacto.
 
-No seu projeto, o build atual passa apenas com warnings (todos de `inputValidator()` deprecated, nenhum erro). Então, na maioria das vezes, basta aguardar 30–90s após o commit. Quando demora muito ou nunca aparece, é porque alguma alteração quebrou o build.
+## Mudanças
 
-## Checklist a rodar no Claude antes de commitar
+### 1. Ajustes de legibilidade (mobile)
+- Reduzir altura da ilha de 92px → ~72px e padding interno.
+- Reduzir fonte dos labels de 11px → 10px, com `letter-spacing: -0.01em`.
+- Reduzir ícones de 24px → 20px e bolha ativa de 40px → 36px.
+- Garantir `min-width` por item suficiente para evitar sobreposição "RecebimentosPagamentos" (usar `flex-1` + `text-center` + `truncate` desativado, labels curtos cabem em 10px).
 
-### 1. Rodar o build localmente
-Antes de cada commit, no terminal do Claude:
-```bash
-bun run build
-```
-Se terminar com `✓ built in ...s` sem `error`, o preview do Lovable também vai buildar. Se aparecer `error during build`, **não commite** — corrija primeiro.
+### 2. Botão central "+" (estilo da imagem de referência)
+- Inserir um 5º slot no meio da tab bar: botão circular de 56px com `bg-gradient-primary` (mesmo degradê laranja/rosa dos botões `variant="premium"`), ícone `Plus` branco, sombra `shadow-soft`, levemente elevado (`translateY(-14px)`) para "sair" da ilha.
+- Mantém os 4 itens de navegação existentes (Financeiro, Recebimentos, Pagamentos, Planejamento) + "Mais", com o "+" entre Pagamentos e Planejamento (ou centralizado entre os 4 — definir como item central do array, totalizando 5 itens de navegação + 1 botão flutuante no meio via layout `grid-cols-5` com o "+" sobreposto absolutamente no centro).
 
-### 2. Rodar o typecheck
-```bash
-bunx tsc --noEmit
-```
-Esse projeto usa `strict: true`. Qualquer import que não resolve, prop faltante ou tipo errado derruba o build do Lovable mesmo que rode no `vite dev`.
+Estrutura final do array visível no mobile:
+`Financeiro | Recebimentos | [ + ] | Pagamentos | Planejamento` — e o "Mais" some, OU mantemos os 5 atuais e o "+" fica absolutamente posicionado no centro sobreposto. **Proposta:** manter os 5 atuais (Financeiro, Recebimentos, Pagamentos, Planejamento, Mais) e o botão "+" flutua absolutamente acima do centro da ilha, sem ocupar slot — fiel à imagem de referência onde o "+" se destaca acima dos itens.
 
-### 3. Regras específicas deste projeto (TanStack Start)
-Coisas que silenciosamente quebram o preview:
+### 3. Ação contextual do botão "+"
+- Criar contexto leve `MobileFabContext` em `src/components/finance/mobile-fab-context.tsx` com `{ label, onClick }` e hook `useRegisterMobileFab({ label, onClick })`.
+- Provider montado em `src/routes/__root.tsx` envolvendo o `<Outlet />`.
+- A `Sidebar` consome o contexto: se houver ação registrada, clicar no "+" dispara `onClick`; senão, o botão fica oculto/desabilitado.
+- Cada rota registra sua ação via `useRegisterMobileFab` dentro de `useEffect`:
+  - `/recebimentos` → abre `NewReceivableSheet` (mesma ação do botão "+ Novo recebimento").
+  - `/pagamentos` → abre `NewPaymentSheet`.
+  - `/planejamento` → abre o fluxo "+ Novo Cenário".
+  - `/` e outras → sem registro, "+" não aparece (ou aparece neutro — definir: **ocultar quando não registrado**).
 
-- **Não criar pasta `src/pages/`** — TanStack Start usa só `src/routes/`. Misturar as duas convenções gera rota duplicada `/`.
-- **Não editar `src/routeTree.gen.ts`** — é auto-gerado. Apague-o se conflitar; o Vite regenera.
-- **Não editar `src/integrations/supabase/client.ts`, `client.server.ts`, `auth-middleware.ts`, `auth-attacher.ts`, `types.ts`** nem o `.env` com `VITE_SUPABASE_*` — são gerados pelo Lovable Cloud.
-- **Toda rota com `loader` precisa de `errorComponent` e `notFoundComponent`**, e a root precisa de `notFoundComponent`. Faltando isso o build até passa, mas erros em runtime viram 500 sem stack.
-- **Não chamar server function com `requireSupabaseAuth` de `loader` de rota pública** — o prerender do `build:dev` roda sem sessão e falha com `Unauthorized`. Use dentro de componente via `useServerFn` + `useQuery`, ou coloque a rota em `_authenticated/`.
-- **Import com caminho inexistente** (ex.: `@/components/X` que não existe) quebra o build na hora. Sempre criar o arquivo antes de importar.
-- **Pacotes Node-only** (sharp, canvas, puppeteer, child_process, fs.watch) não funcionam no runtime Cloudflare Worker. Se for adicionar dependência, confirmar que tem suporte a edge/Workers.
-- **JSX desbalanceado / try sem catch / import duplicado** — o code-splitter do TanStack é mais estrito que o bundler normal e falha onde o `vite dev` perdoaria.
+### 4. Esconder CTAs duplicados no mobile
+Nos cabeçalhos de `src/routes/recebimentos.tsx`, `src/routes/pagamentos.tsx` e `src/routes/planejamento.tsx`, envolver o botão "+ Novo ..." com `className="hidden lg:inline-flex"` (ou wrapper `lg:block hidden`) para que apareça só no desktop. Desktop continua com sidebar lateral + botão no header, sem alteração visual.
 
-### 4. Não tocar em arquivos de configuração sem necessidade
-Mudanças em `vite.config.ts`, `src/server.ts`, `src/router.tsx`, `src/start.ts`, `package.json` e `bun.lock` são as que mais derrubam preview. Se precisar mexer, rode build local antes.
+## Detalhes técnicos
 
-### 5. Workflow recomendado
-```bash
-# antes do commit
-bun install            # se mexeu em package.json
-bunx tsc --noEmit      # checa tipos
-bun run build          # confirma que builda
-# só então: git add / commit / push
-```
+- O FAB usa `position: absolute; top: -18px; left: 50%; transform: translateX(-50%)` dentro da ilha (que precisa de `position: relative`).
+- Gradiente: reaproveitar a classe `bg-gradient-primary` já usada no logo da sidebar e no botão Premium.
+- A altura reduzida da ilha (72px) + margem extra superior na página (`pb-[110px] lg:pb-0` no main) garante que o "+" elevado não corte conteúdo. Verificar `padding-bottom` global do main em `__root.tsx`.
+- Tipagem do contexto: `{ fab: { label: string; onClick: () => void } | null; setFab: (...) => void }`. Hook faz `useEffect(() => { setFab(...); return () => setFab(null) }, [deps])`.
 
-### 6. Quando o erro aparecer mesmo assim
-- Aguarde 1–2 minutos (preview pode estar buildando).
-- Abra o Lovable e veja a mensagem detalhada do build na aba de chat — ela mostra o stack trace do que falhou.
-- Se o commit anterior buildava e o novo não, é algo no diff — reverta arquivo por arquivo no Claude até identificar.
+## Arquivos afetados
+- `src/components/finance/Sidebar.tsx` — redesign do bloco mobile.
+- `src/components/finance/mobile-fab-context.tsx` — **novo**.
+- `src/routes/__root.tsx` — montar provider.
+- `src/routes/recebimentos.tsx` — registrar FAB + esconder CTA no mobile.
+- `src/routes/pagamentos.tsx` — idem.
+- `src/routes/planejamento.tsx` — idem.
 
-## Resumo
-
-Rode `bun run build` (e idealmente `bunx tsc --noEmit`) localmente antes de cada `git push`. Evite editar os arquivos auto-gerados do Lovable Cloud, não crie `src/pages/`, e respeite as convenções do TanStack Start. Isso elimina ~95% das ocorrências dessa mensagem.
+Desktop não muda em nada.
