@@ -166,7 +166,7 @@ function UpcomingAppointmentsCard({ appointments, selectedDate }: { appointments
                     borderRadius: 999,
                     background: s.badge,
                     marginTop: 4,
-                    shrink: 0,
+                    flexShrink: 0,
                   }}
                 />
               </div>

@@ -9,17 +9,12 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as RecebimentosRouteImport } from './routes/recebimentos'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
 import { Route as PagamentosRouteImport } from './routes/pagamentos'
+import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as IndexRouteImport } from './routes/index'
 
-const AgendaRoute = AgendaRouteImport.update({
-  id: '/agenda',
-  path: '/agenda',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RecebimentosRoute = RecebimentosRouteImport.update({
   id: '/recebimentos',
   path: '/recebimentos',
@@ -33,6 +28,11 @@ const PlanejamentoRoute = PlanejamentoRouteImport.update({
 const PagamentosRoute = PagamentosRouteImport.update({
   id: '/pagamentos',
   path: '/pagamentos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgendaRoute = AgendaRouteImport.update({
+  id: '/agenda',
+  path: '/agenda',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -68,7 +68,13 @@ export interface FileRouteTypes {
   fullPaths: '/' | '/agenda' | '/pagamentos' | '/planejamento' | '/recebimentos'
   fileRoutesByTo: FileRoutesByTo
   to: '/' | '/agenda' | '/pagamentos' | '/planejamento' | '/recebimentos'
-  id: '__root__' | '/' | '/agenda' | '/pagamentos' | '/planejamento' | '/recebimentos'
+  id:
+    | '__root__'
+    | '/'
+    | '/agenda'
+    | '/pagamentos'
+    | '/planejamento'
+    | '/recebimentos'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -81,13 +87,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/agenda': {
-      id: '/agenda'
-      path: '/agenda'
-      fullPath: '/agenda'
-      preLoaderRoute: typeof AgendaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/recebimentos': {
       id: '/recebimentos'
       path: '/recebimentos'
@@ -107,6 +106,13 @@ declare module '@tanstack/react-router' {
       path: '/pagamentos'
       fullPath: '/pagamentos'
       preLoaderRoute: typeof PagamentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agenda': {
+      id: '/agenda'
+      path: '/agenda'
+      fullPath: '/agenda'
+      preLoaderRoute: typeof AgendaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
