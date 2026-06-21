@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Plus, Upload, Share2, Wallet, CalendarDays, CalendarRange, Shield, Info } from "lucide-react";
 
 import { Sidebar } from "@/components/finance/Sidebar";
+import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -93,12 +94,15 @@ function PlanningPage() {
 
   const { summary, projection, forecast, timeline, goals, scenarios, insights } = data;
 
+  const handleNewScenario = () => toast.info("Em breve: criação de novos cenários");
+  useRegisterMobileFab({ label: "Novo Cenário", onClick: handleNewScenario });
+
   return (
     <TooltipProvider delayDuration={200}>
       <div className="min-h-screen flex bg-background">
         <Sidebar />
 
-        <main className="flex-1 min-w-0 px-6 lg:px-10 py-8 space-y-8">
+        <main className="flex-1 min-w-0 px-6 lg:px-10 py-8 space-y-8 pb-28 lg:pb-8">
           {/* Header */}
           <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6">
             <div>
@@ -109,7 +113,7 @@ function PlanningPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <Button className="gap-2">
+              <Button className="gap-2 hidden lg:inline-flex" onClick={handleNewScenario}>
                 <Plus className="h-4 w-4" /> Novo Cenário
               </Button>
               <Button variant="outline" className="gap-2">
