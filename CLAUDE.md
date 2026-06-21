@@ -40,3 +40,50 @@ Só commitar se `bun run build` terminar com `✓ built in ...s` sem erros.
 - Botão primário: `variant="premium"` (degradê rosa-laranja)
 - Botões secundários/outline: não alterar variant
 - Rotas financeiras ativas: `/`, `/recebimentos`, `/pagamentos`, `/planejamento`
+
+---
+
+## Integração Lovable
+
+Este projeto usa **TanStack Start (SSR)** e está sincronizado com o Lovable via GitHub (`main` branch).
+
+### 🔄 Fluxo de sync
+
+```
+Mudanças no Claude Code
+    ↓
+git add . && git commit -m "descrição"
+    ↓
+git push origin main   ← OBRIGATÓRIO
+    ↓
+Lovable sincroniza automaticamente (1-2 min)
+```
+
+### ✅ O que sincroniza automaticamente com push
+
+- Tudo em `src/` (rotas, componentes, lib, integrations)
+- Server functions (`src/lib/finance/*.functions.ts`) — auto-deploy, sem prompt
+- Arquivos de config (`vite.config.ts`, etc.)
+
+### ⚠️ O que requer prompt manual no Lovable
+
+Após editar, fornecer prompt para o Lovable:
+- **Edge Functions Supabase**: `"Deploy the [nome] edge function"`
+- **Migrations**: `"Apply pending Supabase migrations"`
+
+### ❌ Só pelo Lovable (não via código)
+
+- Criar/modificar tabelas no banco
+- Configurar RLS policies
+- Adicionar secrets (Cloud → Secrets UI)
+- Criar storage buckets
+
+### Variáveis de ambiente / Secrets
+
+Secrets são configurados em **Cloud → Secrets** no Lovable. Nunca colocar no `.env` arquivos commitados.
+
+### Branch Rules
+
+- **Apenas `main`** sincroniza com o Lovable
+- Feature branches não fazem deploy até serem mergeadas no `main`
+- O Lovable pode fazer push para `main` simultaneamente — sempre fazer `git pull` antes de `git push`
