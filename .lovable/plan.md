@@ -1,49 +1,48 @@
-# Tab bar mobile premium com botão "+" central
+# Sidebar fixo no desktop + scrollbar glass minimalista
 
-## Escopo
-Apenas a navegação inferior em `src/components/finance/Sidebar.tsx` (bloco `<nav className="lg:hidden ...">`). O sidebar de desktop permanece intacto.
+## 1. Sidebar desktop fixo em tela cheia
 
-## Mudanças
+Em `src/components/finance/Sidebar.tsx`, no `<aside>` da versão desktop (`hidden lg:flex ...`), adicionar:
 
-### 1. Ajustes de legibilidade (mobile)
-- Reduzir altura da ilha de 92px → ~72px e padding interno.
-- Reduzir fonte dos labels de 11px → 10px, com `letter-spacing: -0.01em`.
-- Reduzir ícones de 24px → 20px e bolha ativa de 40px → 36px.
-- Garantir `min-width` por item suficiente para evitar sobreposição "RecebimentosPagamentos" (usar `flex-1` + `text-center` + `truncate` desativado, labels curtos cabem em 10px).
+- `lg:sticky lg:top-0`
+- `lg:h-screen` (em vez de altura natural)
+- `lg:overflow-hidden` no aside, e `overflow-y-auto` apenas no `<nav>` interno (caso a lista de itens cresça no futuro)
 
-### 2. Botão central "+" (estilo da imagem de referência)
-- Inserir um 5º slot no meio da tab bar: botão circular de 56px com `bg-gradient-primary` (mesmo degradê laranja/rosa dos botões `variant="premium"`), ícone `Plus` branco, sombra `shadow-soft`, levemente elevado (`translateY(-14px)`) para "sair" da ilha.
-- Mantém os 4 itens de navegação existentes (Financeiro, Recebimentos, Pagamentos, Planejamento) + "Mais", com o "+" entre Pagamentos e Planejamento (ou centralizado entre os 4 — definir como item central do array, totalizando 5 itens de navegação + 1 botão flutuante no meio via layout `grid-cols-5` com o "+" sobreposto absolutamente no centro).
+Resultado: ao rolar a página, o menu lateral fica parado. Logo no topo, itens no meio (`flex-1`), e o rodapé (Plano Premium / NÓS Conecta · Administrador / Sair) permanece fixado na parte de baixo do sidebar — exatamente como na imagem anotada.
 
-Estrutura final do array visível no mobile:
-`Financeiro | Recebimentos | [ + ] | Pagamentos | Planejamento` — e o "Mais" some, OU mantemos os 5 atuais e o "+" fica absolutamente posicionado no centro sobreposto. **Proposta:** manter os 5 atuais (Financeiro, Recebimentos, Pagamentos, Planejamento, Mais) e o botão "+" flutua absolutamente acima do centro da ilha, sem ocupar slot — fiel à imagem de referência onde o "+" se destaca acima dos itens.
+Nenhuma alteração no layout mobile (a "ilha" inferior continua igual).
 
-### 3. Ação contextual do botão "+"
-- Criar contexto leve `MobileFabContext` em `src/components/finance/mobile-fab-context.tsx` com `{ label, onClick }` e hook `useRegisterMobileFab({ label, onClick })`.
-- Provider montado em `src/routes/__root.tsx` envolvendo o `<Outlet />`.
-- A `Sidebar` consome o contexto: se houver ação registrada, clicar no "+" dispara `onClick`; senão, o botão fica oculto/desabilitado.
-- Cada rota registra sua ação via `useRegisterMobileFab` dentro de `useEffect`:
-  - `/recebimentos` → abre `NewReceivableSheet` (mesma ação do botão "+ Novo recebimento").
-  - `/pagamentos` → abre `NewPaymentSheet`.
-  - `/planejamento` → abre o fluxo "+ Novo Cenário".
-  - `/` e outras → sem registro, "+" não aparece (ou aparece neutro — definir: **ocultar quando não registrado**).
+## 2. Scrollbar global minimalista (glass)
 
-### 4. Esconder CTAs duplicados no mobile
-Nos cabeçalhos de `src/routes/recebimentos.tsx`, `src/routes/pagamentos.tsx` e `src/routes/planejamento.tsx`, envolver o botão "+ Novo ..." com `className="hidden lg:inline-flex"` (ou wrapper `lg:block hidden`) para que apareça só no desktop. Desktop continua com sidebar lateral + botão no header, sem alteração visual.
+Em `src/styles.css`, adicionar regras globais para a barra de rolagem do conteúdo principal (WebKit + Firefox):
 
-## Detalhes técnicos
+```css
+/* Glass scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 23, 42, 0.12) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.10);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.22);
+  background-clip: padding-box;
+}
+```
 
-- O FAB usa `position: absolute; top: -18px; left: 50%; transform: translateX(-50%)` dentro da ilha (que precisa de `position: relative`).
-- Gradiente: reaproveitar a classe `bg-gradient-primary` já usada no logo da sidebar e no botão Premium.
-- A altura reduzida da ilha (72px) + margem extra superior na página (`pb-[110px] lg:pb-0` no main) garante que o "+" elevado não corte conteúdo. Verificar `padding-bottom` global do main em `__root.tsx`.
-- Tipagem do contexto: `{ fab: { label: string; onClick: () => void } | null; setFab: (...) => void }`. Hook faz `useEffect(() => { setFab(...); return () => setFab(null) }, [deps])`.
+A barra fica fina (6px), translúcida, quase invisível em repouso e ganha um pouco de contraste no hover — estilo glass discreto.
 
-## Arquivos afetados
-- `src/components/finance/Sidebar.tsx` — redesign do bloco mobile.
-- `src/components/finance/mobile-fab-context.tsx` — **novo**.
-- `src/routes/__root.tsx` — montar provider.
-- `src/routes/recebimentos.tsx` — registrar FAB + esconder CTA no mobile.
-- `src/routes/pagamentos.tsx` — idem.
-- `src/routes/planejamento.tsx` — idem.
+## Arquivos alterados
+- `src/components/finance/Sidebar.tsx` — classes do `<aside>` desktop
+- `src/styles.css` — regras de scrollbar global
 
-Desktop não muda em nada.
+Sem mudanças em rotas, lógica ou no FAB mobile.

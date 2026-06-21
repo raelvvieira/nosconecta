@@ -68,6 +68,7 @@ export function Sidebar() {
       <aside
         className={cn(
           "hidden lg:flex shrink-0 flex-col bg-sidebar border-r border-border py-6 gap-6 transition-[width] duration-200",
+          "lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden",
           collapsed ? "w-[88px] items-center px-0" : "w-[240px] items-stretch px-4",
         )}
       >
