@@ -16,7 +16,7 @@ import {
   CalendarDays,
   type LucideIcon,
 } from "lucide-react";
-import { Link, useLocation } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useMobileFab } from "@/components/finance/mobile-fab-context";
@@ -56,6 +56,7 @@ const STORAGE_KEY = "sidebar-collapsed";
 
 export function Sidebar() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(true);
   const [mounted, setMounted] = useState(false);
   const fabCtx = useMobileFab();
@@ -102,8 +103,8 @@ export function Sidebar() {
 
   // Module-level items (primary menu)
   const modules: { label: string; icon: LucideIcon; onClick?: () => void; disabled?: boolean }[] = [
-    { label: "Agenda", icon: Calendar, onClick: () => setView("agenda") },
-    { label: "Financeiro", icon: Wallet, onClick: () => setView("financeiro") },
+    { label: "Agenda", icon: Calendar, onClick: () => { setView("agenda"); navigate({ to: "/agenda" }); } },
+    { label: "Financeiro", icon: Wallet, onClick: () => { setView("financeiro"); navigate({ to: "/" }); } },
   ];
 
   return (
