@@ -220,15 +220,13 @@ export function Sidebar() {
                 return (
                   <div key={m.label}>
                     {maybeTooltip(
-                      <button
-                        type="button"
+                      <Link
+                        to={m.to}
                         className={className}
-                        onClick={m.onClick}
-                        disabled={m.disabled}
                         aria-label={m.label}
                       >
                         {inner}
-                      </button>,
+                      </Link>,
                       m.label,
                     )}
                   </div>
