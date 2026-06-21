@@ -221,7 +221,7 @@ export function Sidebar() {
 
       {/* Mobile bottom navigation — premium floating card with central FAB */}
       <nav
-        className="lg:hidden fixed z-50"
+        className="lg:hidden fixed z-50 flex items-center justify-between"
         style={{
           left: 16,
           right: 16,
@@ -233,11 +233,7 @@ export function Sidebar() {
           border: "1px solid rgba(226,232,240,0.6)",
           paddingLeft: 6,
           paddingRight: 6,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
           marginBottom: "env(safe-area-inset-bottom)",
-          position: "fixed",
         }}
       >
         {(() => {
