@@ -361,6 +361,11 @@ export function MobileAgenda({
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   useRegisterMobileFab({ label: "Novo Agendamento", onClick: onNewAppointment });
+  useRegisterMobileNavActions([
+    { label: "Bloquear", icon: Lock, onClick: onNewBlock },
+    { label: "Filtros", icon: SlidersHorizontal, onClick: () => setFilterOpen(true) },
+    { label: "Calendário", icon: CalendarDays, onClick: () => setCalendarOpen(true) },
+  ]);
 
   const selStr = toDateStr(selectedDate);
 
