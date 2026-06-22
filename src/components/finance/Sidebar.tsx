@@ -61,6 +61,7 @@ export function Sidebar() {
   const [mounted, setMounted] = useState(false);
   const fabCtx = useMobileFab();
   const fab = fabCtx?.fab ?? null;
+  const navActions = fabCtx?.navActions ?? [];
 
   const inFinance = useMemo(
     () => FINANCE_PATHS.has(pathname) || financeItems.some((i) => i.to !== "/" && pathname.startsWith(i.to)),
