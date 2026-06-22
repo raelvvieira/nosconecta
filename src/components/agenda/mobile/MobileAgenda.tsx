@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
+import { useRegisterMobileFab, useRegisterMobileNavActions } from "@/components/finance/mobile-fab-context";
 import {
   SlidersHorizontal,
   CalendarDays,
@@ -238,21 +238,13 @@ function BlockCard({ block }: { block: BlockedTime }) {
 
 // ─── Empty state ─────────────────────────────────────────────────────────────
 
-function EmptyState({ onNew }: { onNew: () => void }) {
+function EmptyState({ onNew: _onNew }: { onNew: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="h-14 w-14 rounded-2xl grid place-items-center bg-[#F1F5F9] mb-4">
         <CalendarDays className="h-6 w-6 text-[#94A3B8]" strokeWidth={1.5} />
       </div>
-      <p className="text-sm text-[#6B7280] mb-4">Nenhum agendamento para este dia.</p>
-      <button
-        type="button"
-        onClick={onNew}
-        className="px-5 h-11 rounded-[14px] text-white font-semibold text-sm"
-        style={{ background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)" }}
-      >
-        Criar agendamento
-      </button>
+      <p className="text-sm text-[#6B7280]">Nenhum agendamento para este dia.</p>
     </div>
   );
 }
@@ -365,6 +357,11 @@ export function MobileAgenda({
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   useRegisterMobileFab({ label: "Novo Agendamento", onClick: onNewAppointment });
+  useRegisterMobileNavActions([
+    { label: "Bloquear", icon: Lock, onClick: onNewBlock },
+    { label: "Filtros", icon: SlidersHorizontal, onClick: () => setFilterOpen(true) },
+    { label: "Calendário", icon: CalendarDays, onClick: () => setCalendarOpen(true) },
+  ]);
 
   const selStr = toDateStr(selectedDate);
 
@@ -410,7 +407,7 @@ export function MobileAgenda({
     <div className="lg:hidden flex-1 min-w-0 min-h-screen" style={{ background: "#F8F8FA" }}>
       <div className="px-4 pt-6 pb-28 space-y-5">
         {/* Header */}
-        <header className="flex items-start justify-between gap-3">
+        <header>
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold tracking-tight text-[#111827]">Agenda</h1>
             <p className="text-sm text-[#6B7280] mt-0.5 capitalize">{subtitle}</p>

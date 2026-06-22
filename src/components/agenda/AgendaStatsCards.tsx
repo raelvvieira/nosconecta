@@ -1,6 +1,5 @@
-import { CalendarCheck, CheckCircle2, Clock, UserX, DollarSign } from "lucide-react";
+import { CalendarCheck, CheckCircle2, Clock, UserX } from "lucide-react";
 import type { Appointment } from "./types";
-import { formatBRL } from "@/lib/finance/format";
 
 interface Props {
   appointments: Appointment[];
@@ -52,12 +51,11 @@ export function AgendaStatsCards({ appointments, date }: Props) {
   const confirmed = todayAppts.filter((a) => a.status === "confirmed" || a.status === "completed").length;
   const pending = todayAppts.filter((a) => a.status === "pending").length;
   const missed = todayAppts.filter((a) => a.status === "missed").length;
-  const revenue = todayAppts.reduce((s, a) => s + a.expectedRevenue, 0);
 
   const pct = (n: number) => total > 0 ? `${Math.round((n / total) * 100)}% do total` : "—";
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
       <StatCard
         icon={CalendarCheck}
         label="Atendimentos Hoje"
@@ -89,14 +87,6 @@ export function AgendaStatsCards({ appointments, date }: Props) {
         sub={pct(missed)}
         iconBg="rgba(239,68,68,0.10)"
         iconColor="#EF4444"
-      />
-      <StatCard
-        icon={DollarSign}
-        label="Faturamento Previsto"
-        value={formatBRL(revenue)}
-        sub="Hoje"
-        iconBg="rgba(255,111,167,0.10)"
-        iconColor="#FF6FA7"
       />
     </div>
   );
