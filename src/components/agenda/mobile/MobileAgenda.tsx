@@ -9,13 +9,11 @@ import {
   CheckCircle2,
   Clock,
   UserX,
-  DollarSign,
   Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Appointment, BlockedTime, AgendaFilters, AppointmentStatus } from "../types";
 import { statusStyle, STATUS_LABEL } from "../appointment-utils";
-import { formatBRL } from "@/lib/finance/format";
 import { MobileAppointmentSheet } from "./MobileAppointmentSheet";
 import { MobileFilterSheet } from "./MobileFilterSheet";
 import { MobileCalendarSheet } from "./MobileCalendarSheet";
@@ -71,7 +69,6 @@ function StatsCarousel({ appointments, date }: { appointments: Appointment[]; da
   const confirmed = today.filter((a) => a.status === "confirmed" || a.status === "completed").length;
   const pending = today.filter((a) => a.status === "pending").length;
   const missed = today.filter((a) => a.status === "missed").length;
-  const revenue = today.filter((a) => a.status !== "cancelled").reduce((s, a) => s + a.expectedRevenue, 0);
   const pct = (n: number) => (total > 0 ? `${Math.round((n / total) * 100)}% do total` : "—");
 
   const cards = [
@@ -79,7 +76,6 @@ function StatsCarousel({ appointments, date }: { appointments: Appointment[]; da
     { icon: CheckCircle2, label: "Confirmados", value: String(confirmed), sub: pct(confirmed), bg: "rgba(34,197,94,0.10)", color: "#22C55E" },
     { icon: Clock, label: "Pendentes", value: String(pending), sub: pct(pending), bg: "rgba(255,138,76,0.10)", color: "#FF8A4C" },
     { icon: UserX, label: "Faltas", value: String(missed), sub: pct(missed), bg: "rgba(239,68,68,0.10)", color: "#EF4444" },
-    { icon: DollarSign, label: "Faturamento Previsto", value: formatBRL(revenue), sub: "Hoje", bg: "rgba(96,165,250,0.10)", color: "#60A5FA" },
   ];
 
   return (
@@ -431,15 +427,6 @@ export function MobileAgenda({
             </button>
             <button
               type="button"
-              onClick={() => setFilterOpen(true)}
-              className="h-11 w-11 grid place-items-center rounded-[14px] bg-white border border-[#EEF2F7] text-[#374151]"
-              style={{ boxShadow: "0 4px 12px rgba(15,23,42,0.04)" }}
-              aria-label="Filtros"
-            >
-              <SlidersHorizontal className="h-[18px] w-[18px]" strokeWidth={1.75} />
-            </button>
-            <button
-              type="button"
               onClick={() => setCalendarOpen(true)}
               className="h-11 w-11 grid place-items-center rounded-[14px] bg-white border border-[#EEF2F7] text-[#374151]"
               style={{ boxShadow: "0 4px 12px rgba(15,23,42,0.04)" }}
@@ -452,6 +439,17 @@ export function MobileAgenda({
 
         {/* Stats carousel */}
         <StatsCarousel appointments={appointments} date={selStr} />
+
+        {/* Filters button */}
+        <button
+          type="button"
+          onClick={() => setFilterOpen(true)}
+          className="w-full flex items-center gap-2 px-4 h-11 rounded-[14px] bg-white border border-[#EEF2F7] text-[#374151]"
+          style={{ boxShadow: "0 4px 12px rgba(15,23,42,0.04)" }}
+        >
+          <SlidersHorizontal className="h-4 w-4 text-[#6B7280]" strokeWidth={1.75} />
+          <span className="text-sm font-medium text-[#374151]">Filtros</span>
+        </button>
 
         {/* Date selector */}
         <DateSelector selectedDate={selectedDate} onDateChange={onDateChange} />
