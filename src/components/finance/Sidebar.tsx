@@ -14,6 +14,9 @@ import {
   Wallet,
   ChevronLeft,
   CalendarDays,
+  Home,
+  Users,
+  MoreHorizontal,
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
@@ -567,6 +570,39 @@ export function Sidebar() {
                 {leftNav.map((a, i) => renderNav(a, `l-${i}`))}
                 {fabButton}
                 {rightNav.map((a, i) => renderNav(a, `r-${i}`))}
+              </>
+            );
+          }
+
+          if (pathname === "/") {
+            const homeItems = [
+              { label: "Início", icon: Home, to: "/" as const, isReal: true },
+              { label: "Agenda", icon: Calendar, to: "/agenda" as const, isReal: true },
+              { label: "Pacientes", icon: Users, to: null as null, isReal: false },
+              { label: "Financeiro", icon: Wallet, to: "/recebimentos" as const, isReal: true },
+              { label: "Mais", icon: MoreHorizontal, to: null as null, isReal: false },
+            ];
+            const homeItemStyle: React.CSSProperties = { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 };
+
+            return (
+              <>
+                {homeItems.map((item) => {
+                  const active = item.to !== null && pathname === item.to;
+                  const iconEl = (
+                    <span style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, paddingTop: 4 }}>
+                      <span style={{ width: 30, height: 30, borderRadius: 999, background: active ? "rgba(255,107,87,0.12)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.25s ease" }}>
+                        <item.icon style={{ width: 18, height: 18, color: active ? "#FF6B57" : "#6B7280" }} strokeWidth={2} />
+                      </span>
+                      <span style={{ fontFamily: "Inter, sans-serif", fontSize: 9.5, fontWeight: 500, letterSpacing: "-0.01em", lineHeight: 1, color: active ? "#FF6B57" : "#6B7280", whiteSpace: "nowrap" }}>
+                        {item.label}
+                      </span>
+                    </span>
+                  );
+                  if (!item.isReal || !item.to) {
+                    return <button key={item.label} type="button" disabled aria-label={item.label} style={{ ...homeItemStyle, opacity: 0.4 }}>{iconEl}</button>;
+                  }
+                  return <Link key={item.label} to={item.to} aria-label={item.label} style={homeItemStyle}>{iconEl}</Link>;
+                })}
               </>
             );
           }
