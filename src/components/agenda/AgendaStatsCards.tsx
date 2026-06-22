@@ -88,14 +88,6 @@ export function AgendaStatsCards({ appointments, date }: Props) {
         iconBg="rgba(239,68,68,0.10)"
         iconColor="#EF4444"
       />
-      <StatCard
-        icon={DollarSign}
-        label="Faturamento Previsto"
-        value={formatBRL(revenue)}
-        sub="Hoje"
-        iconBg="rgba(255,111,167,0.10)"
-        iconColor="#FF6FA7"
-      />
     </div>
   );
 }
