@@ -469,34 +469,44 @@ export function Sidebar() {
             );
           };
 
+          const fabButton = (
+            <button
+              type="button"
+              onClick={() => fab?.onClick()}
+              disabled={!fab}
+              aria-label={fab?.label ?? "Adicionar"}
+              className="bg-gradient-primary shadow-soft"
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "white",
+                transform: "translateY(-18px)",
+                flexShrink: 0,
+                border: "4px solid white",
+                opacity: fab ? 1 : 0.4,
+                transition: "transform 0.2s ease, opacity 0.2s ease",
+              }}
+            >
+              <Plus style={{ width: 26, height: 26 }} strokeWidth={2.5} />
+            </button>
+          );
+
+          if (inAgenda) {
+            return (
+              <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+                {fabButton}
+              </div>
+            );
+          }
+
           return (
             <>
               {left.map(renderItem)}
-
-              <button
-                type="button"
-                onClick={() => fab?.onClick()}
-                disabled={!fab}
-                aria-label={fab?.label ?? "Adicionar"}
-                className="bg-gradient-primary shadow-soft"
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 999,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "white",
-                  transform: "translateY(-18px)",
-                  flexShrink: 0,
-                  border: "4px solid white",
-                  opacity: fab ? 1 : 0.4,
-                  transition: "transform 0.2s ease, opacity 0.2s ease",
-                }}
-              >
-                <Plus style={{ width: 26, height: 26 }} strokeWidth={2.5} />
-              </button>
-
+              {fabButton}
               {right.map(renderItem)}
             </>
           );

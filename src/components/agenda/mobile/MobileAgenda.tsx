@@ -1,6 +1,6 @@
 import { useState } from "react";
+import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
 import {
-  Plus,
   SlidersHorizontal,
   CalendarDays,
   ChevronLeft,
@@ -83,12 +83,12 @@ function StatsCarousel({ appointments, date }: { appointments: Appointment[]; da
   ];
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none snap-x">
+    <div className="grid grid-cols-2 gap-3">
       {cards.map((c) => (
         <div
           key={c.label}
-          className="bg-white shrink-0 snap-start p-4 flex flex-col gap-2"
-          style={{ width: 162, borderRadius: 20, border: "1px solid #EEF2F7", boxShadow: "0 8px 24px rgba(15,23,42,0.04)" }}
+          className="bg-white p-4 flex flex-col gap-2"
+          style={{ borderRadius: 20, border: "1px solid #EEF2F7", boxShadow: "0 8px 24px rgba(15,23,42,0.04)" }}
         >
           <div className="h-9 w-9 rounded-xl grid place-items-center" style={{ background: c.bg }}>
             <c.icon style={{ color: c.color, width: 18, height: 18 }} strokeWidth={1.75} />
@@ -368,6 +368,8 @@ export function MobileAgenda({
   const [filterOpen, setFilterOpen] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
 
+  useRegisterMobileFab({ label: "Novo Agendamento", onClick: onNewAppointment });
+
   const selStr = toDateStr(selectedDate);
 
   const matchesFilters = (a: Appointment) => {
@@ -536,26 +538,6 @@ export function MobileAgenda({
           />
         )}
       </div>
-
-      {/* Floating action button */}
-      <button
-        type="button"
-        onClick={onNewAppointment}
-        aria-label="Novo agendamento"
-        className="fixed z-40 grid place-items-center text-white active:scale-95 transition-transform"
-        style={{
-          right: 20,
-          bottom: 96,
-          width: 60,
-          height: 60,
-          borderRadius: 999,
-          background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)",
-          boxShadow: "0 16px 32px rgba(255,111,167,0.32)",
-          marginBottom: "env(safe-area-inset-bottom)",
-        }}
-      >
-        <Plus className="h-7 w-7" strokeWidth={2.5} />
-      </button>
 
       {/* Sheets */}
       <MobileAppointmentSheet
