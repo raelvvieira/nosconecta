@@ -1,60 +1,36 @@
-# Plano: Menu primário + sidebar fixa + scroll isolado
+## Objetivo
 
-## 1. Menu primário (módulos)
+Na página de Agenda mobile, os três botões brancos do canto superior direito (cadeado, sliders, calendário) saem do header e entram na barra inferior — no mesmo padrão visual dos itens "Financeiro / Recebimentos / Pagamentos / Planejamento" que vemos nas outras páginas, com o FAB "+" centralizado.
 
-Novo estado em `Sidebar.tsx`: `view: "modules" | "financeiro"`. Por padrão, se a rota atual for `/`, `/recebimentos`, `/pagamentos`, `/planejamento`, `/comissoes`, `/configuracoes` → abre direto em `"financeiro"`. Caso contrário (futuro `/agenda`) → `"modules"`.
+## Layout proposto na bottom bar (rota `/agenda`)
 
-### View "modules"
-Lista vertical de cards/botões grandes, mesmo estilo visual dos itens atuais:
-- **Agenda** (ícone `Calendar`) — desabilitado (opacity 40, cursor not-allowed), sem rota ainda.
-- **Financeiro** (ícone `Wallet` ou `LayoutGrid`) — ao clicar, muda `view` para `"financeiro"` (não navega; o submenu aparece).
-
-Header da sidebar continua com logo "N" + "NÓS Conecta" + botão collapse.
-
-### View "financeiro"
-Mostra o submenu atual (Visão Geral, Recebimentos, Pagamentos, Planejamento, Comissões, Configurações).
-
-No topo do submenu, **botão "Voltar"** (chevron-left + label "Módulos") que retorna `view` para `"modules"`. Quando `collapsed`, vira ícone-só com tooltip "Voltar aos módulos".
-
-Pequeno label discreto acima da lista: "Financeiro" em uppercase/muted (seção atual).
-
-## 2. Sidebar fixa + footer ancorado
-
-Layout atual: `<aside>` é flex column dentro de um container que já scrolla junto com o conteúdo. Mudanças:
-
-- O shell em `__root.tsx` vira: `<div className="h-screen flex overflow-hidden">` com `<Sidebar />` (imóvel) + `<main className="flex-1 overflow-y-auto custom-scroll">`.
-- `<aside>` recebe `h-screen sticky top-0` (ou simplesmente fica dentro do flex de altura fixa).
-- Estrutura interna: `flex flex-col h-full` — bloco do topo (logo + nav) com `flex-1 overflow-y-auto` se necessário, footer (Plano Premium / conta / Sair) com `mt-auto`. Já existe esse padrão; só garantir que o `mt-auto` empurra o footer para baixo dentro da altura total da viewport.
-
-## 3. Scrollbar glass minimalista (apenas no `<main>`)
-
-Adicionar utilitário em `src/styles.css`:
-
-```css
-.custom-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.custom-scroll::-webkit-scrollbar-track { background: transparent; }
-.custom-scroll::-webkit-scrollbar-thumb {
-  background: color-mix(in oklab, var(--foreground) 12%, transparent);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-.custom-scroll::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in oklab, var(--foreground) 22%, transparent);
-  background-clip: padding-box;
-}
-.custom-scroll { scrollbar-width: thin; scrollbar-color: rgba(15,23,42,0.15) transparent; }
+```
+[ Bloquear ]  [ Filtros ]   ( + )   [ Calendário ]  [ Lista/Mês ]
 ```
 
-Aplicado só ao `<main>`. `body`/`html` ficam `overflow: hidden` (via classes no shell).
+- 2 itens à esquerda + FAB + 2 itens à direita (mesma simetria das páginas financeiras).
+- Itens com ícone + label pequeno, mesmo tratamento de cor/active state das outras abas.
+- O quarto item à direita aproveita o toggle de visualização já existente (`day` / `list` / `month`) — um botão "Visões" que abre um mini popover ou cicla, para preencher a simetria. Se preferir, deixamos só 1 item à direita (Calendário) sem o quarto — pergunto abaixo.
 
-## 4. Arquivos afetados
+## Mudanças técnicas
 
-- `src/components/finance/Sidebar.tsx` — novo state `view`, nova view "modules", botão voltar, footer com `mt-auto`.
-- `src/routes/__root.tsx` — wrapper `h-screen flex overflow-hidden` + `<main className="flex-1 overflow-y-auto custom-scroll">`. Mobile mantém comportamento atual (FAB island já é fixed).
-- `src/styles.css` — utilitário `.custom-scroll`.
+1. **`src/components/finance/mobile-fab-context.tsx`**
+   - Estender o contexto para aceitar, além do `fab`, uma lista opcional de "ações secundárias" (`extraActions: { label, icon, onClick }[]`) registradas pela página ativa.
+   - Novo hook `useRegisterMobileNavActions(actions)` análogo ao `useRegisterMobileFab`.
 
-## Fora de escopo
-- Não criar rota `/agenda` (apenas item desabilitado no menu primário).
-- Desktop only para o menu primário; mobile continua com a ilha inferior (Agenda pode entrar depois).
-- Sem alteração de business logic.
+2. **`src/components/finance/Sidebar.tsx`**
+   - No ramo `inAgenda` da bottom bar, em vez de renderizar só o FAB centralizado, montar a estrutura simétrica usando as ações registradas pela Agenda + o FAB existente. Reusar o mesmo `renderItem` (ícone em pílula + label) para manter o estilo idêntico ao das páginas financeiras.
+
+3. **`src/components/agenda/mobile/MobileAgenda.tsx`**
+   - Remover os três `<button>` do header (linhas 414–442) — sobra só o título + subtítulo.
+   - Registrar via `useRegisterMobileNavActions` as ações `Bloquear` (Lock), `Filtros` (SlidersHorizontal), `Calendário` (CalendarDays), apontando para os handlers/estados que já existem (`onNewBlock`, `setFilterOpen`, `setCalendarOpen`).
+
+## Fora do escopo
+
+- Não mexer no desktop (`hidden lg:block`) — os botões do header desktop continuam como estão.
+- Não mexer no comportamento dos sheets (`MobileFilterSheet`, `MobileCalendarSheet`).
+- Não mexer nas outras rotas (`/`, `/recebimentos`, `/pagamentos`, `/planejamento`).
+
+## Pergunta rápida
+
+Prefere **2 + FAB + 2** (incluindo um quarto item "Visões" para alternar dia/lista/mês) ou **2 + FAB + 1** (só Calendário à direita, deixando assimétrico mas mais limpo)?

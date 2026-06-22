@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
+import { useRegisterMobileFab, useRegisterMobileNavActions } from "@/components/finance/mobile-fab-context";
 import {
   SlidersHorizontal,
   CalendarDays,
@@ -361,6 +361,11 @@ export function MobileAgenda({
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   useRegisterMobileFab({ label: "Novo Agendamento", onClick: onNewAppointment });
+  useRegisterMobileNavActions([
+    { label: "Bloquear", icon: Lock, onClick: onNewBlock },
+    { label: "Filtros", icon: SlidersHorizontal, onClick: () => setFilterOpen(true) },
+    { label: "Calendário", icon: CalendarDays, onClick: () => setCalendarOpen(true) },
+  ]);
 
   const selStr = toDateStr(selectedDate);
 
@@ -406,39 +411,10 @@ export function MobileAgenda({
     <div className="lg:hidden flex-1 min-w-0 min-h-screen" style={{ background: "#F8F8FA" }}>
       <div className="px-4 pt-6 pb-28 space-y-5">
         {/* Header */}
-        <header className="flex items-start justify-between gap-3">
+        <header>
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold tracking-tight text-[#111827]">Agenda</h1>
             <p className="text-sm text-[#6B7280] mt-0.5 capitalize">{subtitle}</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={onNewBlock}
-              className="h-11 w-11 grid place-items-center rounded-[14px] bg-white border border-[#EEF2F7] text-[#374151]"
-              style={{ boxShadow: "0 4px 12px rgba(15,23,42,0.04)" }}
-              aria-label="Bloquear horário"
-            >
-              <Lock className="h-[18px] w-[18px]" strokeWidth={1.75} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterOpen(true)}
-              className="h-11 w-11 grid place-items-center rounded-[14px] bg-white border border-[#EEF2F7] text-[#374151]"
-              style={{ boxShadow: "0 4px 12px rgba(15,23,42,0.04)" }}
-              aria-label="Filtros"
-            >
-              <SlidersHorizontal className="h-[18px] w-[18px]" strokeWidth={1.75} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setCalendarOpen(true)}
-              className="h-11 w-11 grid place-items-center rounded-[14px] bg-white border border-[#EEF2F7] text-[#374151]"
-              style={{ boxShadow: "0 4px 12px rgba(15,23,42,0.04)" }}
-              aria-label="Calendário"
-            >
-              <CalendarDays className="h-[18px] w-[18px]" strokeWidth={1.75} />
-            </button>
           </div>
         </header>
 
