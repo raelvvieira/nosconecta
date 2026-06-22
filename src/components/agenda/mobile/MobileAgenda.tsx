@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
+import { useRegisterMobileFab, useRegisterMobileNavActions } from "@/components/finance/mobile-fab-context";
 import {
   SlidersHorizontal,
   CalendarDays,
