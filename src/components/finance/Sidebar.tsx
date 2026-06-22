@@ -469,11 +469,12 @@ export function Sidebar() {
             );
           };
 
+          const fabActive = !!fab || inAgenda;
           const fabButton = (
             <button
               type="button"
               onClick={() => fab?.onClick()}
-              disabled={!fab}
+              disabled={!fabActive}
               aria-label={fab?.label ?? "Adicionar"}
               className="bg-gradient-primary shadow-soft"
               style={{
@@ -487,7 +488,7 @@ export function Sidebar() {
                 transform: "translateY(-18px)",
                 flexShrink: 0,
                 border: "4px solid white",
-                opacity: fab ? 1 : 0.4,
+                opacity: fabActive ? 1 : 0.4,
                 transition: "transform 0.2s ease, opacity 0.2s ease",
               }}
             >
