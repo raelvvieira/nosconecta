@@ -1,6 +1,5 @@
-import { CalendarCheck, CheckCircle2, Clock, UserX, DollarSign } from "lucide-react";
+import { CalendarCheck, CheckCircle2, Clock, UserX } from "lucide-react";
 import type { Appointment } from "./types";
-import { formatBRL } from "@/lib/finance/format";
 
 interface Props {
   appointments: Appointment[];
