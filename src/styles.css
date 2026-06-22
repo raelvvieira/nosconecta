@@ -216,6 +216,15 @@
   box-shadow: var(--shadow-elev);
 }
 
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @utility custom-scroll {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in oklab, var(--foreground) 14%, transparent) transparent;

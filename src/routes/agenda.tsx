@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Plus, Lock, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/finance/Sidebar";
@@ -8,7 +9,9 @@ import { WeeklyCalendar } from "@/components/agenda/WeeklyCalendar";
 import { AppointmentDrawer } from "@/components/agenda/AppointmentDrawer";
 import { BlockedTimeDrawer } from "@/components/agenda/BlockedTimeDrawer";
 import { RightSidebar } from "@/components/agenda/RightSidebar";
-import type { Appointment, AgendaFilters } from "@/components/agenda/types";
+import { MobileAgenda } from "@/components/agenda/mobile/MobileAgenda";
+import { STATUS_LABEL } from "@/components/agenda/appointment-utils";
+import type { Appointment, AgendaFilters, AppointmentStatus } from "@/components/agenda/types";
 import {
   appointments as initialAppts,
   blockedTimes as initialBlocked,
@@ -88,11 +91,45 @@ function AgendaPage() {
     setApptDrawerOpen(true);
   };
 
+  const handleStatusChange = (id: string, status: AppointmentStatus) => {
+    setAppointments((prev) =>
+      prev.map((a) => {
+        if (a.id !== id) return a;
+        // Concluir atendimento com cobrança gera recebimento previsto
+        if (status === "completed" && a.generateFinancial && a.status !== "completed") {
+          toast.success(`Recebimento previsto gerado: ${a.patientName}`);
+        }
+        return { ...a, status };
+      }),
+    );
+    toast.success(`Status alterado para ${STATUS_LABEL[status]}`);
+  };
+
+  const openNewAppointment = () => {
+    setSelectedAppt(null);
+    setApptDrawerOpen(true);
+  };
+
   return (
     <div className="min-h-screen flex" style={{ background: "#F8F8FA" }}>
       <Sidebar />
 
-      <main className="flex-1 min-w-0 px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-28 lg:pb-8">
+      {/* Mobile */}
+      <MobileAgenda
+        appointments={appointments}
+        blockedTimes={blocked}
+        selectedDate={selectedDate}
+        filters={filters}
+        onDateChange={setSelectedDate}
+        onFiltersChange={setFilters}
+        onNewAppointment={openNewAppointment}
+        onNewBlock={() => setBlockDrawerOpen(true)}
+        onEditAppointment={handleApptClick}
+        onStatusChange={handleStatusChange}
+      />
+
+      {/* Desktop */}
+      <main className="hidden lg:block flex-1 min-w-0 px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-28 lg:pb-8">
         {/* Header */}
         <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
           <div>
