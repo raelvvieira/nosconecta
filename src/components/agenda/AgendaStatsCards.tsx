@@ -51,7 +51,6 @@ export function AgendaStatsCards({ appointments, date }: Props) {
   const confirmed = todayAppts.filter((a) => a.status === "confirmed" || a.status === "completed").length;
   const pending = todayAppts.filter((a) => a.status === "pending").length;
   const missed = todayAppts.filter((a) => a.status === "missed").length;
-  const revenue = todayAppts.reduce((s, a) => s + a.expectedRevenue, 0);
 
   const pct = (n: number) => total > 0 ? `${Math.round((n / total) * 100)}% do total` : "—";
 
