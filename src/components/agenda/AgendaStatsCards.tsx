@@ -55,7 +55,7 @@ export function AgendaStatsCards({ appointments, date }: Props) {
   const pct = (n: number) => total > 0 ? `${Math.round((n / total) * 100)}% do total` : "—";
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
       <StatCard
         icon={CalendarCheck}
         label="Atendimentos Hoje"
