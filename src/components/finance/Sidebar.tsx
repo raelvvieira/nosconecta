@@ -498,10 +498,76 @@ export function Sidebar() {
           );
 
           if (inAgenda) {
+            const renderNav = (a: typeof navActions[number], key: string) => {
+              const wrapperStyle: React.CSSProperties = {
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                minWidth: 0,
+              };
+              const inner = (
+                <span
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 3,
+                    paddingTop: 4,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: 999,
+                      background: "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <a.icon style={{ width: 18, height: 18, color: "#6B7280" }} strokeWidth={2} />
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "Inter, sans-serif",
+                      fontSize: 9.5,
+                      fontWeight: 500,
+                      letterSpacing: "-0.01em",
+                      lineHeight: 1,
+                      color: "#6B7280",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {a.label}
+                  </span>
+                </span>
+              );
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={a.onClick}
+                  aria-label={a.label}
+                  style={wrapperStyle}
+                >
+                  {inner}
+                </button>
+              );
+            };
+
+            const leftNav = navActions.slice(0, 2);
+            const rightNav = navActions.slice(2, 4);
+
             return (
-              <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+              <>
+                {leftNav.map((a, i) => renderNav(a, `l-${i}`))}
                 {fabButton}
-              </div>
+                {rightNav.map((a, i) => renderNav(a, `r-${i}`))}
+              </>
             );
           }
 
