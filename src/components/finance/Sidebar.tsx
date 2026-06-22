@@ -616,6 +616,28 @@ export function Sidebar() {
           );
         })()}
       </nav>
+
+      {/* Mobile top-right home button */}
+      <Link
+        to="/"
+        className={cn(
+          "lg:hidden fixed z-40 flex items-center justify-center",
+          pathname === "/" && "hidden"
+        )}
+        style={{
+          top: 16,
+          right: 16,
+          width: 40,
+          height: 40,
+          borderRadius: 14,
+          background: "rgba(255,255,255,0.94)",
+          border: "1px solid #EEF2F7",
+          boxShadow: "0 8px 24px rgba(15,23,42,0.05)",
+        }}
+        aria-label="Home"
+      >
+        <Home className="h-5 w-5 text-[#111827]" strokeWidth={1.75} />
+      </Link>
     </TooltipProvider>
   );
 }
