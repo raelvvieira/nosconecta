@@ -150,8 +150,8 @@ function PagamentosPage() {
         {/* Header */}
         <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 min-h-[80px]">
           <div>
-            <h1 className="text-2xl md:text-[34px] leading-tight font-bold tracking-tight">Pagamentos</h1>
-            <p className="text-sm text-muted-foreground mt-1 md:mt-1.5">Gerencie todas as despesas da clínica</p>
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Pagamentos</h1>
+            <p className="text-sm text-muted-foreground mt-1">Gerencie todas as despesas da clínica</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={() => setSheetOpen(true)} variant="premium" className="hidden lg:inline-flex">

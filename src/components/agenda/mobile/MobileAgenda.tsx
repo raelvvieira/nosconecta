@@ -409,28 +409,8 @@ export function MobileAgenda({
         {/* Header */}
         <header>
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight text-[#111827]">Agenda</h1>
-            <p className="text-sm text-[#6B7280] mt-0.5 capitalize">{subtitle}</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={onNewBlock}
-              className="h-11 w-11 grid place-items-center rounded-[14px] bg-white border border-[#EEF2F7] text-[#374151]"
-              style={{ boxShadow: "0 4px 12px rgba(15,23,42,0.04)" }}
-              aria-label="Bloquear horário"
-            >
-              <Lock className="h-[18px] w-[18px]" strokeWidth={1.75} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setCalendarOpen(true)}
-              className="h-11 w-11 grid place-items-center rounded-[14px] bg-white border border-[#EEF2F7] text-[#374151]"
-              style={{ boxShadow: "0 4px 12px rgba(15,23,42,0.04)" }}
-              aria-label="Calendário"
-            >
-              <CalendarDays className="h-[18px] w-[18px]" strokeWidth={1.75} />
-            </button>
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#111827]">Agenda</h1>
+            <p className="text-sm text-[#6B7280] mt-1 capitalize">{subtitle}</p>
           </div>
         </header>
 

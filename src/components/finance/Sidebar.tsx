@@ -625,18 +625,18 @@ export function Sidebar() {
           pathname === "/" && "hidden"
         )}
         style={{
-          top: 16,
+          top: 20,
           right: 16,
-          width: 40,
-          height: 40,
-          borderRadius: 14,
-          background: "rgba(255,255,255,0.94)",
+          width: 52,
+          height: 52,
+          borderRadius: 17,
+          background: "#FFFFFF",
           border: "1px solid #EEF2F7",
           boxShadow: "0 8px 24px rgba(15,23,42,0.05)",
         }}
         aria-label="Home"
       >
-        <Home className="h-5 w-5 text-[#111827]" strokeWidth={1.75} />
+        <Home className="h-[21px] w-[21px] text-[#111827]" strokeWidth={1.75} />
       </Link>
     </TooltipProvider>
   );
