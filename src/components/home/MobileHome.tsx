@@ -1,4 +1,3 @@
-import { useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertTriangle,
@@ -126,65 +125,34 @@ const SUMMARY_CARDS = [
   },
 ] as const;
 
-function SummaryCarousel() {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [activeIdx, setActiveIdx] = useState(0);
-
-  const handleScroll = () => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const pct = el.scrollLeft / (el.scrollWidth - el.clientWidth);
-    setActiveIdx(Math.round(pct * (SUMMARY_CARDS.length - 1)));
-  };
-
+function SummaryGrid() {
   return (
-    <div style={{ marginTop: 28 }}>
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        style={{ display: "flex", gap: 12, overflowX: "auto", padding: "2px 24px 4px", scrollbarWidth: "none", scrollSnapType: "x mandatory" }}
-        className="scrollbar-none"
-      >
+    <div style={{ padding: "28px 24px 0 24px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
         {SUMMARY_CARDS.map((card, i) => (
           <div
             key={i}
-            style={{ ...cardStyle, minWidth: 155, height: 192, padding: 18, display: "flex", flexDirection: "column", justifyContent: "space-between", scrollSnapAlign: "start", flexShrink: 0 }}
+            style={{ ...cardStyle, minWidth: 0, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}
           >
-            <div>
-              <div style={{ width: 44, height: 44, borderRadius: 14, background: card.iconBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <card.icon style={{ color: card.iconColor, width: 20, height: 20 }} strokeWidth={1.75} />
+            {/* Icon + label row */}
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 12, background: card.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <card.icon style={{ color: card.iconColor, width: 18, height: 18 }} strokeWidth={1.75} />
               </div>
-              <p style={{ fontSize: 12, color: "#6B7280", marginTop: 10, lineHeight: "16px", margin: "10px 0 0" }}>{card.title}</p>
-              <p style={{ fontSize: 26, fontWeight: 700, color: card.valueColor, letterSpacing: "-0.03em", margin: "2px 0 0", lineHeight: "30px" }}>{card.value}</p>
-              <p style={{ fontSize: 12, color: "#9CA3AF", margin: "2px 0 0" }}>{card.subtitle}</p>
-              {card.details.length > 0 && (
-                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 2 }}>
-                  {card.details.map((d) => (
-                    <span key={d} style={{ fontSize: 11, color: "#9CA3AF" }}>{d}</span>
-                  ))}
-                </div>
-              )}
+              <p style={{ fontSize: 11, color: "#6B7280", lineHeight: "15px", margin: 0, paddingTop: 2, minWidth: 0 }}>{card.title}</p>
             </div>
-            <span style={{ fontSize: 12, fontWeight: 600, color: card.actionColor }}>
+
+            {/* Value */}
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: 20, fontWeight: 700, color: card.valueColor, letterSpacing: "-0.02em", margin: 0, lineHeight: "24px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.value}</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF", margin: "2px 0 0" }}>{card.subtitle}</p>
+            </div>
+
+            {/* Footer action */}
+            <span style={{ fontSize: 12, fontWeight: 600, color: card.actionColor, marginTop: "auto" }}>
               {card.action} →
             </span>
           </div>
-        ))}
-      </div>
-
-      {/* Dots */}
-      <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 14 }}>
-        {SUMMARY_CARDS.map((_, i) => (
-          <div
-            key={i}
-            style={{
-              width: i === activeIdx ? 22 : 7,
-              height: 7,
-              borderRadius: 999,
-              background: i === activeIdx ? GRADIENT : "#D1D5DB",
-              transition: "width 0.25s ease",
-            }}
-          />
         ))}
       </div>
     </div>
@@ -381,7 +349,7 @@ export function MobileHome() {
       }}
     >
       <Header />
-      <SummaryCarousel />
+      <SummaryGrid />
       <NextAppointments />
       <QuickActions />
       <AttentionSection />
