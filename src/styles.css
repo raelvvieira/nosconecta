@@ -179,6 +179,8 @@
     font-feature-settings: "cv11", "ss01", "ss03";
     -webkit-font-smoothing: antialiased;
     letter-spacing: -0.005em;
+    overflow-x: hidden;
+    max-width: 100%;
   }
 
   .tabular-nums {

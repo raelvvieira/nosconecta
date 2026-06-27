@@ -312,12 +312,12 @@ function QuickActions() {
             key={i}
             type="button"
             onClick={a.onClick}
-            style={{ height: 86, borderRadius: 22, padding: "0 16px", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", border: "none", ...a.containerStyle }}
+            style={{ height: 86, minWidth: 0, borderRadius: 22, padding: "0 16px", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", border: "none", ...a.containerStyle }}
           >
             <div style={{ width: 44, height: 44, borderRadius: 14, background: a.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <a.icon style={{ width: 20, height: 20, color: a.iconColor }} strokeWidth={1.75} />
             </div>
-            <span style={{ fontSize: 15, fontWeight: 700, lineHeight: "20px", color: a.textColor, textAlign: "left", whiteSpace: "pre-line" }}>
+            <span style={{ fontSize: 15, fontWeight: 700, lineHeight: "20px", color: a.textColor, textAlign: "left", whiteSpace: "pre-line", minWidth: 0, overflow: "hidden" }}>
               {a.label}
             </span>
           </button>
@@ -374,7 +374,7 @@ export function MobileHome() {
 
   return (
     <div
-      className="lg:hidden flex-1 overflow-y-auto custom-scroll"
+      className="lg:hidden flex-1 min-w-0 w-full overflow-x-hidden overflow-y-auto custom-scroll"
       style={{
         background: "radial-gradient(circle at top right, rgba(255,111,167,0.06), transparent 32%), #F8F8FA",
         paddingBottom: 110,
