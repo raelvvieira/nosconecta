@@ -359,7 +359,6 @@ export function MobileAgenda({
   useRegisterMobileFab({ label: "Novo Agendamento", onClick: onNewAppointment });
   useRegisterMobileNavActions([
     { label: "Bloquear", icon: Lock, onClick: onNewBlock },
-    { label: "Filtros", icon: SlidersHorizontal, onClick: () => setFilterOpen(true) },
     { label: "Calendário", icon: CalendarDays, onClick: () => setCalendarOpen(true) },
   ]);
 

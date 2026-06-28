@@ -1,7 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import {
   Plus, ClipboardCheck, Download, ArrowDownCircle, CalendarDays, AlertCircle, Wallet,
@@ -50,6 +50,7 @@ const searchSchema = z.object({
   method: z.string().optional(),
   q: z.string().optional(),
   page: z.number().optional(),
+  newReceivable: z.boolean().optional(),
 });
 type Search = z.infer<typeof searchSchema>;
 
@@ -124,6 +125,16 @@ function RecebimentosPage() {
   const [receiptTarget, setReceiptTarget] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [qLocal, setQLocal] = useState(search.q ?? "");
+
+  useEffect(() => {
+    if (!search.newReceivable) return;
+    setSheetOpen(true);
+    router.navigate({
+      to: "/recebimentos",
+      search: (previous: Search) => ({ ...previous, newReceivable: undefined }),
+      replace: true,
+    });
+  }, [search.newReceivable, router]);
 
   useRegisterMobileFab({ label: "Novo Recebimento", onClick: () => setSheetOpen(true) });
 
@@ -478,6 +489,7 @@ function RecebimentosPage() {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         patients={data.patients}
+        initialPatientId={search.patient}
         professionals={data.professionals}
         categories={data.categories}
         accounts={data.accounts}

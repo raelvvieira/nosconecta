@@ -35,6 +35,7 @@ export interface Procedure {
 
 export interface Appointment {
   id: string;
+  patientId?: string;
   patientName: string;
   procedureName: string;
   professionalId: string;

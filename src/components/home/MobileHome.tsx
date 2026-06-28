@@ -245,7 +245,7 @@ function QuickActions() {
       iconBg: "rgba(139,92,246,0.12)",
       iconColor: "#8B5CF6",
       textColor: "#111827",
-      onClick: () => {},
+      onClick: () => navigate({ to: "/pacientes", search: { status: "all" } }),
     },
     {
       label: "Registrar\nrecebimento",

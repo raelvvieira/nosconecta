@@ -23,17 +23,12 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useMobileFab } from "@/components/finance/mobile-fab-context";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type FinanceItem = {
   label: string;
   icon: LucideIcon;
-  to: "/" | "/recebimentos" | "/pagamentos" | "/planejamento" | "/comissoes" | "/configuracoes";
+  to: "/" | "/recebimentos" | "/pagamentos" | "/planejamento" | "/comissoes";
 };
 
 const financeItems: FinanceItem[] = [
@@ -42,19 +37,14 @@ const financeItems: FinanceItem[] = [
   { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" },
   { label: "Planejamento", icon: TrendingUp, to: "/planejamento" },
   { label: "Comissões", icon: Percent, to: "/comissoes" },
-  { label: "Configurações", icon: Settings, to: "/configuracoes" },
 ];
 
 const REAL_ROUTES = new Set(["/", "/pagamentos", "/recebimentos", "/planejamento"]);
-const FINANCE_PATHS = new Set([
-  "/",
-  "/recebimentos",
-  "/pagamentos",
-  "/planejamento",
-  "/comissoes",
-  "/configuracoes",
-]);
+const FINANCE_PATHS = new Set(["/", "/recebimentos", "/pagamentos", "/planejamento", "/comissoes"]);
 const AGENDA_PATHS = new Set(["/agenda"]);
+const isPatientsPath = (pathname: string) =>
+  pathname === "/pacientes" || pathname.startsWith("/pacientes/");
+const isSettingsPath = (pathname: string) => pathname === "/configuracoes";
 const STORAGE_KEY = "sidebar-collapsed";
 
 export function Sidebar() {
@@ -67,10 +57,14 @@ export function Sidebar() {
   const navActions = fabCtx?.navActions ?? [];
 
   const inFinance = useMemo(
-    () => FINANCE_PATHS.has(pathname) || financeItems.some((i) => i.to !== "/" && pathname.startsWith(i.to)),
+    () =>
+      FINANCE_PATHS.has(pathname) ||
+      financeItems.some((i) => i.to !== "/" && pathname.startsWith(i.to)),
     [pathname],
   );
   const inAgenda = useMemo(() => AGENDA_PATHS.has(pathname), [pathname]);
+  const inPatients = useMemo(() => isPatientsPath(pathname), [pathname]);
+  const inSettings = useMemo(() => isSettingsPath(pathname), [pathname]);
 
   type SidebarView = "modules" | "financeiro" | "agenda";
   const [view, setView] = useState<SidebarView>(
@@ -79,9 +73,10 @@ export function Sidebar() {
 
   // Switch view automatically when the route changes
   useEffect(() => {
-    if (inFinance) setView("financeiro");
+    if (inPatients || inSettings) setView("modules");
+    else if (inFinance) setView("financeiro");
     else if (inAgenda) setView("agenda");
-  }, [inFinance, inAgenda]);
+  }, [inFinance, inAgenda, inPatients, inSettings]);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -106,9 +101,16 @@ export function Sidebar() {
   };
 
   // Module-level items (primary menu)
-  const modules: { label: string; icon: LucideIcon; to: "/agenda" | "/"; disabled?: boolean }[] = [
+  const modules: {
+    label: string;
+    icon: LucideIcon;
+    to: "/agenda" | "/pacientes" | "/configuracoes" | "/";
+    disabled?: boolean;
+  }[] = [
     { label: "Agenda", icon: Calendar, to: "/agenda" },
+    { label: "Pacientes", icon: Users, to: "/pacientes" },
     { label: "Financeiro", icon: Wallet, to: "/" },
+    { label: "Configurações", icon: Settings, to: "/configuracoes" },
   ];
 
   return (
@@ -121,12 +123,7 @@ export function Sidebar() {
         )}
       >
         {/* Logo + toggle */}
-        <div
-          className={cn(
-            "flex items-center",
-            collapsed ? "flex-col gap-3" : "justify-between",
-          )}
-        >
+        <div className={cn("flex items-center", collapsed ? "flex-col gap-3" : "justify-between")}>
           <div className={cn("flex items-center gap-3", collapsed && "flex-col")}>
             <div className="h-11 w-11 rounded-2xl bg-gradient-primary text-white grid place-items-center font-bold text-lg shadow-soft shrink-0">
               N
@@ -208,12 +205,20 @@ export function Sidebar() {
                 </span>
               )}
               {modules.map((m) => {
+                const active =
+                  m.to === "/pacientes"
+                    ? inPatients
+                    : m.to === "/configuracoes"
+                      ? inSettings
+                      : pathname === m.to;
                 const className = cn(
                   "flex items-center rounded-2xl transition-colors",
                   collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
-                  m.disabled
-                    ? "text-muted-foreground opacity-40 cursor-not-allowed"
-                    : "text-foreground hover:bg-[#FAFAFA]",
+                  active
+                    ? "bg-[#1B1B1F] text-white"
+                    : m.disabled
+                      ? "text-muted-foreground opacity-40 cursor-not-allowed"
+                      : "text-foreground hover:bg-[#FAFAFA]",
                 );
                 const inner = (
                   <>
@@ -224,11 +229,7 @@ export function Sidebar() {
                 return (
                   <div key={m.label}>
                     {maybeTooltip(
-                      <Link
-                        to={m.to}
-                        className={className}
-                        aria-label={m.label}
-                      >
+                      <Link to={m.to} className={className} aria-label={m.label}>
                         {inner}
                       </Link>,
                       m.label,
@@ -276,9 +277,7 @@ export function Sidebar() {
                 const inner = (
                   <>
                     <it.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-                    {!collapsed && (
-                      <span className="text-sm font-medium truncate">{it.label}</span>
-                    )}
+                    {!collapsed && <span className="text-sm font-medium truncate">{it.label}</span>}
                   </>
                 );
                 const trigger = isReal ? (
@@ -395,7 +394,8 @@ export function Sidebar() {
           const right = navItems.slice(2);
 
           const renderItem = (item: (typeof navItems)[number]) => {
-            const active = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+            const active =
+              pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
             const isReal = REAL_ROUTES.has(item.to);
 
             const inner = (
@@ -501,7 +501,7 @@ export function Sidebar() {
           );
 
           if (inAgenda) {
-            const renderNav = (a: typeof navActions[number], key: string) => {
+            const renderNav = (a: (typeof navActions)[number], key: string) => {
               const wrapperStyle: React.CSSProperties = {
                 flex: 1,
                 display: "flex",
@@ -562,8 +562,9 @@ export function Sidebar() {
               );
             };
 
-            const leftNav = navActions.slice(0, 2);
-            const rightNav = navActions.slice(2, 4);
+            const splitIndex = Math.ceil(navActions.length / 2);
+            const leftNav = navActions.slice(0, splitIndex);
+            const rightNav = navActions.slice(splitIndex);
 
             return (
               <>
@@ -574,34 +575,95 @@ export function Sidebar() {
             );
           }
 
-          if (pathname === "/") {
+          if (pathname === "/" || inPatients || inSettings) {
             const homeItems = [
               { label: "Início", icon: Home, to: "/" as const, isReal: true },
               { label: "Agenda", icon: Calendar, to: "/agenda" as const, isReal: true },
-              { label: "Pacientes", icon: Users, to: null as null, isReal: false },
+              { label: "Pacientes", icon: Users, to: "/pacientes" as const, isReal: true },
               { label: "Financeiro", icon: Wallet, to: "/recebimentos" as const, isReal: true },
-              { label: "Mais", icon: MoreHorizontal, to: null as null, isReal: false },
+              { label: "Mais", icon: MoreHorizontal, to: "/configuracoes" as const, isReal: true },
             ];
-            const homeItemStyle: React.CSSProperties = { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 };
+            const homeItemStyle: React.CSSProperties = {
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minWidth: 0,
+            };
 
             return (
               <>
                 {homeItems.map((item) => {
-                  const active = item.to !== null && pathname === item.to;
+                  const active =
+                    item.to !== null &&
+                    (pathname === item.to || (item.to === "/pacientes" && inPatients));
                   const iconEl = (
-                    <span style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, paddingTop: 4 }}>
-                      <span style={{ width: 30, height: 30, borderRadius: 999, background: active ? "rgba(255,107,87,0.12)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.25s ease" }}>
-                        <item.icon style={{ width: 18, height: 18, color: active ? "#FF6B57" : "#6B7280" }} strokeWidth={2} />
+                    <span
+                      style={{
+                        flex: 1,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 3,
+                        paddingTop: 4,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: 999,
+                          background: active ? "rgba(255,107,87,0.12)" : "transparent",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          transition: "all 0.25s ease",
+                        }}
+                      >
+                        <item.icon
+                          style={{ width: 18, height: 18, color: active ? "#FF6B57" : "#6B7280" }}
+                          strokeWidth={2}
+                        />
                       </span>
-                      <span style={{ fontFamily: "Inter, sans-serif", fontSize: 9.5, fontWeight: 500, letterSpacing: "-0.01em", lineHeight: 1, color: active ? "#FF6B57" : "#6B7280", whiteSpace: "nowrap" }}>
+                      <span
+                        style={{
+                          fontFamily: "Inter, sans-serif",
+                          fontSize: 9.5,
+                          fontWeight: 500,
+                          letterSpacing: "-0.01em",
+                          lineHeight: 1,
+                          color: active ? "#FF6B57" : "#6B7280",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {item.label}
                       </span>
                     </span>
                   );
                   if (!item.isReal || !item.to) {
-                    return <button key={item.label} type="button" disabled aria-label={item.label} style={{ ...homeItemStyle, opacity: 0.4 }}>{iconEl}</button>;
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        disabled
+                        aria-label={item.label}
+                        style={{ ...homeItemStyle, opacity: 0.4 }}
+                      >
+                        {iconEl}
+                      </button>
+                    );
                   }
-                  return <Link key={item.label} to={item.to} aria-label={item.label} style={homeItemStyle}>{iconEl}</Link>;
+                  return (
+                    <Link
+                      key={item.label}
+                      to={item.to}
+                      aria-label={item.label}
+                      style={homeItemStyle}
+                    >
+                      {iconEl}
+                    </Link>
+                  );
                 })}
               </>
             );
@@ -622,7 +684,7 @@ export function Sidebar() {
         to="/"
         className={cn(
           "lg:hidden fixed z-40 flex items-center justify-center",
-          pathname === "/" && "hidden"
+          (pathname === "/" || (inPatients && pathname !== "/pacientes")) && "hidden",
         )}
         style={{
           top: 20,

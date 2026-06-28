@@ -1,5 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useState } from "react";
+import { z } from "zod";
 import { toast } from "sonner";
 import { Plus, Lock, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,9 +19,17 @@ import {
   appointments as initialAppts,
   blockedTimes as initialBlocked,
   waitingList,
-  professionals,
-  rooms,
+  professionals as fallbackProfessionals,
+  rooms as fallbackRooms,
+  procedures as fallbackProcedures,
 } from "@/components/agenda/mock-data";
+import { getSettings } from "@/lib/settings/settings.functions";
+
+const agendaSearchSchema = z.object({
+  patientId: z.string().optional(),
+  patientName: z.string().optional(),
+  newAppointment: z.boolean().optional(),
+});
 
 export const Route = createFileRoute("/agenda")({
   head: () => ({
@@ -27,6 +38,7 @@ export const Route = createFileRoute("/agenda")({
       { name: "description", content: "Gerencie os agendamentos da sua clínica." },
     ],
   }),
+  validateSearch: agendaSearchSchema,
   errorComponent: ({ error }) => (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="max-w-md text-center space-y-2">
@@ -40,6 +52,35 @@ export const Route = createFileRoute("/agenda")({
 });
 
 function AgendaPage() {
+  const search = Route.useSearch();
+  const router = useRouter();
+  const fetchSettings = useServerFn(getSettings);
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => fetchSettings({ data: {} }),
+    staleTime: 15_000,
+  });
+  const professionals =
+    settings?.professionals
+      .filter((item) => item.active)
+      .map((item) => ({ id: item.id, name: item.name, specialty: item.specialty })) ??
+    fallbackProfessionals;
+  const rooms =
+    settings?.chairs
+      .filter((item) => item.active)
+      .map((item) => ({
+        id: item.id,
+        name: item.roomName ? `${item.name} · ${item.roomName}` : item.name,
+      })) ?? fallbackRooms;
+  const procedures =
+    settings?.procedures
+      .filter((item) => item.active)
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        duration: item.durationMinutes,
+        price: item.price,
+      })) ?? fallbackProcedures;
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [appointments, setAppointments] = useState<Appointment[]>(initialAppts);
   const [blocked, setBlocked] = useState(initialBlocked);
@@ -54,14 +95,28 @@ function AgendaPage() {
   const [blockDrawerOpen, setBlockDrawerOpen] = useState(false);
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
 
+  useEffect(() => {
+    if (!search.newAppointment) return;
+    setSelectedAppt(null);
+    setApptDrawerOpen(true);
+    router.navigate({
+      to: "/agenda",
+      search: (previous) => ({ ...previous, newAppointment: undefined }),
+      replace: true,
+    });
+  }, [search.newAppointment, router]);
+
   const todayStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
 
   const handleSaveAppt = (data: Partial<Appointment>) => {
     if (selectedAppt) {
-      setAppointments((prev) => prev.map((a) => (a.id === selectedAppt.id ? { ...a, ...data } : a)));
+      setAppointments((prev) =>
+        prev.map((a) => (a.id === selectedAppt.id ? { ...a, ...data } : a)),
+      );
     } else {
       const newAppt: Appointment = {
         id: String(Date.now()),
+        patientId: data.patientId,
         patientName: data.patientName ?? "",
         procedureName: data.procedureName ?? "",
         professionalId: data.professionalId ?? "",
@@ -82,8 +137,11 @@ function AgendaPage() {
     setSelectedAppt(null);
   };
 
-  const handleSaveBlock = (data: Partial<typeof blocked[number]>) => {
-    setBlocked((prev) => [...prev, { id: String(Date.now()), ...data } as typeof blocked[number]]);
+  const handleSaveBlock = (data: Partial<(typeof blocked)[number]>) => {
+    setBlocked((prev) => [
+      ...prev,
+      { id: String(Date.now()), ...data } as (typeof blocked)[number],
+    ]);
   };
 
   const handleApptClick = (appt: Appointment) => {
@@ -133,7 +191,9 @@ function AgendaPage() {
         {/* Header */}
         <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#111827]">Agenda</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#111827]">
+              Agenda
+            </h1>
             <p className="text-sm mt-1" style={{ color: "#6B7280" }}>
               Gerencie os agendamentos da sua clínica
             </p>
@@ -141,7 +201,10 @@ function AgendaPage() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              onClick={() => { setSelectedAppt(null); setApptDrawerOpen(true); }}
+              onClick={() => {
+                setSelectedAppt(null);
+                setApptDrawerOpen(true);
+              }}
               className="gap-2 text-white font-semibold rounded-xl"
               style={{ background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)" }}
             >
@@ -205,7 +268,16 @@ function AgendaPage() {
         open={apptDrawerOpen}
         appointment={selectedAppt}
         defaultDate={todayStr}
-        onClose={() => { setApptDrawerOpen(false); setSelectedAppt(null); }}
+        defaultPatient={
+          search.patientId && search.patientName
+            ? { id: search.patientId, name: search.patientName }
+            : null
+        }
+        catalog={{ professionals, rooms, procedures }}
+        onClose={() => {
+          setApptDrawerOpen(false);
+          setSelectedAppt(null);
+        }}
         onSave={handleSaveAppt}
       />
       <BlockedTimeDrawer

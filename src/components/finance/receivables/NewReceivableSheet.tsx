@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
@@ -21,11 +21,12 @@ const todayStr = () => new Date().toISOString().slice(0, 10);
 type Opt = { id: string; name: string };
 
 export function NewReceivableSheet({
-  open, onOpenChange, patients, professionals, categories, accounts, onCreated,
+  open, onOpenChange, patients, professionals, categories, accounts, initialPatientId, onCreated,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   patients: Opt[];
+  initialPatientId?: string;
   professionals: Opt[];
   categories: Opt[];
   accounts: Opt[];
@@ -47,6 +48,10 @@ export function NewReceivableSheet({
   const [recurring, setRecurring] = useState(false);
   const [recurrenceType, setRecurrenceType] = useState<"weekly" | "monthly" | "yearly">("monthly");
   const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (open && initialPatientId) setPatientId(initialPatientId);
+  }, [open, initialPatientId]);
 
   const amountNum = Number((amount || "0").replace(",", "."));
   const perInstallment = installmentsOn && installments > 0 ? amountNum / installments : 0;

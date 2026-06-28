@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -6,8 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import type { Appointment, AppointmentStatus, AppointmentType } from "./types";
-import { professionals, procedures, rooms } from "./mock-data";
+import type {
+  Appointment,
+  AppointmentStatus,
+  AppointmentType,
+  Professional,
+  Procedure,
+  Room,
+} from "./types";
+import {
+  professionals as fallbackProfessionals,
+  procedures as fallbackProcedures,
+  rooms as fallbackRooms,
+} from "./mock-data";
 import { STATUS_LABEL, TYPE_LABEL } from "./appointment-utils";
 import { formatBRL } from "@/lib/finance/format";
 
@@ -15,18 +26,45 @@ interface Props {
   open: boolean;
   appointment?: Appointment | null;
   defaultDate?: string;
+  defaultPatient?: { id: string; name: string } | null;
+  catalog?: { professionals: Professional[]; procedures: Procedure[]; rooms: Room[] };
   onClose: () => void;
   onSave: (data: Partial<Appointment>) => void;
 }
 
-const STATUS_OPTIONS: AppointmentStatus[] = ["pending", "confirmed", "in_progress", "completed", "missed", "cancelled"];
-const TYPE_OPTIONS: AppointmentType[] = ["consultation", "evaluation", "procedure", "return", "emergency"];
+const STATUS_OPTIONS: AppointmentStatus[] = [
+  "pending",
+  "confirmed",
+  "in_progress",
+  "completed",
+  "missed",
+  "cancelled",
+];
+const TYPE_OPTIONS: AppointmentType[] = [
+  "consultation",
+  "evaluation",
+  "procedure",
+  "return",
+  "emergency",
+];
 
-export function AppointmentDrawer({ open, appointment, defaultDate, onClose, onSave }: Props) {
+export function AppointmentDrawer({
+  open,
+  appointment,
+  defaultDate,
+  defaultPatient,
+  catalog,
+  onClose,
+  onSave,
+}: Props) {
   const isEdit = !!appointment;
+  const professionals = catalog?.professionals ?? fallbackProfessionals;
+  const procedures = catalog?.procedures ?? fallbackProcedures;
+  const rooms = catalog?.rooms ?? fallbackRooms;
 
   const [form, setForm] = useState<Partial<Appointment>>({
-    patientName: appointment?.patientName ?? "",
+    patientId: appointment?.patientId ?? defaultPatient?.id,
+    patientName: appointment?.patientName ?? defaultPatient?.name ?? "",
     procedureName: appointment?.procedureName ?? "",
     professionalId: appointment?.professionalId ?? "",
     professionalName: appointment?.professionalName ?? "",
@@ -41,6 +79,27 @@ export function AppointmentDrawer({ open, appointment, defaultDate, onClose, onS
     notes: appointment?.notes ?? "",
     generateFinancial: appointment?.generateFinancial ?? true,
   });
+
+  useEffect(() => {
+    if (!open) return;
+    setForm({
+      patientId: appointment?.patientId ?? defaultPatient?.id,
+      patientName: appointment?.patientName ?? defaultPatient?.name ?? "",
+      procedureName: appointment?.procedureName ?? "",
+      professionalId: appointment?.professionalId ?? "",
+      professionalName: appointment?.professionalName ?? "",
+      roomId: appointment?.roomId ?? "",
+      roomName: appointment?.roomName ?? "",
+      date: appointment?.date ?? defaultDate ?? new Date().toISOString().slice(0, 10),
+      startTime: appointment?.startTime ?? "09:00",
+      endTime: appointment?.endTime ?? "10:00",
+      status: appointment?.status ?? "pending",
+      type: appointment?.type ?? "consultation",
+      expectedRevenue: appointment?.expectedRevenue ?? 0,
+      notes: appointment?.notes ?? "",
+      generateFinancial: appointment?.generateFinancial ?? true,
+    });
+  }, [open, appointment, defaultDate, defaultPatient?.id, defaultPatient?.name]);
 
   const handleProcedure = (name: string) => {
     const proc = procedures.find((p) => p.name === name);
@@ -91,15 +150,16 @@ export function AppointmentDrawer({ open, appointment, defaultDate, onClose, onS
         {/* Header */}
         <div
           className="flex items-center justify-between px-6 py-5 border-b border-[#EEF2F7]"
-          style={{ background: "linear-gradient(135deg,rgba(255,111,167,0.06) 0%,rgba(255,138,76,0.04) 100%)" }}
+          style={{
+            background:
+              "linear-gradient(135deg,rgba(255,111,167,0.06) 0%,rgba(255,138,76,0.04) 100%)",
+          }}
         >
           <div>
             <h2 className="text-lg font-semibold text-[#111827]">
               {isEdit ? "Detalhes do Agendamento" : "Novo Agendamento"}
             </h2>
-            {isEdit && (
-              <p className="text-sm text-[#6B7280] mt-0.5">{appointment?.patientName}</p>
-            )}
+            {isEdit && <p className="text-sm text-[#6B7280] mt-0.5">{appointment?.patientName}</p>}
           </div>
           <button
             type="button"
@@ -114,19 +174,27 @@ export function AppointmentDrawer({ open, appointment, defaultDate, onClose, onS
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
           {/* Dados do paciente */}
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Paciente</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+              Paciente
+            </h3>
             <div className="space-y-2">
-              <Label htmlFor="patient" className="text-sm text-[#374151]">Nome do paciente *</Label>
+              <Label htmlFor="patient" className="text-sm text-[#374151]">
+                Nome do paciente *
+              </Label>
               <Input
                 id="patient"
                 placeholder="Nome completo"
                 value={form.patientName}
-                onChange={(e) => setForm((f) => ({ ...f, patientName: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, patientId: undefined, patientName: e.target.value }))
+                }
                 className="rounded-xl border-[#EEF2F7]"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="notes_patient" className="text-sm text-[#374151]">Observações</Label>
+              <Label htmlFor="notes_patient" className="text-sm text-[#374151]">
+                Observações
+              </Label>
               <Textarea
                 id="notes_patient"
                 placeholder="Observações sobre o paciente..."
@@ -140,7 +208,9 @@ export function AppointmentDrawer({ open, appointment, defaultDate, onClose, onS
 
           {/* Dados do atendimento */}
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Atendimento</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+              Atendimento
+            </h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="text-sm text-[#374151]">Procedimento</Label>
@@ -150,7 +220,11 @@ export function AppointmentDrawer({ open, appointment, defaultDate, onClose, onS
                   onChange={(e) => handleProcedure(e.target.value)}
                 >
                   <option value="">Selecionar...</option>
-                  {procedures.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
+                  {procedures.map((p) => (
+                    <option key={p.id} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="space-y-2">
@@ -158,9 +232,15 @@ export function AppointmentDrawer({ open, appointment, defaultDate, onClose, onS
                 <select
                   className="w-full text-sm border border-[#EEF2F7] rounded-xl px-3 py-2 text-[#111827] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6FA7]/30"
                   value={form.type}
-                  onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as AppointmentType }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, type: e.target.value as AppointmentType }))
+                  }
                 >
-                  {TYPE_OPTIONS.map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
+                  {TYPE_OPTIONS.map((t) => (
+                    <option key={t} value={t}>
+                      {TYPE_LABEL[t]}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="space-y-2">
@@ -171,7 +251,11 @@ export function AppointmentDrawer({ open, appointment, defaultDate, onClose, onS
                   onChange={(e) => handleProfessional(e.target.value)}
                 >
                   <option value="">Selecionar...</option>
-                  {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {professionals.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="space-y-2">
@@ -182,7 +266,11 @@ export function AppointmentDrawer({ open, appointment, defaultDate, onClose, onS
                   onChange={(e) => handleRoom(e.target.value)}
                 >
                   <option value="">Selecionar...</option>
-                  {rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  {rooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -190,7 +278,9 @@ export function AppointmentDrawer({ open, appointment, defaultDate, onClose, onS
 
           {/* Data e horário */}
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Data e Horário</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+              Data e Horário
+            </h3>
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-3 space-y-2">
                 <Label className="text-sm text-[#374151]">Data</Label>
@@ -224,9 +314,15 @@ export function AppointmentDrawer({ open, appointment, defaultDate, onClose, onS
                 <select
                   className="w-full text-sm border border-[#EEF2F7] rounded-xl px-3 py-2 text-[#111827] bg-white focus:outline-none"
                   value={form.status}
-                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as AppointmentStatus }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, status: e.target.value as AppointmentStatus }))
+                  }
                 >
-                  {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {STATUS_LABEL[s]}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -234,28 +330,39 @@ export function AppointmentDrawer({ open, appointment, defaultDate, onClose, onS
 
           {/* Financeiro */}
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Financeiro</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+              Financeiro
+            </h3>
             <div className="space-y-2">
               <Label className="text-sm text-[#374151]">Valor previsto</Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#6B7280]">R$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#6B7280]">
+                  R$
+                </span>
                 <Input
                   type="number"
                   value={form.expectedRevenue}
-                  onChange={(e) => setForm((f) => ({ ...f, expectedRevenue: Number(e.target.value) }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, expectedRevenue: Number(e.target.value) }))
+                  }
                   className="rounded-xl border-[#EEF2F7] pl-9"
                 />
               </div>
               {(form.expectedRevenue ?? 0) > 0 && (
                 <p className="text-xs text-[#6B7280]">
-                  Valor formatado: <span className="font-medium text-[#111827]">{formatBRL(form.expectedRevenue ?? 0)}</span>
+                  Valor formatado:{" "}
+                  <span className="font-medium text-[#111827]">
+                    {formatBRL(form.expectedRevenue ?? 0)}
+                  </span>
                 </p>
               )}
             </div>
             <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-[#F8F8FA]">
               <div>
                 <p className="text-sm font-medium text-[#111827]">Gerar cobrança ao concluir</p>
-                <p className="text-xs text-[#6B7280]">Cria recebimento automaticamente ao concluir o atendimento</p>
+                <p className="text-xs text-[#6B7280]">
+                  Cria recebimento automaticamente ao concluir o atendimento
+                </p>
               </div>
               <Switch
                 checked={form.generateFinancial ?? true}
