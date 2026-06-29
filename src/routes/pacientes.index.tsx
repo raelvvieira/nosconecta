@@ -43,11 +43,6 @@ export const Route = createFileRoute("/pacientes/")({
     ],
   }),
   validateSearch: searchSchema,
-  loaderDeps: ({ search }) => search,
-  loader: ({ context, deps }) =>
-    context.queryClient.ensureQueryData(
-      patientsQuery(getPatientsOverview as unknown as PatientsFetcher, deps),
-    ),
   errorComponent: () => (
     <ResponsiveRouteState
       title="Não foi possível carregar os pacientes"
