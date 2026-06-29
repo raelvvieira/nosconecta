@@ -90,6 +90,36 @@ export function Sidebar() {
     if (mounted) localStorage.setItem(STORAGE_KEY, String(collapsed));
   }, [collapsed, mounted]);
 
+  // Logged-in user info
+  const [userName, setUserName] = useState<string>("Conta");
+  const [userInitial, setUserInitial] = useState<string>("N");
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (!active) return;
+      const meta = (data.user?.user_metadata ?? {}) as { full_name?: string };
+      const name = meta.full_name || data.user?.email?.split("@")[0] || "Conta";
+      setUserName(name);
+      setUserInitial(name.charAt(0).toLocaleUpperCase("pt-BR"));
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      const meta = (session?.user?.user_metadata ?? {}) as { full_name?: string };
+      const name = meta.full_name || session?.user?.email?.split("@")[0] || "Conta";
+      setUserName(name);
+      setUserInitial(name.charAt(0).toLocaleUpperCase("pt-BR"));
+    });
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    toast.success("Sessão encerrada.");
+    navigate({ to: "/auth", replace: true });
+  };
+
   const maybeTooltip = (trigger: React.ReactNode, label: string) => {
     if (!collapsed) return trigger;
     return (
