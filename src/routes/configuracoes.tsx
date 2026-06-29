@@ -120,7 +120,9 @@ function SettingsPage() {
   const fetchSettings = useServerFn(getSettings);
   const save = useServerFn(saveSetting);
   const remove = useServerFn(deleteSetting);
-  const { data } = useSuspenseQuery(settingsQuery(fetchSettings as unknown as SettingsFetcher));
+  const settingsResult = useQuery(settingsQuery(fetchSettings as unknown as SettingsFetcher));
+  const data: SettingsData =
+    settingsResult.data ?? { professionals: [], chairs: [], procedures: [], members: [] };
   const [query, setQuery] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<SettingsRecord | null>(null);
