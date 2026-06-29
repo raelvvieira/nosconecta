@@ -3,16 +3,18 @@ import {
   Outlet,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 import { MobileFabProvider } from "@/components/finance/mobile-fab-context";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
+import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
   return <ResponsiveRouteState title="Página não encontrada" notFound />;
