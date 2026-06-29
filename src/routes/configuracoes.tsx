@@ -67,8 +67,7 @@ export const Route = createFileRoute("/configuracoes")({
     ],
   }),
   validateSearch: searchSchema,
-  loader: ({ context }) =>
-    context.queryClient.ensureQueryData(settingsQuery(getSettings as unknown as SettingsFetcher)),
+  // No SSR loader: getSettings requires auth which isn't available during prerender.
   errorComponent: () => (
     <ResponsiveRouteState
       title="Não foi possível carregar as configurações"
