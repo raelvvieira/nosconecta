@@ -21,9 +21,11 @@ import {
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useMobileFab } from "@/components/finance/mobile-fab-context";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { supabase } from "@/integrations/supabase/client";
 
 type FinanceItem = {
   label: string;
