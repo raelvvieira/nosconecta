@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { AlertTriangle, CalendarClock, ChevronRight, Search, UserPlus, Users } from "lucide-react";
 import { Sidebar } from "@/components/finance/Sidebar";
@@ -43,11 +43,6 @@ export const Route = createFileRoute("/pacientes/")({
     ],
   }),
   validateSearch: searchSchema,
-  loaderDeps: ({ search }) => search,
-  loader: ({ context, deps }) =>
-    context.queryClient.ensureQueryData(
-      patientsQuery(getPatientsOverview as unknown as PatientsFetcher, deps),
-    ),
   errorComponent: () => (
     <ResponsiveRouteState
       title="Não foi possível carregar os pacientes"
@@ -104,9 +99,12 @@ function PatientsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fetchPatients = useServerFn(getPatientsOverview);
-  const { data } = useSuspenseQuery(
-    patientsQuery(fetchPatients as unknown as PatientsFetcher, search),
-  );
+  const queryResult = useQuery(patientsQuery(fetchPatients as unknown as PatientsFetcher, search));
+  const data: PatientsOverview = queryResult.data ?? {
+    patients: [],
+    total: 0,
+    attention: { returns: 0, delinquent: 0 },
+  };
   const [formOpen, setFormOpen] = useState(false);
 
   const setSearch = (patch: Partial<PatientsSearch>) =>

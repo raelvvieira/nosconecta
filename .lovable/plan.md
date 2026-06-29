@@ -1,73 +1,38 @@
-# Plano: Auth, limpeza de dados e sync real
+## Problema
 
-## 1. Banco de dados (migration única)
+1. **Configurações não persistem**: `settings.functions.ts` grava em tabelas `clinic_chairs`, `clinic_procedures`, `clinic_members` que **não existem** no banco. Usa cliente anônimo + `company_id = "demo"` (não passa por RLS do usuário logado). Resultado: criar/excluir falha silenciosamente ou volta o DEMO.
+2. **Pacientes**: mesma estrutura — `company_id = "demo"`, sem auth, com fallback hard-coded de pacientes fictícios (João, Maria, Pedro) e tabelas auxiliares (`patient_treatments`) inexistentes.
+3. **Tabelas existentes** (`patients`, `professionals`) só têm 4–5 colunas (`id, company_id, name, …`) — faltam todos os campos que os formulários enviam (email, telefone, especialidade, etc.).
+4. **Saudação fixa "Dr. Guilherme"** no `MobileHome.tsx` (string literal), e o avatar mostra "G". Precisa ler o usuário logado.
 
-**Novas tabelas:**
-- `profiles` — unificada (1:1 com `auth.users` via `id`): `full_name`, `phone`, `avatar_url`, `created_at`, `updated_at`. Trigger `handle_new_user` cria profile automaticamente no signup.
-- `app_role` enum: `admin`, `reception`, `dentist`, `finance`.
-- `user_roles` — separada (segurança): `user_id`, `role`. Função `has_role(uuid, app_role)` SECURITY DEFINER.
-- `invitations` — `email`, `role`, `token` (uuid), `invited_by`, `expires_at`, `accepted_at`.
+## Solução
 
-> Observação sobre "tabela única profile+users": no Supabase, `auth.users` é gerenciado pelo sistema (senhas, tokens, sessões) e não pode receber colunas custom. O padrão correto é `profiles` 1:1 com mesmo `id` de `auth.users` — funciona como extensão, não como tabela separada. Para o seu uso, ler "dados do usuário" é sempre `profiles` + `user_roles`. Roles em tabela separada é obrigatório por segurança (evita escalonamento de privilégio).
+### 1. Migração de banco
+- Adicionar colunas faltantes em `patients` (email, phone, birthdate, document, notes, status, owner_id) e `professionals` (specialty, registration_number, phone, email, color, active, owner_id).
+- Criar tabelas novas: `clinic_chairs`, `clinic_procedures`, `clinic_members` com os campos usados pelos forms + `owner_id uuid references auth.users`.
+- Em todas: `GRANT` para `authenticated`/`service_role`, `ENABLE RLS`, e policy `using (auth.uid() = owner_id) with check (auth.uid() = owner_id)`.
+- Remover dependência de `company_id` (manter coluna por compatibilidade, mas sem filtrar por ela — filtrar por `owner_id`).
+- Trigger `set_updated_at` onde aplicável.
 
-**Limpeza:** `TRUNCATE` em `patients`, `financial_transactions`, `financial_accounts`, `financial_categories`, `financial_goals`, `financial_scenarios`, `ledger_entries`, `professionals`, `patient_treatments`, `patient_care_events` (mantém estrutura, zera conteúdo).
+### 2. Server functions seguras
+- Reescrever `settings.functions.ts` e `patients.functions.ts` para:
+  - Usar `.middleware([requireSupabaseAuth])` (cliente com RLS do usuário).
+  - Remover constantes `DEMO`, `DEMO_PATIENTS`, `DEMO_IDS` e fallbacks fictícios.
+  - Filtrar/gravar por `owner_id = context.userId`.
+  - Remover parâmetro `companyId`.
+- Ajustar chamadas nos componentes para não passar `companyId`.
 
-**RLS:** todas as tabelas operacionais passam a exigir `auth.uid() IS NOT NULL` (empresa única — qualquer usuário autenticado vê tudo).
+### 3. Saudação dinâmica no mobile
+- No `MobileHome.tsx`, ler o usuário com `supabase.auth.getUser()` + `profiles.full_name` (já existe trigger `handle_new_user` populando).
+- Compor saudação: "Bom dia/Boa tarde/Boa noite, {primeiro nome}" baseado em `new Date().getHours()`.
+- Avatar exibe a inicial real do nome.
 
-**GRANTs:** `authenticated` + `service_role` em todas as novas tabelas.
+### 4. Verificação
+- `bunx tsc --noEmit && bun run build`.
+- Testar manualmente criar/excluir um profissional, cadeira, procedimento e paciente — verificar que persistem após reload.
 
-## 2. Primeiro usuário
+## Detalhes técnicos
 
-Criado via Auth Admin API em server function de bootstrap (chamada uma vez):
-- Email: `raelvvieira@gmail.com`
-- Senha: `milhao1!buscaEu`
-- `email_confirm: true`
-- Role `admin` em `user_roles`.
-
-## 3. Configuração de Auth
-
-- Email/senha habilitado, `disable_signup: true` (só admin convida), `auto_confirm_email: true`, HIBP ligado.
-
-## 4. Rotas
-
-- `src/routes/auth.tsx` (público, SSR ligado) — abas Login e "Aceitar convite" (token + nova senha).
-- Mover todas as rotas atuais para `src/routes/_authenticated/` (layout gerenciado pela integração, `ssr: false`, redireciona para `/auth`):
-  - `index.tsx`, `agenda.tsx`, `pacientes.*`, `recebimentos.tsx`, `pagamentos.tsx`, `planejamento.tsx`, `configuracoes.tsx`.
-- `__root.tsx` ganha listener `onAuthStateChange` (invalida router/queries em SIGNED_IN/OUT/USER_UPDATED).
-
-## 5. Sidebar / Header
-
-- Mostra nome do usuário logado (vindo de `profiles`).
-- Botão "Sair" (signOut + cancelQueries + clear + navigate `/auth`).
-
-## 6. Convites (admin only)
-
-- Aba "Equipe" em `/configuracoes` (visível só para admin).
-- Server function `createInvitation` (com `requireSupabaseAuth` + check `has_role admin`) gera token e retorna link `/auth?invite=<token>`.
-- Página `/auth` aceita `?invite=<token>` → cria usuário com a senha digitada e marca convite como aceito.
-
-## 7. Limpeza de código mock
-
-Remover constantes `DEMO_*` e fallbacks `company_id = "demo"` de:
-- `src/lib/patients/patients.functions.ts`
-- `src/lib/settings/settings.functions.ts`
-- `src/lib/finance/payables.functions.ts`
-- `src/lib/finance/receivables.functions.ts`
-- `src/lib/finance/planning.functions.ts`
-- `src/lib/finance/queries.functions.ts`
-- `src/components/agenda/mock-data.ts` (deletar + remover imports em `MobileAgenda`, `WeeklyCalendar`, `AppointmentDrawer`, etc.)
-
-Server functions passam a usar `requireSupabaseAuth` (ler dados como usuário autenticado, RLS aplica). Sem filtro por `company_id` (empresa única — opcional manter coluna fixa `"default"` para compatibilidade com schema atual).
-
-`src/start.ts` recebe `attachSupabaseAuth` no `functionMiddleware`.
-
-## 8. GitHub
-
-A sincronização com GitHub é feita pelo usuário no menu **+ → GitHub → Connect project** no editor Lovable. Não é uma ação que eu execute via código. Após conectar, todo push deste plano é automaticamente espelhado no repositório.
-
-## O que fica fora deste plano
-
-- Email real de convite (por enquanto link manual copiado da UI).
-- Recuperação de senha (`/reset-password`) — pode adicionar depois.
-- Multi-empresa.
-- Import de dados antigos.
+- Toda nova tabela em `public` segue a ordem obrigatória: CREATE TABLE → GRANT → ENABLE RLS → CREATE POLICY.
+- `members` continua armazenando convites/permissões locais; convite real de usuários novos (envio de e-mail) **fica de fora desta tarefa** — apenas o CRUD da listagem.
+- `MobileHome` continua client-only (sem SSR fetch); o nome carrega via `useEffect` para evitar flash incorreto.

@@ -14,6 +14,117 @@ export type Database = {
   }
   public: {
     Tables: {
+      clinic_chairs: {
+        Row: {
+          active: boolean
+          color: string
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          owner_id: string
+          room_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          owner_id: string
+          room_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          owner_id?: string
+          room_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      clinic_members: {
+        Row: {
+          active: boolean
+          created_at: string
+          email: string
+          id: string
+          name: string
+          owner_id: string
+          permissions: Json
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          owner_id: string
+          permissions?: Json
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          permissions?: Json
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      clinic_procedures: {
+        Row: {
+          active: boolean
+          category: string | null
+          cost: number
+          created_at: string
+          duration_minutes: number
+          id: string
+          name: string
+          owner_id: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category?: string | null
+          cost?: number
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          name: string
+          owner_id: string
+          price?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category?: string | null
+          cost?: number
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          name?: string
+          owner_id?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       financial_accounts: {
         Row: {
           company_id: string
@@ -349,46 +460,100 @@ export type Database = {
       }
       patients: {
         Row: {
-          company_id: string
+          allergy_notes: string | null
+          birth_date: string | null
+          company_id: string | null
+          cpf: string | null
           created_at: string
+          email: string | null
           id: string
           name: string
+          notes: string | null
+          owner_id: string | null
+          phone: string | null
+          responsible_professional_id: string | null
+          status: string
+          updated_at: string
         }
         Insert: {
-          company_id: string
+          allergy_notes?: string | null
+          birth_date?: string | null
+          company_id?: string | null
+          cpf?: string | null
           created_at?: string
+          email?: string | null
           id?: string
           name: string
+          notes?: string | null
+          owner_id?: string | null
+          phone?: string | null
+          responsible_professional_id?: string | null
+          status?: string
+          updated_at?: string
         }
         Update: {
-          company_id?: string
+          allergy_notes?: string | null
+          birth_date?: string | null
+          company_id?: string | null
+          cpf?: string | null
           created_at?: string
+          email?: string | null
           id?: string
           name?: string
+          notes?: string | null
+          owner_id?: string | null
+          phone?: string | null
+          responsible_professional_id?: string | null
+          status?: string
+          updated_at?: string
         }
         Relationships: []
       }
       professionals: {
         Row: {
+          active: boolean
+          color: string
           commission_pct: number
-          company_id: string
+          company_id: string | null
           created_at: string
+          email: string | null
           id: string
           name: string
+          owner_id: string | null
+          phone: string | null
+          registration_number: string | null
+          specialty: string | null
+          updated_at: string
         }
         Insert: {
+          active?: boolean
+          color?: string
           commission_pct?: number
-          company_id: string
+          company_id?: string | null
           created_at?: string
+          email?: string | null
           id?: string
           name: string
+          owner_id?: string | null
+          phone?: string | null
+          registration_number?: string | null
+          specialty?: string | null
+          updated_at?: string
         }
         Update: {
+          active?: boolean
+          color?: string
           commission_pct?: number
-          company_id?: string
+          company_id?: string | null
           created_at?: string
+          email?: string | null
           id?: string
           name?: string
+          owner_id?: string | null
+          phone?: string | null
+          registration_number?: string | null
+          specialty?: string | null
+          updated_at?: string
         }
         Relationships: []
       }

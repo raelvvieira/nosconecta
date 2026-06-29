@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertTriangle,
   ArrowDownCircle,
@@ -41,12 +43,45 @@ const cardStyle: React.CSSProperties = {
 
 // ─── Header ───────────────────────────────────────────────────────────────────
 
+function greetingFor(date: Date) {
+  const h = date.getHours();
+  if (h < 12) return "Bom dia";
+  if (h < 18) return "Boa tarde";
+  return "Boa noite";
+}
+
 function Header() {
+  const [name, setName] = useState<string>("");
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData.user;
+      if (!user || !mounted) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+      const full =
+        (profile?.full_name as string | undefined) ||
+        (user.user_metadata?.full_name as string | undefined) ||
+        user.email?.split("@")[0] ||
+        "";
+      if (mounted) setName(full);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+  const firstName = name ? name.split(" ")[0] : "";
+  const initial = (firstName[0] ?? "U").toUpperCase();
+  const greeting = greetingFor(new Date());
   return (
     <div style={{ padding: "52px 24px 0 24px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
       <div style={{ minWidth: 0 }}>
         <h1 style={{ fontSize: 27, lineHeight: "33px", fontWeight: 700, letterSpacing: "-0.03em", color: "#111827", margin: 0 }}>
-          Bom dia, Dr. Guilherme
+          {greeting}{firstName ? `, ${firstName}` : ""}
         </h1>
         <p style={{ fontSize: 15, lineHeight: "22px", fontWeight: 400, color: "#6B7280", marginTop: 4 }}>
           Resumo da clínica hoje
@@ -65,7 +100,7 @@ function Header() {
           style={{ width: 52, height: 52, borderRadius: 17, background: GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", border: "3px solid #FFFFFF", boxShadow: "0 8px 24px rgba(15,23,42,0.05)", color: "white", fontSize: 18, fontWeight: 700 }}
           aria-label="Perfil"
         >
-          G
+          {initial}
         </div>
       </div>
     </div>

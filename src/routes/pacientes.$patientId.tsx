@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -46,10 +46,7 @@ export const Route = createFileRoute("/pacientes/$patientId")({
       { name: "description", content: "Histórico, agenda e financeiro do paciente." },
     ],
   }),
-  loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(
-      detailQuery(getPatientDetail as unknown as DetailFetcher, params.patientId),
-    ),
+  // No SSR loader: getPatientDetail requires auth not available during prerender.
   errorComponent: () => (
     <ResponsiveRouteState
       title="Não foi possível carregar este paciente"
@@ -73,11 +70,18 @@ function PatientDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fetchDetail = useServerFn(getPatientDetail);
-  const { data: patient } = useSuspenseQuery(
+  const { data: patient, isLoading } = useQuery(
     detailQuery(fetchDetail as unknown as DetailFetcher, patientId),
   );
   const [tab, setTab] = useState<Tab>("overview");
   const [editOpen, setEditOpen] = useState(false);
+  if (!patient) {
+    return (
+      <div className="min-h-screen grid place-items-center text-muted-foreground text-sm">
+        {isLoading ? "Carregando paciente…" : "Paciente não encontrado."}
+      </div>
+    );
+  }
   const whatsapp = patient.phone?.replace(/\D/g, "");
 
   const schedule = () =>

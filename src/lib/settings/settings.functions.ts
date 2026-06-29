@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- new configuration tables are added by the accompanying migration */
-import { createClient } from "@supabase/supabase-js";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
-import type { Database } from "@/integrations/supabase/types";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type SettingsSection = "professionals" | "chairs" | "procedures" | "members";
 export type MemberRole = "admin" | "reception" | "dentist" | "finance";
@@ -55,189 +54,51 @@ export interface SettingsData {
 
 export type SettingsRecord = ProfessionalSetting | ChairSetting | ProcedureSetting | MemberSetting;
 
-const DEMO: SettingsData = {
-  professionals: [
-    {
-      id: "11111111-1111-4111-8111-111111111101",
-      name: "Dr. Carlos Mendes",
-      specialty: "Implantodontia",
-      registrationNumber: "CRO-SP 12345",
-      phone: "(11) 98765-1001",
-      email: "carlos@nosconecta.com",
-      commissionPct: 30,
-      color: "#8B5CF6",
-      active: true,
-    },
-    {
-      id: "11111111-1111-4111-8111-111111111102",
-      name: "Dra. Ana Rocha",
-      specialty: "Clínica geral",
-      registrationNumber: "CRO-SP 22870",
-      phone: "(11) 98765-1002",
-      email: "ana@nosconecta.com",
-      commissionPct: 25,
-      color: "#FF6B57",
-      active: true,
-    },
-    {
-      id: "11111111-1111-4111-8111-111111111103",
-      name: "Dr. João Freitas",
-      specialty: "Ortodontia",
-      registrationNumber: "CRO-SP 31892",
-      phone: "(11) 98765-1003",
-      email: "joao@nosconecta.com",
-      commissionPct: 30,
-      color: "#0EA5E9",
-      active: true,
-    },
-  ],
-  chairs: [
-    {
-      id: "22222222-2222-4222-8222-222222222201",
-      name: "Cadeira 01",
-      roomName: "Consultório 1",
-      color: "#FF6B57",
-      active: true,
-      notes: "Clínica geral e prevenção",
-    },
-    {
-      id: "22222222-2222-4222-8222-222222222202",
-      name: "Cadeira 02",
-      roomName: "Consultório 2",
-      color: "#8B5CF6",
-      active: true,
-      notes: "Ortodontia e estética",
-    },
-    {
-      id: "22222222-2222-4222-8222-222222222203",
-      name: "Cadeira cirúrgica",
-      roomName: "Sala cirúrgica",
-      color: "#0EA5E9",
-      active: true,
-      notes: "Cirurgias e implantes",
-    },
-  ],
-  procedures: [
-    {
-      id: "33333333-3333-4333-8333-333333333301",
-      name: "Consulta",
-      category: "Avaliação",
-      durationMinutes: 60,
-      price: 200,
-      cost: 30,
-      active: true,
-    },
-    {
-      id: "33333333-3333-4333-8333-333333333302",
-      name: "Limpeza + raspagem",
-      category: "Prevenção",
-      durationMinutes: 60,
-      price: 350,
-      cost: 55,
-      active: true,
-    },
-    {
-      id: "33333333-3333-4333-8333-333333333303",
-      name: "Clareamento",
-      category: "Estética",
-      durationMinutes: 90,
-      price: 850,
-      cost: 190,
-      active: true,
-    },
-    {
-      id: "33333333-3333-4333-8333-333333333304",
-      name: "Implante unitário",
-      category: "Implantodontia",
-      durationMinutes: 90,
-      price: 4500,
-      cost: 1800,
-      active: true,
-    },
-  ],
-  members: [
-    {
-      id: "44444444-4444-4444-8444-444444444401",
-      name: "Rael Vieira",
-      email: "rael@nosconecta.com",
-      role: "admin",
-      permissions: ["agenda", "patients", "finance", "settings"],
-      active: true,
-    },
-    {
-      id: "44444444-4444-4444-8444-444444444402",
-      name: "Marina Costa",
-      email: "marina@nosconecta.com",
-      role: "reception",
-      permissions: ["agenda", "patients"],
-      active: true,
-    },
-  ],
-};
-
-function client() {
-  return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
-    auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
-  }) as any;
-}
-
-const withFallback = <T>(rows: T[] | null | undefined, fallback: T[]) =>
-  rows?.length ? rows : fallback;
-
 export const getSettings = createServerFn({ method: "GET" })
-  .inputValidator((input: { companyId?: string }) => ({ companyId: input?.companyId ?? "demo" }))
-  .handler(async ({ data }): Promise<SettingsData> => {
-    const supabase = client();
-    const result = await Promise.race([
-      Promise.all([
-        supabase.from("professionals").select("*").eq("company_id", data.companyId).order("name"),
-        supabase.from("clinic_chairs").select("*").eq("company_id", data.companyId).order("name"),
-        supabase
-          .from("clinic_procedures")
-          .select("*")
-          .eq("company_id", data.companyId)
-          .order("name"),
-        supabase.from("clinic_members").select("*").eq("company_id", data.companyId).order("name"),
-      ]),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2_500)),
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<SettingsData> => {
+    const supabase: any = context.supabase;
+    const [professionals, chairs, procedures, members] = await Promise.all([
+      supabase.from("professionals").select("*").eq("owner_id", context.userId).order("name"),
+      supabase.from("clinic_chairs").select("*").eq("owner_id", context.userId).order("name"),
+      supabase.from("clinic_procedures").select("*").eq("owner_id", context.userId).order("name"),
+      supabase.from("clinic_members").select("*").eq("owner_id", context.userId).order("name"),
     ]);
-    if (!result) return DEMO;
-    const [professionals, chairs, procedures, members] = result;
 
     return {
-      professionals: withFallback(professionals.data, DEMO.professionals).map((row: any) => ({
+      professionals: (professionals.data ?? []).map((row: any) => ({
         id: row.id,
         name: row.name,
-        specialty: row.specialty ?? "Odontologia",
+        specialty: row.specialty ?? "",
         registrationNumber: row.registration_number ?? "",
         phone: row.phone ?? "",
         email: row.email ?? "",
-        commissionPct: Number(row.commission_pct ?? row.commissionPct ?? 0),
+        commissionPct: Number(row.commission_pct ?? 0),
         color: row.color ?? "#8B5CF6",
         active: row.active ?? true,
       })),
-      chairs: withFallback(chairs.data, DEMO.chairs).map((row: any) => ({
+      chairs: (chairs.data ?? []).map((row: any) => ({
         id: row.id,
         name: row.name,
-        roomName: row.room_name ?? row.roomName ?? "",
+        roomName: row.room_name ?? "",
         color: row.color ?? "#FF6B57",
         active: row.active ?? true,
         notes: row.notes ?? "",
       })),
-      procedures: withFallback(procedures.data, DEMO.procedures).map((row: any) => ({
+      procedures: (procedures.data ?? []).map((row: any) => ({
         id: row.id,
         name: row.name,
         category: row.category ?? "",
-        durationMinutes: Number(row.duration_minutes ?? row.durationMinutes ?? 60),
+        durationMinutes: Number(row.duration_minutes ?? 60),
         price: Number(row.price ?? 0),
         cost: Number(row.cost ?? 0),
         active: row.active ?? true,
       })),
-      members: withFallback(members.data, DEMO.members).map((row: any) => ({
+      members: (members.data ?? []).map((row: any) => ({
         id: row.id,
         name: row.name,
         email: row.email,
-        role: row.role ?? "reception",
+        role: (row.role ?? "reception") as MemberRole,
         permissions: Array.isArray(row.permissions) ? row.permissions : [],
         active: row.active ?? true,
       })),
@@ -245,18 +106,14 @@ export const getSettings = createServerFn({ method: "GET" })
   });
 
 export const saveSetting = createServerFn({ method: "POST" })
-  .inputValidator(
-    (input: { section: SettingsSection; item: Record<string, unknown>; companyId?: string }) => ({
-      ...input,
-      companyId: input.companyId ?? "demo",
-    }),
-  )
-  .handler(async ({ data }) => {
-    const supabase = client();
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { section: SettingsSection; item: Record<string, unknown> }) => input)
+  .handler(async ({ data, context }) => {
+    const supabase: any = context.supabase;
     const item = data.item as any;
     const id = item.id || crypto.randomUUID();
-    const common = { id, company_id: data.companyId };
-    const definitions = {
+    const common = { id, owner_id: context.userId };
+    const definitions: Record<SettingsSection, { table: string; row: Record<string, unknown> }> = {
       professionals: {
         table: "professionals",
         row: {
@@ -305,29 +162,29 @@ export const saveSetting = createServerFn({ method: "POST" })
           active: item.active ?? true,
         },
       },
-    } as const;
+    };
     const target = definitions[data.section];
     const { error } = await supabase.from(target.table).upsert(target.row);
-    if (error)
-      throw new Error(
-        error.message.includes("schema cache")
-          ? "A atualização do banco de dados ainda precisa ser aplicada."
-          : error.message,
-      );
+    if (error) throw new Error(error.message);
     return { id };
   });
 
 export const deleteSetting = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((input: { section: SettingsSection; id: string }) => input)
-  .handler(async ({ data }) => {
-    const supabase = client();
-    const tables = {
+  .handler(async ({ data, context }) => {
+    const supabase: any = context.supabase;
+    const tables: Record<SettingsSection, string> = {
       professionals: "professionals",
       chairs: "clinic_chairs",
       procedures: "clinic_procedures",
       members: "clinic_members",
-    } as const;
-    const { error } = await supabase.from(tables[data.section]).delete().eq("id", data.id);
+    };
+    const { error } = await supabase
+      .from(tables[data.section])
+      .delete()
+      .eq("id", data.id)
+      .eq("owner_id", context.userId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

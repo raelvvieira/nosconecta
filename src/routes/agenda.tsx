@@ -51,7 +51,7 @@ function AgendaPage() {
   const fetchSettings = useServerFn(getSettings);
   const { data: settings } = useQuery({
     queryKey: ["settings"],
-    queryFn: () => fetchSettings({ data: {} }),
+    queryFn: () => fetchSettings(),
     staleTime: 15_000,
   });
   const professionals =

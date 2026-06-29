@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { queryOptions, useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import {
   Armchair,
@@ -55,9 +55,9 @@ import {
 const searchSchema = z.object({
   section: z.enum(["professionals", "chairs", "procedures", "members"]).default("professionals"),
 });
-type SettingsFetcher = (args: { data: Record<string, never> }) => Promise<SettingsData>;
+type SettingsFetcher = () => Promise<SettingsData>;
 const settingsQuery = (fetcher: SettingsFetcher) =>
-  queryOptions({ queryKey: ["settings"], queryFn: () => fetcher({ data: {} }), staleTime: 15_000 });
+  queryOptions({ queryKey: ["settings"], queryFn: () => fetcher(), staleTime: 15_000 });
 
 export const Route = createFileRoute("/configuracoes")({
   head: () => ({
@@ -67,8 +67,7 @@ export const Route = createFileRoute("/configuracoes")({
     ],
   }),
   validateSearch: searchSchema,
-  loader: ({ context }) =>
-    context.queryClient.ensureQueryData(settingsQuery(getSettings as unknown as SettingsFetcher)),
+  // No SSR loader: getSettings requires auth which isn't available during prerender.
   errorComponent: () => (
     <ResponsiveRouteState
       title="Não foi possível carregar as configurações"
@@ -121,7 +120,9 @@ function SettingsPage() {
   const fetchSettings = useServerFn(getSettings);
   const save = useServerFn(saveSetting);
   const remove = useServerFn(deleteSetting);
-  const { data } = useSuspenseQuery(settingsQuery(fetchSettings as unknown as SettingsFetcher));
+  const settingsResult = useQuery(settingsQuery(fetchSettings as unknown as SettingsFetcher));
+  const data: SettingsData =
+    settingsResult.data ?? { professionals: [], chairs: [], procedures: [], members: [] };
   const [query, setQuery] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<SettingsRecord | null>(null);
