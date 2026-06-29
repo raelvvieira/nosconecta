@@ -127,7 +127,7 @@ function SettingsPage() {
   const [editing, setEditing] = useState<SettingsRecord | null>(null);
   const [pendingDelete, setPendingDelete] = useState<SettingsRecord | null>(null);
 
-  const items = data[section] as SettingsRecord[];
+  const items = (data as unknown as Record<string, SettingsRecord[]>)[section] ?? [];
   const filtered = useMemo(
     () => items.filter((item: SettingsRecord) => searchable(item).includes(query.toLocaleLowerCase("pt-BR"))),
     [items, query],
