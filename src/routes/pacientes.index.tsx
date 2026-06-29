@@ -99,9 +99,10 @@ function PatientsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fetchPatients = useServerFn(getPatientsOverview);
-  const { data } = useSuspenseQuery(
-    patientsQuery(fetchPatients as unknown as PatientsFetcher, search),
-  );
+  const { data } = useQuery({
+    ...patientsQuery(fetchPatients as unknown as PatientsFetcher, search),
+    initialData: { patients: [], total: 0, attention: { returns: 0, delinquent: 0 } } as PatientsOverview,
+  });
   const [formOpen, setFormOpen] = useState(false);
 
   const setSearch = (patch: Partial<PatientsSearch>) =>
