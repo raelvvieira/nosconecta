@@ -55,9 +55,9 @@ import {
 const searchSchema = z.object({
   section: z.enum(["professionals", "chairs", "procedures", "members"]).default("professionals"),
 });
-type SettingsFetcher = (args: { data: Record<string, never> }) => Promise<SettingsData>;
+type SettingsFetcher = () => Promise<SettingsData>;
 const settingsQuery = (fetcher: SettingsFetcher) =>
-  queryOptions({ queryKey: ["settings"], queryFn: () => fetcher({ data: {} }), staleTime: 15_000 });
+  queryOptions({ queryKey: ["settings"], queryFn: () => fetcher(), staleTime: 15_000 });
 
 export const Route = createFileRoute("/configuracoes")({
   head: () => ({
