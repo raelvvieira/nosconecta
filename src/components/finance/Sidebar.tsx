@@ -361,15 +361,15 @@ export function Sidebar() {
               aria-label="Conta"
             >
               {collapsed ? (
-                "N"
+                userInitial
               ) : (
                 <>
                   <span className="h-8 w-8 rounded-full bg-[#FAFAFA] border border-border grid place-items-center text-xs font-semibold shrink-0">
-                    N
+                    {userInitial}
                   </span>
                   <span className="flex flex-col text-left leading-tight min-w-0">
                     <span className="text-sm font-medium text-foreground truncate">
-                      NÓS Conecta
+                      {userName}
                     </span>
                     <span className="text-[11px] text-muted-foreground truncate">
                       Administrador
@@ -378,12 +378,13 @@ export function Sidebar() {
                 </>
               )}
             </button>,
-            "NÓS Conecta · Administrador",
+            `${userName} · Administrador`,
           )}
 
           {maybeTooltip(
             <button
               type="button"
+              onClick={handleSignOut}
               className={cn(
                 "flex items-center rounded-2xl text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground transition-colors",
                 collapsed ? "h-10 w-10 justify-center" : "h-11 w-full px-3 gap-3",
