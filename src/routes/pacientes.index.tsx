@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { AlertTriangle, CalendarClock, ChevronRight, Search, UserPlus, Users } from "lucide-react";
 import { Sidebar } from "@/components/finance/Sidebar";
