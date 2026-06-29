@@ -70,11 +70,18 @@ function PatientDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fetchDetail = useServerFn(getPatientDetail);
-  const { data: patient } = useSuspenseQuery(
+  const { data: patient, isLoading } = useQuery(
     detailQuery(fetchDetail as unknown as DetailFetcher, patientId),
   );
   const [tab, setTab] = useState<Tab>("overview");
   const [editOpen, setEditOpen] = useState(false);
+  if (!patient) {
+    return (
+      <div className="min-h-screen grid place-items-center text-muted-foreground text-sm">
+        {isLoading ? "Carregando paciente…" : "Paciente não encontrado."}
+      </div>
+    );
+  }
   const whatsapp = patient.phone?.replace(/\D/g, "");
 
   const schedule = () =>
