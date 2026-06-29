@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertTriangle,
   ArrowDownCircle,
