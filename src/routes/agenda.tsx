@@ -95,7 +95,7 @@ function AgendaPage() {
     setApptDrawerOpen(true);
     router.navigate({
       to: "/agenda",
-      search: (previous) => ({ ...previous, newAppointment: undefined }),
+      search: (previous: Record<string, unknown>) => ({ ...previous, newAppointment: undefined }),
       replace: true,
     });
   }, [search.newAppointment, router]);

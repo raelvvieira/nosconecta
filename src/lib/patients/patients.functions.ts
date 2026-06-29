@@ -270,7 +270,7 @@ export const getPatientsOverview = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<PatientsOverview> => {
     const base = await fetchBase(data.companyId);
     const all = base.rows.map((row: any) => buildSummary(row, base.transactions, base.treatments));
-    const patients = all.filter((patient) => {
+    const patients = all.filter((patient: PatientSummary) => {
       const matchesQuery =
         !data.q ||
         `${patient.name} ${patient.phone ?? ""} ${patient.cpf ?? ""}`
@@ -283,8 +283,8 @@ export const getPatientsOverview = createServerFn({ method: "GET" })
       patients,
       total: all.length,
       attention: {
-        returns: all.filter((patient) => patient.status === "return_pending").length,
-        delinquent: all.filter((patient) => patient.status === "delinquent").length,
+        returns: all.filter((patient: PatientSummary) => patient.status === "return_pending").length,
+        delinquent: all.filter((patient: PatientSummary) => patient.status === "delinquent").length,
       },
     };
   });
@@ -400,8 +400,8 @@ export const getPatientDetail = createServerFn({ method: "GET" })
       appointments,
       finances,
       receivedAmount: finances
-        .filter((item) => item.status === "paid")
-        .reduce((sum, item) => sum + item.amount, 0),
+        .filter((item: PatientFinanceRow) => item.status === "paid")
+        .reduce((sum: number, item: PatientFinanceRow) => sum + item.amount, 0),
     };
   });
 
