@@ -19,6 +19,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { Sidebar } from "@/components/finance/Sidebar";
+import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -49,6 +50,19 @@ export const Route = createFileRoute("/pacientes/$patientId")({
     context.queryClient.ensureQueryData(
       detailQuery(getPatientDetail as unknown as DetailFetcher, params.patientId),
     ),
+  errorComponent: () => (
+    <ResponsiveRouteState
+      title="Não foi possível carregar este paciente"
+      description="Houve uma falha ao buscar os dados do paciente. Tente novamente em instantes."
+    />
+  ),
+  notFoundComponent: () => (
+    <ResponsiveRouteState
+      title="Paciente não encontrado"
+      description="Este cadastro pode ter sido removido ou o endereço está incorreto."
+      notFound
+    />
+  ),
   component: PatientDetailPage,
 });
 

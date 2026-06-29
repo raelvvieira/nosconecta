@@ -24,6 +24,7 @@ import {
   procedures as fallbackProcedures,
 } from "@/components/agenda/mock-data";
 import { getSettings } from "@/lib/settings/settings.functions";
+import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 
 const agendaSearchSchema = z.object({
   patientId: z.string().optional(),
@@ -39,15 +40,8 @@ export const Route = createFileRoute("/agenda")({
     ],
   }),
   validateSearch: agendaSearchSchema,
-  errorComponent: ({ error }) => (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="max-w-md text-center space-y-2">
-        <h1 className="text-xl font-semibold">Erro ao carregar agenda</h1>
-        <p className="text-sm text-muted-foreground">{error.message}</p>
-      </div>
-    </div>
-  ),
-  notFoundComponent: () => <div className="p-8">Página não encontrada.</div>,
+  errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar a agenda" />,
+  notFoundComponent: () => <ResponsiveRouteState title="Agenda não encontrada" notFound />,
   component: AgendaPage,
 });
 

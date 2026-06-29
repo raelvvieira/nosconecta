@@ -5,6 +5,7 @@ import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-
 import { z } from "zod";
 import { AlertTriangle, CalendarClock, ChevronRight, Search, UserPlus, Users } from "lucide-react";
 import { Sidebar } from "@/components/finance/Sidebar";
+import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,19 @@ export const Route = createFileRoute("/pacientes/")({
     context.queryClient.ensureQueryData(
       patientsQuery(getPatientsOverview as unknown as PatientsFetcher, deps),
     ),
+  errorComponent: () => (
+    <ResponsiveRouteState
+      title="Não foi possível carregar os pacientes"
+      description="Houve uma falha ao buscar a lista de pacientes. Tente novamente em instantes."
+    />
+  ),
+  notFoundComponent: () => (
+    <ResponsiveRouteState
+      title="Página de pacientes não encontrada"
+      description="A página que você tentou acessar não está disponível."
+      notFound
+    />
+  ),
   component: PatientsPage,
 });
 

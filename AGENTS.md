@@ -11,3 +11,8 @@ Ao concluir qualquer tarefa que altere codigo neste projeto:
 Se o `git push` falhar por credenciais ou permissao, informe o bloqueio claramente e deixe o commit local pronto para envio manual.
 
 Este projeto esta conectado ao Lovable via GitHub. Quando o push para o GitHub e concluido, o Lovable e atualizado automaticamente.
+
+## Layout responsivo
+
+- Toda rota deve preservar a navegacao principal: sidebar fixa a esquerda no desktop e menu flutuante em formato de ilha no mobile.
+- Estados de erro e pagina nao encontrada devem usar `ResponsiveRouteState` para manter esse comportamento.

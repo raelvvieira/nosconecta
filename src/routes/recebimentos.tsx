@@ -4,16 +4,38 @@ import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@ta
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import {
-  Plus, ClipboardCheck, Download, ArrowDownCircle, CalendarDays, AlertCircle, Wallet,
-  Search, Filter, MoreHorizontal, Check, Trash2, Ban,
+  Plus,
+  ClipboardCheck,
+  Download,
+  ArrowDownCircle,
+  CalendarDays,
+  AlertCircle,
+  Wallet,
+  Search,
+  Filter,
+  MoreHorizontal,
+  Check,
+  Trash2,
+  Ban,
 } from "lucide-react";
 import {
-  PieChart, Pie, Cell, ResponsiveContainer,
-  ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
 } from "recharts";
 import { toast } from "sonner";
 
 import { Sidebar } from "@/components/finance/Sidebar";
+import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
 import { DateRangePicker } from "@/components/finance/DateRangePicker";
 import { KpiCard } from "@/components/finance/KpiCard";
@@ -24,19 +46,36 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
-  Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious,
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
 } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
 import {
-  getReceivablesOverview, markReceivableReceived, deleteReceivable, cancelReceivable,
-  type ReceivablesOverview, type ReceivableStatus,
+  getReceivablesOverview,
+  markReceivableReceived,
+  deleteReceivable,
+  cancelReceivable,
+  type ReceivablesOverview,
+  type ReceivableStatus,
 } from "@/lib/finance/receivables.functions";
 
 const searchSchema = z.object({
@@ -46,7 +85,9 @@ const searchSchema = z.object({
   professional: z.string().optional(),
   procedure: z.string().optional(),
   account: z.string().optional(),
-  status: z.enum(["all", "received", "pending", "overdue", "installments", "recurring"]).default("all"),
+  status: z
+    .enum(["all", "received", "pending", "overdue", "installments", "recurring"])
+    .default("all"),
   method: z.string().optional(),
   q: z.string().optional(),
   page: z.number().optional(),
@@ -71,7 +112,10 @@ const STATUS_BADGE: Record<string, string> = {
   cancelled: "bg-muted text-muted-foreground",
 };
 const STATUS_LABEL: Record<string, string> = {
-  paid: "Recebido", pending: "Pendente", overdue: "Atrasado", cancelled: "Cancelado",
+  paid: "Recebido",
+  pending: "Pendente",
+  overdue: "Atrasado",
+  cancelled: "Cancelado",
 };
 
 const PROC_COLORS = ["#7c3aed", "#06b6d4", "#f97316", "#22c55e", "#ec4899", "#eab308", "#94a3b8"];
@@ -94,15 +138,8 @@ export const Route = createFileRoute("/recebimentos")({
   loaderDeps: ({ search }) => search,
   loader: ({ context, deps }) =>
     context.queryClient.ensureQueryData(overviewOpts(getReceivablesOverview as any, deps)),
-  errorComponent: ({ error }) => (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="max-w-md text-center space-y-2">
-        <h1 className="text-xl font-semibold">Erro ao carregar recebimentos</h1>
-        <p className="text-sm text-muted-foreground">{error.message}</p>
-      </div>
-    </div>
-  ),
-  notFoundComponent: () => <div className="p-8">Página não encontrada.</div>,
+  errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar os recebimentos" />,
+  notFoundComponent: () => <ResponsiveRouteState title="Recebimentos não encontrados" notFound />,
   component: RecebimentosPage,
 });
 
@@ -145,17 +182,26 @@ function RecebimentosPage() {
 
   const markMutation = useMutation({
     mutationFn: (id: string) => markFn({ data: { id } }),
-    onSuccess: () => { toast.success("Recebimento confirmado"); invalidate(); },
+    onSuccess: () => {
+      toast.success("Recebimento confirmado");
+      invalidate();
+    },
     onError: (e: any) => toast.error(e?.message ?? "Erro"),
   });
   const cancelMutation = useMutation({
     mutationFn: (id: string) => cancelFn({ data: { id } }),
-    onSuccess: () => { toast.success("Recebimento cancelado"); invalidate(); },
+    onSuccess: () => {
+      toast.success("Recebimento cancelado");
+      invalidate();
+    },
     onError: (e: any) => toast.error(e?.message ?? "Erro"),
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteFn({ data: { id } }),
-    onSuccess: () => { toast.success("Recebimento excluído"); invalidate(); },
+    onSuccess: () => {
+      toast.success("Recebimento excluído");
+      invalidate();
+    },
     onError: (e: any) => toast.error(e?.message ?? "Erro"),
   });
 
@@ -163,27 +209,46 @@ function RecebimentosPage() {
   const totalPages = Math.max(1, Math.ceil(data.transactions.length / PER_PAGE));
   const rows = data.transactions.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-  const openReceipt = (id: string) => { setReceiptTarget(id); setReceiptOpen(true); };
+  const openReceipt = (id: string) => {
+    setReceiptTarget(id);
+    setReceiptOpen(true);
+  };
 
   return (
     <div className="app-bg h-screen flex overflow-hidden">
       <Sidebar />
 
       <main className="flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-24 lg:pb-8">
-
         <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Recebimentos</h1>
-            <p className="text-sm text-muted-foreground mt-1">Acompanhe todas as entradas financeiras da clínica</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Acompanhe todas as entradas financeiras da clínica
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => setSheetOpen(true)} variant="premium" className="hidden lg:inline-flex">
+            <Button
+              onClick={() => setSheetOpen(true)}
+              variant="premium"
+              className="hidden lg:inline-flex"
+            >
               <Plus className="h-4 w-4" /> Novo Recebimento
             </Button>
-            <Button variant="outline" className="hidden md:inline-flex gap-2" onClick={() => { setReceiptTarget(null); setReceiptOpen(true); }}>
+            <Button
+              variant="outline"
+              className="hidden md:inline-flex gap-2"
+              onClick={() => {
+                setReceiptTarget(null);
+                setReceiptOpen(true);
+              }}
+            >
               <ClipboardCheck className="h-4 w-4" /> Registrar Recebimento
             </Button>
-            <Button variant="outline" className="hidden md:inline-flex gap-2" onClick={() => toast.success("Exportação iniciada")}>
+            <Button
+              variant="outline"
+              className="hidden md:inline-flex gap-2"
+              onClick={() => toast.success("Exportação iniciada")}
+            >
               <Download className="h-4 w-4" /> Exportar
             </Button>
           </div>
@@ -239,20 +304,56 @@ function RecebimentosPage() {
               </div>
               <div className="h-[320px]">
                 <ResponsiveContainer>
-                  <ComposedChart data={data.evolution} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="period" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false}
-                      tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`} />
+                  <ComposedChart
+                    data={data.evolution}
+                    margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid
+                      stroke="hsl(var(--border))"
+                      strokeDasharray="3 3"
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="period"
+                      stroke="hsl(var(--muted-foreground))"
+                      fontSize={12}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      stroke="hsl(var(--muted-foreground))"
+                      fontSize={12}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`}
+                    />
                     <Tooltip
-                      contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+                      contentStyle={{
+                        borderRadius: 12,
+                        border: "1px solid hsl(var(--border))",
+                        background: "hsl(var(--card))",
+                      }}
                       formatter={(v: number, name) => [formatBRL(v), name]}
                     />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingBottom: 12 }} />
                     <Bar dataKey="received" name="Recebido" stackId="a" fill="#86efac" />
                     <Bar dataKey="expected" name="Previsto" stackId="a" fill="#fcd34d" />
-                    <Bar dataKey="overdue" name="Atrasado" stackId="a" fill="#fca5a5" radius={[6, 6, 0, 0]} />
-                    <Line type="monotone" dataKey="goal" name="Meta mensal" stroke="#60a5fa" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 3 }} />
+                    <Bar
+                      dataKey="overdue"
+                      name="Atrasado"
+                      stackId="a"
+                      fill="#fca5a5"
+                      radius={[6, 6, 0, 0]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="goal"
+                      name="Meta mensal"
+                      stroke="#60a5fa"
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                      dot={{ r: 3 }}
+                    />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -268,7 +369,9 @@ function RecebimentosPage() {
                     className="pl-9"
                     value={qLocal}
                     onChange={(e) => setQLocal(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") setSearch({ q: qLocal || undefined, page: 1 }); }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") setSearch({ q: qLocal || undefined, page: 1 });
+                    }}
                     onBlur={() => setSearch({ q: qLocal || undefined, page: 1 })}
                   />
                 </div>
@@ -287,41 +390,66 @@ function RecebimentosPage() {
                   <FilterSelect
                     value={search.patient ?? "all"}
                     onChange={(v) => setSearch({ patient: v === "all" ? undefined : v, page: 1 })}
-                    options={[{ value: "all", label: "Todos" }, ...data.patients.map(p => ({ value: p.id, label: p.name }))]}
+                    options={[
+                      { value: "all", label: "Todos" },
+                      ...data.patients.map((p) => ({ value: p.id, label: p.name })),
+                    ]}
                   />
                 </FilterField>
                 <FilterField label="Profissional">
                   <FilterSelect
                     value={search.professional ?? "all"}
-                    onChange={(v) => setSearch({ professional: v === "all" ? undefined : v, page: 1 })}
-                    options={[{ value: "all", label: "Todos" }, ...data.professionals.map(p => ({ value: p.id, label: p.name }))]}
+                    onChange={(v) =>
+                      setSearch({ professional: v === "all" ? undefined : v, page: 1 })
+                    }
+                    options={[
+                      { value: "all", label: "Todos" },
+                      ...data.professionals.map((p) => ({ value: p.id, label: p.name })),
+                    ]}
                   />
                 </FilterField>
                 <FilterField label="Procedimento">
                   <FilterSelect
                     value={search.procedure ?? "all"}
                     onChange={(v) => setSearch({ procedure: v === "all" ? undefined : v, page: 1 })}
-                    options={[{ value: "all", label: "Todos" }, ...data.categories.map(c => ({ value: c.id, label: c.name }))]}
+                    options={[
+                      { value: "all", label: "Todos" },
+                      ...data.categories.map((c) => ({ value: c.id, label: c.name })),
+                    ]}
                   />
                 </FilterField>
                 <FilterField label="Conta">
                   <FilterSelect
                     value={search.account ?? "all"}
                     onChange={(v) => setSearch({ account: v === "all" ? undefined : v, page: 1 })}
-                    options={[{ value: "all", label: "Todas" }, ...data.accounts.map(a => ({ value: a.id, label: a.name }))]}
+                    options={[
+                      { value: "all", label: "Todas" },
+                      ...data.accounts.map((a) => ({ value: a.id, label: a.name })),
+                    ]}
                   />
                 </FilterField>
                 <FilterField label="Forma de pagamento">
                   <FilterSelect
                     value={search.method ?? "all"}
                     onChange={(v) => setSearch({ method: v === "all" ? undefined : v, page: 1 })}
-                    options={[{ value: "all", label: "Todos" }, ...Object.entries(PAYMENT_METHODS).map(([k, v]) => ({ value: k, label: v.label }))]}
+                    options={[
+                      { value: "all", label: "Todos" },
+                      ...Object.entries(PAYMENT_METHODS).map(([k, v]) => ({
+                        value: k,
+                        label: v.label,
+                      })),
+                    ]}
                   />
                 </FilterField>
-                <Button variant="outline" className="h-10 gap-2"><Filter className="h-4 w-4" /> Mais filtros</Button>
+                <Button variant="outline" className="h-10 gap-2">
+                  <Filter className="h-4 w-4" /> Mais filtros
+                </Button>
               </div>
 
-              <Tabs value={search.status} onValueChange={(v) => setSearch({ status: v as ReceivableStatus, page: 1 })}>
+              <Tabs
+                value={search.status}
+                onValueChange={(v) => setSearch({ status: v as ReceivableStatus, page: 1 })}
+              >
                 <TabsList className="bg-transparent p-0 h-auto border-b w-full justify-start rounded-none gap-1">
                   {[
                     { v: "all", l: "Todos" },
@@ -330,7 +458,7 @@ function RecebimentosPage() {
                     { v: "overdue", l: "Atrasados" },
                     { v: "installments", l: "Parcelados" },
                     { v: "recurring", l: "Recorrentes" },
-                  ].map(t => (
+                  ].map((t) => (
                     <TabsTrigger
                       key={t.v}
                       value={t.v}
@@ -349,11 +477,11 @@ function RecebimentosPage() {
                     <tr className="text-left text-xs text-muted-foreground border-b">
                       <th className="py-3 px-3 w-8">
                         <Checkbox
-                          checked={rows.length > 0 && rows.every(r => selected.has(r.id))}
+                          checked={rows.length > 0 && rows.every((r) => selected.has(r.id))}
                           onCheckedChange={(c) => {
                             const next = new Set(selected);
-                            if (c) rows.forEach(r => next.add(r.id));
-                            else rows.forEach(r => next.delete(r.id));
+                            if (c) rows.forEach((r) => next.add(r.id));
+                            else rows.forEach((r) => next.delete(r.id));
                             setSelected(next);
                           }}
                         />
@@ -370,12 +498,24 @@ function RecebimentosPage() {
                   </thead>
                   <tbody>
                     {rows.length === 0 && (
-                      <tr><td colSpan={9} className="py-12 text-center text-muted-foreground">Nenhum recebimento encontrado.</td></tr>
+                      <tr>
+                        <td colSpan={9} className="py-12 text-center text-muted-foreground">
+                          Nenhum recebimento encontrado.
+                        </td>
+                      </tr>
                     )}
                     {rows.map((r) => {
-                      const method = PAYMENT_METHODS[r.payment_method ?? ""] ?? { label: r.payment_method ?? "—", color: "text-foreground" };
+                      const method = PAYMENT_METHODS[r.payment_method ?? ""] ?? {
+                        label: r.payment_method ?? "—",
+                        color: "text-foreground",
+                      };
                       const status = r.effective_status;
-                      const initials = (r.patient_name ?? "??").split(" ").slice(0, 2).map(p => p[0] ?? "").join("").toUpperCase();
+                      const initials = (r.patient_name ?? "??")
+                        .split(" ")
+                        .slice(0, 2)
+                        .map((p) => p[0] ?? "")
+                        .join("")
+                        .toUpperCase();
                       return (
                         <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
                           <td className="py-3 px-3">
@@ -383,7 +523,8 @@ function RecebimentosPage() {
                               checked={selected.has(r.id)}
                               onCheckedChange={(c) => {
                                 const next = new Set(selected);
-                                if (c) next.add(r.id); else next.delete(r.id);
+                                if (c) next.add(r.id);
+                                else next.delete(r.id);
                                 setSelected(next);
                               }}
                             />
@@ -399,16 +540,32 @@ function RecebimentosPage() {
                           <td className="py-3 pr-4">
                             <div>{r.category_name ?? r.description}</div>
                             {r.installment_total && (
-                              <div className="text-xs text-muted-foreground">{r.installment_number}/{r.installment_total}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {r.installment_number}/{r.installment_total}
+                              </div>
                             )}
                           </td>
-                          <td className="py-3 pr-4 text-muted-foreground">{r.professional_name ?? "—"}</td>
-                          <td className="py-3 pr-4 tabular-nums font-medium">{formatBRL(r.amount)}</td>
-                          <td className={cn("py-3 pr-4 tabular-nums", status === "overdue" && "text-danger font-medium")}>
+                          <td className="py-3 pr-4 text-muted-foreground">
+                            {r.professional_name ?? "—"}
+                          </td>
+                          <td className="py-3 pr-4 tabular-nums font-medium">
+                            {formatBRL(r.amount)}
+                          </td>
+                          <td
+                            className={cn(
+                              "py-3 pr-4 tabular-nums",
+                              status === "overdue" && "text-danger font-medium",
+                            )}
+                          >
                             {fmtDate(r.due_date)}
                           </td>
                           <td className="py-3 pr-4">
-                            <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium", STATUS_BADGE[status])}>
+                            <span
+                              className={cn(
+                                "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
+                                STATUS_BADGE[status],
+                              )}
+                            >
                               {STATUS_LABEL[status]}
                             </span>
                           </td>
@@ -437,7 +594,10 @@ function RecebimentosPage() {
                                     <Ban className="h-4 w-4 mr-2" /> Cancelar
                                   </DropdownMenuItem>
                                 )}
-                                <DropdownMenuItem className="text-danger" onClick={() => deleteMutation.mutate(r.id)}>
+                                <DropdownMenuItem
+                                  className="text-danger"
+                                  onClick={() => deleteMutation.mutate(r.id)}
+                                >
                                   <Trash2 className="h-4 w-4 mr-2" /> Excluir
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -452,22 +612,44 @@ function RecebimentosPage() {
 
               <div className="flex items-center justify-between pt-2">
                 <p className="text-xs text-muted-foreground">
-                  Mostrando {rows.length === 0 ? 0 : (page - 1) * PER_PAGE + 1} a {(page - 1) * PER_PAGE + rows.length} de {data.transactions.length} resultados
+                  Mostrando {rows.length === 0 ? 0 : (page - 1) * PER_PAGE + 1} a{" "}
+                  {(page - 1) * PER_PAGE + rows.length} de {data.transactions.length} resultados
                 </p>
                 <Pagination className="m-0 w-auto">
                   <PaginationContent>
                     <PaginationItem>
-                      <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); setSearch({ page: Math.max(1, page - 1) }); }} />
+                      <PaginationPrevious
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setSearch({ page: Math.max(1, page - 1) });
+                        }}
+                      />
                     </PaginationItem>
-                    {Array.from({ length: totalPages }).slice(0, 5).map((_, i) => (
-                      <PaginationItem key={i}>
-                        <PaginationLink href="#" isActive={page === i + 1} onClick={(e) => { e.preventDefault(); setSearch({ page: i + 1 }); }}>
-                          {i + 1}
-                        </PaginationLink>
-                      </PaginationItem>
-                    ))}
+                    {Array.from({ length: totalPages })
+                      .slice(0, 5)
+                      .map((_, i) => (
+                        <PaginationItem key={i}>
+                          <PaginationLink
+                            href="#"
+                            isActive={page === i + 1}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setSearch({ page: i + 1 });
+                            }}
+                          >
+                            {i + 1}
+                          </PaginationLink>
+                        </PaginationItem>
+                      ))}
                     <PaginationItem>
-                      <PaginationNext href="#" onClick={(e) => { e.preventDefault(); setSearch({ page: Math.min(totalPages, page + 1) }); }} />
+                      <PaginationNext
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setSearch({ page: Math.min(totalPages, page + 1) });
+                        }}
+                      />
                     </PaginationItem>
                   </PaginationContent>
                 </Pagination>
@@ -516,13 +698,25 @@ function FilterField({ label, children }: { label: string; children: React.React
 }
 
 function FilterSelect({
-  value, onChange, options,
-}: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-10 w-[160px]"><SelectValue /></SelectTrigger>
+      <SelectTrigger className="h-10 w-[160px]">
+        <SelectValue />
+      </SelectTrigger>
       <SelectContent>
-        {options.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
+          </SelectItem>
+        ))}
       </SelectContent>
     </Select>
   );
@@ -541,7 +735,9 @@ function TopProceduresCard({ items }: { items: ReceivablesOverview["topProcedure
             <ResponsiveContainer>
               <PieChart>
                 <Pie data={data} dataKey="value" innerRadius={40} outerRadius={60} stroke="none">
-                  {data.map((_, i) => <Cell key={i} fill={PROC_COLORS[i % PROC_COLORS.length]} />)}
+                  {data.map((_, i) => (
+                    <Cell key={i} fill={PROC_COLORS[i % PROC_COLORS.length]} />
+                  ))}
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
@@ -549,7 +745,10 @@ function TopProceduresCard({ items }: { items: ReceivablesOverview["topProcedure
           <ul className="flex-1 space-y-1.5 text-sm min-w-0">
             {data.map((p, i) => (
               <li key={p.id} className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full shrink-0" style={{ background: PROC_COLORS[i % PROC_COLORS.length] }} />
+                <span
+                  className="h-2 w-2 rounded-full shrink-0"
+                  style={{ background: PROC_COLORS[i % PROC_COLORS.length] }}
+                />
                 <span className="flex-1 truncate">{p.name}</span>
                 <span className="text-muted-foreground tabular-nums">{p.pct.toFixed(0)}%</span>
                 <span className="tabular-nums font-medium">{formatBRL(p.value)}</span>
@@ -619,7 +818,11 @@ function RecurringCard({ items }: { items: ReceivablesOverview["recurringReceiva
               <p className="font-medium truncate">{r.description}</p>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">
-                  {r.recurrence_type === "weekly" ? "Semanal" : r.recurrence_type === "yearly" ? "Anual" : `Todo dia ${r.day_of_month ?? "—"}`}
+                  {r.recurrence_type === "weekly"
+                    ? "Semanal"
+                    : r.recurrence_type === "yearly"
+                      ? "Anual"
+                      : `Todo dia ${r.day_of_month ?? "—"}`}
                 </span>
                 <span className="tabular-nums font-medium">{formatBRL(r.amount)}</span>
               </div>

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Sidebar } from "@/components/finance/Sidebar";
+import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { SettingsFormSheet } from "@/components/settings/SettingsFormSheet";
 import {
   AlertDialog,
@@ -68,6 +69,19 @@ export const Route = createFileRoute("/configuracoes")({
   validateSearch: searchSchema,
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(settingsQuery(getSettings as unknown as SettingsFetcher)),
+  errorComponent: () => (
+    <ResponsiveRouteState
+      title="Não foi possível carregar as configurações"
+      description="Houve uma falha ao buscar os dados da clínica. Tente novamente em instantes."
+    />
+  ),
+  notFoundComponent: () => (
+    <ResponsiveRouteState
+      title="Configuração não encontrada"
+      description="A área de configurações que você tentou acessar não está disponível."
+      notFound
+    />
+  ),
   component: SettingsPage,
 });
 
