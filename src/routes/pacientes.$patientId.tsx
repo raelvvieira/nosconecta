@@ -46,10 +46,7 @@ export const Route = createFileRoute("/pacientes/$patientId")({
       { name: "description", content: "Histórico, agenda e financeiro do paciente." },
     ],
   }),
-  loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(
-      detailQuery(getPatientDetail as unknown as DetailFetcher, params.patientId),
-    ),
+  // No SSR loader: getPatientDetail requires auth not available during prerender.
   errorComponent: () => (
     <ResponsiveRouteState
       title="Não foi possível carregar este paciente"
