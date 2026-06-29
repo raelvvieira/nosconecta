@@ -3,16 +3,18 @@ import {
   Outlet,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 import { MobileFabProvider } from "@/components/finance/mobile-fab-context";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
+import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
   return <ResponsiveRouteState title="Página não encontrada" notFound />;
@@ -103,10 +105,61 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <MobileFabProvider>
-        <Outlet />
-      </MobileFabProvider>
+      <AuthGate>
+        <MobileFabProvider>
+          <Outlet />
+        </MobileFabProvider>
+      </AuthGate>
       <Toaster richColors position="top-right" />
     </QueryClientProvider>
   );
+}
+
+function AuthGate({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [ready, setReady] = useState(false);
+  const [authed, setAuthed] = useState<boolean>(false);
+
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setAuthed(!!data.session);
+      setReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthed(!!session);
+    });
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    const isAuthRoute = pathname.startsWith("/auth");
+    if (!authed && !isAuthRoute) {
+      router.navigate({
+        to: "/auth",
+        search: { redirect: pathname === "/" ? undefined : pathname },
+        replace: true,
+      });
+    }
+    if (authed && isAuthRoute) {
+      router.navigate({ to: "/", replace: true });
+    }
+  }, [ready, authed, pathname, router]);
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen w-full bg-[#FAFAFA] grid place-items-center">
+        <div className="h-8 w-8 rounded-full border-2 border-coral border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+  const isAuthRoute = pathname.startsWith("/auth");
+  if (!authed && !isAuthRoute) return null;
+  return <>{children}</>;
 }

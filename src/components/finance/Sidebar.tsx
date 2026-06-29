@@ -21,9 +21,11 @@ import {
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useMobileFab } from "@/components/finance/mobile-fab-context";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { supabase } from "@/integrations/supabase/client";
 
 type FinanceItem = {
   label: string;
@@ -87,6 +89,36 @@ export function Sidebar() {
   useEffect(() => {
     if (mounted) localStorage.setItem(STORAGE_KEY, String(collapsed));
   }, [collapsed, mounted]);
+
+  // Logged-in user info
+  const [userName, setUserName] = useState<string>("Conta");
+  const [userInitial, setUserInitial] = useState<string>("N");
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (!active) return;
+      const meta = (data.user?.user_metadata ?? {}) as { full_name?: string };
+      const name = meta.full_name || data.user?.email?.split("@")[0] || "Conta";
+      setUserName(name);
+      setUserInitial(name.charAt(0).toLocaleUpperCase("pt-BR"));
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      const meta = (session?.user?.user_metadata ?? {}) as { full_name?: string };
+      const name = meta.full_name || session?.user?.email?.split("@")[0] || "Conta";
+      setUserName(name);
+      setUserInitial(name.charAt(0).toLocaleUpperCase("pt-BR"));
+    });
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    toast.success("Sessão encerrada.");
+    navigate({ to: "/auth", replace: true });
+  };
 
   const maybeTooltip = (trigger: React.ReactNode, label: string) => {
     if (!collapsed) return trigger;
@@ -329,15 +361,15 @@ export function Sidebar() {
               aria-label="Conta"
             >
               {collapsed ? (
-                "N"
+                userInitial
               ) : (
                 <>
                   <span className="h-8 w-8 rounded-full bg-[#FAFAFA] border border-border grid place-items-center text-xs font-semibold shrink-0">
-                    N
+                    {userInitial}
                   </span>
                   <span className="flex flex-col text-left leading-tight min-w-0">
                     <span className="text-sm font-medium text-foreground truncate">
-                      NÓS Conecta
+                      {userName}
                     </span>
                     <span className="text-[11px] text-muted-foreground truncate">
                       Administrador
@@ -346,12 +378,13 @@ export function Sidebar() {
                 </>
               )}
             </button>,
-            "NÓS Conecta · Administrador",
+            `${userName} · Administrador`,
           )}
 
           {maybeTooltip(
             <button
               type="button"
+              onClick={handleSignOut}
               className={cn(
                 "flex items-center rounded-2xl text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground transition-colors",
                 collapsed ? "h-10 w-10 justify-center" : "h-11 w-full px-3 gap-3",

@@ -127,12 +127,12 @@ function SettingsPage() {
   const [editing, setEditing] = useState<SettingsRecord | null>(null);
   const [pendingDelete, setPendingDelete] = useState<SettingsRecord | null>(null);
 
-  const items = data[section];
+  const items = (data as unknown as Record<string, SettingsRecord[]>)[section] ?? [];
   const filtered = useMemo(
-    () => items.filter((item) => searchable(item).includes(query.toLocaleLowerCase("pt-BR"))),
+    () => items.filter((item: SettingsRecord) => searchable(item).includes(query.toLocaleLowerCase("pt-BR"))),
     [items, query],
   );
-  const activeCount = items.filter((item) => item.active).length;
+  const activeCount = items.filter((item: SettingsRecord) => item.active).length;
   const current = SECTIONS.find((item) => item.value === section)!;
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["settings"] });
@@ -285,7 +285,7 @@ function SettingsPage() {
             </div>
 
             <div className="surface-card mt-4 divide-y divide-border overflow-hidden">
-              {filtered.map((item, index) => (
+              {filtered.map((item: SettingsRecord, index: number) => (
                 <SettingsRow
                   key={item.id}
                   section={section}
