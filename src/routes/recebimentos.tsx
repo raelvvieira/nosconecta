@@ -482,6 +482,7 @@ function RecebimentosPage() {
         categories={data.categories}
         accounts={data.accounts}
         onCreated={invalidate}
+        onCategoriesChanged={invalidate}
       />
       <RegisterReceiptDialog
         open={receiptOpen}

@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { CategoryManager } from "@/components/finance/CategoryManager";
 import { createReceivable } from "@/lib/finance/receivables.functions";
 import { formatBRL } from "@/lib/finance/format";
 
@@ -21,7 +22,7 @@ const todayStr = () => new Date().toISOString().slice(0, 10);
 type Opt = { id: string; name: string };
 
 export function NewReceivableSheet({
-  open, onOpenChange, patients, professionals, categories, accounts, onCreated,
+  open, onOpenChange, patients, professionals, categories, accounts, onCreated, onCategoriesChanged,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -30,6 +31,7 @@ export function NewReceivableSheet({
   categories: Opt[];
   accounts: Opt[];
   onCreated?: () => void;
+  onCategoriesChanged?: () => void;
 }) {
   const create = useServerFn(createReceivable);
 
@@ -114,15 +116,15 @@ export function NewReceivableSheet({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Procedimento</Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+            <CategoryManager
+              type="income"
+              categories={categories}
+              value={categoryId}
+              onChange={setCategoryId}
+              onChanged={() => onCategoriesChanged?.()}
+              label="Procedimento / Categoria"
+              placeholder="Categoria"
+            />
             <div className="space-y-2">
               <Label>Descrição</Label>
               <Input placeholder="Ex: Implante unitário" value={description} onChange={(e) => setDescription(e.target.value)} />

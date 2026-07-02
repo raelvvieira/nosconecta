@@ -408,6 +408,7 @@ function PagamentosPage() {
         categories={data.categories}
         accounts={data.accounts}
         onCreated={invalidate}
+        onCategoriesChanged={invalidate}
       />
     </div>
   );

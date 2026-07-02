@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { CategoryManager } from "@/components/finance/CategoryManager";
 import { createPayable } from "@/lib/finance/payables.functions";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -23,12 +24,14 @@ export function NewPaymentSheet({
   categories,
   accounts,
   onCreated,
+  onCategoriesChanged,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   categories: { id: string; name: string }[];
   accounts: { id: string; name: string; type: string }[];
   onCreated: () => void;
+  onCategoriesChanged?: () => void;
 }) {
   const create = useServerFn(createPayable);
   const [supplier, setSupplier] = useState("");
@@ -107,15 +110,14 @@ export function NewPaymentSheet({
               <Label>Descrição *</Label>
               <Input placeholder="Ex: Próteses e materiais" value={description} onChange={(e) => setDescription(e.target.value)} required />
             </div>
-            <div className="space-y-2">
-              <Label>Categoria *</Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger><SelectValue placeholder="Selecione a categoria" /></SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+            <CategoryManager
+              type="expense"
+              categories={categories}
+              value={categoryId}
+              onChange={setCategoryId}
+              onChanged={() => onCategoriesChanged?.()}
+              label="Categoria *"
+            />
           </section>
 
           <section className="space-y-3">
