@@ -1,36 +1,38 @@
-## Objetivo
+## Problema
 
-Na página de Agenda mobile, os três botões brancos do canto superior direito (cadeado, sliders, calendário) saem do header e entram na barra inferior — no mesmo padrão visual dos itens "Financeiro / Recebimentos / Pagamentos / Planejamento" que vemos nas outras páginas, com o FAB "+" centralizado.
+1. **Configurações não persistem**: `settings.functions.ts` grava em tabelas `clinic_chairs`, `clinic_procedures`, `clinic_members` que **não existem** no banco. Usa cliente anônimo + `company_id = "demo"` (não passa por RLS do usuário logado). Resultado: criar/excluir falha silenciosamente ou volta o DEMO.
+2. **Pacientes**: mesma estrutura — `company_id = "demo"`, sem auth, com fallback hard-coded de pacientes fictícios (João, Maria, Pedro) e tabelas auxiliares (`patient_treatments`) inexistentes.
+3. **Tabelas existentes** (`patients`, `professionals`) só têm 4–5 colunas (`id, company_id, name, …`) — faltam todos os campos que os formulários enviam (email, telefone, especialidade, etc.).
+4. **Saudação fixa "Dr. Guilherme"** no `MobileHome.tsx` (string literal), e o avatar mostra "G". Precisa ler o usuário logado.
 
-## Layout proposto na bottom bar (rota `/agenda`)
+## Solução
 
-```
-[ Bloquear ]  [ Filtros ]   ( + )   [ Calendário ]  [ Lista/Mês ]
-```
+### 1. Migração de banco
+- Adicionar colunas faltantes em `patients` (email, phone, birthdate, document, notes, status, owner_id) e `professionals` (specialty, registration_number, phone, email, color, active, owner_id).
+- Criar tabelas novas: `clinic_chairs`, `clinic_procedures`, `clinic_members` com os campos usados pelos forms + `owner_id uuid references auth.users`.
+- Em todas: `GRANT` para `authenticated`/`service_role`, `ENABLE RLS`, e policy `using (auth.uid() = owner_id) with check (auth.uid() = owner_id)`.
+- Remover dependência de `company_id` (manter coluna por compatibilidade, mas sem filtrar por ela — filtrar por `owner_id`).
+- Trigger `set_updated_at` onde aplicável.
 
-- 2 itens à esquerda + FAB + 2 itens à direita (mesma simetria das páginas financeiras).
-- Itens com ícone + label pequeno, mesmo tratamento de cor/active state das outras abas.
-- O quarto item à direita aproveita o toggle de visualização já existente (`day` / `list` / `month`) — um botão "Visões" que abre um mini popover ou cicla, para preencher a simetria. Se preferir, deixamos só 1 item à direita (Calendário) sem o quarto — pergunto abaixo.
+### 2. Server functions seguras
+- Reescrever `settings.functions.ts` e `patients.functions.ts` para:
+  - Usar `.middleware([requireSupabaseAuth])` (cliente com RLS do usuário).
+  - Remover constantes `DEMO`, `DEMO_PATIENTS`, `DEMO_IDS` e fallbacks fictícios.
+  - Filtrar/gravar por `owner_id = context.userId`.
+  - Remover parâmetro `companyId`.
+- Ajustar chamadas nos componentes para não passar `companyId`.
 
-## Mudanças técnicas
+### 3. Saudação dinâmica no mobile
+- No `MobileHome.tsx`, ler o usuário com `supabase.auth.getUser()` + `profiles.full_name` (já existe trigger `handle_new_user` populando).
+- Compor saudação: "Bom dia/Boa tarde/Boa noite, {primeiro nome}" baseado em `new Date().getHours()`.
+- Avatar exibe a inicial real do nome.
 
-1. **`src/components/finance/mobile-fab-context.tsx`**
-   - Estender o contexto para aceitar, além do `fab`, uma lista opcional de "ações secundárias" (`extraActions: { label, icon, onClick }[]`) registradas pela página ativa.
-   - Novo hook `useRegisterMobileNavActions(actions)` análogo ao `useRegisterMobileFab`.
+### 4. Verificação
+- `bunx tsc --noEmit && bun run build`.
+- Testar manualmente criar/excluir um profissional, cadeira, procedimento e paciente — verificar que persistem após reload.
 
-2. **`src/components/finance/Sidebar.tsx`**
-   - No ramo `inAgenda` da bottom bar, em vez de renderizar só o FAB centralizado, montar a estrutura simétrica usando as ações registradas pela Agenda + o FAB existente. Reusar o mesmo `renderItem` (ícone em pílula + label) para manter o estilo idêntico ao das páginas financeiras.
+## Detalhes técnicos
 
-3. **`src/components/agenda/mobile/MobileAgenda.tsx`**
-   - Remover os três `<button>` do header (linhas 414–442) — sobra só o título + subtítulo.
-   - Registrar via `useRegisterMobileNavActions` as ações `Bloquear` (Lock), `Filtros` (SlidersHorizontal), `Calendário` (CalendarDays), apontando para os handlers/estados que já existem (`onNewBlock`, `setFilterOpen`, `setCalendarOpen`).
-
-## Fora do escopo
-
-- Não mexer no desktop (`hidden lg:block`) — os botões do header desktop continuam como estão.
-- Não mexer no comportamento dos sheets (`MobileFilterSheet`, `MobileCalendarSheet`).
-- Não mexer nas outras rotas (`/`, `/recebimentos`, `/pagamentos`, `/planejamento`).
-
-## Pergunta rápida
-
-Prefere **2 + FAB + 2** (incluindo um quarto item "Visões" para alternar dia/lista/mês) ou **2 + FAB + 1** (só Calendário à direita, deixando assimétrico mas mais limpo)?
+- Toda nova tabela em `public` segue a ordem obrigatória: CREATE TABLE → GRANT → ENABLE RLS → CREATE POLICY.
+- `members` continua armazenando convites/permissões locais; convite real de usuários novos (envio de e-mail) **fica de fora desta tarefa** — apenas o CRUD da listagem.
+- `MobileHome` continua client-only (sem SSR fetch); o nome carrega via `useEffect` para evitar flash incorreto.

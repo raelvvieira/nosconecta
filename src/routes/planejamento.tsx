@@ -3,16 +3,24 @@ import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Plus, Upload, Share2, Wallet, CalendarDays, CalendarRange, Shield, Info } from "lucide-react";
+import {
+  Plus,
+  Upload,
+  Share2,
+  Wallet,
+  CalendarDays,
+  CalendarRange,
+  Shield,
+  Info,
+} from "lucide-react";
 
 import { Sidebar } from "@/components/finance/Sidebar";
+import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { CashProjectionChart } from "@/components/finance/planning/CashProjectionChart";
 import { ProjectionSummaryCard } from "@/components/finance/planning/ProjectionSummaryCard";
@@ -22,8 +30,12 @@ import { FinancialGoalsCard } from "@/components/finance/planning/FinancialGoals
 import { SmartInsightsCard } from "@/components/finance/planning/SmartInsightsCard";
 
 import {
-  getPlanningOverview, deleteScenario, generateMoreInsights,
-  type PlanningOverview, type RangeDays, type Insight,
+  getPlanningOverview,
+  deleteScenario,
+  generateMoreInsights,
+  type PlanningOverview,
+  type RangeDays,
+  type Insight,
 } from "@/lib/finance/planning.functions";
 import { formatBRL } from "@/lib/finance/format";
 
@@ -31,7 +43,10 @@ const searchSchema = z.object({
   range: z.union([z.literal(30), z.literal(60), z.literal(90), z.literal(180)]).default(90),
 });
 
-const overviewOpts = (fetcher: (args: { data: any }) => Promise<PlanningOverview>, period: RangeDays) =>
+const overviewOpts = (
+  fetcher: (args: { data: any }) => Promise<PlanningOverview>,
+  period: RangeDays,
+) =>
   queryOptions({
     queryKey: ["planning-overview", period],
     queryFn: () => fetcher({ data: { period } }),
@@ -42,22 +57,18 @@ export const Route = createFileRoute("/planejamento")({
   head: () => ({
     meta: [
       { title: "Planejamento Financeiro · NÓS Conecta" },
-      { name: "description", content: "Projeções, cenários e previsões financeiras para sua clínica." },
+      {
+        name: "description",
+        content: "Projeções, cenários e previsões financeiras para sua clínica.",
+      },
     ],
   }),
   validateSearch: searchSchema,
   loaderDeps: ({ search }) => ({ range: search.range }),
   loader: ({ context, deps }) =>
     context.queryClient.ensureQueryData(overviewOpts(getPlanningOverview as any, deps.range)),
-  errorComponent: ({ error }) => (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="max-w-md text-center space-y-2">
-        <h1 className="text-xl font-semibold">Erro ao carregar planejamento</h1>
-        <p className="text-sm text-muted-foreground">{error.message}</p>
-      </div>
-    </div>
-  ),
-  notFoundComponent: () => <div className="p-8">Página não encontrada.</div>,
+  errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar o planejamento" />,
+  notFoundComponent: () => <ResponsiveRouteState title="Planejamento não encontrado" notFound />,
   component: PlanningPage,
 });
 
@@ -85,7 +96,8 @@ function PlanningPage() {
   });
 
   const generateMoreMutation = useMutation({
-    mutationFn: (excludeIds: string[]) => generateMoreFn({ data: { excludeIds } }) as Promise<Insight[]>,
+    mutationFn: (excludeIds: string[]) =>
+      generateMoreFn({ data: { excludeIds } }) as Promise<Insight[]>,
     onSuccess: (newOnes) => {
       toast.success(`${newOnes.length} novos insights gerados`);
     },
@@ -103,11 +115,12 @@ function PlanningPage() {
         <Sidebar />
 
         <main className="flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-8 pb-28 lg:pb-8">
-
           {/* Header */}
           <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6">
             <div>
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Planejamento Financeiro</h1>
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
+                Planejamento Financeiro
+              </h1>
               <p className="text-sm text-muted-foreground mt-1">
                 Projeções, cenários e previsões para sua clínica
               </p>
@@ -160,16 +173,21 @@ function PlanningPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-[11px] md:text-sm text-muted-foreground">Fôlego Financeiro</p>
+                    <p className="text-[11px] md:text-sm text-muted-foreground">
+                      Fôlego Financeiro
+                    </p>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <button type="button" className="text-muted-foreground hover:text-foreground">
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground"
+                        >
                           <Info className="h-3.5 w-3.5" />
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className="max-w-[260px] text-xs">
-                        Com o saldo atual e o nível médio de despesas, a clínica consegue
-                        operar por aproximadamente {summary.financialRunwayDays} dias sem novas receitas.
+                        Com o saldo atual e o nível médio de despesas, a clínica consegue operar por
+                        aproximadamente {summary.financialRunwayDays} dias sem novas receitas.
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -182,8 +200,13 @@ function PlanningPage() {
                 {summary.financialRunwayDays} dias
               </p>
               <div className="flex items-center justify-between">
-                <Badge variant="secondary" className={`border-0 font-medium ${summary.financialRunwayDays >= 60 ? "bg-success-soft text-success" : "bg-warning-soft text-warning"}`}>
-                  {summary.financialRunwayDays >= 60 ? "✓ Acima do recomendado" : "Atenção ao caixa"}
+                <Badge
+                  variant="secondary"
+                  className={`border-0 font-medium ${summary.financialRunwayDays >= 60 ? "bg-success-soft text-success" : "bg-warning-soft text-warning"}`}
+                >
+                  {summary.financialRunwayDays >= 60
+                    ? "✓ Acima do recomendado"
+                    : "Atenção ao caixa"}
                 </Badge>
               </div>
             </div>
