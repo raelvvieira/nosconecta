@@ -380,17 +380,23 @@ export const createReceivable = createServerFn({ method: "POST" })
     const today = todayStr();
     const n = data.installments;
 
+    // Se marcado como recebido, cada parcela cujo vencimento já passou (ou é
+    // hoje) é registrada como recebida na própria data de vencimento; as
+    // futuras ficam pendentes.
+    const installmentReceived = (dueDate: string) => data.markReceivedNow && dueDate <= today;
+
     if (n > 1) {
       const perAmount = Math.floor((data.amount / n) * 100) / 100;
       const lastAmount = Math.round((data.amount - perAmount * (n - 1)) * 100) / 100;
+      const firstPaid = installmentReceived(data.due_date);
       const baseRow = {
         company_id: data.companyId,
         type: "receivable" as const,
         description: `${data.description} (1/${n})`,
         amount: perAmount,
         due_date: data.due_date,
-        paid_date: data.markReceivedNow ? today : null,
-        status: (data.markReceivedNow ? "paid" : "pending") as any,
+        paid_date: firstPaid ? data.due_date : null,
+        status: (firstPaid ? "paid" : "pending") as any,
         patient_id: data.patient_id,
         professional_id: data.professional_id,
         category_id: data.category_id,
@@ -407,13 +413,16 @@ export const createReceivable = createServerFn({ method: "POST" })
       const rest = Array.from({ length: n - 1 }, (_, i) => {
         const idx = i + 2;
         const isLast = idx === n;
+        const dueDate = addMonths(data.due_date, idx - 1);
+        const paid = installmentReceived(dueDate);
         return {
           company_id: data.companyId,
           type: "receivable" as const,
           description: `${data.description} (${idx}/${n})`,
           amount: isLast ? lastAmount : perAmount,
-          due_date: addMonths(data.due_date, idx - 1),
-          status: "pending" as any,
+          due_date: dueDate,
+          paid_date: paid ? dueDate : null,
+          status: (paid ? "paid" : "pending") as any,
           patient_id: data.patient_id,
           professional_id: data.professional_id,
           category_id: data.category_id,

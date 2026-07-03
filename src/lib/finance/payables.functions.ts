@@ -348,18 +348,24 @@ export const createPayable = createServerFn({ method: "POST" })
     const isPaid = data.markPaidNow || !!data.paid_date;
     const paidDateVal = isPaid ? (data.paid_date ?? today) : null;
 
+    // Numa despesa parcelada marcada como paga, cada parcela cujo vencimento
+    // já passou (ou é hoje) é registrada como paga na própria data de
+    // vencimento; as futuras ficam pendentes. Reflete o pagamento das faturas.
+    const installmentPaid = (dueDate: string) => isPaid && dueDate <= today;
+
     if (n > 1) {
       // First insert: parent
       const perAmount = Math.floor((data.amount / n) * 100) / 100;
       const lastAmount = Math.round((data.amount - perAmount * (n - 1)) * 100) / 100;
+      const firstPaid = installmentPaid(data.due_date);
       const baseRow = {
         company_id: data.companyId,
         type: "payable" as const,
         description: `${data.description} (1/${n})`,
         amount: perAmount,
         due_date: data.due_date,
-        paid_date: paidDateVal,
-        status: (isPaid ? "paid" : "pending") as any,
+        paid_date: firstPaid ? data.due_date : null,
+        status: (firstPaid ? "paid" : "pending") as any,
         category_id: data.category_id,
         account_id: data.account_id,
         supplier_name: data.supplier_name,
@@ -375,13 +381,16 @@ export const createPayable = createServerFn({ method: "POST" })
       const rest = Array.from({ length: n - 1 }, (_, i) => {
         const idx = i + 2;
         const isLast = idx === n;
+        const dueDate = addMonths(data.due_date, idx - 1);
+        const paid = installmentPaid(dueDate);
         return {
           company_id: data.companyId,
           type: "payable" as const,
           description: `${data.description} (${idx}/${n})`,
           amount: isLast ? lastAmount : perAmount,
-          due_date: addMonths(data.due_date, idx - 1),
-          status: "pending" as any,
+          due_date: dueDate,
+          paid_date: paid ? dueDate : null,
+          status: (paid ? "paid" : "pending") as any,
           category_id: data.category_id,
           account_id: data.account_id,
           supplier_name: data.supplier_name,

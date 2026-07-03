@@ -119,6 +119,10 @@ export function NewPaymentSheet({
           <section className="space-y-3">
             <h3 className="text-sm font-medium">Informações básicas</h3>
             <div className="space-y-2">
+              <Label>Descrição / Nome do item *</Label>
+              <Input placeholder="Ex: Cadeira odontológica" value={description} onChange={(e) => setDescription(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
               <Label>Fornecedor *</Label>
               <Combobox
                 value={supplier}
@@ -130,10 +134,6 @@ export function NewPaymentSheet({
                 createLabelPrefix="Usar"
                 onCreate={(name) => setSupplier(name)}
               />
-            </div>
-            <div className="space-y-2">
-              <Label>Descrição *</Label>
-              <Input placeholder="Ex: Próteses e materiais" value={description} onChange={(e) => setDescription(e.target.value)} required />
             </div>
             <CategoryManager
               type="expense"
@@ -152,15 +152,6 @@ export function NewPaymentSheet({
               <Input inputMode="decimal" placeholder="R$ 0,00" value={amount} onChange={(e) => setAmount(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label>Conta financeira *</Label>
-              <AccountCombobox
-                accounts={accounts}
-                value={accountId}
-                onChange={setAccountId}
-                onChanged={() => onAccountsChanged?.()}
-              />
-            </div>
-            <div className="space-y-2">
               <Label>Método de pagamento *</Label>
               <Select value={method} onValueChange={setMethod}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -172,6 +163,15 @@ export function NewPaymentSheet({
                   <SelectItem value="dinheiro">Dinheiro</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Banco / Conta financeira *</Label>
+              <AccountCombobox
+                accounts={accounts}
+                value={accountId}
+                onChange={setAccountId}
+                onChanged={() => onAccountsChanged?.()}
+              />
             </div>
           </section>
 
