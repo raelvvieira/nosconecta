@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type PayableStatus = "all" | "paid" | "pending" | "overdue";
 
@@ -337,8 +338,9 @@ export const createPayable = createServerFn({ method: "POST" })
       };
     },
   )
-  .handler(async ({ data }) => {
-    const supabase = sb();
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase;
     const today = todayStr();
     const n = data.installments;
 
@@ -421,8 +423,9 @@ export const markPayablePaid = createServerFn({ method: "POST" })
     id: input.id,
     paid_date: input.paid_date ?? todayStr(),
   }))
-  .handler(async ({ data }) => {
-    const supabase = sb();
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase;
     const { error } = await supabase
       .from("financial_transactions")
       .update({ status: "paid", paid_date: data.paid_date })
@@ -433,8 +436,9 @@ export const markPayablePaid = createServerFn({ method: "POST" })
 
 export const deletePayable = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
-  .handler(async ({ data }) => {
-    const supabase = sb();
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase;
     const { error } = await supabase.from("financial_transactions").delete().eq("id", data.id);
     if (error) throw error;
     return { ok: true };

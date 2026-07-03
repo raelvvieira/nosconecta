@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type ReceivableStatus = "all" | "received" | "pending" | "overdue" | "installments" | "recurring";
 
@@ -373,8 +374,9 @@ export const createReceivable = createServerFn({ method: "POST" })
       };
     },
   )
-  .handler(async ({ data }) => {
-    const supabase = sb();
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase;
     const today = todayStr();
     const n = data.installments;
 
@@ -457,8 +459,9 @@ export const markReceivableReceived = createServerFn({ method: "POST" })
     account_id: input.account_id ?? undefined,
     payment_method: input.payment_method ?? undefined,
   }))
-  .handler(async ({ data }) => {
-    const supabase = sb();
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase;
     const update: any = { status: "paid", paid_date: data.paid_date };
     if (data.account_id) update.account_id = data.account_id;
     if (data.payment_method) update.payment_method = data.payment_method;
@@ -469,8 +472,9 @@ export const markReceivableReceived = createServerFn({ method: "POST" })
 
 export const cancelReceivable = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
-  .handler(async ({ data }) => {
-    const supabase = sb();
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase;
     const { error } = await supabase
       .from("financial_transactions")
       .update({ status: "cancelled" })
@@ -481,8 +485,9 @@ export const cancelReceivable = createServerFn({ method: "POST" })
 
 export const deleteReceivable = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
-  .handler(async ({ data }) => {
-    const supabase = sb();
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase;
     const { error } = await supabase.from("financial_transactions").delete().eq("id", data.id);
     if (error) throw error;
     return { ok: true };
