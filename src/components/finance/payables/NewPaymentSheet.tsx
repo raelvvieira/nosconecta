@@ -14,6 +14,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { CategoryManager } from "@/components/finance/CategoryManager";
+import { Combobox } from "@/components/finance/Combobox";
+import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { createPayable } from "@/lib/finance/payables.functions";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -23,15 +25,19 @@ export function NewPaymentSheet({
   onOpenChange,
   categories,
   accounts,
+  suppliers = [],
   onCreated,
   onCategoriesChanged,
+  onAccountsChanged,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   categories: { id: string; name: string }[];
   accounts: { id: string; name: string; type: string }[];
+  suppliers?: string[];
   onCreated: () => void;
   onCategoriesChanged?: () => void;
+  onAccountsChanged?: () => void;
 }) {
   const create = useServerFn(createPayable);
   const [supplier, setSupplier] = useState("");
@@ -105,7 +111,16 @@ export function NewPaymentSheet({
             <h3 className="text-sm font-medium">Informações básicas</h3>
             <div className="space-y-2">
               <Label>Fornecedor *</Label>
-              <Input placeholder="Selecione o fornecedor" value={supplier} onChange={(e) => setSupplier(e.target.value)} required />
+              <Combobox
+                value={supplier}
+                onChange={setSupplier}
+                options={suppliers.map((s) => ({ value: s, label: s }))}
+                placeholder="Selecione o fornecedor"
+                searchPlaceholder="Buscar ou digitar fornecedor..."
+                emptyText="Nenhum fornecedor salvo"
+                createLabelPrefix="Usar"
+                onCreate={(name) => setSupplier(name)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Descrição *</Label>
@@ -129,12 +144,12 @@ export function NewPaymentSheet({
             </div>
             <div className="space-y-2">
               <Label>Conta financeira *</Label>
-              <Select value={accountId} onValueChange={setAccountId}>
-                <SelectTrigger><SelectValue placeholder="Selecione a conta" /></SelectTrigger>
-                <SelectContent>
-                  {accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <AccountCombobox
+                accounts={accounts}
+                value={accountId}
+                onChange={setAccountId}
+                onChanged={() => onAccountsChanged?.()}
+              />
             </div>
             <div className="space-y-2">
               <Label>Método de pagamento *</Label>

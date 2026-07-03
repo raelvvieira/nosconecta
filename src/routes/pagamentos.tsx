@@ -518,8 +518,10 @@ function PagamentosPage() {
         onOpenChange={setSheetOpen}
         categories={data.categories}
         accounts={data.accounts}
+        suppliers={data.suppliers}
         onCreated={invalidate}
         onCategoriesChanged={invalidate}
+        onAccountsChanged={invalidate}
       />
     </div>
   );

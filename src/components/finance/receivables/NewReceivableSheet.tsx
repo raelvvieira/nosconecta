@@ -14,6 +14,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { CategoryManager } from "@/components/finance/CategoryManager";
+import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { createReceivable } from "@/lib/finance/receivables.functions";
 import { formatBRL } from "@/lib/finance/format";
 
@@ -22,7 +23,7 @@ const todayStr = () => new Date().toISOString().slice(0, 10);
 type Opt = { id: string; name: string };
 
 export function NewReceivableSheet({
-  open, onOpenChange, patients, professionals, categories, accounts, initialPatientId, onCreated, onCategoriesChanged,
+  open, onOpenChange, patients, professionals, categories, accounts, initialPatientId, onCreated, onCategoriesChanged, onAccountsChanged,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -33,6 +34,7 @@ export function NewReceivableSheet({
   accounts: Opt[];
   onCreated?: () => void;
   onCategoriesChanged?: () => void;
+  onAccountsChanged?: () => void;
 }) {
   const create = useServerFn(createReceivable);
 
@@ -153,12 +155,12 @@ export function NewReceivableSheet({
             </div>
             <div className="space-y-2">
               <Label>Conta financeira</Label>
-              <Select value={accountId} onValueChange={setAccountId}>
-                <SelectTrigger><SelectValue placeholder="Selecione a conta" /></SelectTrigger>
-                <SelectContent>
-                  {accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <AccountCombobox
+                accounts={accounts}
+                value={accountId}
+                onChange={setAccountId}
+                onChanged={() => onAccountsChanged?.()}
+              />
             </div>
             <div className="space-y-2">
               <Label>Forma de pagamento</Label>
