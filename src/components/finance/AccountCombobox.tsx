@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -27,12 +28,27 @@ export function AccountCombobox({
   const createFn = useServerFn(createAccount);
   const deleteFn = useServerFn(deleteAccount);
 
+  // Mescla localmente itens criados/removidos com os que vêm da leitura, para
+  // que apareçam imediatamente mesmo que o refetch demore ou não os retorne.
+  const [extra, setExtra] = useState<Account[]>([]);
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
+
+  const merged = useMemo(() => {
+    const map = new Map<string, Account>();
+    for (const a of accounts) map.set(a.id, a);
+    for (const a of extra) map.set(a.id, a);
+    return Array.from(map.values()).filter((a) => !removed.has(a.id));
+  }, [accounts, extra, removed]);
+
   const create = useMutation({
     mutationFn: (name: string) => createFn({ data: { name } }),
     onSuccess: (row) => {
       toast.success("Conta criada");
+      if (row?.id) {
+        setExtra((prev) => [...prev, { id: row.id, name: row.name, type: (row as any).type }]);
+        onChange(row.id);
+      }
       onChanged();
-      if (row?.id) onChange(row.id);
     },
     onError: (e: any) => toast.error(e?.message ?? "Erro ao criar conta"),
   });
@@ -41,6 +57,7 @@ export function AccountCombobox({
     mutationFn: (id: string) => deleteFn({ data: { id } }),
     onSuccess: (_r, id) => {
       toast.success("Conta removida");
+      setRemoved((prev) => new Set(prev).add(id));
       if (value === id) onChange("");
       onChanged();
     },
@@ -51,7 +68,7 @@ export function AccountCombobox({
     <Combobox
       value={value}
       onChange={onChange}
-      options={accounts.map((a) => ({ value: a.id, label: a.name }))}
+      options={merged.map((a) => ({ value: a.id, label: a.name }))}
       placeholder={placeholder}
       searchPlaceholder="Buscar ou criar conta..."
       emptyText="Nenhuma conta"

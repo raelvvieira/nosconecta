@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, Pencil, Plus, Settings2, Trash2, X } from "lucide-react";
@@ -46,21 +46,40 @@ export function CategoryManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
 
+  // Mescla localmente itens criados/renomeados/removidos com a leitura, para
+  // refletir imediatamente mesmo que o refetch demore ou não os retorne.
+  const [extra, setExtra] = useState<Category[]>([]);
+  const [renamed, setRenamed] = useState<Record<string, string>>({});
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
+
+  const merged = useMemo(() => {
+    const map = new Map<string, Category>();
+    for (const c of categories) map.set(c.id, c);
+    for (const c of extra) map.set(c.id, c);
+    return Array.from(map.values())
+      .filter((c) => !removed.has(c.id))
+      .map((c) => (renamed[c.id] ? { ...c, name: renamed[c.id] } : c));
+  }, [categories, extra, renamed, removed]);
+
   const create = useMutation({
     mutationFn: (name: string) => createFn({ data: { name, type } }),
     onSuccess: (row) => {
       toast.success("Categoria criada");
       setNewName("");
+      if (row?.id) {
+        setExtra((prev) => [...prev, { id: row.id, name: row.name }]);
+        onChange(row.id);
+      }
       onChanged();
-      if (row?.id) onChange(row.id);
     },
     onError: (e: any) => toast.error(e?.message ?? "Erro ao criar categoria"),
   });
 
   const update = useMutation({
     mutationFn: (v: { id: string; name: string }) => updateFn({ data: v }),
-    onSuccess: () => {
+    onSuccess: (_r, v) => {
       toast.success("Categoria atualizada");
+      setRenamed((prev) => ({ ...prev, [v.id]: v.name }));
       setEditingId(null);
       setEditingName("");
       onChanged();
@@ -72,6 +91,7 @@ export function CategoryManager({
     mutationFn: (id: string) => deleteFn({ data: { id } }),
     onSuccess: (_r, id) => {
       toast.success("Categoria excluída");
+      setRemoved((prev) => new Set(prev).add(id));
       if (value === id) onChange("");
       onChanged();
     },
@@ -115,10 +135,10 @@ export function CategoryManager({
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
         <SelectContent>
-          {categories.length === 0 ? (
+          {merged.length === 0 ? (
             <div className="px-2 py-1.5 text-sm text-muted-foreground">Nenhuma categoria</div>
           ) : (
-            categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
+            merged.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)
           )}
         </SelectContent>
       </Select>
@@ -152,11 +172,11 @@ export function CategoryManager({
           </div>
 
           {/* Lista de categorias */}
-          {categories.length > 0 && (
+          {merged.length > 0 && (
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Categorias existentes</Label>
               <div className="max-h-52 overflow-y-auto custom-scroll space-y-1 pr-1">
-                {categories.map((c) => (
+                {merged.map((c) => (
                   <div
                     key={c.id}
                     className="flex items-center gap-2 rounded-lg bg-background border px-2 py-1.5"
