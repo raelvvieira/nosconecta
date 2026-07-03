@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { X } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import { CategoryManager } from "@/components/finance/CategoryManager";
 import { Combobox } from "@/components/finance/Combobox";
 import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { createPayable } from "@/lib/finance/payables.functions";
+import { listSuppliers } from "@/lib/finance/suppliers.functions";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -40,6 +41,14 @@ export function NewPaymentSheet({
   onAccountsChanged?: () => void;
 }) {
   const create = useServerFn(createPayable);
+  const fetchSuppliers = useServerFn(listSuppliers);
+  const { data: fetchedSuppliers } = useQuery({
+    queryKey: ["finance", "suppliers"],
+    queryFn: () => fetchSuppliers({ data: {} }),
+    staleTime: 30_000,
+  });
+  const supplierOptions = (fetchedSuppliers as string[] | undefined) ?? suppliers;
+
   const [supplier, setSupplier] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
@@ -114,7 +123,7 @@ export function NewPaymentSheet({
               <Combobox
                 value={supplier}
                 onChange={setSupplier}
-                options={suppliers.map((s) => ({ value: s, label: s }))}
+                options={supplierOptions.map((s) => ({ value: s, label: s }))}
                 placeholder="Selecione o fornecedor"
                 searchPlaceholder="Buscar ou digitar fornecedor..."
                 emptyText="Nenhum fornecedor salvo"

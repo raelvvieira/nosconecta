@@ -4,6 +4,24 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 type CategoryType = "income" | "expense";
 const COMPANY_ID = "demo";
 
+export const listCategories = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { type: CategoryType }) => {
+    if (input.type !== "income" && input.type !== "expense")
+      throw new Error("Tipo de categoria inválido");
+    return { type: input.type };
+  })
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("financial_categories")
+      .select("id, name")
+      .eq("company_id", COMPANY_ID)
+      .eq("type", data.type)
+      .order("name");
+    if (error) throw error;
+    return (rows ?? []) as { id: string; name: string }[];
+  });
+
 export const createCategory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { name: string; type: CategoryType }) => {

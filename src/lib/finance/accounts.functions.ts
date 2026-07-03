@@ -4,6 +4,19 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 type AccountType = "bank" | "cash" | "pix" | "credit";
 const COMPANY_ID = "demo";
 
+export const listAccounts = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((_: unknown) => ({}))
+  .handler(async ({ context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("financial_accounts")
+      .select("id, name, type, last_digits")
+      .eq("company_id", COMPANY_ID)
+      .order("name");
+    if (error) throw error;
+    return (rows ?? []) as { id: string; name: string; type: string; last_digits: string | null }[];
+  });
+
 export const createAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { name: string; type?: AccountType; last_digits?: string | null }) => {
