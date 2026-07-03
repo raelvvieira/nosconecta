@@ -69,6 +69,7 @@ export function NewPaymentSheet({
           payment_method: method,
           notes: notes || null,
           markPaidNow: markPaid,
+          paid_date: paidDate || null,
           installments: installmentsOn ? installments : 1,
           isRecurring: recurring && !installmentsOn,
           recurrenceType,
@@ -152,19 +153,14 @@ export function NewPaymentSheet({
 
           <section className="space-y-3">
             <h3 className="text-sm font-medium">Datas</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Emissão *</Label>
-                <Input type="date" defaultValue={todayStr()} />
-              </div>
-              <div className="space-y-2">
-                <Label>Vencimento *</Label>
-                <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
-              </div>
+            <div className="space-y-2">
+              <Label>Vencimento *</Label>
+              <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
             </div>
             <div className="space-y-2">
               <Label>Data de pagamento</Label>
               <Input type="date" value={paidDate} onChange={(e) => setPaidDate(e.target.value)} placeholder="Selecione a data" />
+              <p className="text-[11px] text-muted-foreground">Se preenchida, o pagamento já é registrado como pago nessa data.</p>
             </div>
           </section>
 

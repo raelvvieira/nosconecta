@@ -311,6 +311,7 @@ export const createPayable = createServerFn({ method: "POST" })
       payment_method?: string | null;
       notes?: string | null;
       markPaidNow?: boolean;
+      paid_date?: string | null;
       installments?: number;
       isRecurring?: boolean;
       recurrenceType?: "monthly" | "weekly" | "yearly";
@@ -329,6 +330,7 @@ export const createPayable = createServerFn({ method: "POST" })
         payment_method: input.payment_method ?? null,
         notes: input.notes?.trim() || null,
         markPaidNow: !!input.markPaidNow,
+        paid_date: input.paid_date || null,
         installments: Math.max(1, Math.min(60, input.installments ?? 1)),
         isRecurring: !!input.isRecurring,
         recurrenceType: input.recurrenceType ?? "monthly",
@@ -340,6 +342,10 @@ export const createPayable = createServerFn({ method: "POST" })
     const today = todayStr();
     const n = data.installments;
 
+    // Considera pago se o toggle foi marcado ou se uma data de pagamento foi informada.
+    const isPaid = data.markPaidNow || !!data.paid_date;
+    const paidDateVal = isPaid ? (data.paid_date ?? today) : null;
+
     if (n > 1) {
       // First insert: parent
       const perAmount = Math.floor((data.amount / n) * 100) / 100;
@@ -350,8 +356,8 @@ export const createPayable = createServerFn({ method: "POST" })
         description: `${data.description} (1/${n})`,
         amount: perAmount,
         due_date: data.due_date,
-        paid_date: data.markPaidNow ? today : null,
-        status: (data.markPaidNow ? "paid" : "pending") as any,
+        paid_date: paidDateVal,
+        status: (isPaid ? "paid" : "pending") as any,
         category_id: data.category_id,
         account_id: data.account_id,
         supplier_name: data.supplier_name,
@@ -394,8 +400,8 @@ export const createPayable = createServerFn({ method: "POST" })
       description: data.description,
       amount: data.amount,
       due_date: data.due_date,
-      paid_date: data.markPaidNow ? today : null,
-      status: (data.markPaidNow ? "paid" : "pending") as any,
+      paid_date: paidDateVal,
+      status: (isPaid ? "paid" : "pending") as any,
       category_id: data.category_id,
       account_id: data.account_id,
       supplier_name: data.supplier_name,
