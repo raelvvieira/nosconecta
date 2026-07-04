@@ -18,6 +18,7 @@ import { Combobox } from "@/components/finance/Combobox";
 import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { createPayable } from "@/lib/finance/payables.functions";
 import { listSuppliers } from "@/lib/finance/suppliers.functions";
+import { formatBRL } from "@/lib/finance/format";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -60,6 +61,7 @@ export function NewPaymentSheet({
   const [markPaid, setMarkPaid] = useState(false);
   const [installmentsOn, setInstallmentsOn] = useState(false);
   const [installments, setInstallments] = useState<number>(12);
+  const [downPayment, setDownPayment] = useState<string>("");
   const [recurring, setRecurring] = useState(false);
   const [recurrenceType, setRecurrenceType] = useState<"monthly" | "weekly" | "yearly">("monthly");
   const [notes, setNotes] = useState("");
@@ -67,9 +69,14 @@ export function NewPaymentSheet({
   const reset = () => {
     setSupplier(""); setDescription(""); setCategoryId(""); setAmount("");
     setAccountId(""); setMethod("pix"); setDueDate(todayStr()); setPaidDate("");
-    setMarkPaid(false); setInstallmentsOn(false); setInstallments(12);
+    setMarkPaid(false); setInstallmentsOn(false); setInstallments(12); setDownPayment("");
     setRecurring(false); setRecurrenceType("monthly"); setNotes("");
   };
+
+  const amountNum = Number((amount || "0").replace(",", ".")) || 0;
+  const downNum = Number((downPayment || "0").replace(",", ".")) || 0;
+  const remainingNum = Math.max(0, amountNum - downNum);
+  const perInstallment = installments > 0 ? remainingNum / installments : 0;
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -86,6 +93,7 @@ export function NewPaymentSheet({
           markPaidNow: markPaid,
           paid_date: paidDate || null,
           installments: installmentsOn ? installments : 1,
+          downPayment: installmentsOn ? downNum : 0,
           isRecurring: recurring && !installmentsOn,
           recurrenceType,
         },
@@ -199,9 +207,25 @@ export function NewPaymentSheet({
               <Switch id="inst" checked={installmentsOn} onCheckedChange={(v) => { setInstallmentsOn(v); if (v) setRecurring(false); }} />
             </div>
             {installmentsOn && (
-              <div className="space-y-2">
-                <Label>Quantidade de parcelas</Label>
-                <Input type="number" min={2} max={60} value={installments} onChange={(e) => setInstallments(Number(e.target.value))} />
+              <div className="space-y-3 rounded-xl bg-muted/40 p-3">
+                <div className="space-y-2">
+                  <Label>Entrada (opcional)</Label>
+                  <Input inputMode="decimal" placeholder="R$ 0,00" value={downPayment} onChange={(e) => setDownPayment(e.target.value)} />
+                  <p className="text-[11px] text-muted-foreground">Valor pago à vista; o restante é dividido nas parcelas.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Quantidade de parcelas</Label>
+                  <Input type="number" min={2} max={60} value={installments} onChange={(e) => setInstallments(Number(e.target.value))} />
+                </div>
+                <div className="rounded-lg bg-background p-3 text-sm">
+                  <p className="text-muted-foreground text-xs">Resumo</p>
+                  <p className="mt-1">
+                    {downNum > 0 && (
+                      <>Entrada <span className="font-semibold tabular-nums">{formatBRL(downNum)}</span> + </>
+                    )}
+                    {installments}x de <span className="font-semibold tabular-nums">{formatBRL(perInstallment)}</span>
+                  </p>
+                </div>
               </div>
             )}
             <div className="flex items-center justify-between">

@@ -314,12 +314,15 @@ export const createPayable = createServerFn({ method: "POST" })
       markPaidNow?: boolean;
       paid_date?: string | null;
       installments?: number;
+      downPayment?: number;
       isRecurring?: boolean;
       recurrenceType?: "monthly" | "weekly" | "yearly";
     }) => {
       if (!input.description?.trim()) throw new Error("Descrição obrigatória");
       if (!(input.amount > 0)) throw new Error("Valor deve ser maior que zero");
       if (!input.due_date) throw new Error("Vencimento obrigatório");
+      const downPayment = Math.max(0, input.downPayment ?? 0);
+      if (downPayment >= input.amount) throw new Error("A entrada deve ser menor que o valor total");
       return {
         companyId: input.companyId ?? "demo",
         description: input.description.trim(),
@@ -333,6 +336,7 @@ export const createPayable = createServerFn({ method: "POST" })
         markPaidNow: !!input.markPaidNow,
         paid_date: input.paid_date || null,
         installments: Math.max(1, Math.min(60, input.installments ?? 1)),
+        downPayment,
         isRecurring: !!input.isRecurring,
         recurrenceType: input.recurrenceType ?? "monthly",
       };
@@ -352,6 +356,60 @@ export const createPayable = createServerFn({ method: "POST" })
     // já passou (ou é hoje) é registrada como paga na própria data de
     // vencimento; as futuras ficam pendentes. Reflete o pagamento das faturas.
     const installmentPaid = (dueDate: string) => isPaid && dueDate <= today;
+
+    const common = {
+      company_id: data.companyId,
+      type: "payable" as const,
+      category_id: data.category_id,
+      account_id: data.account_id,
+      supplier_name: data.supplier_name,
+      payment_method: data.payment_method,
+    };
+
+    // Entrada + parcelamento: uma entrada agora e o restante parcelado.
+    if (data.downPayment > 0 && n > 1) {
+      const remaining = data.amount - data.downPayment;
+      const perAmount = Math.floor((remaining / n) * 100) / 100;
+      const lastAmount = Math.round((remaining - perAmount * (n - 1)) * 100) / 100;
+
+      const entradaPaid = installmentPaid(data.due_date);
+      const entradaRow = {
+        ...common,
+        description: `${data.description} — Entrada`,
+        amount: data.downPayment,
+        due_date: data.due_date,
+        paid_date: entradaPaid ? data.due_date : null,
+        status: (entradaPaid ? "paid" : "pending") as any,
+        notes: data.notes,
+        installment_number: null as number | null,
+        installment_total: null as number | null,
+      };
+      const { data: parent, error: eErr } = await supabase
+        .from("financial_transactions").insert(entradaRow).select("id").single();
+      if (eErr) throw eErr;
+
+      // Parcelas do restante começam no mês seguinte à entrada.
+      const rest = Array.from({ length: n }, (_, i) => {
+        const idx = i + 1;
+        const isLast = idx === n;
+        const dueDate = addMonths(data.due_date, idx);
+        const paid = installmentPaid(dueDate);
+        return {
+          ...common,
+          description: `${data.description} (${idx}/${n})`,
+          amount: isLast ? lastAmount : perAmount,
+          due_date: dueDate,
+          paid_date: paid ? dueDate : null,
+          status: (paid ? "paid" : "pending") as any,
+          installment_number: idx,
+          installment_total: n,
+          parent_transaction_id: parent.id,
+        };
+      });
+      const { error: rErr } = await supabase.from("financial_transactions").insert(rest);
+      if (rErr) throw rErr;
+      return { id: parent.id, count: n + 1 };
+    }
 
     if (n > 1) {
       // First insert: parent
