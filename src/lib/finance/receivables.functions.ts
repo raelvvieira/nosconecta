@@ -113,8 +113,9 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
       q: input.q?.trim() || undefined,
     }),
   )
-  .handler(async ({ data }): Promise<ReceivablesOverview> => {
-    const supabase = sb();
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }): Promise<ReceivablesOverview> => {
+    const supabase = context.supabase;
     const range = resolveRange(data.from, data.to);
     const prev = previousRange(range.from, range.to);
     const today = todayStr();
