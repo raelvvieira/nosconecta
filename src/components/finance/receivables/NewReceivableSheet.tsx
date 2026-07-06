@@ -16,7 +16,7 @@ import {
 import { CategoryManager } from "@/components/finance/CategoryManager";
 import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { createReceivable } from "@/lib/finance/receivables.functions";
-import { formatBRL } from "@/lib/finance/format";
+import { formatBRL, parseBRLInput } from "@/lib/finance/format";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -57,7 +57,7 @@ export function NewReceivableSheet({
     if (open && initialPatientId) setPatientId(initialPatientId);
   }, [open, initialPatientId]);
 
-  const amountNum = Number((amount || "0").replace(",", "."));
+  const amountNum = parseBRLInput(amount) || 0;
   const perInstallment = installmentsOn && installments > 0 ? amountNum / installments : 0;
 
   const reset = () => {

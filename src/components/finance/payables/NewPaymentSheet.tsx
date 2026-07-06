@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { X } from "lucide-react";
 import { toast } from "sonner";
@@ -18,7 +18,7 @@ import { Combobox } from "@/components/finance/Combobox";
 import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { createPayable } from "@/lib/finance/payables.functions";
 import { listSuppliers } from "@/lib/finance/suppliers.functions";
-import { formatBRL } from "@/lib/finance/format";
+import { formatBRL, parseBRLInput } from "@/lib/finance/format";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -42,6 +42,7 @@ export function NewPaymentSheet({
   onAccountsChanged?: () => void;
 }) {
   const create = useServerFn(createPayable);
+  const qc = useQueryClient();
   const fetchSuppliers = useServerFn(listSuppliers);
   const { data: fetchedSuppliers } = useQuery({
     queryKey: ["finance", "suppliers"],
@@ -73,8 +74,8 @@ export function NewPaymentSheet({
     setRecurring(false); setRecurrenceType("monthly"); setNotes("");
   };
 
-  const amountNum = Number((amount || "0").replace(",", ".")) || 0;
-  const downNum = Number((downPayment || "0").replace(",", ".")) || 0;
+  const amountNum = parseBRLInput(amount) || 0;
+  const downNum = parseBRLInput(downPayment) || 0;
   const remainingNum = Math.max(0, amountNum - downNum);
   const perInstallment = installments > 0 ? remainingNum / installments : 0;
 
@@ -83,7 +84,7 @@ export function NewPaymentSheet({
       create({
         data: {
           description,
-          amount: Number(amount.replace(",", ".")),
+          amount: amountNum,
           due_date: dueDate,
           category_id: categoryId || null,
           account_id: accountId || null,
@@ -100,6 +101,7 @@ export function NewPaymentSheet({
       }),
     onSuccess: (r) => {
       toast.success(r.count > 1 ? `${r.count} parcelas criadas` : "Pagamento criado");
+      qc.invalidateQueries({ queryKey: ["finance", "suppliers"] });
       onCreated();
       reset();
       onOpenChange(false);
