@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type Period = "today" | "7d" | "30d" | "90d";
 export type Granularity = "daily" | "weekly" | "monthly";
@@ -152,6 +153,7 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
       to: input.to,
     }),
   )
+  .middleware([requireSupabaseAuth])
   .handler(async ({ data }): Promise<OverviewData> => {
     const supabase = getServerSupabase();
     const { companyId, period, granularity, from, to } = data;

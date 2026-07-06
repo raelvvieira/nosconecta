@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /* ---------- Types ---------- */
 
@@ -183,6 +184,7 @@ const inputCompany = (input: { companyId?: string }) => ({ companyId: input?.com
 
 export const getPlanningSummary = createServerFn({ method: "GET" })
   .inputValidator(inputCompany)
+  .middleware([requireSupabaseAuth])
   .handler(async ({ data }): Promise<PlanningSummary> => {
     const { today, currentBalance, pending, paid } = await fetchCompanyData(data.companyId);
     const horizon30 = addDays(today, 30);
@@ -216,8 +218,9 @@ export const getCashProjection = createServerFn({ method: "GET" })
     companyId: input?.companyId ?? "demo",
     period: (input?.period ?? 90) as RangeDays,
   }))
-  .handler(async ({ data }): Promise<ProjectionPoint[]> => {
-    const supabase = sb();
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }): Promise<ProjectionPoint[]> => {
+    const supabase = context.supabase;
     const { today, currentBalance, pending } = await fetchCompanyData(data.companyId);
     const back = 14;
 
@@ -307,6 +310,7 @@ export const getCashProjection = createServerFn({ method: "GET" })
 
 export const getForecastSummary = createServerFn({ method: "GET" })
   .inputValidator(inputCompany)
+  .middleware([requireSupabaseAuth])
   .handler(async ({ data }): Promise<ForecastSummary> => {
     const { today, pending } = await fetchCompanyData(data.companyId);
     const horizon = addDays(today, 90);
@@ -320,6 +324,7 @@ export const getFinancialTimeline = createServerFn({ method: "GET" })
     companyId: input?.companyId ?? "demo",
     limit: input?.limit ?? 7,
   }))
+  .middleware([requireSupabaseAuth])
   .handler(async ({ data }): Promise<TimelineEvent[]> => {
     const { currentBalance, pending } = await fetchCompanyData(data.companyId);
     const sorted = [...pending].sort((a, b) => a.due_date.localeCompare(b.due_date));
@@ -342,8 +347,9 @@ export const getFinancialTimeline = createServerFn({ method: "GET" })
 
 export const listGoals = createServerFn({ method: "GET" })
   .inputValidator(inputCompany)
-  .handler(async ({ data }): Promise<FinancialGoal[]> => {
-    const supabase = sb();
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }): Promise<FinancialGoal[]> => {
+    const supabase = context.supabase;
     const { data: rows } = await supabase.from("financial_goals").select("*").eq("company_id", data.companyId).order("created_at", { ascending: false });
 
     // Current month range
@@ -386,8 +392,9 @@ export const listGoals = createServerFn({ method: "GET" })
 
 export const listScenarios = createServerFn({ method: "GET" })
   .inputValidator(inputCompany)
-  .handler(async ({ data }): Promise<ScenarioRow[]> => {
-    const supabase = sb();
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }): Promise<ScenarioRow[]> => {
+    const supabase = context.supabase;
     const { data: rows } = await supabase.from("financial_scenarios").select("*").eq("company_id", data.companyId).order("created_at", { ascending: false });
     return (rows ?? []).map(r => {
       const monthly_cost = Number(r.monthly_cost);
@@ -535,6 +542,7 @@ async function computeInsights(companyId: string): Promise<Insight[]> {
 
 export const getInsights = createServerFn({ method: "GET" })
   .inputValidator(inputCompany)
+  .middleware([requireSupabaseAuth])
   .handler(async ({ data }) => computeInsights(data.companyId));
 
 export const generateMoreInsights = createServerFn({ method: "POST" })
@@ -553,6 +561,7 @@ export const getPlanningOverview = createServerFn({ method: "GET" })
     companyId: input?.companyId ?? "demo",
     period: (input?.period ?? 90) as RangeDays,
   }))
+  .middleware([requireSupabaseAuth])
   .handler(async ({ data }): Promise<PlanningOverview> => {
     const [summary, projection, forecast, timeline, goals, scenarios, insights] = await Promise.all([
       getPlanningSummary({ data: { companyId: data.companyId } }),
