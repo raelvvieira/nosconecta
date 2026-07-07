@@ -1,36 +1,26 @@
-import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { supabase } from "@/integrations/supabase/client";
 import {
   AlertTriangle,
   ArrowDownCircle,
   Bell,
-  Calendar,
   CalendarDays,
   ChevronRight,
-  Clock,
   CreditCard,
   DollarSign,
   UserPlus,
   Users,
 } from "lucide-react";
 import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
+import {
+  appointments,
+  attentionItems,
+  AGENDA_TODAY_COUNT,
+  AGENDA_TODAY_DETAILS,
+  PENDING_CONFIRMATIONS_COUNT,
+} from "@/components/home/mock-data";
+import { useGreetingUser } from "@/components/home/use-greeting-user";
 
 const GRADIENT = "linear-gradient(135deg, #FF6FA7 0%, #FF8A4C 100%)";
-
-// ─── Mocked data ──────────────────────────────────────────────────────────────
-
-const appointments = [
-  { time: "14:00", initials: "JS", patient: "João Silva", procedure: "Clareamento Dental", professional: "Dr. Carlos", status: "Confirmado" as const, accentColor: "#FF5F7E", avatarBg: "rgba(255,95,126,0.12)" },
-  { time: "15:00", initials: "MS", patient: "Maria Souza", procedure: "Limpeza + Raspagem", professional: "Dra. Ana", status: "Pendente" as const, accentColor: "#8B5CF6", avatarBg: "rgba(139,92,246,0.12)" },
-  { time: "16:30", initials: "PL", patient: "Pedro Lima", procedure: "Avaliação Ortodôntica", professional: "Dr. Carlos", status: "Confirmado" as const, accentColor: "#22C55E", avatarBg: "rgba(34,197,94,0.12)" },
-];
-
-const attentionItems = [
-  { icon: DollarSign, color: "#EF4444", bg: "rgba(239,68,68,0.10)", label: "R$ 2.180 em recebimentos atrasados", highlight: "R$ 2.180" },
-  { icon: Calendar, color: "#F97316", bg: "rgba(249,115,22,0.10)", label: "2 pagamentos vencem amanhã", highlight: "2 pagamentos" },
-  { icon: Clock, color: "#2F80ED", bg: "rgba(47,128,237,0.10)", label: "3 horários livres hoje", highlight: "3 horários" },
-];
 
 // ─── Card styles ──────────────────────────────────────────────────────────────
 
@@ -43,40 +33,8 @@ const cardStyle: React.CSSProperties = {
 
 // ─── Header ───────────────────────────────────────────────────────────────────
 
-function greetingFor(date: Date) {
-  const h = date.getHours();
-  if (h < 12) return "Bom dia";
-  if (h < 18) return "Boa tarde";
-  return "Boa noite";
-}
-
 function Header() {
-  const [name, setName] = useState<string>("");
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const { data: userData } = await supabase.auth.getUser();
-      const user = userData.user;
-      if (!user || !mounted) return;
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", user.id)
-        .maybeSingle();
-      const full =
-        (profile?.full_name as string | undefined) ||
-        (user.user_metadata?.full_name as string | undefined) ||
-        user.email?.split("@")[0] ||
-        "";
-      if (mounted) setName(full);
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-  const firstName = name ? name.split(" ")[0] : "";
-  const initial = (firstName[0] ?? "U").toUpperCase();
-  const greeting = greetingFor(new Date());
+  const { firstName, initial, greeting } = useGreetingUser();
   return (
     <div style={{ padding: "52px 24px 0 24px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
       <div style={{ minWidth: 0 }}>
@@ -115,10 +73,10 @@ const SUMMARY_CARDS = [
     iconBg: "rgba(255,111,167,0.12)",
     iconColor: "#FF5F7E",
     title: "Agenda de hoje",
-    value: "23",
+    value: String(AGENDA_TODAY_COUNT),
     valueColor: "#111827",
     subtitle: "atendimentos",
-    details: ["18 confirmados", "4 pendentes", "1 falta"],
+    details: AGENDA_TODAY_DETAILS,
     action: "Ver agenda",
     actionColor: "#FF5F7E",
   },
@@ -127,7 +85,7 @@ const SUMMARY_CARDS = [
     iconBg: "rgba(139,92,246,0.12)",
     iconColor: "#8B5CF6",
     title: "Confirmações pendentes",
-    value: "4",
+    value: String(PENDING_CONFIRMATIONS_COUNT),
     valueColor: "#111827",
     subtitle: "pacientes aguardando",
     details: [],

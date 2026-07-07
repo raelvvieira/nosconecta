@@ -67,6 +67,7 @@ export function Sidebar() {
   const inAgenda = useMemo(() => AGENDA_PATHS.has(pathname), [pathname]);
   const inPatients = useMemo(() => isPatientsPath(pathname), [pathname]);
   const inSettings = useMemo(() => isSettingsPath(pathname), [pathname]);
+  const inInicio = useMemo(() => pathname === "/inicio", [pathname]);
 
   type SidebarView = "modules" | "financeiro" | "agenda";
   const [view, setView] = useState<SidebarView>(
@@ -75,10 +76,10 @@ export function Sidebar() {
 
   // Switch view automatically when the route changes
   useEffect(() => {
-    if (inPatients || inSettings) setView("modules");
+    if (inPatients || inSettings || inInicio) setView("modules");
     else if (inFinance) setView("financeiro");
     else if (inAgenda) setView("agenda");
-  }, [inFinance, inAgenda, inPatients, inSettings]);
+  }, [inFinance, inAgenda, inPatients, inSettings, inInicio]);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -136,9 +137,10 @@ export function Sidebar() {
   const modules: {
     label: string;
     icon: LucideIcon;
-    to: "/agenda" | "/pacientes" | "/configuracoes" | "/";
+    to: "/inicio" | "/agenda" | "/pacientes" | "/configuracoes" | "/";
     disabled?: boolean;
   }[] = [
+    { label: "Início", icon: Home, to: "/inicio" },
     { label: "Agenda", icon: Calendar, to: "/agenda" },
     { label: "Pacientes", icon: Users, to: "/pacientes" },
     { label: "Financeiro", icon: Wallet, to: "/" },
