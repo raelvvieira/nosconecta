@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -91,13 +91,7 @@ export interface PlanningOverview {
 
 /* ---------- Helpers ---------- */
 
-function sb() {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false, storage: undefined } },
-  );
-}
+type Supabase = SupabaseClient<Database>;
 
 const MONTHS_PT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -135,8 +129,7 @@ function scenarioBaseValue(s: { monthly_cost: number; monthly_revenue: number; o
   return parts.join(" · ") || "—";
 }
 
-async function fetchCompanyData(companyId: string) {
-  const supabase = sb();
+async function fetchCompanyData(supabase: Supabase, companyId: string) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const horizonEnd = addDays(today, 180);
   const past90 = addDays(today, -90);
@@ -185,8 +178,8 @@ const inputCompany = (input: { companyId?: string }) => ({ companyId: input?.com
 export const getPlanningSummary = createServerFn({ method: "GET" })
   .inputValidator(inputCompany)
   .middleware([requireSupabaseAuth])
-  .handler(async ({ data }): Promise<PlanningSummary> => {
-    const { today, currentBalance, pending, paid } = await fetchCompanyData(data.companyId);
+  .handler(async ({ data, context }): Promise<PlanningSummary> => {
+    const { today, currentBalance, pending, paid } = await fetchCompanyData(context.supabase, data.companyId);
     const horizon30 = addDays(today, 30);
     const horizon90 = addDays(today, 90);
 
@@ -221,7 +214,7 @@ export const getCashProjection = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }): Promise<ProjectionPoint[]> => {
     const supabase = context.supabase;
-    const { today, currentBalance, pending } = await fetchCompanyData(data.companyId);
+    const { today, currentBalance, pending } = await fetchCompanyData(supabase, data.companyId);
     const back = 14;
 
     // history: paid transactions over last 14 days for actual line
@@ -311,8 +304,8 @@ export const getCashProjection = createServerFn({ method: "GET" })
 export const getForecastSummary = createServerFn({ method: "GET" })
   .inputValidator(inputCompany)
   .middleware([requireSupabaseAuth])
-  .handler(async ({ data }): Promise<ForecastSummary> => {
-    const { today, pending } = await fetchCompanyData(data.companyId);
+  .handler(async ({ data, context }): Promise<ForecastSummary> => {
+    const { today, pending } = await fetchCompanyData(context.supabase, data.companyId);
     const horizon = addDays(today, 90);
     const expectedReceivables = pending.filter(p => p.type === "receivable" && new Date(p.due_date) <= horizon).reduce((s, p) => s + p.amount, 0);
     const expectedPayables = pending.filter(p => p.type === "payable" && new Date(p.due_date) <= horizon).reduce((s, p) => s + p.amount, 0);
@@ -325,8 +318,8 @@ export const getFinancialTimeline = createServerFn({ method: "GET" })
     limit: input?.limit ?? 7,
   }))
   .middleware([requireSupabaseAuth])
-  .handler(async ({ data }): Promise<TimelineEvent[]> => {
-    const { currentBalance, pending } = await fetchCompanyData(data.companyId);
+  .handler(async ({ data, context }): Promise<TimelineEvent[]> => {
+    const { currentBalance, pending } = await fetchCompanyData(context.supabase, data.companyId);
     const sorted = [...pending].sort((a, b) => a.due_date.localeCompare(b.due_date));
     let bal = currentBalance;
     const events: TimelineEvent[] = sorted.slice(0, data.limit).map(p => {
@@ -427,9 +420,9 @@ export const createScenario = createServerFn({ method: "POST" })
     monthly_revenue: input.monthly_revenue ?? 0,
     one_time_cost: input.one_time_cost ?? 0,
   }))
-  .handler(async ({ data }) => {
-    const supabase = sb();
-    const { error } = await supabase.from("financial_scenarios").insert({
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("financial_scenarios").insert({
       company_id: data.companyId,
       name: data.name,
       scenario_type: data.scenario_type,
@@ -444,9 +437,9 @@ export const createScenario = createServerFn({ method: "POST" })
 
 export const deleteScenario = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
-  .handler(async ({ data }) => {
-    const supabase = sb();
-    const { error } = await supabase.from("financial_scenarios").delete().eq("id", data.id);
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("financial_scenarios").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -463,8 +456,9 @@ export const simulateScenario = createServerFn({ method: "POST" })
     one_time_cost: input.one_time_cost ?? 0,
     period: (input.period ?? 90) as RangeDays,
   }))
-  .handler(async ({ data }) => {
-    const { today, currentBalance, pending } = await fetchCompanyData(data.companyId);
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const { today, currentBalance, pending } = await fetchCompanyData(context.supabase, data.companyId);
     const horizon = addDays(today, data.period);
     const inAmt = pending.filter(p => p.type === "receivable" && new Date(p.due_date) <= horizon).reduce((s, p) => s + p.amount, 0);
     const outAmt = pending.filter(p => p.type === "payable" && new Date(p.due_date) <= horizon).reduce((s, p) => s + p.amount, 0);
@@ -487,8 +481,7 @@ const INSIGHT_POOL: Insight[] = [
   { id: "p8", tone: "warning", icon: "alert", text: "Custos fixos representam grande parte da despesa mensal." },
 ];
 
-async function computeInsights(companyId: string): Promise<Insight[]> {
-  const supabase = sb();
+async function computeInsights(supabase: Supabase, companyId: string): Promise<Insight[]> {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
   const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
@@ -543,7 +536,7 @@ async function computeInsights(companyId: string): Promise<Insight[]> {
 export const getInsights = createServerFn({ method: "GET" })
   .inputValidator(inputCompany)
   .middleware([requireSupabaseAuth])
-  .handler(async ({ data }) => computeInsights(data.companyId));
+  .handler(async ({ data, context }) => computeInsights(context.supabase, data.companyId));
 
 export const generateMoreInsights = createServerFn({ method: "POST" })
   .inputValidator((input: { excludeIds?: string[] }) => ({ excludeIds: input?.excludeIds ?? [] }))

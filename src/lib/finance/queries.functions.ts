@@ -154,8 +154,8 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
     }),
   )
   .middleware([requireSupabaseAuth])
-  .handler(async ({ data }): Promise<OverviewData> => {
-    const supabase = getServerSupabase();
+  .handler(async ({ data, context }): Promise<OverviewData> => {
+    const supabase = context.supabase;
     const { companyId, period, granularity, from, to } = data;
     const range = periodToRange(period, from, to);
     const prev = previousRange(range);
