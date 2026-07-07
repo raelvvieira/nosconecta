@@ -50,6 +50,7 @@ const overviewQueryOptions = (
   });
 
 export const Route = createFileRoute("/")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Financeiro · NÓS Conecta" },
