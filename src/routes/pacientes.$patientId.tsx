@@ -11,11 +11,13 @@ import {
   CircleDollarSign,
   ClipboardList,
   Clock3,
+  MapPin,
   MessageCircle,
   MoreHorizontal,
   ReceiptText,
   Sparkles,
   Stethoscope,
+  UserRound,
   WalletCards,
 } from "lucide-react";
 import { Sidebar } from "@/components/finance/Sidebar";
@@ -311,8 +313,58 @@ function Overview({ patient, onSchedule }: { patient: PatientDetail; onSchedule:
             </div>
           </div>
         </section>
+
+        <PersonalInfoCard patient={patient} />
       </div>
     </div>
+  );
+}
+
+function PersonalInfoCard({ patient }: { patient: PatientDetail }) {
+  const addressLine = [patient.address, patient.addressComplement].filter(Boolean).join(", ");
+  const cityLine = [patient.neighborhood, patient.city && patient.state ? `${patient.city}/${patient.state}` : patient.city]
+    .filter(Boolean)
+    .join(" · ");
+  const hasAddress = !!(addressLine || cityLine || patient.zipCode);
+  const hasGuardian = !!(patient.guardianName || patient.guardianCpf);
+  const genderLabel = patient.gender === "F" ? "Feminino" : patient.gender === "M" ? "Masculino" : null;
+
+  if (!hasAddress && !hasGuardian && !genderLabel) return null;
+
+  return (
+    <section className="surface-card p-5">
+      <div className="flex items-start gap-4">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-info-soft text-info">
+          <MapPin className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-4">
+          <p className="text-xs text-muted-foreground">Dados pessoais</p>
+
+          {genderLabel && <p className="text-sm">Sexo: {genderLabel}</p>}
+
+          {hasAddress && (
+            <div>
+              {addressLine && <p className="font-medium">{addressLine}</p>}
+              {cityLine && <p className="text-sm text-muted-foreground">{cityLine}</p>}
+              {patient.zipCode && <p className="text-sm text-muted-foreground">CEP {patient.zipCode}</p>}
+            </div>
+          )}
+
+          {hasGuardian && (
+            <div className="flex items-start gap-3 border-t border-border pt-3">
+              <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Responsável</p>
+                {patient.guardianName && <p className="font-medium">{patient.guardianName}</p>}
+                {patient.guardianCpf && (
+                  <p className="text-sm text-muted-foreground">CPF {patient.guardianCpf}</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 

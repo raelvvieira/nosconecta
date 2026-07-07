@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import type {
   Appointment,
   AppointmentStatus,
@@ -181,12 +182,11 @@ export function AppointmentDrawer({
               <Label htmlFor="patient" className="text-sm text-[#374151]">
                 Nome do paciente *
               </Label>
-              <Input
-                id="patient"
-                placeholder="Nome completo"
-                value={form.patientName}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, patientId: undefined, patientName: e.target.value }))
+              <PatientCombobox
+                value={form.patientName ?? ""}
+                patientId={form.patientId}
+                onChange={({ id, name }) =>
+                  setForm((f) => ({ ...f, patientId: id, patientName: name }))
                 }
                 className="rounded-xl border-[#EEF2F7]"
               />

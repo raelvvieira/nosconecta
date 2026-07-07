@@ -24,6 +24,7 @@ import {
 import {
   createPatient,
   updatePatient,
+  type PatientGender,
   type PatientStatus,
   type PatientSummary,
 } from "@/lib/patients/patients.functions";
@@ -43,6 +44,15 @@ const EMPTY = {
   status: "active" as PatientStatus,
   allergyNotes: "",
   notes: "",
+  gender: "" as PatientGender | "",
+  neighborhood: "",
+  zipCode: "",
+  city: "",
+  address: "",
+  state: "",
+  addressComplement: "",
+  guardianName: "",
+  guardianCpf: "",
 };
 
 export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props) {
@@ -62,6 +72,15 @@ export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props
             status: patient.status,
             allergyNotes: patient.allergyNotes ?? "",
             notes: patient.notes ?? "",
+            gender: patient.gender ?? "",
+            neighborhood: patient.neighborhood ?? "",
+            zipCode: patient.zipCode ?? "",
+            city: patient.city ?? "",
+            address: patient.address ?? "",
+            state: patient.state ?? "",
+            addressComplement: patient.addressComplement ?? "",
+            guardianName: patient.guardianName ?? "",
+            guardianCpf: patient.guardianCpf ?? "",
           }
         : EMPTY,
     );
@@ -181,6 +200,138 @@ export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props
                     <SelectItem value="inactive">Inativo</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Sexo</Label>
+              <Select
+                value={form.gender || "unset"}
+                onValueChange={(gender) =>
+                  setForm((current) => ({
+                    ...current,
+                    gender: gender === "unset" ? "" : (gender as PatientGender),
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Não informado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unset">Não informado</SelectItem>
+                  <SelectItem value="F">Feminino</SelectItem>
+                  <SelectItem value="M">Masculino</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Endereço
+            </p>
+            <div className="grid gap-4 sm:grid-cols-[140px_1fr]">
+              <div className="space-y-2">
+                <Label htmlFor="patient-zip">CEP</Label>
+                <Input
+                  id="patient-zip"
+                  value={form.zipCode}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, zipCode: event.target.value }))
+                  }
+                  placeholder="00000-000"
+                  inputMode="numeric"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="patient-address">Endereço</Label>
+                <Input
+                  id="patient-address"
+                  value={form.address}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, address: event.target.value }))
+                  }
+                  placeholder="Rua, número"
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="patient-complement">Complemento</Label>
+                <Input
+                  id="patient-complement"
+                  value={form.addressComplement}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, addressComplement: event.target.value }))
+                  }
+                  placeholder="Apto, bloco..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="patient-neighborhood">Bairro</Label>
+                <Input
+                  id="patient-neighborhood"
+                  value={form.neighborhood}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, neighborhood: event.target.value }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-[1fr_90px]">
+              <div className="space-y-2">
+                <Label htmlFor="patient-city">Cidade</Label>
+                <Input
+                  id="patient-city"
+                  value={form.city}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, city: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="patient-state">UF</Label>
+                <Input
+                  id="patient-state"
+                  value={form.state}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      state: event.target.value.toUpperCase().slice(0, 2),
+                    }))
+                  }
+                  placeholder="RS"
+                  maxLength={2}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Responsável (se paciente menor de idade)
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="patient-guardian-name">Nome do responsável</Label>
+                <Input
+                  id="patient-guardian-name"
+                  value={form.guardianName}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, guardianName: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="patient-guardian-cpf">CPF do responsável</Label>
+                <Input
+                  id="patient-guardian-cpf"
+                  value={form.guardianCpf}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, guardianCpf: event.target.value }))
+                  }
+                  placeholder="000.000.000-00"
+                  inputMode="numeric"
+                />
               </div>
             </div>
           </section>

@@ -15,6 +15,8 @@ export interface PatientAppointment {
   status: string;
 }
 
+export type PatientGender = "M" | "F";
+
 export interface PatientSummary {
   id: string;
   name: string;
@@ -26,6 +28,16 @@ export interface PatientSummary {
   status: PatientStatus;
   allergyNotes: string | null;
   notes: string | null;
+  gender: PatientGender | null;
+  neighborhood: string | null;
+  zipCode: string | null;
+  city: string | null;
+  address: string | null;
+  state: string | null;
+  addressComplement: string | null;
+  guardianName: string | null;
+  guardianCpf: string | null;
+  legacyPatientId: string | null;
   nextAppointment: PatientAppointment | null;
   lastAppointment: PatientAppointment | null;
   overdueAmount: number;
@@ -127,6 +139,16 @@ function buildSummary(row: any, transactions: any[]): PatientSummary {
     status: effectiveStatus(row, overdueAmount),
     allergyNotes: row.allergy_notes ?? null,
     notes: row.notes ?? null,
+    gender: row.gender ?? null,
+    neighborhood: row.neighborhood ?? null,
+    zipCode: row.zip_code ?? null,
+    city: row.city ?? null,
+    address: row.address ?? null,
+    state: row.state ?? null,
+    addressComplement: row.address_complement ?? null,
+    guardianName: row.guardian_name ?? null,
+    guardianCpf: row.guardian_cpf ?? null,
+    legacyPatientId: row.legacy_patient_id ?? null,
     nextAppointment: null,
     lastAppointment: null,
     overdueAmount,
@@ -225,6 +247,15 @@ const patientInput = (input: {
   status?: PatientStatus;
   allergyNotes?: string;
   notes?: string;
+  gender?: PatientGender | "";
+  neighborhood?: string;
+  zipCode?: string;
+  city?: string;
+  address?: string;
+  state?: string;
+  addressComplement?: string;
+  guardianName?: string;
+  guardianCpf?: string;
 }) => ({
   id: input.id,
   name: input.name.trim(),
@@ -234,6 +265,15 @@ const patientInput = (input: {
   status: input.status ?? "active",
   allergyNotes: input.allergyNotes?.trim() || null,
   notes: input.notes?.trim() || null,
+  gender: (input.gender || null) as PatientGender | null,
+  neighborhood: input.neighborhood?.trim() || null,
+  zipCode: input.zipCode?.trim() || null,
+  city: input.city?.trim() || null,
+  address: input.address?.trim() || null,
+  state: input.state?.trim() || null,
+  addressComplement: input.addressComplement?.trim() || null,
+  guardianName: input.guardianName?.trim() || null,
+  guardianCpf: input.guardianCpf?.trim() || null,
 });
 
 export const createPatient = createServerFn({ method: "POST" })
@@ -253,6 +293,15 @@ export const createPatient = createServerFn({ method: "POST" })
         status: data.status,
         allergy_notes: data.allergyNotes,
         notes: data.notes,
+        gender: data.gender,
+        neighborhood: data.neighborhood,
+        zip_code: data.zipCode,
+        city: data.city,
+        address: data.address,
+        state: data.state,
+        address_complement: data.addressComplement,
+        guardian_name: data.guardianName,
+        guardian_cpf: data.guardianCpf,
       })
       .select("id")
       .single();
@@ -276,11 +325,49 @@ export const updatePatient = createServerFn({ method: "POST" })
         status: data.status,
         allergy_notes: data.allergyNotes,
         notes: data.notes,
+        gender: data.gender,
+        neighborhood: data.neighborhood,
+        zip_code: data.zipCode,
+        city: data.city,
+        address: data.address,
+        state: data.state,
+        address_complement: data.addressComplement,
+        guardian_name: data.guardianName,
+        guardian_cpf: data.guardianCpf,
       })
       .eq("id", data.id)
       .eq("owner_id", context.userId);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+export interface PatientSearchResult {
+  id: string;
+  name: string;
+  phone: string | null;
+}
+
+export const searchPatients = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { q?: string } | undefined) => ({
+    q: input?.q?.trim().toLocaleLowerCase("pt-BR") ?? "",
+  }))
+  .handler(async ({ data, context }): Promise<PatientSearchResult[]> => {
+    const supabase: any = context.supabase;
+    let query = supabase
+      .from("patients")
+      .select("id,name,phone")
+      .eq("owner_id", context.userId)
+      .order("name")
+      .limit(20);
+    if (data.q) query = query.ilike("name", `%${data.q}%`);
+    const { data: rows, error } = await query;
+    if (error) throw new Error(error.message);
+    return (rows ?? []).map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      phone: row.phone ?? null,
+    }));
   });
 
 export const deletePatient = createServerFn({ method: "POST" })
