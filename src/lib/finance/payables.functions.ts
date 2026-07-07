@@ -122,7 +122,7 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
     const prev = previousRange(range.from, range.to);
     const today = todayStr();
 
-    // Base query for the list — by paid_date or due_date within range
+    // Base query for the list — by due_date within range
     let listQuery = supabase
       .from("financial_transactions")
       .select(
@@ -131,7 +131,8 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
       )
       .eq("company_id", data.companyId)
       .eq("type", "payable")
-      .or(`and(gte(paid_date,"${range.from}"),lte(paid_date,"${range.to}")),and(gte(due_date,"${range.from}"),lte(due_date,"${range.to}"))`)
+      .gte("due_date", range.from)
+      .lte("due_date", range.to)
       .order("due_date", { ascending: false });
 
     if (data.category) listQuery = listQuery.eq("category_id", data.category);
@@ -168,7 +169,7 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
       supabase.from("financial_transactions")
         .select("amount, category_id, financial_categories(name)")
         .eq("company_id", data.companyId).eq("type", "payable").neq("status", "cancelled")
-        .or(`and(gte(paid_date,"${range.from}"),lte(paid_date,"${range.to}")),and(gte(due_date,"${range.from}"),lte(due_date,"${range.to}"))`),
+        .gte("due_date", range.from).lte("due_date", range.to),
       supabase.from("financial_transactions")
         .select("id, description, amount, due_date")
         .eq("company_id", data.companyId).eq("type", "payable").eq("status", "pending")
