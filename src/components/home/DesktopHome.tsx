@@ -85,80 +85,78 @@ export function DesktopHome({
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
-        <section className="surface-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Próximos atendimentos</h2>
-            <Link to="/agenda" className="text-sm font-semibold text-primary">
-              Ver todos
-            </Link>
-          </div>
-          <div className="divide-y divide-border">
-            {appointments.map((appt, i) => (
-              <div key={i} className="flex items-center gap-3 py-3">
-                <div className="w-16 shrink-0 text-sm font-semibold tabular-nums">{appt.time}</div>
-                <div
-                  className="h-10 w-10 shrink-0 rounded-full grid place-items-center text-xs font-bold"
-                  style={{ background: appt.avatarBg, color: appt.accentColor }}
-                >
-                  {appt.initials}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{appt.patient}</p>
-                  <p className="text-xs text-muted-foreground truncate">{appt.procedure}</p>
-                </div>
-                <span
-                  className="text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0"
-                  style={{
-                    background: appt.status === "Confirmado" ? "rgba(34,197,94,0.12)" : "rgba(249,115,22,0.12)",
-                    color: appt.status === "Confirmado" ? "#16A34A" : "#F97316",
-                  }}
-                >
-                  {appt.status}
-                </span>
+      <section className="surface-card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Próximos atendimentos</h2>
+          <Link to="/agenda" className="text-sm font-semibold text-primary">
+            Ver todos
+          </Link>
+        </div>
+        <div className="divide-y divide-border">
+          {appointments.map((appt, i) => (
+            <div key={i} className="flex items-center gap-3 py-3">
+              <div className="w-16 shrink-0 text-sm font-semibold tabular-nums">{appt.time}</div>
+              <div
+                className="h-10 w-10 shrink-0 rounded-full grid place-items-center text-xs font-bold"
+                style={{ background: appt.avatarBg, color: appt.accentColor }}
+              >
+                {appt.initials}
               </div>
-            ))}
-          </div>
-        </section>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{appt.patient}</p>
+                <p className="text-xs text-muted-foreground truncate">{appt.procedure}</p>
+              </div>
+              <span
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0"
+                style={{
+                  background: appt.status === "Confirmado" ? "rgba(34,197,94,0.12)" : "rgba(249,115,22,0.12)",
+                  color: appt.status === "Confirmado" ? "#16A34A" : "#F97316",
+                }}
+              >
+                {appt.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
 
-        <section className="surface-card p-6">
-          <h2 className="text-lg font-semibold mb-4">Ações rápidas</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              variant="premium"
-              className="h-auto flex-col items-start gap-2 py-4"
-              onClick={() => navigate({ to: "/agenda" })}
-            >
-              <CalendarDays className="h-5 w-5" />
-              <span className="text-sm font-semibold">Novo agendamento</span>
-            </Button>
-            <Button
-              variant="secondary"
-              className="h-auto flex-col items-start gap-2 py-4"
-              onClick={() => navigate({ to: "/pacientes", search: { status: "all" } })}
-            >
-              <UserPlus className="h-5 w-5" />
-              <span className="text-sm font-semibold">Novo paciente</span>
-            </Button>
-            <Button
-              variant="secondary"
-              className="h-auto flex-col items-start gap-2 py-4"
-              onClick={() => navigate({ to: "/recebimentos" })}
-            >
-              <ArrowDownCircle className="h-5 w-5" />
-              <span className="text-sm font-semibold">Registrar recebimento</span>
-            </Button>
-            <Button
-              variant="secondary"
-              className="h-auto flex-col items-start gap-2 py-4"
-              onClick={() => navigate({ to: "/pagamentos" })}
-            >
-              <CreditCard className="h-5 w-5" />
-              <span className="text-sm font-semibold">Novo pagamento</span>
-            </Button>
-          </div>
-        </section>
-      </div>
+      <section className="surface-card p-6">
+        <h2 className="text-lg font-semibold mb-4">Ações rápidas</h2>
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+          <Button
+            variant="premium"
+            className="h-auto flex-row items-center justify-start gap-3 px-4 py-4"
+            onClick={() => navigate({ to: "/agenda" })}
+          >
+            <CalendarDays className="h-5 w-5 shrink-0" />
+            <span className="text-sm font-semibold whitespace-normal text-left">Novo agendamento</span>
+          </Button>
+          <Button
+            variant="secondary"
+            className="h-auto flex-row items-center justify-start gap-3 px-4 py-4"
+            onClick={() => navigate({ to: "/pacientes", search: { status: "all" } })}
+          >
+            <UserPlus className="h-5 w-5 shrink-0" />
+            <span className="text-sm font-semibold whitespace-normal text-left">Novo paciente</span>
+          </Button>
+          <Button
+            variant="secondary"
+            className="h-auto flex-row items-center justify-start gap-3 px-4 py-4"
+            onClick={() => navigate({ to: "/recebimentos" })}
+          >
+            <ArrowDownCircle className="h-5 w-5 shrink-0" />
+            <span className="text-sm font-semibold whitespace-normal text-left">Registrar recebimento</span>
+          </Button>
+          <Button
+            variant="secondary"
+            className="h-auto flex-row items-center justify-start gap-3 px-4 py-4"
+            onClick={() => navigate({ to: "/pagamentos" })}
+          >
+            <CreditCard className="h-5 w-5 shrink-0" />
+            <span className="text-sm font-semibold whitespace-normal text-left">Novo pagamento</span>
+          </Button>
+        </div>
+      </section>
 
       <section className="surface-card p-6">
         <h2 className="text-lg font-semibold mb-4">Precisa de atenção</h2>
