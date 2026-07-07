@@ -60,6 +60,7 @@ const settingsQuery = (fetcher: SettingsFetcher) =>
   queryOptions({ queryKey: ["settings"], queryFn: () => fetcher(), staleTime: 15_000 });
 
 export const Route = createFileRoute("/configuracoes")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Configurações · NÓS Conecta" },

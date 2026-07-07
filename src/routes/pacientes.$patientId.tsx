@@ -40,6 +40,7 @@ const detailQuery = (fetcher: DetailFetcher, patientId: string) =>
   });
 
 export const Route = createFileRoute("/pacientes/$patientId")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Paciente · NÓS Conecta" },

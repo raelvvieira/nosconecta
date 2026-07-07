@@ -128,6 +128,7 @@ const overviewOpts = (fetcher: (args: { data: any }) => Promise<ReceivablesOverv
   });
 
 export const Route = createFileRoute("/recebimentos")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Recebimentos · NÓS Conecta" },

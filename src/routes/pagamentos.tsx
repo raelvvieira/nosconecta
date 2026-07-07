@@ -85,6 +85,7 @@ const overviewOpts = (fetcher: (args: { data: any }) => Promise<PayablesOverview
   });
 
 export const Route = createFileRoute("/pagamentos")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Pagamentos · NÓS Conecta" },

@@ -19,6 +19,7 @@ const homeOverviewOptions = (
   });
 
 export const Route = createFileRoute("/inicio")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Início · NÓS Conecta" },

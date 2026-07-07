@@ -54,6 +54,7 @@ const overviewOpts = (
   });
 
 export const Route = createFileRoute("/planejamento")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Planejamento Financeiro · NÓS Conecta" },
