@@ -460,52 +460,82 @@ export type Database = {
       }
       patients: {
         Row: {
+          address: string | null
+          address_complement: string | null
           allergy_notes: string | null
           birth_date: string | null
+          city: string | null
           company_id: string | null
           cpf: string | null
           created_at: string
           email: string | null
+          gender: string | null
+          guardian_cpf: string | null
+          guardian_name: string | null
           id: string
+          legacy_patient_id: string | null
           name: string
+          neighborhood: string | null
           notes: string | null
           owner_id: string | null
           phone: string | null
           responsible_professional_id: string | null
+          state: string | null
           status: string
           updated_at: string
+          zip_code: string | null
         }
         Insert: {
+          address?: string | null
+          address_complement?: string | null
           allergy_notes?: string | null
           birth_date?: string | null
+          city?: string | null
           company_id?: string | null
           cpf?: string | null
           created_at?: string
           email?: string | null
+          gender?: string | null
+          guardian_cpf?: string | null
+          guardian_name?: string | null
           id?: string
+          legacy_patient_id?: string | null
           name: string
+          neighborhood?: string | null
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
           responsible_professional_id?: string | null
+          state?: string | null
           status?: string
           updated_at?: string
+          zip_code?: string | null
         }
         Update: {
+          address?: string | null
+          address_complement?: string | null
           allergy_notes?: string | null
           birth_date?: string | null
+          city?: string | null
           company_id?: string | null
           cpf?: string | null
           created_at?: string
           email?: string | null
+          gender?: string | null
+          guardian_cpf?: string | null
+          guardian_name?: string | null
           id?: string
+          legacy_patient_id?: string | null
           name?: string
+          neighborhood?: string | null
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
           responsible_professional_id?: string | null
+          state?: string | null
           status?: string
           updated_at?: string
+          zip_code?: string | null
         }
         Relationships: []
       }
