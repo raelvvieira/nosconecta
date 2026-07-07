@@ -11,6 +11,7 @@ import {
   Filter,
   MoreHorizontal,
   Check,
+  Pencil,
   Trash2,
   ArrowUpRight,
   ArrowDownRight,
@@ -26,6 +27,7 @@ import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { DateRangePicker } from "@/components/finance/DateRangePicker";
 import { NewPaymentSheet } from "@/components/finance/payables/NewPaymentSheet";
+import { EditPaymentSheet } from "@/components/finance/payables/EditPaymentSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -59,6 +61,7 @@ import {
   deletePayable,
   type PayablesOverview,
   type PayableStatus,
+  type PayableRow,
 } from "@/lib/finance/payables.functions";
 import { formatBRL } from "@/lib/finance/format";
 
@@ -145,6 +148,7 @@ function PagamentosPage() {
 
   const { data } = useSuspenseQuery(overviewOpts(fetchOverview as any, search));
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [editing, setEditing] = useState<PayableRow | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [qLocal, setQLocal] = useState(search.q ?? "");
 
@@ -443,6 +447,9 @@ function PagamentosPage() {
                                   <Check className="h-4 w-4 mr-2" /> Marcar como pago
                                 </DropdownMenuItem>
                               )}
+                              <DropdownMenuItem onClick={() => setEditing(t)}>
+                                <Pencil className="h-4 w-4 mr-2" /> Editar
+                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-danger"
                                 onClick={() => deleteMutation.mutate(t.id)}
@@ -521,6 +528,18 @@ function PagamentosPage() {
         accounts={data.accounts}
         suppliers={data.suppliers}
         onCreated={invalidate}
+        onCategoriesChanged={invalidate}
+        onAccountsChanged={invalidate}
+      />
+
+      <EditPaymentSheet
+        open={!!editing}
+        payment={editing}
+        onOpenChange={(o) => !o && setEditing(null)}
+        categories={data.categories}
+        accounts={data.accounts}
+        suppliers={data.suppliers}
+        onSaved={invalidate}
         onCategoriesChanged={invalidate}
         onAccountsChanged={invalidate}
       />

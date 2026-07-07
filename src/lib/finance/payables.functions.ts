@@ -24,6 +24,7 @@ export interface PayableRow {
   installment_total: number | null;
   is_recurring: boolean;
   recurrence_type: string | null;
+  notes: string | null;
 }
 
 export interface PayablesOverview {
@@ -122,18 +123,22 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
     const prev = previousRange(range.from, range.to);
     const today = todayStr();
 
-    // Base query for the list — by due_date within range
+    // Base query for the list. When the user picked an explicit period, filter
+    // and sort by due_date within it; otherwise show everything, most recently
+    // added first (created_at desc), unconstrained by the KPI date range.
+    const hasExplicitRange = !!(data.from && data.to);
     let listQuery = supabase
       .from("financial_transactions")
       .select(
-        "id, description, amount, due_date, paid_date, status, payment_method, supplier_name, category_id, account_id, installment_number, installment_total, is_recurring, recurrence_type, financial_categories(name), financial_accounts(name,type,last_digits)",
+        "id, description, amount, due_date, paid_date, status, payment_method, supplier_name, category_id, account_id, installment_number, installment_total, is_recurring, recurrence_type, notes, financial_categories(name), financial_accounts(name,type,last_digits)",
         { count: "exact" },
       )
       .eq("company_id", data.companyId)
-      .eq("type", "payable")
-      .gte("due_date", range.from)
-      .lte("due_date", range.to)
-      .order("due_date", { ascending: false });
+      .eq("type", "payable");
+
+    listQuery = hasExplicitRange
+      ? listQuery.gte("due_date", range.from).lte("due_date", range.to).order("due_date", { ascending: false })
+      : listQuery.order("created_at", { ascending: false });
 
     if (data.category) listQuery = listQuery.eq("category_id", data.category);
     if (data.account) listQuery = listQuery.eq("account_id", data.account);
@@ -263,6 +268,7 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
         installment_total: t.installment_total,
         is_recurring: t.is_recurring,
         recurrence_type: t.recurrence_type,
+        notes: t.notes,
       };
     });
 
@@ -484,6 +490,63 @@ export const createPayable = createServerFn({ method: "POST" })
       .from("financial_transactions").insert(row).select("id").single();
     if (error) throw error;
     return { id: inserted.id, count: 1 };
+  });
+
+export const updatePayable = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input: {
+      id: string;
+      description: string;
+      amount: number;
+      due_date: string;
+      category_id?: string | null;
+      account_id?: string | null;
+      supplier_name?: string | null;
+      payment_method?: string | null;
+      notes?: string | null;
+      status: "pending" | "paid" | "overdue" | "cancelled";
+      paid_date?: string | null;
+    }) => {
+      if (!input.id) throw new Error("Pagamento inválido");
+      if (!input.description?.trim()) throw new Error("Descrição obrigatória");
+      if (!(input.amount > 0)) throw new Error("Valor deve ser maior que zero");
+      if (!input.due_date) throw new Error("Vencimento obrigatório");
+      return {
+        id: input.id,
+        description: input.description.trim(),
+        amount: input.amount,
+        due_date: input.due_date,
+        category_id: input.category_id ?? null,
+        account_id: input.account_id ?? null,
+        supplier_name: input.supplier_name?.trim() || null,
+        payment_method: input.payment_method ?? null,
+        notes: input.notes?.trim() || null,
+        status: input.status,
+        paid_date: input.status === "paid" ? input.paid_date || todayStr() : null,
+      };
+    },
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase;
+    const { error } = await supabase
+      .from("financial_transactions")
+      .update({
+        description: data.description,
+        amount: data.amount,
+        due_date: data.due_date,
+        category_id: data.category_id,
+        account_id: data.account_id,
+        supplier_name: data.supplier_name,
+        payment_method: data.payment_method,
+        notes: data.notes,
+        status: data.status as any,
+        paid_date: data.paid_date,
+      })
+      .eq("id", data.id)
+      .eq("type", "payable");
+    if (error) throw error;
+    return { ok: true };
   });
 
 export const markPayablePaid = createServerFn({ method: "POST" })
