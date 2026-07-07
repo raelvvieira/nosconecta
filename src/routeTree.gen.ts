@@ -13,6 +13,7 @@ import { Route as RecebimentosRouteImport } from './routes/recebimentos'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
 import { Route as PagamentosRouteImport } from './routes/pagamentos'
 import { Route as PacientesRouteImport } from './routes/pacientes'
+import { Route as InicioRouteImport } from './routes/inicio'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AgendaRouteImport } from './routes/agenda'
@@ -38,6 +39,11 @@ const PagamentosRoute = PagamentosRouteImport.update({
 const PacientesRoute = PacientesRouteImport.update({
   id: '/pacientes',
   path: '/pacientes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InicioRoute = InicioRouteImport.update({
+  id: '/inicio',
+  path: '/inicio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
@@ -76,6 +82,7 @@ export interface FileRoutesByFullPath {
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
   '/configuracoes': typeof ConfiguracoesRoute
+  '/inicio': typeof InicioRoute
   '/pacientes': typeof PacientesRouteWithChildren
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
   '/configuracoes': typeof ConfiguracoesRoute
+  '/inicio': typeof InicioRoute
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
   '/configuracoes': typeof ConfiguracoesRoute
+  '/inicio': typeof InicioRoute
   '/pacientes': typeof PacientesRouteWithChildren
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/auth'
     | '/configuracoes'
+    | '/inicio'
     | '/pacientes'
     | '/pagamentos'
     | '/planejamento'
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/auth'
     | '/configuracoes'
+    | '/inicio'
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/auth'
     | '/configuracoes'
+    | '/inicio'
     | '/pacientes'
     | '/pagamentos'
     | '/planejamento'
@@ -150,6 +162,7 @@ export interface RootRouteChildren {
   AgendaRoute: typeof AgendaRoute
   AuthRoute: typeof AuthRoute
   ConfiguracoesRoute: typeof ConfiguracoesRoute
+  InicioRoute: typeof InicioRoute
   PacientesRoute: typeof PacientesRouteWithChildren
   PagamentosRoute: typeof PagamentosRoute
   PlanejamentoRoute: typeof PlanejamentoRoute
@@ -184,6 +197,13 @@ declare module '@tanstack/react-router' {
       path: '/pacientes'
       fullPath: '/pacientes'
       preLoaderRoute: typeof PacientesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inicio': {
+      id: '/inicio'
+      path: '/inicio'
+      fullPath: '/inicio'
+      preLoaderRoute: typeof InicioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/configuracoes': {
@@ -250,6 +270,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgendaRoute: AgendaRoute,
   AuthRoute: AuthRoute,
   ConfiguracoesRoute: ConfiguracoesRoute,
+  InicioRoute: InicioRoute,
   PacientesRoute: PacientesRouteWithChildren,
   PagamentosRoute: PagamentosRoute,
   PlanejamentoRoute: PlanejamentoRoute,
