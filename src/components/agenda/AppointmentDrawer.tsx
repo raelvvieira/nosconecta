@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
+import { Combobox } from "@/components/finance/Combobox";
 import type {
   Appointment,
   AppointmentStatus,
@@ -241,18 +242,14 @@ export function AppointmentDrawer({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="text-sm text-[#374151]">Procedimento</Label>
-                <select
-                  className="w-full text-sm border border-[#EEF2F7] rounded-xl px-3 py-2 text-[#111827] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6FA7]/30"
-                  value={form.procedureName}
-                  onChange={(e) => handleProcedure(e.target.value)}
-                >
-                  <option value="">Selecionar...</option>
-                  {procedures.map((p) => (
-                    <option key={p.id} value={p.name}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <Combobox
+                  value={form.procedureName ?? ""}
+                  onChange={handleProcedure}
+                  options={procedures.map((p) => ({ value: p.name, label: p.name }))}
+                  placeholder="Selecionar..."
+                  searchPlaceholder="Buscar procedimento..."
+                  emptyText="Nenhum procedimento encontrado"
+                />
               </div>
               <div className="space-y-2">
                 <Label className="text-sm text-[#374151]">Tipo</Label>
@@ -272,33 +269,25 @@ export function AppointmentDrawer({
               </div>
               <div className="space-y-2">
                 <Label className="text-sm text-[#374151]">Profissional</Label>
-                <select
-                  className="w-full text-sm border border-[#EEF2F7] rounded-xl px-3 py-2 text-[#111827] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6FA7]/30"
-                  value={form.professionalId}
-                  onChange={(e) => handleProfessional(e.target.value)}
-                >
-                  <option value="">Selecionar...</option>
-                  {professionals.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <Combobox
+                  value={form.professionalId ?? ""}
+                  onChange={handleProfessional}
+                  options={professionals.map((p) => ({ value: p.id, label: p.name }))}
+                  placeholder="Selecionar..."
+                  searchPlaceholder="Buscar profissional..."
+                  emptyText="Nenhum profissional encontrado"
+                />
               </div>
               <div className="space-y-2">
                 <Label className="text-sm text-[#374151]">Sala</Label>
-                <select
-                  className="w-full text-sm border border-[#EEF2F7] rounded-xl px-3 py-2 text-[#111827] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6FA7]/30"
-                  value={form.roomId}
-                  onChange={(e) => handleRoom(e.target.value)}
-                >
-                  <option value="">Selecionar...</option>
-                  {rooms.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
+                <Combobox
+                  value={form.roomId ?? ""}
+                  onChange={handleRoom}
+                  options={rooms.map((r) => ({ value: r.id, label: r.name }))}
+                  placeholder="Selecionar..."
+                  searchPlaceholder="Buscar sala..."
+                  emptyText="Nenhuma sala encontrada"
+                />
               </div>
             </div>
           </section>
