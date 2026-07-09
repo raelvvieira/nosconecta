@@ -1,9 +1,10 @@
-// Cron entry point — meant to be scheduled via Supabase's native Cron Jobs
-// (Dashboard → Edge Functions → send-appointment-reminders → Cron), which
-// authenticates the invocation for us so this function stays JWT-protected
-// like every other one (no verify_jwt override needed). It finds tomorrow's
-// and today's appointments and forwards each to send-appointment-notification
-// using the service role key from its own Edge Function environment.
+// Cron entry point, scheduled daily via pg_cron + pg_net
+// (see 20260709210000_appointment_reminders_cron.sql). The cron job
+// authenticates with the project's anon key, so this function stays
+// JWT-protected like every other one (no verify_jwt override needed). It
+// finds tomorrow's and today's appointments and forwards each to
+// send-appointment-notification using the service role key from its own
+// Edge Function environment.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
