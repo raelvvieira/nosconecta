@@ -12,7 +12,14 @@ import {
   Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Appointment, BlockedTime, AgendaFilters, AppointmentStatus } from "../types";
+import type {
+  Appointment,
+  BlockedTime,
+  AgendaFilters,
+  AppointmentStatus,
+  Professional,
+  Room,
+} from "../types";
 import { statusStyle, STATUS_LABEL } from "../appointment-utils";
 import { MobileAppointmentSheet } from "./MobileAppointmentSheet";
 import { MobileFilterSheet } from "./MobileFilterSheet";
@@ -53,6 +60,8 @@ interface Props {
   blockedTimes: BlockedTime[];
   selectedDate: Date;
   filters: AgendaFilters;
+  professionals: Professional[];
+  rooms: Room[];
   onDateChange: (d: Date) => void;
   onFiltersChange: (f: AgendaFilters) => void;
   onNewAppointment: () => void;
@@ -344,6 +353,8 @@ export function MobileAgenda({
   blockedTimes,
   selectedDate,
   filters,
+  professionals,
+  rooms,
   onDateChange,
   onFiltersChange,
   onNewAppointment,
@@ -524,6 +535,8 @@ export function MobileAgenda({
       <MobileFilterSheet
         open={filterOpen}
         filters={filters}
+        professionals={professionals}
+        rooms={rooms}
         onClose={() => setFilterOpen(false)}
         onApply={onFiltersChange}
       />

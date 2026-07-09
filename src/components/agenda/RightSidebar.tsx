@@ -1,7 +1,6 @@
 import { ChevronLeft, ChevronRight, Bell } from "lucide-react";
-import type { Appointment, AgendaFilters, WaitingListItem } from "./types";
+import type { Appointment, AgendaFilters, WaitingListItem, Professional, Room } from "./types";
 import { statusStyle, STATUS_LABEL } from "./appointment-utils";
-import { professionals, rooms } from "./mock-data";
 
 const MONTHS_PT = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -229,7 +228,17 @@ function WaitingListCard({ items }: { items: WaitingListItem[] }) {
 
 // ─── Quick Filters ───────────────────────────────────────────────────────────
 
-function QuickFiltersCard({ filters, onFiltersChange }: { filters: AgendaFilters; onFiltersChange: (f: AgendaFilters) => void }) {
+function QuickFiltersCard({
+  filters,
+  professionals,
+  rooms,
+  onFiltersChange,
+}: {
+  filters: AgendaFilters;
+  professionals: Professional[];
+  rooms: Room[];
+  onFiltersChange: (f: AgendaFilters) => void;
+}) {
   const clearAll = () =>
     onFiltersChange({ professionalId: "", roomId: "", type: "", status: "" });
 
@@ -302,6 +311,8 @@ interface RightSidebarProps {
   appointments: Appointment[];
   waitingList: WaitingListItem[];
   filters: AgendaFilters;
+  professionals: Professional[];
+  rooms: Room[];
   onDateChange: (d: Date) => void;
   onFiltersChange: (f: AgendaFilters) => void;
 }
@@ -311,6 +322,8 @@ export function RightSidebar({
   appointments,
   waitingList,
   filters,
+  professionals,
+  rooms,
   onDateChange,
   onFiltersChange,
 }: RightSidebarProps) {
@@ -319,7 +332,12 @@ export function RightSidebar({
       <MiniCalendar selected={selectedDate} appointments={appointments} onSelect={onDateChange} />
       <UpcomingAppointmentsCard appointments={appointments} selectedDate={selectedDate} />
       <WaitingListCard items={waitingList} />
-      <QuickFiltersCard filters={filters} onFiltersChange={onFiltersChange} />
+      <QuickFiltersCard
+        filters={filters}
+        professionals={professionals}
+        rooms={rooms}
+        onFiltersChange={onFiltersChange}
+      />
     </div>
   );
 }

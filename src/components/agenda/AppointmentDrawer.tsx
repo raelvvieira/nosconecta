@@ -29,6 +29,7 @@ interface Props {
   defaultDate?: string;
   defaultPatient?: { id: string; name: string } | null;
   catalog?: { professionals: Professional[]; procedures: Procedure[]; rooms: Room[] };
+  isSaving?: boolean;
   onClose: () => void;
   onSave: (data: Partial<Appointment>) => void;
 }
@@ -55,6 +56,7 @@ export function AppointmentDrawer({
   defaultDate,
   defaultPatient,
   catalog,
+  isSaving,
   onClose,
   onSave,
 }: Props) {
@@ -132,8 +134,6 @@ export function AppointmentDrawer({
       return;
     }
     onSave(form);
-    toast.success(isEdit ? "Agendamento atualizado" : "Agendamento criado");
-    onClose();
   };
 
   if (!open) return null;
@@ -379,10 +379,11 @@ export function AppointmentDrawer({
           </Button>
           <Button
             onClick={handleSave}
+            disabled={isSaving}
             className="flex-1 rounded-xl text-white font-semibold"
             style={{ background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)" }}
           >
-            {isEdit ? "Salvar alterações" : "Salvar Agendamento"}
+            {isSaving ? "Salvando..." : isEdit ? "Salvar alterações" : "Salvar Agendamento"}
           </Button>
         </div>
       </div>

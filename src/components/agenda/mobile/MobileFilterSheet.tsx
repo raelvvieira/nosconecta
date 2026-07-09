@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import type { AgendaFilters } from "../types";
-import { professionals, rooms } from "../mock-data";
+import type { AgendaFilters, Professional, Room } from "../types";
 
 interface Props {
   open: boolean;
   filters: AgendaFilters;
+  professionals: Professional[];
+  rooms: Room[];
   onClose: () => void;
   onApply: (f: AgendaFilters) => void;
 }
@@ -15,7 +16,7 @@ interface Props {
 const selectCls =
   "w-full text-sm border border-[#EEF2F7] rounded-[14px] px-3 py-3 text-[#111827] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6FA7]/30";
 
-export function MobileFilterSheet({ open, filters, onClose, onApply }: Props) {
+export function MobileFilterSheet({ open, filters, professionals, rooms, onClose, onApply }: Props) {
   const [draft, setDraft] = useState<AgendaFilters>(filters);
 
   useEffect(() => {

@@ -4,19 +4,29 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { BlockedTime } from "./types";
-import { professionals, rooms } from "./mock-data";
+import type { BlockedTime, Professional, Room } from "./types";
 
 interface Props {
   open: boolean;
   defaultDate?: string;
+  professionals: Professional[];
+  rooms: Room[];
+  isSaving?: boolean;
   onClose: () => void;
   onSave: (data: Partial<BlockedTime>) => void;
 }
 
 const REASONS = ["Almoço", "Treinamento", "Reunião", "Manutenção", "Particular", "Outro"];
 
-export function BlockedTimeDrawer({ open, defaultDate, onClose, onSave }: Props) {
+export function BlockedTimeDrawer({
+  open,
+  defaultDate,
+  professionals,
+  rooms,
+  isSaving,
+  onClose,
+  onSave,
+}: Props) {
   const [form, setForm] = useState<Partial<BlockedTime>>({
     professionalId: "",
     roomId: "",
@@ -32,8 +42,6 @@ export function BlockedTimeDrawer({ open, defaultDate, onClose, onSave }: Props)
       return;
     }
     onSave(form);
-    toast.success("Horário bloqueado");
-    onClose();
   };
 
   if (!open) return null;
@@ -124,10 +132,11 @@ export function BlockedTimeDrawer({ open, defaultDate, onClose, onSave }: Props)
           <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl">Cancelar</Button>
           <Button
             onClick={handleSave}
+            disabled={isSaving}
             className="flex-1 rounded-xl text-white"
             style={{ background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)" }}
           >
-            Bloquear
+            {isSaving ? "Salvando..." : "Bloquear"}
           </Button>
         </div>
       </div>

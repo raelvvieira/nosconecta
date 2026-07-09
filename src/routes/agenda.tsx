@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { z } from "zod";
@@ -16,14 +16,19 @@ import { MobileAgenda } from "@/components/agenda/mobile/MobileAgenda";
 import { STATUS_LABEL } from "@/components/agenda/appointment-utils";
 import type { Appointment, AgendaFilters, AppointmentStatus } from "@/components/agenda/types";
 import {
-  appointments as initialAppts,
-  blockedTimes as initialBlocked,
-  waitingList,
   professionals as fallbackProfessionals,
   rooms as fallbackRooms,
   procedures as fallbackProcedures,
 } from "@/components/agenda/mock-data";
 import { getSettings } from "@/lib/settings/settings.functions";
+import {
+  getAgendaOverview,
+  createAppointment,
+  updateAppointment,
+  updateAppointmentStatus,
+  createBlockedTime,
+  type AgendaOverview,
+} from "@/lib/agenda/agenda.functions";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 
 const agendaSearchSchema = z.object({
@@ -32,7 +37,15 @@ const agendaSearchSchema = z.object({
   newAppointment: z.boolean().optional(),
 });
 
+const agendaOverviewOpts = (fetcher: () => Promise<AgendaOverview>) =>
+  queryOptions({
+    queryKey: ["agenda-overview"],
+    queryFn: () => fetcher(),
+    staleTime: 15_000,
+  });
+
 export const Route = createFileRoute("/agenda")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Agenda · NÓS Conecta" },
@@ -40,6 +53,8 @@ export const Route = createFileRoute("/agenda")({
     ],
   }),
   validateSearch: agendaSearchSchema,
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData(agendaOverviewOpts(getAgendaOverview as any)),
   errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar a agenda" />,
   notFoundComponent: () => <ResponsiveRouteState title="Agenda não encontrada" notFound />,
   component: AgendaPage,
@@ -48,6 +63,7 @@ export const Route = createFileRoute("/agenda")({
 function AgendaPage() {
   const search = Route.useSearch();
   const router = useRouter();
+  const qc = useQueryClient();
   const fetchSettings = useServerFn(getSettings);
   const { data: settings } = useQuery({
     queryKey: ["settings"],
@@ -75,9 +91,21 @@ function AgendaPage() {
         duration: item.durationMinutes,
         price: item.price,
       })) ?? fallbackProcedures;
+
+  const fetchOverview = useServerFn(getAgendaOverview);
+  const createApptFn = useServerFn(createAppointment);
+  const updateApptFn = useServerFn(updateAppointment);
+  const updateStatusFn = useServerFn(updateAppointmentStatus);
+  const createBlockFn = useServerFn(createBlockedTime);
+
+  const { data: agenda } = useSuspenseQuery(agendaOverviewOpts(fetchOverview as any));
+  const appointments = agenda.appointments;
+  const blocked = agenda.blockedTimes;
+  const waitingList = agenda.waitingList;
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["agenda-overview"] });
+
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [appointments, setAppointments] = useState<Appointment[]>(initialAppts);
-  const [blocked, setBlocked] = useState(initialBlocked);
   const [filters, setFilters] = useState<AgendaFilters>({
     professionalId: "",
     roomId: "",
@@ -102,41 +130,73 @@ function AgendaPage() {
 
   const todayStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
 
-  const handleSaveAppt = (data: Partial<Appointment>) => {
-    if (selectedAppt) {
-      setAppointments((prev) =>
-        prev.map((a) => (a.id === selectedAppt.id ? { ...a, ...data } : a)),
-      );
-    } else {
-      const newAppt: Appointment = {
-        id: String(Date.now()),
-        patientId: data.patientId,
+  const saveApptMutation = useMutation({
+    mutationFn: async (data: Partial<Appointment>) => {
+      const payload = {
+        id: selectedAppt?.id,
+        patientId: data.patientId ?? null,
         patientName: data.patientName ?? "",
         procedureName: data.procedureName ?? "",
-        professionalId: data.professionalId ?? "",
+        professionalId: data.professionalId || null,
         professionalName: data.professionalName ?? "",
-        roomId: data.roomId ?? "",
+        roomId: data.roomId || null,
         roomName: data.roomName ?? "",
         date: data.date ?? todayStr,
         startTime: data.startTime ?? "09:00",
         endTime: data.endTime ?? "10:00",
-        status: data.status ?? "pending",
-        type: data.type ?? "consultation",
+        status: data.status,
+        type: data.type,
         expectedRevenue: data.expectedRevenue ?? 0,
-        notes: data.notes,
+        notes: data.notes ?? null,
         generateFinancial: data.generateFinancial ?? true,
       };
-      setAppointments((prev) => [...prev, newAppt]);
-    }
-    setSelectedAppt(null);
-  };
+      if (selectedAppt) {
+        await updateApptFn({ data: payload });
+      } else {
+        await createApptFn({ data: payload });
+      }
+    },
+    onSuccess: () => {
+      toast.success(selectedAppt ? "Agendamento atualizado" : "Agendamento criado");
+      invalidate();
+      setApptDrawerOpen(false);
+      setSelectedAppt(null);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erro ao salvar agendamento"),
+  });
 
-  const handleSaveBlock = (data: Partial<(typeof blocked)[number]>) => {
-    setBlocked((prev) => [
-      ...prev,
-      { id: String(Date.now()), ...data } as (typeof blocked)[number],
-    ]);
-  };
+  const saveBlockMutation = useMutation({
+    mutationFn: (data: Partial<(typeof blocked)[number]>) =>
+      createBlockFn({
+        data: {
+          professionalId: data.professionalId ?? "",
+          roomId: data.roomId || null,
+          date: data.date ?? todayStr,
+          startTime: data.startTime ?? "12:00",
+          endTime: data.endTime ?? "13:00",
+          reason: data.reason ?? null,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Horário bloqueado");
+      invalidate();
+      setBlockDrawerOpen(false);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erro ao bloquear horário"),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: AppointmentStatus }) =>
+      updateStatusFn({ data: { id, status } }),
+    onSuccess: (_r, { status }) => {
+      toast.success(`Status alterado para ${STATUS_LABEL[status]}`);
+      invalidate();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erro ao alterar status"),
+  });
+
+  const handleSaveAppt = (data: Partial<Appointment>) => saveApptMutation.mutate(data);
+  const handleSaveBlock = (data: Partial<(typeof blocked)[number]>) => saveBlockMutation.mutate(data);
 
   const handleApptClick = (appt: Appointment) => {
     setSelectedAppt(appt);
@@ -144,17 +204,12 @@ function AgendaPage() {
   };
 
   const handleStatusChange = (id: string, status: AppointmentStatus) => {
-    setAppointments((prev) =>
-      prev.map((a) => {
-        if (a.id !== id) return a;
-        // Concluir atendimento com cobrança gera recebimento previsto
-        if (status === "completed" && a.generateFinancial && a.status !== "completed") {
-          toast.success(`Recebimento previsto gerado: ${a.patientName}`);
-        }
-        return { ...a, status };
-      }),
-    );
-    toast.success(`Status alterado para ${STATUS_LABEL[status]}`);
+    // Concluir atendimento com cobrança gera recebimento previsto
+    const appt = appointments.find((a) => a.id === id);
+    if (appt && status === "completed" && appt.generateFinancial && appt.status !== "completed") {
+      toast.success(`Recebimento previsto gerado: ${appt.patientName}`);
+    }
+    statusMutation.mutate({ id, status });
   };
 
   const openNewAppointment = () => {
@@ -172,6 +227,8 @@ function AgendaPage() {
         blockedTimes={blocked}
         selectedDate={selectedDate}
         filters={filters}
+        professionals={professionals}
+        rooms={rooms}
         onDateChange={setSelectedDate}
         onFiltersChange={setFilters}
         onNewAppointment={openNewAppointment}
@@ -250,6 +307,8 @@ function AgendaPage() {
               appointments={appointments}
               waitingList={waitingList}
               filters={filters}
+              professionals={professionals}
+              rooms={rooms}
               onDateChange={setSelectedDate}
               onFiltersChange={setFilters}
             />
@@ -268,6 +327,7 @@ function AgendaPage() {
             : null
         }
         catalog={{ professionals, rooms, procedures }}
+        isSaving={saveApptMutation.isPending}
         onClose={() => {
           setApptDrawerOpen(false);
           setSelectedAppt(null);
@@ -277,6 +337,9 @@ function AgendaPage() {
       <BlockedTimeDrawer
         open={blockDrawerOpen}
         defaultDate={todayStr}
+        professionals={professionals}
+        rooms={rooms}
+        isSaving={saveBlockMutation.isPending}
         onClose={() => setBlockDrawerOpen(false)}
         onSave={handleSaveBlock}
       />
