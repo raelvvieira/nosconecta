@@ -33,6 +33,17 @@ export interface Procedure {
   price: number;
 }
 
+export type NotificationKind = "confirmation" | "reminder_day_before" | "reminder_day_of";
+export type NotificationChannel = "email" | "sms";
+export type NotificationStatus = "pending" | "sent" | "failed" | "skipped";
+
+export interface AppointmentNotification {
+  kind: NotificationKind;
+  channel: NotificationChannel;
+  status: NotificationStatus;
+  sentAt: string | null;
+}
+
 export interface Appointment {
   id: string;
   patientId?: string;
@@ -50,6 +61,7 @@ export interface Appointment {
   expectedRevenue: number;
   notes?: string;
   generateFinancial?: boolean;
+  notifications?: AppointmentNotification[];
 }
 
 export interface BlockedTime {

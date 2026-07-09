@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import type { Appointment, AppointmentStatus } from "../types";
 import { statusStyle, STATUS_LABEL, TYPE_LABEL } from "../appointment-utils";
+import { NOTIFICATION_KINDS, NotificationBadge, statusFor } from "../notification-utils";
 import { formatBRL } from "@/lib/finance/format";
 
 interface Props {
@@ -108,6 +109,22 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
             <InfoRow icon={DoorOpen} label="Sala" value={a.roomName || "—"} />
             <InfoRow icon={DollarSign} label="Valor previsto" value={formatBRL(a.expectedRevenue)} />
             {a.notes && <InfoRow icon={Pencil} label="Observações" value={a.notes} />}
+          </div>
+
+          {/* Confirmação e lembretes (Brevo) */}
+          <div
+            className="bg-white rounded-[20px] px-4 py-1 divide-y divide-[#F1F5F9]"
+            style={{ border: "1px solid #EEF2F7", boxShadow: "0 8px 24px rgba(15,23,42,0.04)" }}
+          >
+            {NOTIFICATION_KINDS.map((k) => (
+              <div key={k.value} className="flex items-center justify-between gap-2 py-2.5">
+                <span className="text-sm text-[#374151] shrink-0">{k.label}</span>
+                <div className="flex items-center gap-2">
+                  <NotificationBadge label="E-mail" status={statusFor(a.notifications, k.value, "email")} />
+                  <NotificationBadge label="SMS" status={statusFor(a.notifications, k.value, "sms")} />
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Quick actions */}

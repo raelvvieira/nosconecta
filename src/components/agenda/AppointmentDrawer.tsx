@@ -21,6 +21,7 @@ import {
   rooms as fallbackRooms,
 } from "./mock-data";
 import { STATUS_LABEL, TYPE_LABEL } from "./appointment-utils";
+import { NOTIFICATION_KINDS, NotificationBadge, statusFor } from "./notification-utils";
 import { formatBRL } from "@/lib/finance/format";
 
 interface Props {
@@ -205,6 +206,32 @@ export function AppointmentDrawer({
               />
             </div>
           </section>
+
+          {/* Confirmação e lembretes (Brevo) */}
+          {isEdit && (
+            <section className="space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+                Confirmação e Lembretes
+              </h3>
+              <div className="rounded-xl border border-[#EEF2F7] divide-y divide-[#F1F5F9]">
+                {NOTIFICATION_KINDS.map((k) => (
+                  <div key={k.value} className="flex items-center justify-between gap-2 px-3 py-2.5">
+                    <span className="text-sm text-[#374151] shrink-0">{k.label}</span>
+                    <div className="flex items-center gap-2">
+                      <NotificationBadge
+                        label="E-mail"
+                        status={statusFor(appointment?.notifications, k.value, "email")}
+                      />
+                      <NotificationBadge
+                        label="SMS"
+                        status={statusFor(appointment?.notifications, k.value, "sms")}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Dados do atendimento */}
           <section className="space-y-3">

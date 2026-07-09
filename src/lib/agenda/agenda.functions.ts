@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type {
   Appointment,
+  AppointmentNotification,
   AppointmentStatus,
   AppointmentType,
   BlockedTime,
@@ -14,7 +15,7 @@ export interface AgendaOverview {
   waitingList: WaitingListItem[];
 }
 
-function mapAppointment(row: any): Appointment {
+function mapAppointment(row: any, notifications: AppointmentNotification[]): Appointment {
   return {
     id: row.id,
     patientId: row.patient_id ?? undefined,
@@ -32,6 +33,7 @@ function mapAppointment(row: any): Appointment {
     expectedRevenue: Number(row.expected_revenue),
     notes: row.notes ?? undefined,
     generateFinancial: row.generate_financial,
+    notifications,
   };
 }
 
@@ -62,7 +64,7 @@ export const getAgendaOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<AgendaOverview> => {
     const supabase = context.supabase;
-    const [apptRes, blockRes, waitRes] = await Promise.all([
+    const [apptRes, blockRes, waitRes, notifRes] = await Promise.all([
       supabase
         .from("appointments")
         .select("*")
@@ -82,12 +84,33 @@ export const getAgendaOverview = createServerFn({ method: "GET" })
         .eq("owner_id", context.userId)
         .order("created_at", { ascending: true })
         .limit(200),
+      supabase
+        .from("appointment_notifications")
+        .select("appointment_id, kind, channel, status, sent_at")
+        .eq("owner_id", context.userId)
+        .limit(5000),
     ]);
     if (apptRes.error) throw new Error(apptRes.error.message);
     if (blockRes.error) throw new Error(blockRes.error.message);
     if (waitRes.error) throw new Error(waitRes.error.message);
+    if (notifRes.error) throw new Error(notifRes.error.message);
+
+    const notifByAppt = new Map<string, AppointmentNotification[]>();
+    for (const row of (notifRes.data ?? []) as any[]) {
+      const list = notifByAppt.get(row.appointment_id) ?? [];
+      list.push({
+        kind: row.kind,
+        channel: row.channel,
+        status: row.status,
+        sentAt: row.sent_at,
+      });
+      notifByAppt.set(row.appointment_id, list);
+    }
+
     return {
-      appointments: (apptRes.data ?? []).map(mapAppointment),
+      appointments: (apptRes.data ?? []).map((row: any) =>
+        mapAppointment(row, notifByAppt.get(row.id) ?? []),
+      ),
       blockedTimes: (blockRes.data ?? []).map(mapBlockedTime),
       waitingList: (waitRes.data ?? []).map(mapWaitingListItem),
     };
@@ -147,6 +170,8 @@ export const createAppointment = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    const { triggerAppointmentNotification } = await import("@/lib/agenda/notifications.server");
+    triggerAppointmentNotification(inserted.id, "confirmation");
     return { id: inserted.id };
   });
 
