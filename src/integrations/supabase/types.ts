@@ -14,6 +14,199 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointment_notifications: {
+        Row: {
+          appointment_id: string
+          channel: string
+          created_at: string
+          error: string | null
+          id: string
+          kind: string
+          owner_id: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          appointment_id: string
+          channel: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          kind: string
+          owner_id: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          appointment_id?: string
+          channel?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          kind?: string
+          owner_id?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_notifications_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointments: {
+        Row: {
+          created_at: string
+          date: string
+          end_time: string
+          expected_revenue: number
+          generate_financial: boolean
+          id: string
+          notes: string | null
+          owner_id: string
+          patient_id: string | null
+          patient_name: string
+          procedure_id: string | null
+          procedure_name: string
+          professional_id: string | null
+          professional_name: string
+          room_id: string | null
+          room_name: string | null
+          start_time: string
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          end_time: string
+          expected_revenue?: number
+          generate_financial?: boolean
+          id?: string
+          notes?: string | null
+          owner_id: string
+          patient_id?: string | null
+          patient_name: string
+          procedure_id?: string | null
+          procedure_name: string
+          professional_id?: string | null
+          professional_name: string
+          room_id?: string | null
+          room_name?: string | null
+          start_time: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          end_time?: string
+          expected_revenue?: number
+          generate_financial?: boolean
+          id?: string
+          notes?: string | null
+          owner_id?: string
+          patient_id?: string | null
+          patient_name?: string
+          procedure_id?: string | null
+          procedure_name?: string
+          professional_id?: string | null
+          professional_name?: string
+          room_id?: string | null
+          room_name?: string | null
+          start_time?: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_procedure_id_fkey"
+            columns: ["procedure_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_procedures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_chairs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blocked_times: {
+        Row: {
+          created_at: string
+          date: string
+          end_time: string
+          id: string
+          owner_id: string
+          professional_id: string | null
+          reason: string | null
+          room_id: string | null
+          start_time: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          end_time: string
+          id?: string
+          owner_id: string
+          professional_id?: string | null
+          reason?: string | null
+          room_id?: string | null
+          start_time: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          end_time?: string
+          id?: string
+          owner_id?: string
+          professional_id?: string | null
+          reason?: string | null
+          room_id?: string | null
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blocked_times_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blocked_times_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_chairs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_chairs: {
         Row: {
           active: boolean
@@ -634,6 +827,41 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      waiting_list: {
+        Row: {
+          created_at: string
+          id: string
+          owner_id: string
+          patient_id: string | null
+          patient_name: string
+          procedure_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          owner_id: string
+          patient_id?: string | null
+          patient_name: string
+          procedure_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          owner_id?: string
+          patient_id?: string | null
+          patient_name?: string
+          procedure_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waiting_list_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
