@@ -161,7 +161,7 @@ function buildSummary(row: any, transactions: any[]): PatientSummary {
 
 async function fetchBase(supabase: any, userId: string) {
   const [patientsRes, transactionsRes] = await Promise.all([
-    supabase.from("patients").select("*").eq("owner_id", userId).order("name"),
+    supabase.from("patients").select("*").eq("owner_id", userId).order("name").limit(10000),
     supabase
       .from("financial_transactions")
       .select("id,patient_id,description,amount,due_date,paid_date,status")
