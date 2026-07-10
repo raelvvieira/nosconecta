@@ -171,7 +171,7 @@ export const createAppointment = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
     const { triggerAppointmentNotification } = await import("@/lib/agenda/notifications.server");
-    triggerAppointmentNotification(inserted.id, "confirmation");
+    await triggerAppointmentNotification(inserted.id, "confirmation");
     return { id: inserted.id };
   });
 
