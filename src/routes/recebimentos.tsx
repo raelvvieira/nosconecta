@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -148,7 +148,7 @@ const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("pt-
 
 function RecebimentosPage() {
   const search = Route.useSearch();
-  const router = useRouter();
+  const navigate = Route.useNavigate();
   const qc = useQueryClient();
 
   const fetchOverview = useServerFn(getReceivablesOverview);
@@ -167,17 +167,16 @@ function RecebimentosPage() {
   useEffect(() => {
     if (!search.newReceivable) return;
     setSheetOpen(true);
-    router.navigate({
-      to: "/recebimentos",
-      search: (previous: Search) => ({ ...previous, newReceivable: undefined }),
+    navigate({
+      search: (previous) => ({ ...previous, newReceivable: undefined }),
       replace: true,
     });
-  }, [search.newReceivable, router]);
+  }, [search.newReceivable, navigate]);
 
   useRegisterMobileFab({ label: "Novo Recebimento", onClick: () => setSheetOpen(true) });
 
   const setSearch = (patch: Partial<Search>) =>
-    router.navigate({ to: "/recebimentos", search: (prev: Search) => ({ ...prev, ...patch }) });
+    navigate({ search: (prev) => ({ ...prev, ...patch }) });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["receivables-overview"] });
 

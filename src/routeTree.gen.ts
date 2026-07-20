@@ -20,6 +20,7 @@ import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PacientesIndexRouteImport } from './routes/pacientes.index'
 import { Route as PacientesPatientIdRouteImport } from './routes/pacientes.$patientId'
+import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
 
 const RecebimentosRoute = RecebimentosRouteImport.update({
   id: '/recebimentos',
@@ -76,17 +77,24 @@ const PacientesPatientIdRoute = PacientesPatientIdRouteImport.update({
   path: '/$patientId',
   getParentRoute: () => PacientesRoute,
 } as any)
+const ConfiguracoesNotificacoesRoute =
+  ConfiguracoesNotificacoesRouteImport.update({
+    id: '/notificacoes',
+    path: '/notificacoes',
+    getParentRoute: () => ConfiguracoesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
-  '/configuracoes': typeof ConfiguracoesRoute
+  '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/inicio': typeof InicioRoute
   '/pacientes': typeof PacientesRouteWithChildren
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/pacientes/': typeof PacientesIndexRoute
 }
@@ -94,11 +102,12 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
-  '/configuracoes': typeof ConfiguracoesRoute
+  '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/inicio': typeof InicioRoute
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/pacientes': typeof PacientesIndexRoute
 }
@@ -107,12 +116,13 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
-  '/configuracoes': typeof ConfiguracoesRoute
+  '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/inicio': typeof InicioRoute
   '/pacientes': typeof PacientesRouteWithChildren
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/pacientes/': typeof PacientesIndexRoute
 }
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/configuracoes/notificacoes'
     | '/pacientes/$patientId'
     | '/pacientes/'
   fileRoutesByTo: FileRoutesByTo
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/configuracoes/notificacoes'
     | '/pacientes/$patientId'
     | '/pacientes'
   id:
@@ -153,6 +165,7 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/configuracoes/notificacoes'
     | '/pacientes/$patientId'
     | '/pacientes/'
   fileRoutesById: FileRoutesById
@@ -161,7 +174,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
   AuthRoute: typeof AuthRoute
-  ConfiguracoesRoute: typeof ConfiguracoesRoute
+  ConfiguracoesRoute: typeof ConfiguracoesRouteWithChildren
   InicioRoute: typeof InicioRoute
   PacientesRoute: typeof PacientesRouteWithChildren
   PagamentosRoute: typeof PagamentosRoute
@@ -248,8 +261,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PacientesPatientIdRouteImport
       parentRoute: typeof PacientesRoute
     }
+    '/configuracoes/notificacoes': {
+      id: '/configuracoes/notificacoes'
+      path: '/notificacoes'
+      fullPath: '/configuracoes/notificacoes'
+      preLoaderRoute: typeof ConfiguracoesNotificacoesRouteImport
+      parentRoute: typeof ConfiguracoesRoute
+    }
   }
 }
+
+interface ConfiguracoesRouteChildren {
+  ConfiguracoesNotificacoesRoute: typeof ConfiguracoesNotificacoesRoute
+}
+
+const ConfiguracoesRouteChildren: ConfiguracoesRouteChildren = {
+  ConfiguracoesNotificacoesRoute: ConfiguracoesNotificacoesRoute,
+}
+
+const ConfiguracoesRouteWithChildren = ConfiguracoesRoute._addFileChildren(
+  ConfiguracoesRouteChildren,
+)
 
 interface PacientesRouteChildren {
   PacientesPatientIdRoute: typeof PacientesPatientIdRoute
@@ -269,7 +301,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
   AuthRoute: AuthRoute,
-  ConfiguracoesRoute: ConfiguracoesRoute,
+  ConfiguracoesRoute: ConfiguracoesRouteWithChildren,
   InicioRoute: InicioRoute,
   PacientesRoute: PacientesRouteWithChildren,
   PagamentosRoute: PagamentosRoute,
@@ -279,3 +311,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

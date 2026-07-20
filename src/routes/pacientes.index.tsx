@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
@@ -95,7 +95,7 @@ function patientContext(patient: PatientSummary) {
 
 function PatientsPage() {
   const search = Route.useSearch();
-  const router = useRouter();
+  const routeNavigate = Route.useNavigate();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const fetchPatients = useServerFn(getPatientsOverview);
@@ -108,9 +108,8 @@ function PatientsPage() {
   const [formOpen, setFormOpen] = useState(false);
 
   const setSearch = (patch: Partial<PatientsSearch>) =>
-    router.navigate({
-      to: "/pacientes",
-      search: (previous: PatientsSearch) => ({ ...previous, ...patch }),
+    routeNavigate({
+      search: (previous) => ({ ...previous, ...patch }),
     });
 
   return (

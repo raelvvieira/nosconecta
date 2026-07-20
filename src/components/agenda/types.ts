@@ -34,7 +34,7 @@ export interface Procedure {
 }
 
 export type NotificationKind = "confirmation" | "reminder_day_before" | "reminder_day_of";
-export type NotificationChannel = "email" | "sms";
+export type NotificationChannel = "email" | "sms" | "whatsapp";
 export type NotificationStatus = "pending" | "sent" | "failed" | "skipped";
 
 export interface AppointmentNotification {

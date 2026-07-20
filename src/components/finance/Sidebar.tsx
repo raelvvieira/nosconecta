@@ -315,7 +315,9 @@ export function Sidebar() {
                   </>
                 );
                 const trigger = isReal ? (
-                  <Link to={it.to} className={className} aria-label={it.label}>
+                  // "/comissoes" is a placeholder nav entry with no real route
+                  // yet; isReal already gates it out of this branch at runtime.
+                  <Link to={it.to as "/" | "/recebimentos" | "/pagamentos" | "/planejamento"} className={className} aria-label={it.label}>
                     {inner}
                   </Link>
                 ) : (

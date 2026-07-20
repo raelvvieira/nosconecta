@@ -13,3 +13,10 @@ export function toE164BR(phone: string | null | undefined): string | null {
   }
   return null;
 }
+
+// Same normalization as toE164BR, but without the leading "+" — the format
+// Brevo's WhatsApp API expects for senderNumber/contactNumbers.
+export function toWhatsappBR(phone: string | null | undefined): string | null {
+  const e164 = toE164BR(phone);
+  return e164 ? e164.slice(1) : null;
+}

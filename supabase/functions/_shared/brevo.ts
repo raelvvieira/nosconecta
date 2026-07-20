@@ -1,7 +1,8 @@
-// Thin wrappers around the Brevo transactional Email and SMS APIs.
-// BREVO_API_KEY, BREVO_SENDER_EMAIL, BREVO_SENDER_NAME and BREVO_SMS_SENDER
-// are configured as Supabase Edge Function secrets (Lovable → Cloud →
-// Secrets), never hardcoded here.
+// Thin wrappers around the Brevo transactional Email, SMS and WhatsApp APIs.
+// BREVO_API_KEY, BREVO_SENDER_EMAIL, BREVO_SENDER_NAME, BREVO_SMS_SENDER and
+// BREVO_WHATSAPP_SENDER_NUMBER are configured as Supabase Edge Function
+// secrets (Lovable → Cloud → Secrets), never hardcoded here. The WhatsApp
+// templateId is per notification kind — see send-appointment-notification.
 
 function apiKey(): string {
   const key = Deno.env.get("BREVO_API_KEY");
@@ -34,6 +35,31 @@ export async function sendBrevoEmail(opts: {
   });
   if (!res.ok) {
     throw new Error(`Brevo email falhou (${res.status}): ${await res.text()}`);
+  }
+}
+
+export async function sendBrevoWhatsapp(opts: {
+  senderNumber: string;
+  contactNumber: string;
+  templateId: number;
+  params?: Record<string, string>;
+}): Promise<void> {
+  const res = await fetch("https://api.brevo.com/v3/whatsapp/sendMessage", {
+    method: "POST",
+    headers: {
+      "api-key": apiKey(),
+      "content-type": "application/json",
+      accept: "application/json",
+    },
+    body: JSON.stringify({
+      senderNumber: opts.senderNumber,
+      contactNumbers: [opts.contactNumber],
+      templateId: opts.templateId,
+      ...(opts.params ? { params: opts.params } : {}),
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Brevo WhatsApp falhou (${res.status}): ${await res.text()}`);
   }
 }
 

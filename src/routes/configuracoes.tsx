@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import {
   Armchair,
+  Bell,
   BriefcaseMedical,
   MoreHorizontal,
   Plus,
@@ -192,7 +193,7 @@ function SettingsPage() {
           </Button>
         </header>
 
-        <section className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <section className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-5">
           {SECTIONS.map((item) => {
             const count = data[item.value].length;
             const Icon = item.icon;
@@ -225,6 +226,18 @@ function SettingsPage() {
               </button>
             );
           })}
+          <Link
+            to="/configuracoes/notificacoes"
+            className="group rounded-[22px] border border-border bg-white/65 p-4 text-left transition-all hover:bg-white sm:p-5"
+          >
+            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-muted text-muted-foreground transition-colors group-hover:text-foreground">
+              <Bell className="h-5 w-5" />
+            </span>
+            <span className="mt-4 block text-sm font-semibold sm:text-base">Notificações</span>
+            <span className="mt-1 block text-xs text-muted-foreground">
+              E-mail, SMS e WhatsApp
+            </span>
+          </Link>
         </section>
 
         <div className="mt-7 grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">

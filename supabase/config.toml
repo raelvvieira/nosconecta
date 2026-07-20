@@ -1,1 +1,7 @@
 project_id = "ddfteoeehsticjhojpka"
+
+# Brevo Conversations calls this directly and can't present a Supabase JWT.
+# Protected instead by its own shared-secret check (WHATSAPP_WEBHOOK_SECRET,
+# passed as ?secret=... on the webhook URL) — see the function's own code.
+[functions.whatsapp-inbound-webhook]
+verify_jwt = false

@@ -8,16 +8,24 @@
 // send-appointment-reminders function — so nothing sensitive needs to be
 // embedded in a migration or committed file to reach this endpoint.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { sendBrevoEmail, sendBrevoSms } from "../_shared/brevo.ts";
+import { sendBrevoEmail, sendBrevoSms, sendBrevoWhatsapp } from "../_shared/brevo.ts";
 import { buildAppointmentMessage, type NotificationKind } from "../_shared/appointment-messages.ts";
-import { toE164BR } from "../_shared/phone.ts";
+import { toE164BR, toWhatsappBR } from "../_shared/phone.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-type Channel = "email" | "sms";
+// One Meta-approved template per notification kind — see the "Notificações"
+// admin page in the app for the exact text each template needs to contain.
+const WHATSAPP_TEMPLATE_ENV: Record<NotificationKind, string> = {
+  confirmation: "BREVO_WHATSAPP_TEMPLATE_CONFIRMATION",
+  reminder_day_before: "BREVO_WHATSAPP_TEMPLATE_REMINDER_DAY_BEFORE",
+  reminder_day_of: "BREVO_WHATSAPP_TEMPLATE_REMINDER_DAY_OF",
+};
+
+type Channel = "email" | "sms" | "whatsapp";
 type ChannelResult = { status: "sent" | "failed" | "skipped"; error?: string };
 
 async function recordResult(
@@ -99,6 +107,7 @@ Deno.serve(async (req) => {
     const results: Record<Channel, ChannelResult> = {
       email: { status: "skipped", error: "não reprocessado (já enviado)" },
       sms: { status: "skipped", error: "não reprocessado (já enviado)" },
+      whatsapp: { status: "skipped", error: "não reprocessado (já enviado)" },
     };
 
     if (!alreadySent.has("email")) {
@@ -128,6 +137,31 @@ Deno.serve(async (req) => {
         results.sms = { status: "skipped", error: "Paciente sem telefone válido" };
       }
       await recordResult(appointmentId, appt.owner_id, kind, "sms", results.sms);
+    }
+
+    if (!alreadySent.has("whatsapp")) {
+      const waPhone = toWhatsappBR(phone);
+      const senderNumber = Deno.env.get("BREVO_WHATSAPP_SENDER_NUMBER");
+      const templateIdRaw = Deno.env.get(WHATSAPP_TEMPLATE_ENV[kind]);
+      const templateId = templateIdRaw ? Number(templateIdRaw) : NaN;
+      if (!waPhone) {
+        results.whatsapp = { status: "skipped", error: "Paciente sem telefone válido" };
+      } else if (!senderNumber || !Number.isFinite(templateId)) {
+        results.whatsapp = { status: "skipped", error: "WhatsApp não configurado (sender/template ausente)" };
+      } else {
+        try {
+          await sendBrevoWhatsapp({
+            senderNumber,
+            contactNumber: waPhone,
+            templateId,
+            params: msg.whatsappParams,
+          });
+          results.whatsapp = { status: "sent" };
+        } catch (e) {
+          results.whatsapp = { status: "failed", error: String(e) };
+        }
+      }
+      await recordResult(appointmentId, appt.owner_id, kind, "whatsapp", results.whatsapp);
     }
 
     return new Response(JSON.stringify({ ok: true, results }), {

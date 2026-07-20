@@ -119,9 +119,10 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
             {NOTIFICATION_KINDS.map((k) => (
               <div key={k.value} className="flex items-center justify-between gap-2 py-2.5">
                 <span className="text-sm text-[#374151] shrink-0">{k.label}</span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap justify-end">
                   <NotificationBadge label="E-mail" status={statusFor(a.notifications, k.value, "email")} />
                   <NotificationBadge label="SMS" status={statusFor(a.notifications, k.value, "sms")} />
+                  <NotificationBadge label="WhatsApp" status={statusFor(a.notifications, k.value, "whatsapp")} />
                 </div>
               </div>
             ))}

@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { useEffect } from "react";
@@ -29,7 +29,6 @@ const searchSchema = z.object({
   to: z.string().optional(),
 });
 
-type SearchParams = z.infer<typeof searchSchema>;
 
 const overviewQueryOptions = (
   fetcher: (args: {
@@ -73,7 +72,7 @@ export const Route = createFileRoute("/")({
 
 function FinanceiroVisaoGeral() {
   const { period, granularity, from, to } = Route.useSearch();
-  const router = useRouter();
+  const navigate = Route.useNavigate();
   const fetchOverview = useServerFn(getFinanceOverview);
   const { data } = useSuspenseQuery(
     overviewQueryOptions(fetchOverview as any, { period, granularity, from, to }),
@@ -84,16 +83,14 @@ function FinanceiroVisaoGeral() {
   }, []);
 
   const setPeriod = (p: Period) =>
-    router.navigate({
-      to: "/",
-      search: (prev: SearchParams) => ({ ...prev, period: p, from: undefined, to: undefined }),
+    navigate({
+      search: (prev) => ({ ...prev, period: p, from: undefined, to: undefined }),
     });
   const setGranularity = (g: Granularity) =>
-    router.navigate({ to: "/", search: (prev: SearchParams) => ({ ...prev, granularity: g }) });
+    navigate({ search: (prev) => ({ ...prev, granularity: g }) });
   const setRange = (r: { from?: string; to?: string }) =>
-    router.navigate({
-      to: "/",
-      search: (prev: SearchParams) => ({ ...prev, from: r.from, to: r.to }),
+    navigate({
+      search: (prev) => ({ ...prev, from: r.from, to: r.to }),
     });
 
   const { kpis } = data;

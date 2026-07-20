@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { useState } from "react";
@@ -140,7 +140,7 @@ const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("pt-
 
 function PagamentosPage() {
   const search = Route.useSearch();
-  const router = useRouter();
+  const navigate = Route.useNavigate();
   const qc = useQueryClient();
   const fetchOverview = useServerFn(getPayablesOverview);
   const markPaid = useServerFn(markPayablePaid);
@@ -155,7 +155,7 @@ function PagamentosPage() {
   useRegisterMobileFab({ label: "Novo Pagamento", onClick: () => setSheetOpen(true) });
 
   const setSearch = (patch: Partial<Search>) =>
-    router.navigate({ to: "/pagamentos", search: (prev: Search) => ({ ...prev, ...patch }) });
+    navigate({ search: (prev) => ({ ...prev, ...patch }) });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["payables-overview"] });
 
