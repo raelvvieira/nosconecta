@@ -10,23 +10,12 @@
 // secret (WHATSAPP_WEBHOOK_SECRET) via a ?secret= query param on the
 // webhook URL configured in Brevo Conversations > Settings > Webhooks.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { onlyDigits, phoneMatches } from "../_shared/phone-match.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
-
-function onlyDigits(value: string | null | undefined): string {
-  return (value ?? "").replace(/\D/g, "");
-}
-
-// Compares by the last 10-11 digits so formatting differences (with/without
-// country code, leading 9, etc.) don't cause false negatives.
-function phoneMatches(a: string, b: string): boolean {
-  if (!a || !b) return false;
-  const tailLen = 10;
-  return a.slice(-tailLen) === b.slice(-tailLen);
-}
 
 function stripAccents(value: string): string {
   return value.normalize("NFD").replace(/[̀-ͯ]/g, "");

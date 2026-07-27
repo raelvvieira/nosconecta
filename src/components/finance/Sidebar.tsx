@@ -17,6 +17,7 @@ import {
   Home,
   Users,
   MoreHorizontal,
+  MessageCircle,
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
@@ -47,6 +48,7 @@ const AGENDA_PATHS = new Set(["/agenda"]);
 const isPatientsPath = (pathname: string) =>
   pathname === "/pacientes" || pathname.startsWith("/pacientes/");
 const isSettingsPath = (pathname: string) => pathname === "/configuracoes";
+const isAtendimentosPath = (pathname: string) => pathname === "/atendimentos";
 const STORAGE_KEY = "sidebar-collapsed";
 
 export function Sidebar() {
@@ -68,6 +70,7 @@ export function Sidebar() {
   const inPatients = useMemo(() => isPatientsPath(pathname), [pathname]);
   const inSettings = useMemo(() => isSettingsPath(pathname), [pathname]);
   const inInicio = useMemo(() => pathname === "/inicio", [pathname]);
+  const inAtendimentos = useMemo(() => isAtendimentosPath(pathname), [pathname]);
 
   type SidebarView = "modules" | "financeiro" | "agenda";
   const [view, setView] = useState<SidebarView>(
@@ -76,10 +79,10 @@ export function Sidebar() {
 
   // Switch view automatically when the route changes
   useEffect(() => {
-    if (inPatients || inSettings || inInicio) setView("modules");
+    if (inPatients || inSettings || inInicio || inAtendimentos) setView("modules");
     else if (inFinance) setView("financeiro");
     else if (inAgenda) setView("agenda");
-  }, [inFinance, inAgenda, inPatients, inSettings, inInicio]);
+  }, [inFinance, inAgenda, inPatients, inSettings, inInicio, inAtendimentos]);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -137,12 +140,13 @@ export function Sidebar() {
   const modules: {
     label: string;
     icon: LucideIcon;
-    to: "/inicio" | "/agenda" | "/pacientes" | "/configuracoes" | "/";
+    to: "/inicio" | "/agenda" | "/pacientes" | "/atendimentos" | "/configuracoes" | "/";
     disabled?: boolean;
   }[] = [
     { label: "Início", icon: Home, to: "/inicio" },
     { label: "Agenda", icon: Calendar, to: "/agenda" },
     { label: "Pacientes", icon: Users, to: "/pacientes" },
+    { label: "Atendimentos", icon: MessageCircle, to: "/atendimentos" },
     { label: "Financeiro", icon: Wallet, to: "/" },
     { label: "Configurações", icon: Settings, to: "/configuracoes" },
   ];
@@ -612,7 +616,7 @@ export function Sidebar() {
             );
           }
 
-          if (pathname === "/" || inPatients || inSettings) {
+          if (pathname === "/" || inPatients || inSettings || inAtendimentos) {
             const homeItems = [
               { label: "Início", icon: Home, to: "/" as const, isReal: true },
               { label: "Agenda", icon: Calendar, to: "/agenda" as const, isReal: true },

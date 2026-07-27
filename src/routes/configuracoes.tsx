@@ -7,6 +7,7 @@ import {
   Armchair,
   Bell,
   BriefcaseMedical,
+  MessageCircle,
   MoreHorizontal,
   Plus,
   Search,
@@ -236,6 +237,18 @@ function SettingsPage() {
             <span className="mt-4 block text-sm font-semibold sm:text-base">Notificações</span>
             <span className="mt-1 block text-xs text-muted-foreground">
               E-mail, SMS e WhatsApp
+            </span>
+          </Link>
+          <Link
+            to="/atendimentos"
+            className="group rounded-[22px] border border-border bg-white/65 p-4 text-left transition-all hover:bg-white sm:p-5"
+          >
+            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-muted text-muted-foreground transition-colors group-hover:text-foreground">
+              <MessageCircle className="h-5 w-5" />
+            </span>
+            <span className="mt-4 block text-sm font-semibold sm:text-base">Atendimentos</span>
+            <span className="mt-1 block text-xs text-muted-foreground">
+              Conectar e gerenciar o WhatsApp
             </span>
           </Link>
         </section>
