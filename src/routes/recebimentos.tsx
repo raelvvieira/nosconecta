@@ -168,7 +168,7 @@ function RecebimentosPage() {
     if (!search.newReceivable) return;
     setSheetOpen(true);
     navigate({
-      search: (previous) => ({ ...previous, newReceivable: undefined }),
+      search: (previous: Search) => ({ ...previous, newReceivable: undefined }),
       replace: true,
     });
   }, [search.newReceivable, navigate]);
@@ -176,7 +176,7 @@ function RecebimentosPage() {
   useRegisterMobileFab({ label: "Novo Recebimento", onClick: () => setSheetOpen(true) });
 
   const setSearch = (patch: Partial<Search>) =>
-    navigate({ search: (prev) => ({ ...prev, ...patch }) });
+    navigate({ search: (prev: Search) => ({ ...prev, ...patch }) });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["receivables-overview"] });
 

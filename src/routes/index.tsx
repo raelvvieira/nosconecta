@@ -22,6 +22,7 @@ import { z } from "zod";
 import { getFinanceOverview, type Granularity, type Period } from "@/lib/finance/queries.functions";
 import { formatBRL } from "@/lib/finance/format";
 
+type IndexSearch = z.infer<typeof searchSchema>;
 const searchSchema = z.object({
   period: z.enum(["today", "7d", "30d", "90d"]).default("30d"),
   granularity: z.enum(["daily", "weekly", "monthly"]).default("daily"),
@@ -84,13 +85,13 @@ function FinanceiroVisaoGeral() {
 
   const setPeriod = (p: Period) =>
     navigate({
-      search: (prev) => ({ ...prev, period: p, from: undefined, to: undefined }),
+      search: (prev: IndexSearch) => ({ ...prev, period: p, from: undefined, to: undefined }),
     });
   const setGranularity = (g: Granularity) =>
-    navigate({ search: (prev) => ({ ...prev, granularity: g }) });
+    navigate({ search: (prev: IndexSearch) => ({ ...prev, granularity: g }) });
   const setRange = (r: { from?: string; to?: string }) =>
     navigate({
-      search: (prev) => ({ ...prev, from: r.from, to: r.to }),
+      search: (prev: IndexSearch) => ({ ...prev, from: r.from, to: r.to }),
     });
 
   const { kpis } = data;
