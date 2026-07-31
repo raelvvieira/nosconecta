@@ -5,9 +5,3 @@ project_id = "ddfteoeehsticjhojpka"
 # passed as ?secret=... on the webhook URL) — see the function's own code.
 [functions.whatsapp-inbound-webhook]
 verify_jwt = false
-
-# Evolution API calls this directly and can't present a Supabase JWT either.
-# Protected instead by its own shared-secret check (EVOLUTION_WEBHOOK_SECRET,
-# passed as ?secret=... on the webhook URL) — see the function's own code.
-[functions.atendimentos-webhook]
-verify_jwt = false

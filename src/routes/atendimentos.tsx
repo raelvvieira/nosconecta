@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
-  Check,
   CheckCheck,
-  Clock,
+  ChevronDown,
+  Megaphone,
   MessageCircle,
   QrCode,
   RefreshCw,
   Search,
   Send,
+  Workflow,
   WifiOff,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -22,17 +22,27 @@ import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
   connectWhatsapp,
   getConversations,
   getMessages,
   getWhatsappInstance,
-  refreshWhatsappStatus,
   sendWhatsappMessage,
   type ConversationRow,
-  type WhatsappInstance,
 } from "@/lib/atendimentos/atendimentos.functions";
+import {
+  addPipelineItem,
+  getPipelineItems,
+  getPipelineStages,
+  movePipelineItem,
+} from "@/lib/atendimentos/pipeline.functions";
 
 const searchSchema = z.object({
   conversationId: z.string().optional(),
@@ -83,7 +93,6 @@ function AtendimentosPage() {
 
   const fetchInstance = useServerFn(getWhatsappInstance);
   const doConnect = useServerFn(connectWhatsapp);
-  const doRefreshStatus = useServerFn(refreshWhatsappStatus);
   const fetchConversations = useServerFn(getConversations);
   const fetchMessages = useServerFn(getMessages);
   const doSendMessage = useServerFn(sendWhatsappMessage);
@@ -91,7 +100,8 @@ function AtendimentosPage() {
   const instanceQuery = useQuery({
     queryKey: ["atendimentos-instance"],
     queryFn: () => fetchInstance(),
-    staleTime: 10_000,
+    staleTime: 8_000,
+    refetchInterval: (query) => (query.state.data?.status === "connecting" ? 4_000 : 20_000),
   });
   const instance = instanceQuery.data ?? null;
   const connected = instance?.status === "open";
@@ -101,21 +111,6 @@ function AtendimentosPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["atendimentos-instance"] }),
     onError: (error: Error) => toast.error(error.message),
   });
-
-  // Poll status while connecting (waiting for QR scan) so the screen flips
-  // to the conversation list automatically once WhatsApp links.
-  useEffect(() => {
-    if (instance?.status !== "connecting") return;
-    const id = setInterval(async () => {
-      try {
-        await doRefreshStatus();
-        queryClient.invalidateQueries({ queryKey: ["atendimentos-instance"] });
-      } catch {
-        // silent — next tick tries again
-      }
-    }, 4000);
-    return () => clearInterval(id);
-  }, [instance?.status, doRefreshStatus, queryClient]);
 
   const conversationsQuery = useQuery({
     queryKey: ["atendimentos-conversations"],
@@ -130,12 +125,47 @@ function AtendimentosPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("pt-BR");
     if (!q) return conversations;
-    return conversations.filter((c) =>
-      `${c.contactName ?? ""} ${c.patientName ?? ""} ${c.remoteJid}`.toLocaleLowerCase("pt-BR").includes(q),
-    );
+    return conversations.filter((c) => `${c.contactName ?? ""} ${c.phone ?? ""}`.toLocaleLowerCase("pt-BR").includes(q));
   }, [conversations, query]);
 
   const selected = conversations.find((c) => c.id === conversationId) ?? null;
+
+  const fetchPipelineStages = useServerFn(getPipelineStages);
+  const fetchPipelineItems = useServerFn(getPipelineItems);
+  const doAddPipelineItem = useServerFn(addPipelineItem);
+  const doMovePipelineItem = useServerFn(movePipelineItem);
+
+  const pipelineStagesQuery = useQuery({
+    queryKey: ["pipeline-stages"],
+    queryFn: () => fetchPipelineStages(),
+    enabled: !!selected,
+    staleTime: 30_000,
+  });
+  const pipelineConfigured = pipelineStagesQuery.data?.configured ?? false;
+  const pipelineStages = pipelineStagesQuery.data?.stages ?? [];
+
+  const pipelineItemsQuery = useQuery({
+    queryKey: ["pipeline-items"],
+    queryFn: () => fetchPipelineItems(),
+    enabled: !!selected && pipelineConfigured,
+    staleTime: 8_000,
+  });
+  const currentPipelineItem = pipelineItemsQuery.data?.items.find(
+    (i) => i.type === "conversation" && i.itemId === selected?.id,
+  );
+  const currentStage = pipelineStages.find((s) => s.id === currentPipelineItem?.stageId);
+
+  const moveStageMutation = useMutation({
+    mutationFn: (stageId: string) =>
+      currentPipelineItem
+        ? doMovePipelineItem({ data: { itemId: currentPipelineItem.id, newStageId: stageId } })
+        : doAddPipelineItem({ data: { type: "conversation", itemId: selected!.id, stageId } }),
+    onSuccess: () => {
+      toast.success("Etapa atualizada");
+      queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const messagesQuery = useQuery({
     queryKey: ["atendimentos-messages", conversationId],
@@ -153,15 +183,12 @@ function AtendimentosPage() {
       setDraft("");
       queryClient.invalidateQueries({ queryKey: ["atendimentos-messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["atendimentos-conversations"] });
-      if (!res.ok) toast.error("Mensagem não confirmada pelo WhatsApp — verifique a conexão.");
+      if (!res.ok) toast.error("Mensagem não confirmada pelo CRM — verifique a conexão.");
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const selectConversation = (row: ConversationRow) => {
-    navigate({ search: { conversationId: row.id } });
-    queryClient.invalidateQueries({ queryKey: ["atendimentos-conversations"] });
-  };
+  const selectConversation = (row: ConversationRow) => navigate({ search: { conversationId: row.id } });
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -186,11 +213,7 @@ function AtendimentosPage() {
         <main className="flex min-h-screen flex-1 items-center justify-center px-5 pb-28 pt-20 lg:min-h-0 lg:px-10 lg:pb-10 lg:pt-10">
           <section className="surface-card w-full max-w-[440px] px-6 py-8 text-center sm:px-10 sm:py-10">
             <span className="mx-auto grid h-14 w-14 place-items-center rounded-[20px] bg-coral-soft text-coral">
-              {instance?.status === "connecting" ? (
-                <QrCode className="h-6 w-6" />
-              ) : (
-                <WifiOff className="h-6 w-6" />
-              )}
+              {instance?.status === "connecting" ? <QrCode className="h-6 w-6" /> : <WifiOff className="h-6 w-6" />}
             </span>
             <h1 className="mt-5 text-xl font-semibold tracking-tight">
               {instance?.status === "connecting" ? "Escaneie o QR Code" : "Conectar WhatsApp"}
@@ -210,9 +233,7 @@ function AtendimentosPage() {
             )}
 
             {instance?.lastError && (
-              <p className="mt-4 rounded-xl bg-danger-soft px-3 py-2 text-xs text-danger">
-                {instance.lastError}
-              </p>
+              <p className="mt-4 rounded-xl bg-danger-soft px-3 py-2 text-xs text-danger">{instance.lastError}</p>
             )}
 
             <Button
@@ -241,9 +262,27 @@ function AtendimentosPage() {
           )}
         >
           <header className="px-4 pb-3 pt-6 sm:px-6 lg:px-5 lg:pt-7">
-            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-pink">
-              <MessageCircle className="h-4 w-4" />
-              Atendimentos
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-pink">
+                <MessageCircle className="h-4 w-4" />
+                Atendimentos
+              </span>
+              <div className="flex items-center gap-1.5">
+                <Link
+                  to="/atendimentos/pipeline"
+                  className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-white hover:text-foreground"
+                >
+                  <Workflow className="h-3.5 w-3.5" />
+                  Pipeline
+                </Link>
+                <Link
+                  to="/atendimentos/campanhas"
+                  className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-white hover:text-foreground"
+                >
+                  <Megaphone className="h-3.5 w-3.5" />
+                  Campanhas
+                </Link>
+              </div>
             </div>
             <h1 className="text-[26px] font-semibold tracking-[-0.03em]">Conversas</h1>
             <div className="relative mt-4">
@@ -252,7 +291,7 @@ function AtendimentosPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 className="h-11 rounded-[16px] bg-white pl-11 shadow-soft"
-                placeholder="Buscar conversa ou paciente"
+                placeholder="Buscar conversa"
               />
             </div>
           </header>
@@ -266,7 +305,7 @@ function AtendimentosPage() {
               </div>
             )}
             {filtered.map((row) => {
-              const name = row.patientName ?? row.contactName ?? row.remoteJid.split("@")[0];
+              const name = row.contactName ?? row.phone ?? "Contato";
               const active = row.id === conversationId;
               return (
                 <button
@@ -289,22 +328,12 @@ function AtendimentosPage() {
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-semibold">{name}</span>
-                      <span
-                        className={cn(
-                          "shrink-0 text-[11px]",
-                          active ? "text-white/70" : "text-muted-foreground",
-                        )}
-                      >
+                      <span className={cn("shrink-0 text-[11px]", active ? "text-white/70" : "text-muted-foreground")}>
                         {formatTime(row.lastMessageAt)}
                       </span>
                     </span>
                     <span className="mt-0.5 flex items-center justify-between gap-2">
-                      <span
-                        className={cn(
-                          "truncate text-xs",
-                          active ? "text-white/70" : "text-muted-foreground",
-                        )}
-                      >
+                      <span className={cn("truncate text-xs", active ? "text-white/70" : "text-muted-foreground")}>
                         {row.lastMessagePreview ?? "—"}
                       </span>
                       {row.unreadCount > 0 && (
@@ -338,16 +367,38 @@ function AtendimentosPage() {
                   <ArrowLeft className="h-4 w-4" />
                 </button>
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-coral-soft text-sm font-bold text-coral">
-                  {initials(selected.patientName ?? selected.contactName ?? selected.remoteJid.split("@")[0])}
+                  {initials(selected.contactName ?? selected.phone ?? "Contato")}
                 </span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">
-                    {selected.patientName ?? selected.contactName ?? selected.remoteJid.split("@")[0]}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {selected.patientName ? "Paciente cadastrado" : "Sem cadastro vinculado"}
-                  </p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{selected.contactName ?? selected.phone ?? "Contato"}</p>
+                  {selected.contactName && selected.phone && (
+                    <p className="truncate text-xs text-muted-foreground">{selected.phone}</p>
+                  )}
                 </div>
+                {pipelineConfigured && pipelineStages.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold"
+                      >
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: currentStage?.color ?? "#94A3B8" }}
+                        />
+                        {currentStage?.name ?? "Sem etapa"}
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {pipelineStages.map((s) => (
+                        <DropdownMenuItem key={s.id} onClick={() => moveStageMutation.mutate(s.id)}>
+                          {s.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </header>
 
               <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
@@ -368,15 +419,7 @@ function AtendimentosPage() {
                           )}
                         >
                           {formatTime(m.timestamp)}
-                          {m.fromMe &&
-                            (m.status === "failed" ? (
-                              <X className="h-3 w-3" />
-                            ) : m.status === "sending" ? (
-                              <Clock className="h-3 w-3" />
-                            ) : (
-                              <CheckCheck className="h-3 w-3" />
-                            ))}
-                          {!m.fromMe && <Check className="hidden h-3 w-3" />}
+                          {m.fromMe && <CheckCheck className="h-3 w-3" />}
                         </span>
                       </div>
                     </div>

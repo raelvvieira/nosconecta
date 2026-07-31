@@ -22,6 +22,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as PacientesIndexRouteImport } from './routes/pacientes.index'
 import { Route as PacientesPatientIdRouteImport } from './routes/pacientes.$patientId'
 import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
+import { Route as AtendimentosPipelineRouteImport } from './routes/atendimentos.pipeline'
+import { Route as AtendimentosCampanhasRouteImport } from './routes/atendimentos.campanhas'
 
 const RecebimentosRoute = RecebimentosRouteImport.update({
   id: '/recebimentos',
@@ -89,11 +91,21 @@ const ConfiguracoesNotificacoesRoute =
     path: '/notificacoes',
     getParentRoute: () => ConfiguracoesRoute,
   } as any)
+const AtendimentosPipelineRoute = AtendimentosPipelineRouteImport.update({
+  id: '/pipeline',
+  path: '/pipeline',
+  getParentRoute: () => AtendimentosRoute,
+} as any)
+const AtendimentosCampanhasRoute = AtendimentosCampanhasRouteImport.update({
+  id: '/campanhas',
+  path: '/campanhas',
+  getParentRoute: () => AtendimentosRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/atendimentos': typeof AtendimentosRoute
+  '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/inicio': typeof InicioRoute
@@ -101,6 +113,8 @@ export interface FileRoutesByFullPath {
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
+  '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/pacientes/': typeof PacientesIndexRoute
@@ -108,13 +122,15 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/atendimentos': typeof AtendimentosRoute
+  '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/inicio': typeof InicioRoute
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
+  '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/pacientes': typeof PacientesIndexRoute
@@ -123,7 +139,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/atendimentos': typeof AtendimentosRoute
+  '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/inicio': typeof InicioRoute
@@ -131,6 +147,8 @@ export interface FileRoutesById {
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
+  '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/pacientes/': typeof PacientesIndexRoute
@@ -148,6 +166,8 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/atendimentos/campanhas'
+    | '/atendimentos/pipeline'
     | '/configuracoes/notificacoes'
     | '/pacientes/$patientId'
     | '/pacientes/'
@@ -162,6 +182,8 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/atendimentos/campanhas'
+    | '/atendimentos/pipeline'
     | '/configuracoes/notificacoes'
     | '/pacientes/$patientId'
     | '/pacientes'
@@ -177,6 +199,8 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/atendimentos/campanhas'
+    | '/atendimentos/pipeline'
     | '/configuracoes/notificacoes'
     | '/pacientes/$patientId'
     | '/pacientes/'
@@ -185,7 +209,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
-  AtendimentosRoute: typeof AtendimentosRoute
+  AtendimentosRoute: typeof AtendimentosRouteWithChildren
   AuthRoute: typeof AuthRoute
   ConfiguracoesRoute: typeof ConfiguracoesRouteWithChildren
   InicioRoute: typeof InicioRoute
@@ -288,8 +312,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfiguracoesNotificacoesRouteImport
       parentRoute: typeof ConfiguracoesRoute
     }
+    '/atendimentos/pipeline': {
+      id: '/atendimentos/pipeline'
+      path: '/pipeline'
+      fullPath: '/atendimentos/pipeline'
+      preLoaderRoute: typeof AtendimentosPipelineRouteImport
+      parentRoute: typeof AtendimentosRoute
+    }
+    '/atendimentos/campanhas': {
+      id: '/atendimentos/campanhas'
+      path: '/campanhas'
+      fullPath: '/atendimentos/campanhas'
+      preLoaderRoute: typeof AtendimentosCampanhasRouteImport
+      parentRoute: typeof AtendimentosRoute
+    }
   }
 }
+
+interface AtendimentosRouteChildren {
+  AtendimentosCampanhasRoute: typeof AtendimentosCampanhasRoute
+  AtendimentosPipelineRoute: typeof AtendimentosPipelineRoute
+}
+
+const AtendimentosRouteChildren: AtendimentosRouteChildren = {
+  AtendimentosCampanhasRoute: AtendimentosCampanhasRoute,
+  AtendimentosPipelineRoute: AtendimentosPipelineRoute,
+}
+
+const AtendimentosRouteWithChildren = AtendimentosRoute._addFileChildren(
+  AtendimentosRouteChildren,
+)
 
 interface ConfiguracoesRouteChildren {
   ConfiguracoesNotificacoesRoute: typeof ConfiguracoesNotificacoesRoute
@@ -320,7 +372,7 @@ const PacientesRouteWithChildren = PacientesRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
-  AtendimentosRoute: AtendimentosRoute,
+  AtendimentosRoute: AtendimentosRouteWithChildren,
   AuthRoute: AuthRoute,
   ConfiguracoesRoute: ConfiguracoesRouteWithChildren,
   InicioRoute: InicioRoute,

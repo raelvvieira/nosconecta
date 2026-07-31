@@ -2,6 +2,33 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+// Empurra o paciente pro CRM (fonte da verdade é sempre o paciente, nunca o
+// contrário). Best-effort: se o CRM estiver fora do ar ou a clínica ainda
+// não tiver credenciais cadastradas, o cadastro do paciente NUNCA pode
+// falhar por causa disso — só loga e segue.
+async function pushContactToCrm(
+  ownerId: string,
+  patientId: string,
+  name: string,
+  phone: string | null,
+): Promise<void> {
+  try {
+    const url = process.env.SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !serviceKey) return;
+    const res = await fetch(`${url}/functions/v1/crm-contacts`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({ ownerId, action: "upsert", patient: { patientId, name, phone } }),
+    });
+    if (!res.ok) {
+      console.error("[pushContactToCrm] crm-contacts respondeu", res.status, await res.text().catch(() => ""));
+    }
+  } catch (e) {
+    console.error("[pushContactToCrm]", e);
+  }
+}
+
 export type PatientStatus =
   "active" | "in_treatment" | "return_pending" | "delinquent" | "inactive";
 export type PatientFilter = "all" | PatientStatus;
@@ -306,6 +333,11 @@ export const createPatient = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    // Aguarda (mas nunca propaga erro) — em runtime serverless (Cloudflare
+    // Workers) uma promise não aguardada pode ser cancelada assim que a
+    // resposta é enviada, então "fire-and-forget" de verdade não é seguro
+    // aqui.
+    await pushContactToCrm(context.userId, created.id, data.name, data.phone);
     return { id: created.id };
   });
 
@@ -338,6 +370,7 @@ export const updatePatient = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .eq("owner_id", context.userId);
     if (error) throw new Error(error.message);
+    await pushContactToCrm(context.userId, data.id, data.name, data.phone);
     return { ok: true };
   });
 
