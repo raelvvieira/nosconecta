@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointment_notification_replies: {
+        Row: {
+          action: string
+          appointment_id: string | null
+          channel: string
+          created_at: string
+          from_phone: string
+          id: string
+          message_text: string
+          owner_id: string
+          patient_id: string | null
+        }
+        Insert: {
+          action: string
+          appointment_id?: string | null
+          channel?: string
+          created_at?: string
+          from_phone: string
+          id?: string
+          message_text: string
+          owner_id: string
+          patient_id?: string | null
+        }
+        Update: {
+          action?: string
+          appointment_id?: string | null
+          channel?: string
+          created_at?: string
+          from_phone?: string
+          id?: string
+          message_text?: string
+          owner_id?: string
+          patient_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_notification_replies_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_notification_replies_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointment_notifications: {
         Row: {
           appointment_id: string
@@ -290,6 +341,8 @@ export type Database = {
           name: string
           owner_id: string
           price: number
+          tuss_code: string | null
+          tuss_name: string | null
           updated_at: string
         }
         Insert: {
@@ -302,6 +355,8 @@ export type Database = {
           name: string
           owner_id: string
           price?: number
+          tuss_code?: string | null
+          tuss_name?: string | null
           updated_at?: string
         }
         Update: {
@@ -314,7 +369,93 @@ export type Database = {
           name?: string
           owner_id?: string
           price?: number
+          tuss_code?: string | null
+          tuss_name?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      crm_campaign_sends: {
+        Row: {
+          campaign_id: string
+          executed_at: string
+          id: string
+          owner_id: string
+          recipient_count: number
+        }
+        Insert: {
+          campaign_id: string
+          executed_at?: string
+          id?: string
+          owner_id: string
+          recipient_count: number
+        }
+        Update: {
+          campaign_id?: string
+          executed_at?: string
+          id?: string
+          owner_id?: string
+          recipient_count?: number
+        }
+        Relationships: []
+      }
+      crm_credentials: {
+        Row: {
+          access_token: string | null
+          created_at: string
+          crm_email: string
+          crm_password: string
+          daily_send_limit: number
+          evolution_instance_name: string | null
+          id: string
+          inbox_id: string | null
+          last_error: string | null
+          owner_id: string
+          phone_number: string | null
+          pipeline_id: string | null
+          qr_code: string | null
+          qr_expires_at: string | null
+          token_expires_at: string | null
+          updated_at: string
+          whatsapp_status: string
+        }
+        Insert: {
+          access_token?: string | null
+          created_at?: string
+          crm_email: string
+          crm_password: string
+          daily_send_limit?: number
+          evolution_instance_name?: string | null
+          id?: string
+          inbox_id?: string | null
+          last_error?: string | null
+          owner_id: string
+          phone_number?: string | null
+          pipeline_id?: string | null
+          qr_code?: string | null
+          qr_expires_at?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          whatsapp_status?: string
+        }
+        Update: {
+          access_token?: string | null
+          created_at?: string
+          crm_email?: string
+          crm_password?: string
+          daily_send_limit?: number
+          evolution_instance_name?: string | null
+          id?: string
+          inbox_id?: string | null
+          last_error?: string | null
+          owner_id?: string
+          phone_number?: string | null
+          pipeline_id?: string | null
+          qr_code?: string | null
+          qr_expires_at?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          whatsapp_status?: string
         }
         Relationships: []
       }
@@ -661,6 +802,7 @@ export type Database = {
           company_id: string | null
           cpf: string | null
           created_at: string
+          crm_contact_id: string | null
           email: string | null
           gender: string | null
           guardian_cpf: string | null
@@ -687,6 +829,7 @@ export type Database = {
           company_id?: string | null
           cpf?: string | null
           created_at?: string
+          crm_contact_id?: string | null
           email?: string | null
           gender?: string | null
           guardian_cpf?: string | null
@@ -713,6 +856,7 @@ export type Database = {
           company_id?: string | null
           cpf?: string | null
           created_at?: string
+          crm_contact_id?: string | null
           email?: string | null
           gender?: string | null
           guardian_cpf?: string | null
