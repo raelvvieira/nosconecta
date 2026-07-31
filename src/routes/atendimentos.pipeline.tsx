@@ -18,13 +18,13 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
+  createPipeline,
   deletePipelineStage,
   getPipelineItems,
   getPipelineStages,
   movePipelineItem,
   reorderPipelineStages,
   savePipelineStage,
-  setPipelineId,
   type PipelineStage,
 } from "@/lib/atendimentos/pipeline.functions";
 
@@ -55,7 +55,7 @@ function PipelinePage() {
   const queryClient = useQueryClient();
   const fetchStages = useServerFn(getPipelineStages);
   const fetchItems = useServerFn(getPipelineItems);
-  const doSetPipelineId = useServerFn(setPipelineId);
+  const doCreatePipeline = useServerFn(createPipeline);
   const doMove = useServerFn(movePipelineItem);
   const doSaveStage = useServerFn(savePipelineStage);
   const doDeleteStage = useServerFn(deletePipelineStage);
@@ -83,11 +83,11 @@ function PipelinePage() {
     queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
   };
 
-  const [pipelineIdInput, setPipelineIdInput] = useState("");
+  const [pipelineNameInput, setPipelineNameInput] = useState("Atendimento");
   const setupMutation = useMutation({
-    mutationFn: () => doSetPipelineId({ data: { pipelineId: pipelineIdInput.trim() } }),
+    mutationFn: () => doCreatePipeline({ data: { name: pipelineNameInput.trim() } }),
     onSuccess: () => {
-      toast.success("Pipeline configurado");
+      toast.success("Pipeline criado");
       refresh();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -143,22 +143,23 @@ function PipelinePage() {
               <span className="mx-auto grid h-14 w-14 place-items-center rounded-[20px] bg-coral-soft text-coral">
                 <Workflow className="h-6 w-6" />
               </span>
-              <h2 className="mt-5 text-xl font-semibold tracking-tight">Configurar pipeline</h2>
+              <h2 className="mt-5 text-xl font-semibold tracking-tight">Criar o pipeline</h2>
               <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-                Informe o Pipeline ID desta clínica no CRM para começar a organizar o funil.
+                Esta clínica ainda não tem um funil no CRM. Dê um nome e crie — depois dá pra
+                adicionar, renomear e reordenar as etapas livremente.
               </p>
               <Input
-                value={pipelineIdInput}
-                onChange={(e) => setPipelineIdInput(e.target.value)}
-                placeholder="Pipeline ID"
+                value={pipelineNameInput}
+                onChange={(e) => setPipelineNameInput(e.target.value)}
+                placeholder="Nome do pipeline"
                 className="mx-auto mt-5 h-11 max-w-xs rounded-[16px] bg-white text-center"
               />
               <Button
                 className="mt-4 gap-2 bg-gradient-primary text-white"
-                disabled={!pipelineIdInput.trim() || setupMutation.isPending}
+                disabled={!pipelineNameInput.trim() || setupMutation.isPending}
                 onClick={() => setupMutation.mutate()}
               >
-                Salvar
+                Criar pipeline
               </Button>
             </section>
           </div>

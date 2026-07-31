@@ -4,6 +4,7 @@
 // cria.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
+import { unwrap } from "../_shared/crm-client.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -12,7 +13,8 @@ const supabase = createClient(
 
 async function handleList(ownerId: string) {
   const res = await crmFetch(supabase, ownerId, "/api/v1/message_templates");
-  const templates = Array.isArray(res) ? res : (res?.data ?? res?.message_templates ?? []);
+  const unwrapped = unwrap(res);
+  const templates = Array.isArray(unwrapped) ? unwrapped : [];
   return { ok: true, templates };
 }
 
@@ -22,7 +24,7 @@ async function handleSave(ownerId: string, template: { id?: string; name: string
     method: template.id ? "PATCH" : "POST",
     body: JSON.stringify({ message_template: { name: template.name, content: template.content } }),
   });
-  return { ok: true, template: res };
+  return { ok: true, template: unwrap(res) };
 }
 
 async function handleDelete(ownerId: string, id: string) {

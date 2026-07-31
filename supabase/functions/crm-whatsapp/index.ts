@@ -3,12 +3,13 @@
 // diretamente). Chamada via callEdgeFunction a partir de
 // src/lib/atendimentos/atendimentos.functions.ts, com o service role.
 //
-// Assunção a validar com credenciais reais: o endpoint de logout do CRM
-// documenta um `:id` no path (`DELETE /evolution/instances/:id/logout`),
-// mas todo o resto da seção usa `instance_name` como identificador — assumo
-// que são a mesma coisa até confirmar o contrário.
+// Confirmado com o time do CRM: `POST /evolution/authorization` exige
+// `instance_name` E `phone_number` (o número não é descoberto depois do
+// QR, precisa vir antes) — e o `:id` de
+// `DELETE /evolution/instances/:id/logout` é o próprio `instance_name`.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
+import { unwrap } from "../_shared/crm-client.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -29,7 +30,7 @@ async function getCredentialsRow(ownerId: string) {
   return data;
 }
 
-async function handleConnect(ownerId: string) {
+async function handleConnect(ownerId: string, phoneNumber?: string) {
   const row = await getCredentialsRow(ownerId);
   if (!row) {
     throw new Error("Esta clínica ainda não tem credenciais do CRM cadastradas.");
@@ -41,27 +42,32 @@ async function handleConnect(ownerId: string) {
       method: "POST",
       body: JSON.stringify({ inbox: { name: "WhatsApp" }, channel: { type: "whatsapp" } }),
     });
-    inboxId = inboxRes?.id ?? inboxRes?.inbox?.id ?? null;
+    inboxId = unwrap(inboxRes)?.id ?? null;
   }
 
   const instanceName: string = row.evolution_instance_name ?? instanceNameFor(ownerId);
+  const effectivePhone = phoneNumber?.trim() || row.phone_number || null;
   let qrCode: string | null;
 
   if (!row.evolution_instance_name) {
-    // Primeira conexão: autoriza a instância antes de pedir QR.
+    // Primeira conexão: autoriza a instância antes de pedir QR. O CRM
+    // exige phone_number aqui — não dá pra descobrir depois do QR.
+    if (!effectivePhone) {
+      throw new Error("Informe o número de WhatsApp da clínica (com DDD) antes de conectar.");
+    }
     await crmFetch(supabase, ownerId, "/api/v1/evolution/authorization", {
       method: "POST",
-      body: JSON.stringify({ instance_name: instanceName }),
+      body: JSON.stringify({ instance_name: instanceName, phone_number: effectivePhone }),
     });
     const qrRes = await crmFetch(supabase, ownerId, `/api/v1/evolution/qrcodes/${instanceName}`);
-    qrCode = qrRes?.data?.base64 ?? null;
+    qrCode = unwrap(qrRes)?.base64 ?? null;
   } else {
     // Instância já autorizada — só pede um QR novo (o anterior expirou).
     const qrRes = await crmFetch(supabase, ownerId, "/api/v1/evolution/qrcodes", {
       method: "POST",
       body: JSON.stringify({ instance_name: instanceName }),
     });
-    qrCode = qrRes?.data?.base64 ?? qrRes?.base64 ?? null;
+    qrCode = unwrap(qrRes)?.base64 ?? null;
   }
 
   await supabase
@@ -69,6 +75,7 @@ async function handleConnect(ownerId: string) {
     .update({
       inbox_id: inboxId,
       evolution_instance_name: instanceName,
+      phone_number: effectivePhone,
       whatsapp_status: "connecting",
       qr_code: qrCode,
       qr_expires_at: new Date(Date.now() + 60_000).toISOString(),
@@ -90,7 +97,8 @@ async function handleStatus(ownerId: string) {
       ownerId,
       `/api/v1/evolution/instances?instanceName=${encodeURIComponent(row.evolution_instance_name)}`,
     );
-    const first = Array.isArray(res) ? res[0] : (res?.data ?? res);
+    const unwrapped = unwrap(res);
+    const first = Array.isArray(unwrapped) ? unwrapped[0] : unwrapped;
     const connected = !!first?.connected;
     const status = connected ? "open" : row.whatsapp_status === "connecting" ? "connecting" : "disconnected";
     const phoneNumber = first?.number ?? first?.phoneNumber ?? row.phone_number ?? null;
@@ -134,13 +142,17 @@ async function handleDisconnect(ownerId: string) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
   try {
-    const { ownerId, action } = (await req.json()) as { ownerId?: string; action?: string };
+    const { ownerId, action, phoneNumber } = (await req.json()) as {
+      ownerId?: string;
+      action?: string;
+      phoneNumber?: string;
+    };
     if (!ownerId || !action) {
       return new Response(JSON.stringify({ error: "ownerId e action são obrigatórios" }), { status: 400 });
     }
 
     let result: unknown;
-    if (action === "connect") result = await handleConnect(ownerId);
+    if (action === "connect") result = await handleConnect(ownerId, phoneNumber);
     else if (action === "status") result = await handleStatus(ownerId);
     else if (action === "disconnect") result = await handleDisconnect(ownerId);
     else return new Response(JSON.stringify({ error: `action desconhecida: ${action}` }), { status: 400 });

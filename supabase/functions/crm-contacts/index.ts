@@ -4,6 +4,7 @@
 // nunca diretamente por uma tela.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
+import { unwrap } from "../_shared/crm-client.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -36,7 +37,7 @@ async function handleUpsert(
     method: "POST",
     body: JSON.stringify(body),
   });
-  const contactId = res?.id ?? res?.contact?.id ?? res?.payload?.contact?.id ?? null;
+  const contactId = unwrap(res)?.id ?? null;
   if (contactId) {
     await supabase
       .from("patients")

@@ -1,6 +1,6 @@
 // Low-level HTTP helper shared by the CRM integration (Wavy white-label
 // CRM). Handles JSON parsing/error shaping the same way for both domains
-// (crm.wavymarketing.com.br and flow.wavymarketing.com.br) — auth/token
+// (api.wavymarketing.com.br and flow.wavymarketing.com.br) — auth/token
 // logic lives in crm-auth.ts, which is the only caller of this module.
 
 export interface RawResponse {
@@ -25,4 +25,11 @@ export async function rawFetch(baseUrl: string, path: string, init: RequestInit 
     json = { raw: text };
   }
   return { ok: res.ok, status: res.status, json };
+}
+
+// Confirmado com dados reais: toda resposta do CRM (login, contatos,
+// campanhas, ...) vem envelopada como { success, data, meta? }. Desembrulha
+// pra quem chama nunca precisar adivinhar entre `res` e `res.data`.
+export function unwrap(json: any): any {
+  return json?.data ?? json;
 }

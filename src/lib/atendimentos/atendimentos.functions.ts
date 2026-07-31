@@ -50,25 +50,27 @@ function mapInstance(row: any): WhatsappInstance {
   };
 }
 
-// Formato exato da conversa/mensagem do CRM ainda não confirmado com dados
-// reais (a API é no estilo Chatwoot) — mapeamento defensivo com os nomes de
-// campo mais prováveis, revisar assim que houver credenciais de teste.
+// Formato confirmado com dado real do CRM: o contato vem em `row.contact`
+// (não `meta.sender`), e a lista de conversas não traz preview/timestamp da
+// última mensagem — só `created_at` (criação da conversa, não da última
+// mensagem) e `unread_count`. Sem endpoint de "última mensagem" na lista,
+// não dá pra mostrar preview real por enquanto.
 function mapConversation(row: any): ConversationRow {
-  const sender = row?.meta?.sender ?? row?.contact ?? {};
-  const lastMessage = row?.last_non_activity_message ?? row?.last_message ?? null;
-  const lastTs = lastMessage?.created_at ?? row?.timestamp ?? row?.last_activity_at ?? null;
+  const contact = row?.contact ?? {};
   return {
     id: String(row?.id),
-    contactName: sender?.name ?? null,
-    phone: sender?.phone_number ?? sender?.phoneNumber ?? null,
-    lastMessagePreview: lastMessage?.content ?? null,
-    lastMessageAt: toIso(lastTs),
+    contactName: contact?.name ?? null,
+    phone: contact?.phone_number ?? null,
+    lastMessagePreview: null,
+    lastMessageAt: toIso(row?.created_at),
     unreadCount: row?.unread_count ?? 0,
   };
 }
 
+// message_type: 0 = incoming (do contato), 1 = outgoing (da clínica) —
+// confirmado com dado real.
 function mapMessage(row: any): MessageRow {
-  const outgoing = row?.message_type === 1 || row?.message_type === "outgoing";
+  const outgoing = row?.message_type === 1;
   return {
     id: String(row?.id),
     fromMe: outgoing,
@@ -96,9 +98,14 @@ export const getWhatsappInstance = createServerFn({ method: "GET" })
 
 export const connectWhatsapp = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<WhatsappInstance> => {
-    const json = await callEdgeFunction("crm-whatsapp", { ownerId: context.userId, action: "connect" });
-    return { status: "connecting", qrCode: json.qrCode ?? null, qrExpiresAt: null, phoneNumber: null, lastError: null };
+  .inputValidator((input: { phoneNumber?: string }) => input)
+  .handler(async ({ data, context }): Promise<WhatsappInstance> => {
+    const json = await callEdgeFunction("crm-whatsapp", {
+      ownerId: context.userId,
+      action: "connect",
+      phoneNumber: data.phoneNumber,
+    });
+    return { status: "connecting", qrCode: json.qrCode ?? null, qrExpiresAt: null, phoneNumber: data.phoneNumber ?? null, lastError: null };
   });
 
 export const disconnectWhatsapp = createServerFn({ method: "POST" })

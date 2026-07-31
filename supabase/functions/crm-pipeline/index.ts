@@ -1,9 +1,11 @@
 // CRUD de etapas do funil + listagem/movimentação de itens no pipeline do
-// CRM. `pipeline_id` é configurado uma vez por clínica (não existe endpoint
-// documentado de criação de pipeline) via a própria tela — ver action
-// "set-pipeline-id".
+// CRM. A conta não vem com nenhum pipeline pronto — a própria tela cria um
+// (action "create-pipeline") na primeira vez. "set-pipeline-id" fica como
+// fallback manual pra vincular um pipeline já existente (útil se um dia a
+// mesma clínica precisar trocar de pipeline).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
+import { unwrap } from "../_shared/crm-client.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -34,11 +36,29 @@ async function handleSetPipelineId(ownerId: string, pipelineId: string) {
   return { ok: true };
 }
 
+async function handleCreatePipeline(ownerId: string, name: string) {
+  const res = await crmFetch(supabase, ownerId, "/api/v1/pipelines", {
+    method: "POST",
+    body: JSON.stringify({
+      pipeline: { name, description: "Funil de atendimento" },
+      create_default_stages: false,
+    }),
+  });
+  const pipelineId = unwrap(res)?.id;
+  if (!pipelineId) throw new Error("O CRM não retornou o id do pipeline criado.");
+  await supabase
+    .from("crm_credentials")
+    .update({ pipeline_id: String(pipelineId), updated_at: new Date().toISOString() })
+    .eq("owner_id", ownerId);
+  return { ok: true, pipelineId: String(pipelineId) };
+}
+
 async function handleListStages(ownerId: string) {
   const pipelineId = await getPipelineIdOrNull(ownerId);
   if (!pipelineId) return { ok: true, configured: false, stages: [] };
   const res = await crmFetch(supabase, ownerId, `/api/v1/pipelines/${pipelineId}/pipeline_stages`);
-  const stages = Array.isArray(res) ? res : (res?.data ?? res?.pipeline_stages ?? []);
+  const unwrapped = unwrap(res);
+  const stages = Array.isArray(unwrapped) ? unwrapped : [];
   return { ok: true, configured: true, stages };
 }
 
@@ -54,7 +74,7 @@ async function handleSaveStage(
     method: stage.id ? "PATCH" : "POST",
     body: JSON.stringify({ pipeline_stage: { name: stage.name, position: stage.position, color: stage.color } }),
   });
-  return { ok: true, stage: res };
+  return { ok: true, stage: unwrap(res) };
 }
 
 async function handleDeleteStage(ownerId: string, stageId: string) {
@@ -78,7 +98,8 @@ async function handleListItems(ownerId: string) {
   const pipelineId = await getPipelineIdOrNull(ownerId);
   if (!pipelineId) return { ok: true, configured: false, items: [] };
   const res = await crmFetch(supabase, ownerId, `/api/v1/pipelines/${pipelineId}/pipeline_items`);
-  const items = Array.isArray(res) ? res : (res?.data ?? res?.pipeline_items ?? []);
+  const unwrapped = unwrap(res);
+  const items = Array.isArray(unwrapped) ? unwrapped : [];
   return { ok: true, configured: true, items };
 }
 
@@ -91,7 +112,7 @@ async function handleAddItem(
     method: "POST",
     body: JSON.stringify({ type: input.type, item_id: input.itemId, pipeline_stage_id: input.stageId }),
   });
-  return { ok: true, item: res };
+  return { ok: true, item: unwrap(res) };
 }
 
 async function handleMoveItem(ownerId: string, input: { itemId: string; newStageId: string; notes?: string }) {
@@ -100,7 +121,7 @@ async function handleMoveItem(ownerId: string, input: { itemId: string; newStage
     method: "PATCH",
     body: JSON.stringify({ new_stage_id: input.newStageId, notes: input.notes }),
   });
-  return { ok: true, item: res };
+  return { ok: true, item: unwrap(res) };
 }
 
 Deno.serve(async (req) => {
@@ -116,6 +137,9 @@ Deno.serve(async (req) => {
     switch (action) {
       case "set-pipeline-id":
         result = await handleSetPipelineId(ownerId, body.pipelineId);
+        break;
+      case "create-pipeline":
+        result = await handleCreatePipeline(ownerId, body.name);
         break;
       case "list-stages":
         result = await handleListStages(ownerId);

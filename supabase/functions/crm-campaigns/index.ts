@@ -1,5 +1,5 @@
 // Campanhas de disparo em massa via CRM (domínio flow.wavymarketing.com.br,
-// mesmo token de login do crm.wavymarketing.com.br). Além do
+// mesmo token de login do api.wavymarketing.com.br). Além do
 // `message_interval` que já existe no motor de disparo, aplicamos uma
 // proteção própria: limite configurável de contatos/dia por clínica,
 // checado ANTES de chamar /execute — se estourar, nem chega a chamar o CRM.
@@ -10,6 +10,7 @@
 // existe webhook do CRM avisando quando isso acontece.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { campaignFetch, crmFetch } from "../_shared/crm-auth.ts";
+import { unwrap } from "../_shared/crm-client.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -18,13 +19,14 @@ const supabase = createClient(
 
 async function handleList(ownerId: string) {
   const res = await campaignFetch(supabase, ownerId, "/api/v1/campaigns");
-  const campaigns = Array.isArray(res) ? res : (res?.data ?? res?.campaigns ?? []);
+  const unwrapped = unwrap(res);
+  const campaigns = Array.isArray(unwrapped) ? unwrapped : [];
   return { ok: true, campaigns };
 }
 
 async function handleDetail(ownerId: string, campaignId: string) {
   const res = await campaignFetch(supabase, ownerId, `/api/v1/campaigns/${campaignId}`);
-  return { ok: true, campaign: res };
+  return { ok: true, campaign: unwrap(res) };
 }
 
 async function handleSave(
@@ -58,14 +60,16 @@ async function handleSave(
     method: campaign.id ? "PATCH" : "POST",
     body: JSON.stringify(body),
   });
-  return { ok: true, campaign: res };
+  return { ok: true, campaign: unwrap(res) };
 }
 
+// pageSize=1 só pra ler meta.pagination.total sem baixar a lista inteira —
+// confirmado que a paginação de /contacts vem em meta.pagination, não em
+// data.length (que só reflete a página atual).
 async function estimateRecipients(ownerId: string): Promise<number> {
   try {
-    const res = await crmFetch(supabase, ownerId, "/api/v1/contacts");
-    const list = Array.isArray(res) ? res : (res?.data ?? res?.payload ?? []);
-    return Array.isArray(list) ? list.length : 0;
+    const res = await crmFetch(supabase, ownerId, "/api/v1/contacts?page=1&pageSize=1");
+    return Number(res?.meta?.pagination?.total ?? 0);
   } catch {
     return 0;
   }
@@ -98,17 +102,19 @@ async function handleExecute(ownerId: string, campaignId: string) {
     );
   }
 
+  // Resposta confirmada do /execute: { data: { execution_id, workflow_id,
+  // run_id, message } } — sem contagem de destinatários. Usamos a
+  // estimativa de /contacts como o número contabilizado no limite diário.
   const res = await campaignFetch(supabase, ownerId, `/api/v1/campaigns/${campaignId}/execute`, { method: "POST" });
-  const actualCount = res?.audience_size ?? res?.total_contacts ?? res?.contacts_count ?? estimated;
-  await supabase.from("crm_campaign_sends").insert({ owner_id: ownerId, campaign_id: campaignId, recipient_count: actualCount });
-  return { ok: true, campaign: res, recipientsCounted: actualCount };
+  await supabase.from("crm_campaign_sends").insert({ owner_id: ownerId, campaign_id: campaignId, recipient_count: estimated });
+  return { ok: true, campaign: unwrap(res), recipientsCounted: estimated };
 }
 
 async function handleLifecycle(ownerId: string, campaignId: string, action: "schedule" | "pause" | "resume" | "stop", scheduleTo?: string) {
   const init: RequestInit =
     action === "schedule" ? { method: "POST", body: JSON.stringify({ scheduleTo }) } : { method: "POST" };
   const res = await campaignFetch(supabase, ownerId, `/api/v1/campaigns/${campaignId}/${action}`, init);
-  return { ok: true, campaign: res };
+  return { ok: true, campaign: unwrap(res) };
 }
 
 async function handleSetLimit(ownerId: string, limit: number) {

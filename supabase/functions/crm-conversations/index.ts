@@ -3,6 +3,7 @@
 // no CRM; o cache curto fica só no TanStack Query do front-end.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
+import { unwrap } from "../_shared/crm-client.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -11,14 +12,14 @@ const supabase = createClient(
 
 async function handleList(ownerId: string) {
   const res = await crmFetch(supabase, ownerId, "/api/v1/conversations");
-  const list = Array.isArray(res) ? res : (res?.data ?? res?.conversations ?? []);
-  return { ok: true, conversations: list };
+  const unwrapped = unwrap(res);
+  return { ok: true, conversations: Array.isArray(unwrapped) ? unwrapped : [] };
 }
 
 async function handleMessages(ownerId: string, conversationId: string) {
   const res = await crmFetch(supabase, ownerId, `/api/v1/conversations/${conversationId}/messages`);
-  const list = Array.isArray(res) ? res : (res?.data ?? res?.messages ?? []);
-  return { ok: true, messages: list };
+  const unwrapped = unwrap(res);
+  return { ok: true, messages: Array.isArray(unwrapped) ? unwrapped : [] };
 }
 
 async function handleSend(ownerId: string, conversationId: string, content: string) {

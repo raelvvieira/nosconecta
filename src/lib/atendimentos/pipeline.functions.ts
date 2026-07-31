@@ -73,6 +73,14 @@ export const setPipelineId = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const createPipeline = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { name: string }) => input)
+  .handler(async ({ data, context }) => {
+    const json = await callEdgeFunction({ ownerId: context.userId, action: "create-pipeline", name: data.name });
+    return { ok: true, pipelineId: json.pipelineId as string };
+  });
+
 export const savePipelineStage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { id?: string; name: string; position?: number; color?: string }) => input)

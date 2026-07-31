@@ -106,8 +106,9 @@ function AtendimentosPage() {
   const instance = instanceQuery.data ?? null;
   const connected = instance?.status === "open";
 
+  const [phoneNumber, setPhoneNumber] = useState("");
   const connectMutation = useMutation({
-    mutationFn: () => doConnect(),
+    mutationFn: () => doConnect({ data: { phoneNumber } }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["atendimentos-instance"] }),
     onError: (error: Error) => toast.error(error.message),
   });
@@ -232,6 +233,15 @@ function AtendimentosPage() {
               />
             )}
 
+            {instance?.status !== "connecting" && (
+              <Input
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="Número do WhatsApp da clínica (com DDD)"
+                className="mx-auto mt-5 h-11 rounded-[16px] bg-white text-center"
+              />
+            )}
+
             {instance?.lastError && (
               <p className="mt-4 rounded-xl bg-danger-soft px-3 py-2 text-xs text-danger">{instance.lastError}</p>
             )}
@@ -239,7 +249,7 @@ function AtendimentosPage() {
             <Button
               className="mt-6 gap-2 bg-gradient-primary text-white"
               onClick={() => connectMutation.mutate()}
-              disabled={connectMutation.isPending}
+              disabled={connectMutation.isPending || (instance?.status !== "connecting" && !phoneNumber.trim())}
             >
               <RefreshCw className={cn("h-4 w-4", connectMutation.isPending && "animate-spin")} />
               {instance?.status === "connecting" ? "Gerar novo QR Code" : "Conectar"}

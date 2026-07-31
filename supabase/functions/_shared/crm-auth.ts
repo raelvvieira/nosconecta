@@ -6,7 +6,9 @@
 // only ever run with a service-role Supabase client.
 import { rawFetch } from "./crm-client.ts";
 
-export const CRM_BASE_URL = "https://crm.wavymarketing.com.br";
+// A UI do CRM mora em crm.wavymarketing.com.br, mas a API é servida em
+// domínio separado — confirmado com o time do CRM.
+export const CRM_BASE_URL = "https://api.wavymarketing.com.br";
 export const CAMPAIGNS_BASE_URL = "https://flow.wavymarketing.com.br";
 
 const TOKEN_SAFETY_MARGIN_MS = 60_000;
@@ -24,8 +26,10 @@ async function login(email: string, password: string): Promise<{ accessToken: st
     body: JSON.stringify({ email, password }),
   });
   if (!res.ok) throw new Error(`Login no CRM falhou (${res.status}): ${JSON.stringify(res.json)}`);
-  const token = res.json?.token?.access_token;
-  const expiresIn = Number(res.json?.token?.expires_in ?? 0);
+  // Resposta confirmada: { data: { user, accounts, token: { access_token, expires_in } } }.
+  const payload = res.json?.data ?? res.json;
+  const token = payload?.token?.access_token;
+  const expiresIn = Number(payload?.token?.expires_in ?? 0);
   if (!token) throw new Error("Login no CRM não retornou access_token");
   return { accessToken: token, expiresInSeconds: expiresIn > 0 ? expiresIn : 3600 };
 }
@@ -85,7 +89,7 @@ async function authedFetch(
   return res.json;
 }
 
-// crm.wavymarketing.com.br — inboxes, evolution, conversations, contacts,
+// api.wavymarketing.com.br — inboxes, evolution, conversations, contacts,
 // pipelines, message_templates.
 export function crmFetch(supabase: any, ownerId: string, path: string, init: RequestInit = {}) {
   return authedFetch(CRM_BASE_URL, supabase, ownerId, path, init);

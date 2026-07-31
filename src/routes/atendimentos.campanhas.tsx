@@ -324,6 +324,9 @@ function NewCampaignSheet({
 
           <div>
             <Label>Template da mensagem</Label>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              A lista de templates hoje é compartilhada entre todas as contas do CRM — evite nomes genéricos.
+            </p>
             {!creatingTemplate ? (
               <div className="mt-1.5 space-y-2">
                 <Select value={templateId} onValueChange={setTemplateId}>
