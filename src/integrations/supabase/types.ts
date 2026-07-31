@@ -375,6 +375,90 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_campaign_sends: {
+        Row: {
+          campaign_id: string
+          executed_at: string
+          id: string
+          owner_id: string
+          recipient_count: number
+        }
+        Insert: {
+          campaign_id: string
+          executed_at?: string
+          id?: string
+          owner_id: string
+          recipient_count: number
+        }
+        Update: {
+          campaign_id?: string
+          executed_at?: string
+          id?: string
+          owner_id?: string
+          recipient_count?: number
+        }
+        Relationships: []
+      }
+      crm_credentials: {
+        Row: {
+          access_token: string | null
+          created_at: string
+          crm_email: string
+          crm_password: string
+          daily_send_limit: number
+          evolution_instance_name: string | null
+          id: string
+          inbox_id: string | null
+          last_error: string | null
+          owner_id: string
+          phone_number: string | null
+          pipeline_id: string | null
+          qr_code: string | null
+          qr_expires_at: string | null
+          token_expires_at: string | null
+          updated_at: string
+          whatsapp_status: string
+        }
+        Insert: {
+          access_token?: string | null
+          created_at?: string
+          crm_email: string
+          crm_password: string
+          daily_send_limit?: number
+          evolution_instance_name?: string | null
+          id?: string
+          inbox_id?: string | null
+          last_error?: string | null
+          owner_id: string
+          phone_number?: string | null
+          pipeline_id?: string | null
+          qr_code?: string | null
+          qr_expires_at?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          whatsapp_status?: string
+        }
+        Update: {
+          access_token?: string | null
+          created_at?: string
+          crm_email?: string
+          crm_password?: string
+          daily_send_limit?: number
+          evolution_instance_name?: string | null
+          id?: string
+          inbox_id?: string | null
+          last_error?: string | null
+          owner_id?: string
+          phone_number?: string | null
+          pipeline_id?: string | null
+          qr_code?: string | null
+          qr_expires_at?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          whatsapp_status?: string
+        }
+        Relationships: []
+      }
       financial_accounts: {
         Row: {
           company_id: string
@@ -718,6 +802,7 @@ export type Database = {
           company_id: string | null
           cpf: string | null
           created_at: string
+          crm_contact_id: string | null
           email: string | null
           gender: string | null
           guardian_cpf: string | null
@@ -744,6 +829,7 @@ export type Database = {
           company_id?: string | null
           cpf?: string | null
           created_at?: string
+          crm_contact_id?: string | null
           email?: string | null
           gender?: string | null
           guardian_cpf?: string | null
@@ -770,6 +856,7 @@ export type Database = {
           company_id?: string | null
           cpf?: string | null
           created_at?: string
+          crm_contact_id?: string | null
           email?: string | null
           gender?: string | null
           guardian_cpf?: string | null
