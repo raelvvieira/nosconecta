@@ -35,6 +35,7 @@ import {
   getMessages,
   getWhatsappInstance,
   sendWhatsappMessage,
+  setWhatsappInboxId,
   type ConversationRow,
 } from "@/lib/atendimentos/atendimentos.functions";
 import {
@@ -93,6 +94,7 @@ function AtendimentosPage() {
 
   const fetchInstance = useServerFn(getWhatsappInstance);
   const doConnect = useServerFn(connectWhatsapp);
+  const doSetInboxId = useServerFn(setWhatsappInboxId);
   const fetchConversations = useServerFn(getConversations);
   const fetchMessages = useServerFn(getMessages);
   const doSendMessage = useServerFn(sendWhatsappMessage);
@@ -110,6 +112,17 @@ function AtendimentosPage() {
   const connectMutation = useMutation({
     mutationFn: () => doConnect({ data: { phoneNumber } }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["atendimentos-instance"] }),
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const [showInboxIdField, setShowInboxIdField] = useState(false);
+  const [inboxIdInput, setInboxIdInput] = useState("");
+  const setInboxIdMutation = useMutation({
+    mutationFn: () => doSetInboxId({ data: { inboxId: inboxIdInput.trim() } }),
+    onSuccess: () => {
+      toast.success("Inbox vinculada — pode conectar agora.");
+      setShowInboxIdField(false);
+    },
     onError: (error: Error) => toast.error(error.message),
   });
 
@@ -254,6 +267,37 @@ function AtendimentosPage() {
               <RefreshCw className={cn("h-4 w-4", connectMutation.isPending && "animate-spin")} />
               {instance?.status === "connecting" ? "Gerar novo QR Code" : "Conectar"}
             </Button>
+
+            {instance?.status !== "connecting" && (
+              <div className="mt-4">
+                {!showInboxIdField ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowInboxIdField(true)}
+                    className="text-xs text-muted-foreground underline underline-offset-2"
+                  >
+                    Já tenho o Inbox ID (caso o "Conectar" dê erro de permissão)
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={inboxIdInput}
+                      onChange={(e) => setInboxIdInput(e.target.value)}
+                      placeholder="Inbox ID"
+                      className="h-9 rounded-xl"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!inboxIdInput.trim() || setInboxIdMutation.isPending}
+                      onClick={() => setInboxIdMutation.mutate()}
+                    >
+                      Vincular
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         </main>
       </div>

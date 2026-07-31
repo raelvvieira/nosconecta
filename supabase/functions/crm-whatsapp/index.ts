@@ -30,6 +30,21 @@ async function getCredentialsRow(ownerId: string) {
   return data;
 }
 
+async function findExistingWhatsappInboxId(ownerId: string): Promise<string | null> {
+  try {
+    const res = await crmFetch(supabase, ownerId, "/api/v1/inboxes");
+    const unwrapped = unwrap(res);
+    const list = Array.isArray(unwrapped) ? unwrapped : [];
+    const whatsapp = list.find(
+      (i: any) => i?.channel_type === "Channel::Whatsapp" || i?.channel?.type === "whatsapp",
+    );
+    return whatsapp?.id ? String(whatsapp.id) : null;
+  } catch (e) {
+    console.error("[crm-whatsapp] GET /inboxes falhou, seguindo sem lista:", e);
+    return null;
+  }
+}
+
 async function handleConnect(ownerId: string, phoneNumber?: string) {
   const row = await getCredentialsRow(ownerId);
   if (!row) {
@@ -38,11 +53,24 @@ async function handleConnect(ownerId: string, phoneNumber?: string) {
 
   let inboxId: string | null = row.inbox_id;
   if (!inboxId) {
-    const inboxRes = await crmFetch(supabase, ownerId, "/api/v1/inboxes", {
-      method: "POST",
-      body: JSON.stringify({ inbox: { name: "WhatsApp" }, channel: { type: "whatsapp" } }),
-    });
-    inboxId = unwrap(inboxRes)?.id ?? null;
+    // O usuário "agent" costuma não ter permissão pra criar inbox — antes
+    // de tentar criar, procura uma que já exista pra essa conta.
+    inboxId = await findExistingWhatsappInboxId(ownerId);
+  }
+  if (!inboxId) {
+    try {
+      const inboxRes = await crmFetch(supabase, ownerId, "/api/v1/inboxes", {
+        method: "POST",
+        body: JSON.stringify({ inbox: { name: "WhatsApp" }, channel: { type: "whatsapp" } }),
+      });
+      inboxId = unwrap(inboxRes)?.id ?? null;
+    } catch (e) {
+      throw new Error(
+        `Não foi possível criar nem encontrar uma caixa de entrada de WhatsApp para esta clínica. ` +
+          `O usuário do CRM provavelmente não tem permissão para criar inboxes — peça a um administrador ` +
+          `do CRM para criar a inbox de WhatsApp da conta (ou liberar essa permissão) e tente de novo. Detalhe: ${e}`,
+      );
+    }
   }
 
   const instanceName: string = row.evolution_instance_name ?? instanceNameFor(ownerId);
@@ -125,6 +153,14 @@ async function handleStatus(ownerId: string) {
   }
 }
 
+async function handleSetInboxId(ownerId: string, inboxId: string) {
+  await supabase
+    .from("crm_credentials")
+    .update({ inbox_id: inboxId, updated_at: new Date().toISOString() })
+    .eq("owner_id", ownerId);
+  return { ok: true };
+}
+
 async function handleDisconnect(ownerId: string) {
   const row = await getCredentialsRow(ownerId);
   if (!row?.evolution_instance_name) return { ok: true };
@@ -142,10 +178,11 @@ async function handleDisconnect(ownerId: string) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
   try {
-    const { ownerId, action, phoneNumber } = (await req.json()) as {
+    const { ownerId, action, phoneNumber, inboxId } = (await req.json()) as {
       ownerId?: string;
       action?: string;
       phoneNumber?: string;
+      inboxId?: string;
     };
     if (!ownerId || !action) {
       return new Response(JSON.stringify({ error: "ownerId e action são obrigatórios" }), { status: 400 });
@@ -155,6 +192,7 @@ Deno.serve(async (req) => {
     if (action === "connect") result = await handleConnect(ownerId, phoneNumber);
     else if (action === "status") result = await handleStatus(ownerId);
     else if (action === "disconnect") result = await handleDisconnect(ownerId);
+    else if (action === "set-inbox-id") result = await handleSetInboxId(ownerId, inboxId ?? "");
     else return new Response(JSON.stringify({ error: `action desconhecida: ${action}` }), { status: 400 });
 
     return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });

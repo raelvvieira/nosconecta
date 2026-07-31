@@ -115,6 +115,17 @@ export const disconnectWhatsapp = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// Fallback manual: se o usuário do CRM não tiver permissão pra criar (nem
+// listar) a inbox de WhatsApp, um admin cria pelo painel do CRM e cola o ID
+// aqui.
+export const setWhatsappInboxId = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { inboxId: string }) => input)
+  .handler(async ({ data, context }) => {
+    await callEdgeFunction("crm-whatsapp", { ownerId: context.userId, action: "set-inbox-id", inboxId: data.inboxId });
+    return { ok: true };
+  });
+
 export const getConversations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<ConversationRow[]> => {
