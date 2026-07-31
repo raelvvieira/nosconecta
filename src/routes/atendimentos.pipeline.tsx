@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBadge";
 import { cn } from "@/lib/utils";
 import {
   createPipeline,
@@ -111,17 +112,20 @@ function PipelinePage() {
   return (
     <>
       <main className="flex flex-1 flex-col pb-24 lg:h-full lg:overflow-hidden lg:pb-0">
-        <header className="flex items-center justify-between gap-3 px-4 pb-4 pt-6 sm:px-6 lg:px-8 lg:pt-7">
+        <header className="mx-auto flex w-full max-w-[1180px] items-center justify-between gap-3 px-4 pb-4 pt-6 sm:px-6 lg:px-8 lg:pt-7">
           <h1 className="flex items-center gap-2 text-[26px] font-semibold tracking-[-0.03em]">
             <Workflow className="h-5 w-5 text-pink" />
             Pipeline
           </h1>
-          {configured && (
-            <Button variant="outline" className="gap-2" onClick={() => setConfigOpen(true)}>
-              <Settings2 className="h-4 w-4" />
-              Configurar etapas
-            </Button>
-          )}
+          <div className="flex items-center gap-2.5">
+            <WhatsappStatusBadge />
+            {configured && (
+              <Button variant="outline" className="gap-2" onClick={() => setConfigOpen(true)}>
+                <Settings2 className="h-4 w-4" />
+                Configurar etapas
+              </Button>
+            )}
+          </div>
         </header>
 
         {!configured ? (

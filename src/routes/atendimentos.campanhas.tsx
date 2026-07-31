@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBadge";
 import { cn } from "@/lib/utils";
 import {
   MESSAGE_INTERVAL_OPTIONS,
@@ -113,10 +114,13 @@ function CampanhasPage() {
             <Megaphone className="h-5 w-5 text-pink" />
             Campanhas
           </h1>
-          <Button className="gap-2 bg-gradient-primary text-white" onClick={() => setFormOpen(true)}>
-            <Plus className="h-4 w-4" />
-            Nova campanha
-          </Button>
+          <div className="flex items-center gap-2.5">
+            <WhatsappStatusBadge />
+            <Button className="gap-2 bg-gradient-primary text-white" onClick={() => setFormOpen(true)}>
+              <Plus className="h-4 w-4" />
+              Nova campanha
+            </Button>
+          </div>
         </header>
 
         <section className="surface-card mt-5 p-4 sm:p-5">

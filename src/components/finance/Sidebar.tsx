@@ -18,6 +18,8 @@ import {
   Users,
   MoreHorizontal,
   MessageCircle,
+  Workflow,
+  Megaphone,
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
@@ -42,13 +44,26 @@ const financeItems: FinanceItem[] = [
   { label: "Comissões", icon: Percent, to: "/comissoes" },
 ];
 
+type AtendimentosItem = {
+  label: string;
+  icon: LucideIcon;
+  to: "/atendimentos" | "/atendimentos/pipeline" | "/atendimentos/campanhas";
+};
+
+const atendimentosItems: AtendimentosItem[] = [
+  { label: "Chat", icon: MessageCircle, to: "/atendimentos" },
+  { label: "Pipeline", icon: Workflow, to: "/atendimentos/pipeline" },
+  { label: "Campanhas", icon: Megaphone, to: "/atendimentos/campanhas" },
+];
+
 const REAL_ROUTES = new Set(["/", "/pagamentos", "/recebimentos", "/planejamento"]);
 const FINANCE_PATHS = new Set(["/", "/recebimentos", "/pagamentos", "/planejamento", "/comissoes"]);
 const AGENDA_PATHS = new Set(["/agenda"]);
 const isPatientsPath = (pathname: string) =>
   pathname === "/pacientes" || pathname.startsWith("/pacientes/");
 const isSettingsPath = (pathname: string) => pathname === "/configuracoes";
-const isAtendimentosPath = (pathname: string) => pathname === "/atendimentos";
+const isAtendimentosPath = (pathname: string) =>
+  pathname === "/atendimentos" || pathname.startsWith("/atendimentos/");
 const STORAGE_KEY = "sidebar-collapsed";
 
 export function Sidebar() {
@@ -72,16 +87,17 @@ export function Sidebar() {
   const inInicio = useMemo(() => pathname === "/inicio", [pathname]);
   const inAtendimentos = useMemo(() => isAtendimentosPath(pathname), [pathname]);
 
-  type SidebarView = "modules" | "financeiro" | "agenda";
+  type SidebarView = "modules" | "financeiro" | "agenda" | "atendimentos";
   const [view, setView] = useState<SidebarView>(
-    inFinance ? "financeiro" : inAgenda ? "agenda" : "modules",
+    inFinance ? "financeiro" : inAgenda ? "agenda" : inAtendimentos ? "atendimentos" : "modules",
   );
 
   // Switch view automatically when the route changes
   useEffect(() => {
-    if (inPatients || inSettings || inInicio || inAtendimentos) setView("modules");
+    if (inPatients || inSettings || inInicio) setView("modules");
     else if (inFinance) setView("financeiro");
     else if (inAgenda) setView("agenda");
+    else if (inAtendimentos) setView("atendimentos");
   }, [inFinance, inAgenda, inPatients, inSettings, inInicio, inAtendimentos]);
 
   useEffect(() => {
@@ -248,7 +264,9 @@ export function Sidebar() {
                     ? inPatients
                     : m.to === "/configuracoes"
                       ? inSettings
-                      : pathname === m.to;
+                      : m.to === "/atendimentos"
+                        ? inAtendimentos
+                        : pathname === m.to;
                 const className = cn(
                   "flex items-center rounded-2xl transition-colors",
                   collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
@@ -271,6 +289,58 @@ export function Sidebar() {
                         {inner}
                       </Link>,
                       m.label,
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          ) : view === "atendimentos" ? (
+            <>
+              {/* Back to modules */}
+              {maybeTooltip(
+                <button
+                  type="button"
+                  onClick={() => setView("modules")}
+                  className={cn(
+                    "flex items-center rounded-2xl text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground transition-colors",
+                    collapsed ? "h-10 w-10 justify-center" : "h-9 w-full px-3 gap-2 mb-1",
+                  )}
+                  aria-label="Voltar aos módulos"
+                >
+                  <ChevronLeft className="h-[16px] w-[16px] shrink-0" strokeWidth={2} />
+                  {!collapsed && <span className="text-xs font-medium">Módulos</span>}
+                </button>,
+                "Voltar aos módulos",
+              )}
+
+              {!collapsed && (
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
+                  Atendimentos
+                </span>
+              )}
+
+              {atendimentosItems.map((it) => {
+                const active = it.to === "/atendimentos" ? pathname === it.to : pathname.startsWith(it.to);
+                const className = cn(
+                  "flex items-center rounded-2xl transition-colors",
+                  collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
+                  active
+                    ? "bg-[#1B1B1F] text-white"
+                    : "text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground",
+                );
+                const inner = (
+                  <>
+                    <it.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+                    {!collapsed && <span className="text-sm font-medium truncate">{it.label}</span>}
+                  </>
+                );
+                return (
+                  <div key={it.label}>
+                    {maybeTooltip(
+                      <Link to={it.to} className={className} aria-label={it.label}>
+                        {inner}
+                      </Link>,
+                      it.label,
                     )}
                   </div>
                 );

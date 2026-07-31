@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { WhatsappConnectSheet } from "@/components/atendimentos/WhatsappConnectSheet";
+import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBadge";
 import {
   getConversations,
   getMessages,
@@ -171,7 +172,7 @@ function ChatPage() {
   }, [messages.length]);
 
   return (
-    <main className="flex flex-1 flex-col pb-20 lg:h-full lg:flex-row lg:overflow-hidden lg:pb-0">
+    <main className="mx-auto flex w-full flex-1 flex-col pb-20 lg:h-full lg:max-w-[1400px] lg:flex-row lg:overflow-hidden lg:pb-0">
       {/* Conversation list */}
       <section
         className={cn(
@@ -180,7 +181,10 @@ function ChatPage() {
         )}
       >
         <header className="px-4 pb-3 pt-6 sm:px-6 lg:px-5 lg:pt-7">
-          <h1 className="text-[26px] font-semibold tracking-[-0.03em]">Conversas</h1>
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-[26px] font-semibold tracking-[-0.03em]">Conversas</h1>
+            <WhatsappStatusBadge />
+          </div>
           <div className="relative mt-4">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
