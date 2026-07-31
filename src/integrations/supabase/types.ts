@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointment_notification_replies: {
+        Row: {
+          action: string
+          appointment_id: string | null
+          channel: string
+          created_at: string
+          from_phone: string
+          id: string
+          message_text: string
+          owner_id: string
+          patient_id: string | null
+        }
+        Insert: {
+          action: string
+          appointment_id?: string | null
+          channel?: string
+          created_at?: string
+          from_phone: string
+          id?: string
+          message_text: string
+          owner_id: string
+          patient_id?: string | null
+        }
+        Update: {
+          action?: string
+          appointment_id?: string | null
+          channel?: string
+          created_at?: string
+          from_phone?: string
+          id?: string
+          message_text?: string
+          owner_id?: string
+          patient_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_notification_replies_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_notification_replies_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointment_notifications: {
         Row: {
           appointment_id: string
@@ -290,6 +341,8 @@ export type Database = {
           name: string
           owner_id: string
           price: number
+          tuss_code: string | null
+          tuss_name: string | null
           updated_at: string
         }
         Insert: {
@@ -302,6 +355,8 @@ export type Database = {
           name: string
           owner_id: string
           price?: number
+          tuss_code?: string | null
+          tuss_name?: string | null
           updated_at?: string
         }
         Update: {
@@ -314,6 +369,8 @@ export type Database = {
           name?: string
           owner_id?: string
           price?: number
+          tuss_code?: string | null
+          tuss_name?: string | null
           updated_at?: string
         }
         Relationships: []
