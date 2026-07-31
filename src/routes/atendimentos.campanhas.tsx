@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Megaphone, Pause, Play, Plus, Rocket, Square } from "lucide-react";
+import { Megaphone, Pause, Play, Plus, Rocket, Square } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,14 +106,9 @@ function CampanhasPage() {
   const usagePct = usage.limit > 0 ? Math.min(100, Math.round((usage.usedToday / usage.limit) * 100)) : 0;
 
   return (
-    <div className="min-h-screen app-bg lg:flex">
-      <Sidebar />
+    <>
       <main className="mx-auto w-full max-w-[900px] px-4 pb-28 pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
-        <Link to="/atendimentos" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" />
-          Atendimentos
-        </Link>
-        <header className="mt-2 flex flex-wrap items-end justify-between gap-3">
+        <header className="flex flex-wrap items-end justify-between gap-3">
           <h1 className="flex items-center gap-2 text-[26px] font-semibold tracking-[-0.03em]">
             <Megaphone className="h-5 w-5 text-pink" />
             Campanhas
@@ -215,7 +209,7 @@ function CampanhasPage() {
       </main>
 
       <NewCampaignSheet open={formOpen} onOpenChange={setFormOpen} onCreated={refresh} />
-    </div>
+    </>
   );
 }
 

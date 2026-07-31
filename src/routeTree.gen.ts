@@ -20,6 +20,7 @@ import { Route as AtendimentosRouteImport } from './routes/atendimentos'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PacientesIndexRouteImport } from './routes/pacientes.index'
+import { Route as AtendimentosIndexRouteImport } from './routes/atendimentos.index'
 import { Route as PacientesPatientIdRouteImport } from './routes/pacientes.$patientId'
 import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
 import { Route as AtendimentosPipelineRouteImport } from './routes/atendimentos.pipeline'
@@ -80,6 +81,11 @@ const PacientesIndexRoute = PacientesIndexRouteImport.update({
   path: '/',
   getParentRoute: () => PacientesRoute,
 } as any)
+const AtendimentosIndexRoute = AtendimentosIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AtendimentosRoute,
+} as any)
 const PacientesPatientIdRoute = PacientesPatientIdRouteImport.update({
   id: '/$patientId',
   path: '/$patientId',
@@ -117,12 +123,12 @@ export interface FileRoutesByFullPath {
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
+  '/atendimentos/': typeof AtendimentosIndexRoute
   '/pacientes/': typeof PacientesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/inicio': typeof InicioRoute
@@ -133,6 +139,7 @@ export interface FileRoutesByTo {
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
+  '/atendimentos': typeof AtendimentosIndexRoute
   '/pacientes': typeof PacientesIndexRoute
 }
 export interface FileRoutesById {
@@ -151,6 +158,7 @@ export interface FileRoutesById {
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
+  '/atendimentos/': typeof AtendimentosIndexRoute
   '/pacientes/': typeof PacientesIndexRoute
 }
 export interface FileRouteTypes {
@@ -170,12 +178,12 @@ export interface FileRouteTypes {
     | '/atendimentos/pipeline'
     | '/configuracoes/notificacoes'
     | '/pacientes/$patientId'
+    | '/atendimentos/'
     | '/pacientes/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/agenda'
-    | '/atendimentos'
     | '/auth'
     | '/configuracoes'
     | '/inicio'
@@ -186,6 +194,7 @@ export interface FileRouteTypes {
     | '/atendimentos/pipeline'
     | '/configuracoes/notificacoes'
     | '/pacientes/$patientId'
+    | '/atendimentos'
     | '/pacientes'
   id:
     | '__root__'
@@ -203,6 +212,7 @@ export interface FileRouteTypes {
     | '/atendimentos/pipeline'
     | '/configuracoes/notificacoes'
     | '/pacientes/$patientId'
+    | '/atendimentos/'
     | '/pacientes/'
   fileRoutesById: FileRoutesById
 }
@@ -298,6 +308,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PacientesIndexRouteImport
       parentRoute: typeof PacientesRoute
     }
+    '/atendimentos/': {
+      id: '/atendimentos/'
+      path: '/'
+      fullPath: '/atendimentos/'
+      preLoaderRoute: typeof AtendimentosIndexRouteImport
+      parentRoute: typeof AtendimentosRoute
+    }
     '/pacientes/$patientId': {
       id: '/pacientes/$patientId'
       path: '/$patientId'
@@ -332,11 +349,13 @@ declare module '@tanstack/react-router' {
 interface AtendimentosRouteChildren {
   AtendimentosCampanhasRoute: typeof AtendimentosCampanhasRoute
   AtendimentosPipelineRoute: typeof AtendimentosPipelineRoute
+  AtendimentosIndexRoute: typeof AtendimentosIndexRoute
 }
 
 const AtendimentosRouteChildren: AtendimentosRouteChildren = {
   AtendimentosCampanhasRoute: AtendimentosCampanhasRoute,
   AtendimentosPipelineRoute: AtendimentosPipelineRoute,
+  AtendimentosIndexRoute: AtendimentosIndexRoute,
 }
 
 const AtendimentosRouteWithChildren = AtendimentosRoute._addFileChildren(

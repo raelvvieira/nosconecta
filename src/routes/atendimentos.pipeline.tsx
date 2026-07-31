@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, MoreHorizontal, Plus, Settings2, Trash2, Workflow } from "lucide-react";
+import { MoreHorizontal, Plus, Settings2, Trash2, Workflow } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,29 +105,17 @@ function PipelinePage() {
   const [configOpen, setConfigOpen] = useState(false);
 
   if (stagesQuery.isLoading) {
-    return (
-      <div className="min-h-screen app-bg lg:flex">
-        <Sidebar />
-        <main className="flex min-h-screen flex-1 items-center justify-center" />
-      </div>
-    );
+    return <main className="flex flex-1 items-center justify-center lg:h-full" />;
   }
 
   return (
-    <div className="min-h-screen app-bg lg:flex">
-      <Sidebar />
-      <main className="flex min-h-screen flex-1 flex-col pb-24 lg:h-screen lg:overflow-hidden lg:pb-0">
+    <>
+      <main className="flex flex-1 flex-col pb-24 lg:h-full lg:overflow-hidden lg:pb-0">
         <header className="flex items-center justify-between gap-3 px-4 pb-4 pt-6 sm:px-6 lg:px-8 lg:pt-7">
-          <div>
-            <Link to="/atendimentos" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-4 w-4" />
-              Atendimentos
-            </Link>
-            <h1 className="mt-2 flex items-center gap-2 text-[26px] font-semibold tracking-[-0.03em]">
-              <Workflow className="h-5 w-5 text-pink" />
-              Pipeline
-            </h1>
-          </div>
+          <h1 className="flex items-center gap-2 text-[26px] font-semibold tracking-[-0.03em]">
+            <Workflow className="h-5 w-5 text-pink" />
+            Pipeline
+          </h1>
           {configured && (
             <Button variant="outline" className="gap-2" onClick={() => setConfigOpen(true)}>
               <Settings2 className="h-4 w-4" />
@@ -232,7 +219,7 @@ function PipelinePage() {
         onReorder={(orderedIds) => doReorder({ data: { orderedIds } })}
         onChanged={refresh}
       />
-    </div>
+    </>
   );
 }
 
