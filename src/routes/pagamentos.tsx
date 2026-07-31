@@ -155,7 +155,7 @@ function PagamentosPage() {
   useRegisterMobileFab({ label: "Novo Pagamento", onClick: () => setSheetOpen(true) });
 
   const setSearch = (patch: Partial<Search>) =>
-    navigate({ search: (prev) => ({ ...prev, ...patch }) });
+    navigate({ search: (prev: Search) => ({ ...prev, ...patch }) });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["payables-overview"] });
 

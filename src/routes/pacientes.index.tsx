@@ -109,7 +109,7 @@ function PatientsPage() {
 
   const setSearch = (patch: Partial<PatientsSearch>) =>
     routeNavigate({
-      search: (previous) => ({ ...previous, ...patch }),
+      search: (previous: PatientsSearch) => ({ ...previous, ...patch }),
     });
 
   return (
