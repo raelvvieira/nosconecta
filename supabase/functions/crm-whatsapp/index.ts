@@ -70,7 +70,16 @@ async function handleConnect(ownerId: string, phoneNumber?: string) {
     method: "POST",
     body: JSON.stringify({ instance_name: instanceName }),
   });
-  const qrCode: string | null = unwrap(qrRes)?.base64 ?? null;
+  const qrData = unwrap(qrRes);
+  // Formato exato da resposta ainda não confirmado — tenta os campos mais
+  // prováveis (padrão da própria Evolution API é `base64`, mas o CRM pode
+  // aninhar diferente). Se nenhum bater, falha alto com o corpo cru em vez
+  // de deixar a tela sem QR silenciosamente.
+  const qrCode: string | null =
+    qrData?.base64 ?? qrData?.qrcode?.base64 ?? qrData?.qrCode ?? qrData?.qr ?? qrData?.code ?? null;
+  if (!qrCode) {
+    throw new Error(`QR code não veio no formato esperado. Resposta do CRM: ${JSON.stringify(qrRes)}`);
+  }
 
   await supabase
     .from("crm_credentials")
