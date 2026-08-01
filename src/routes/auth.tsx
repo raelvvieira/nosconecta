@@ -49,11 +49,10 @@ function AuthPage() {
     if (!invite) return;
     setMode("invite");
     (async () => {
-      const { data, error } = await supabase
-        .from("invitations")
-        .select("id,email,role,expires_at,accepted_at")
-        .eq("token", invite)
-        .maybeSingle();
+      const { data: rows, error } = await supabase.rpc("get_invitation_by_token", {
+        _token: invite as string,
+      });
+      const data = Array.isArray(rows) ? rows[0] : rows;
       if (error || !data) {
         setInviteError("Convite inválido ou expirado.");
         return;
@@ -103,7 +102,7 @@ function AuthPage() {
       return;
     }
     // Mark invitation as accepted (best-effort)
-    await supabase.from("invitations").update({ accepted_at: new Date().toISOString() }).eq("id", invitation.id);
+    await supabase.rpc("accept_invitation", { _token: invite as string });
     if (data.session) {
       toast.success("Conta criada com sucesso!");
       navigate({ to: "/inicio", replace: true });
