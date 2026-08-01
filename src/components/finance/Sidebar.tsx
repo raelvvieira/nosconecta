@@ -33,11 +33,11 @@ import { supabase } from "@/integrations/supabase/client";
 type FinanceItem = {
   label: string;
   icon: LucideIcon;
-  to: "/" | "/recebimentos" | "/pagamentos" | "/planejamento" | "/comissoes";
+  to: "/financeiro" | "/recebimentos" | "/pagamentos" | "/planejamento" | "/comissoes";
 };
 
 const financeItems: FinanceItem[] = [
-  { label: "Visão Geral", icon: LayoutGrid, to: "/" },
+  { label: "Visão Geral", icon: LayoutGrid, to: "/financeiro" },
   { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" },
   { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" },
   { label: "Planejamento", icon: TrendingUp, to: "/planejamento" },
@@ -56,8 +56,8 @@ const atendimentosItems: AtendimentosItem[] = [
   { label: "Campanhas", icon: Megaphone, to: "/atendimentos/campanhas" },
 ];
 
-const REAL_ROUTES = new Set(["/", "/pagamentos", "/recebimentos", "/planejamento"]);
-const FINANCE_PATHS = new Set(["/", "/recebimentos", "/pagamentos", "/planejamento", "/comissoes"]);
+const REAL_ROUTES = new Set(["/financeiro", "/pagamentos", "/recebimentos", "/planejamento"]);
+const FINANCE_PATHS = new Set(["/financeiro", "/recebimentos", "/pagamentos", "/planejamento", "/comissoes"]);
 const AGENDA_PATHS = new Set(["/agenda"]);
 const isPatientsPath = (pathname: string) =>
   pathname === "/pacientes" || pathname.startsWith("/pacientes/");
@@ -156,14 +156,14 @@ export function Sidebar() {
   const modules: {
     label: string;
     icon: LucideIcon;
-    to: "/inicio" | "/agenda" | "/pacientes" | "/atendimentos" | "/configuracoes" | "/";
+    to: "/inicio" | "/agenda" | "/pacientes" | "/atendimentos" | "/configuracoes" | "/financeiro";
     disabled?: boolean;
   }[] = [
     { label: "Início", icon: Home, to: "/inicio" },
     { label: "Agenda", icon: Calendar, to: "/agenda" },
     { label: "Pacientes", icon: Users, to: "/pacientes" },
     { label: "Atendimentos", icon: MessageCircle, to: "/atendimentos" },
-    { label: "Financeiro", icon: Wallet, to: "/" },
+    { label: "Financeiro", icon: Wallet, to: "/financeiro" },
     { label: "Configurações", icon: Settings, to: "/configuracoes" },
   ];
 
