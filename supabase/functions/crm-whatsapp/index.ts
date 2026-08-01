@@ -8,6 +8,12 @@
 // QR, precisa vir antes) — e o `:id` de
 // `DELETE /evolution/instances/:id/logout` é o próprio `instance_name`.
 //
+// O QR code é sempre buscado via `POST /evolution/qrcodes` com
+// `instance_name` no corpo — a variante `GET /evolution/qrcodes/:instance`
+// (usada antes só na primeira conexão) devolvia 404 "Channel not found for
+// instance" logo depois de autorizar, porque o canal ainda não existe pro
+// GET conseguir ler; o POST cria/atualiza o QR e resolve isso.
+//
 // De propósito, conectar o WhatsApp (autorizar a instância + parear o QR)
 // NUNCA depende de resolver um inbox_id: /api/v1/conversations já lista
 // tudo da conta sem precisar dele, e tentar criar um inbox via
@@ -46,7 +52,6 @@ async function handleConnect(ownerId: string, phoneNumber?: string) {
 
   const instanceName: string = row.evolution_instance_name ?? instanceNameFor(ownerId);
   const effectivePhone = phoneNumber?.trim() || row.phone_number || null;
-  let qrCode: string | null;
 
   if (!row.evolution_instance_name) {
     // Primeira conexão: autoriza a instância antes de pedir QR. O CRM
@@ -58,16 +63,14 @@ async function handleConnect(ownerId: string, phoneNumber?: string) {
       method: "POST",
       body: JSON.stringify({ instance_name: instanceName, phone_number: effectivePhone }),
     });
-    const qrRes = await crmFetch(supabase, ownerId, `/api/v1/evolution/qrcodes/${instanceName}`);
-    qrCode = unwrap(qrRes)?.base64 ?? null;
-  } else {
-    // Instância já autorizada — só pede um QR novo (o anterior expirou).
-    const qrRes = await crmFetch(supabase, ownerId, "/api/v1/evolution/qrcodes", {
-      method: "POST",
-      body: JSON.stringify({ instance_name: instanceName }),
-    });
-    qrCode = unwrap(qrRes)?.base64 ?? null;
   }
+
+  // Pede o QR (primeira conexão ou reconexão — mesmo endpoint nos dois casos).
+  const qrRes = await crmFetch(supabase, ownerId, "/api/v1/evolution/qrcodes", {
+    method: "POST",
+    body: JSON.stringify({ instance_name: instanceName }),
+  });
+  const qrCode: string | null = unwrap(qrRes)?.base64 ?? null;
 
   await supabase
     .from("crm_credentials")
