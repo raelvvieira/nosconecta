@@ -14,6 +14,7 @@ import { Route as PlanejamentoRouteImport } from './routes/planejamento'
 import { Route as PagamentosRouteImport } from './routes/pagamentos'
 import { Route as PacientesRouteImport } from './routes/pacientes'
 import { Route as InicioRouteImport } from './routes/inicio'
+import { Route as FinanceiroRouteImport } from './routes/financeiro'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AtendimentosRouteImport } from './routes/atendimentos'
@@ -49,6 +50,11 @@ const PacientesRoute = PacientesRouteImport.update({
 const InicioRoute = InicioRouteImport.update({
   id: '/inicio',
   path: '/inicio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FinanceiroRoute = FinanceiroRouteImport.update({
+  id: '/financeiro',
+  path: '/financeiro',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
@@ -114,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
+  '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
   '/pacientes': typeof PacientesRouteWithChildren
   '/pagamentos': typeof PagamentosRoute
@@ -131,6 +138,7 @@ export interface FileRoutesByTo {
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
+  '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -149,6 +157,7 @@ export interface FileRoutesById {
   '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
+  '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
   '/pacientes': typeof PacientesRouteWithChildren
   '/pagamentos': typeof PagamentosRoute
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/atendimentos'
     | '/auth'
     | '/configuracoes'
+    | '/financeiro'
     | '/inicio'
     | '/pacientes'
     | '/pagamentos'
@@ -186,6 +196,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/auth'
     | '/configuracoes'
+    | '/financeiro'
     | '/inicio'
     | '/pagamentos'
     | '/planejamento'
@@ -203,6 +214,7 @@ export interface FileRouteTypes {
     | '/atendimentos'
     | '/auth'
     | '/configuracoes'
+    | '/financeiro'
     | '/inicio'
     | '/pacientes'
     | '/pagamentos'
@@ -222,6 +234,7 @@ export interface RootRouteChildren {
   AtendimentosRoute: typeof AtendimentosRouteWithChildren
   AuthRoute: typeof AuthRoute
   ConfiguracoesRoute: typeof ConfiguracoesRouteWithChildren
+  FinanceiroRoute: typeof FinanceiroRoute
   InicioRoute: typeof InicioRoute
   PacientesRoute: typeof PacientesRouteWithChildren
   PagamentosRoute: typeof PagamentosRoute
@@ -264,6 +277,13 @@ declare module '@tanstack/react-router' {
       path: '/inicio'
       fullPath: '/inicio'
       preLoaderRoute: typeof InicioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/financeiro': {
+      id: '/financeiro'
+      path: '/financeiro'
+      fullPath: '/financeiro'
+      preLoaderRoute: typeof FinanceiroRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/configuracoes': {
@@ -394,6 +414,7 @@ const rootRouteChildren: RootRouteChildren = {
   AtendimentosRoute: AtendimentosRouteWithChildren,
   AuthRoute: AuthRoute,
   ConfiguracoesRoute: ConfiguracoesRouteWithChildren,
+  FinanceiroRoute: FinanceiroRoute,
   InicioRoute: InicioRoute,
   PacientesRoute: PacientesRouteWithChildren,
   PagamentosRoute: PagamentosRoute,
@@ -403,13 +424,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

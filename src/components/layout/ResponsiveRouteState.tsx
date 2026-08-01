@@ -39,7 +39,7 @@ export function ResponsiveRouteState({ title, description, notFound = false, onR
               </Button>
             )}
             <Button asChild variant="outline" className="gap-2">
-              <Link to="/">
+              <Link to="/inicio">
                 <Home className="h-4 w-4" /> Ir para o início
               </Link>
             </Button>

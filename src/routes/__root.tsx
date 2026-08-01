@@ -143,12 +143,15 @@ function AuthGate({ children }: { children: ReactNode }) {
     if (!authed && !isAuthRoute) {
       router.navigate({
         to: "/auth",
-        search: { redirect: pathname === "/" ? undefined : pathname },
+        search: { redirect: pathname === "/" ? "/inicio" : pathname },
         replace: true,
       });
     }
     if (authed && isAuthRoute) {
-      router.navigate({ to: "/", replace: true });
+      router.navigate({ to: "/inicio", replace: true });
+    }
+    if (authed && pathname === "/") {
+      router.navigate({ to: "/inicio", replace: true });
     }
   }, [ready, authed, pathname, router]);
 

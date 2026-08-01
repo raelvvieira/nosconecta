@@ -40,7 +40,7 @@ function AuthPage() {
   // Redirect if already logged in
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: (redirect as string) || "/", replace: true });
+      if (data.session) navigate({ to: (redirect as string) || "/inicio", replace: true });
     });
   }, [navigate, redirect]);
 
@@ -81,7 +81,7 @@ function AuthPage() {
       return;
     }
     toast.success("Bem-vindo de volta!");
-    navigate({ to: (redirect as string) || "/", replace: true });
+    navigate({ to: (redirect as string) || "/inicio", replace: true });
   }
 
   async function handleAcceptInvite(e: React.FormEvent) {
@@ -106,7 +106,7 @@ function AuthPage() {
     await supabase.from("invitations").update({ accepted_at: new Date().toISOString() }).eq("id", invitation.id);
     if (data.session) {
       toast.success("Conta criada com sucesso!");
-      navigate({ to: "/", replace: true });
+      navigate({ to: "/inicio", replace: true });
     } else {
       toast.success("Conta criada! Verifique seu e-mail para confirmar.");
       setMode("signin");

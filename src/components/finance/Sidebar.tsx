@@ -33,11 +33,11 @@ import { supabase } from "@/integrations/supabase/client";
 type FinanceItem = {
   label: string;
   icon: LucideIcon;
-  to: "/" | "/recebimentos" | "/pagamentos" | "/planejamento" | "/comissoes";
+  to: "/financeiro" | "/recebimentos" | "/pagamentos" | "/planejamento" | "/comissoes";
 };
 
 const financeItems: FinanceItem[] = [
-  { label: "Visão Geral", icon: LayoutGrid, to: "/" },
+  { label: "Visão Geral", icon: LayoutGrid, to: "/financeiro" },
   { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" },
   { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" },
   { label: "Planejamento", icon: TrendingUp, to: "/planejamento" },
@@ -56,8 +56,8 @@ const atendimentosItems: AtendimentosItem[] = [
   { label: "Campanhas", icon: Megaphone, to: "/atendimentos/campanhas" },
 ];
 
-const REAL_ROUTES = new Set(["/", "/pagamentos", "/recebimentos", "/planejamento"]);
-const FINANCE_PATHS = new Set(["/", "/recebimentos", "/pagamentos", "/planejamento", "/comissoes"]);
+const REAL_ROUTES = new Set(["/financeiro", "/pagamentos", "/recebimentos", "/planejamento"]);
+const FINANCE_PATHS = new Set(["/financeiro", "/recebimentos", "/pagamentos", "/planejamento", "/comissoes"]);
 const AGENDA_PATHS = new Set(["/agenda"]);
 const isPatientsPath = (pathname: string) =>
   pathname === "/pacientes" || pathname.startsWith("/pacientes/");
@@ -78,7 +78,7 @@ export function Sidebar() {
   const inFinance = useMemo(
     () =>
       FINANCE_PATHS.has(pathname) ||
-      financeItems.some((i) => i.to !== "/" && pathname.startsWith(i.to)),
+      financeItems.some((i) => pathname.startsWith(i.to)),
     [pathname],
   );
   const inAgenda = useMemo(() => AGENDA_PATHS.has(pathname), [pathname]);
@@ -156,14 +156,14 @@ export function Sidebar() {
   const modules: {
     label: string;
     icon: LucideIcon;
-    to: "/inicio" | "/agenda" | "/pacientes" | "/atendimentos" | "/configuracoes" | "/";
+    to: "/inicio" | "/agenda" | "/pacientes" | "/atendimentos" | "/configuracoes" | "/financeiro";
     disabled?: boolean;
   }[] = [
     { label: "Início", icon: Home, to: "/inicio" },
     { label: "Agenda", icon: Calendar, to: "/agenda" },
     { label: "Pacientes", icon: Users, to: "/pacientes" },
     { label: "Atendimentos", icon: MessageCircle, to: "/atendimentos" },
-    { label: "Financeiro", icon: Wallet, to: "/" },
+    { label: "Financeiro", icon: Wallet, to: "/financeiro" },
     { label: "Configurações", icon: Settings, to: "/configuracoes" },
   ];
 
@@ -372,7 +372,7 @@ export function Sidebar() {
               )}
 
               {financeItems.map((it) => {
-                const active = pathname === it.to || (it.to !== "/" && pathname.startsWith(it.to));
+                const active = pathname === it.to || pathname.startsWith(it.to);
                 const isReal = REAL_ROUTES.has(it.to);
                 const className = cn(
                   "flex items-center rounded-2xl transition-colors",
@@ -496,7 +496,7 @@ export function Sidebar() {
       >
         {(() => {
           const navItems = [
-            { label: "Financeiro", icon: LayoutGrid, to: "/" as const },
+            { label: "Financeiro", icon: LayoutGrid, to: "/financeiro" as const },
             { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" as const },
             { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" as const },
             { label: "Planejamento", icon: TrendingUp, to: "/planejamento" as const },
@@ -505,8 +505,7 @@ export function Sidebar() {
           const right = navItems.slice(2);
 
           const renderItem = (item: (typeof navItems)[number]) => {
-            const active =
-              pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+            const active = pathname === item.to || pathname.startsWith(item.to);
             const isReal = REAL_ROUTES.has(item.to);
 
             const inner = (
@@ -686,12 +685,12 @@ export function Sidebar() {
             );
           }
 
-          if (pathname === "/" || inPatients || inSettings || inAtendimentos) {
+          if (pathname === "/inicio" || inPatients || inSettings || inAtendimentos) {
             const homeItems = [
-              { label: "Início", icon: Home, to: "/" as const, isReal: true },
+              { label: "Início", icon: Home, to: "/inicio" as const, isReal: true },
               { label: "Agenda", icon: Calendar, to: "/agenda" as const, isReal: true },
               { label: "Pacientes", icon: Users, to: "/pacientes" as const, isReal: true },
-              { label: "Financeiro", icon: Wallet, to: "/recebimentos" as const, isReal: true },
+              { label: "Financeiro", icon: Wallet, to: "/financeiro" as const, isReal: true },
               { label: "Mais", icon: MoreHorizontal, to: "/configuracoes" as const, isReal: true },
             ];
             const homeItemStyle: React.CSSProperties = {
@@ -792,10 +791,10 @@ export function Sidebar() {
 
       {/* Mobile top-right home button */}
       <Link
-        to="/"
+        to="/inicio"
         className={cn(
           "lg:hidden fixed z-40 flex items-center justify-center",
-          (pathname === "/" || (inPatients && pathname !== "/pacientes")) && "hidden",
+          (pathname === "/inicio" || (inPatients && pathname !== "/pacientes")) && "hidden",
         )}
         style={{
           top: 20,
