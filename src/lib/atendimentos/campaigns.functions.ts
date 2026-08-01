@@ -10,6 +10,11 @@ export const MESSAGE_INTERVAL_OPTIONS: { value: MessageInterval; label: string }
   { value: "1_5", label: "1 a 5 segundos (não recomendado)" },
 ];
 
+// Pausar a cada N mensagens / retomar após X minutos — especulativo, ver
+// comentário em supabase/functions/crm-campaigns/index.ts.
+export const PAUSE_AFTER_OPTIONS = [10, 20, 50, 100];
+export const RESUME_AFTER_MINUTES_OPTIONS = [1, 2, 5, 10];
+
 export interface MessageTemplate {
   id: string;
   name: string;
@@ -22,6 +27,17 @@ export interface Campaign {
   status: string;
   sendToAll: boolean;
   messageInterval: MessageInterval | null;
+}
+
+export interface CampaignConfig {
+  campaignId: string;
+  sourceStageId: string | null;
+  targetStageId: string | null;
+  pauseAfterCount: number | null;
+  resumeAfterMinutes: number | null;
+  saveAudienceList: boolean;
+  audienceContactIds: string[];
+  movePendingContactIds: string[];
 }
 
 export interface DailyUsage {
@@ -64,6 +80,19 @@ function mapCampaign(row: any): Campaign {
   };
 }
 
+function mapCampaignConfig(row: any, campaignId: string): CampaignConfig {
+  return {
+    campaignId,
+    sourceStageId: row?.source_stage_id ?? null,
+    targetStageId: row?.target_stage_id ?? null,
+    pauseAfterCount: row?.pause_after_count ?? null,
+    resumeAfterMinutes: row?.resume_after_minutes ?? null,
+    saveAudienceList: !!row?.save_audience_list,
+    audienceContactIds: row?.audience_contact_ids ?? [],
+    movePendingContactIds: row?.move_pending_contact_ids ?? [],
+  };
+}
+
 export const getMessageTemplates = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<MessageTemplate[]> => {
@@ -73,10 +102,10 @@ export const getMessageTemplates = createServerFn({ method: "GET" })
 
 export const saveMessageTemplate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id?: string; name: string; content: string }) => input)
+  .inputValidator((input: { id?: string; name: string; content: string; mediaUrl?: string }) => input)
   .handler(async ({ data, context }) => {
-    await callTemplates({ ownerId: context.userId, action: "save", template: data });
-    return { ok: true };
+    const json = await callTemplates({ ownerId: context.userId, action: "save", template: data });
+    return { ok: true, template: json.template ? mapTemplate(json.template) : null };
   });
 
 export const getCampaigns = createServerFn({ method: "GET" })
@@ -89,8 +118,21 @@ export const getCampaigns = createServerFn({ method: "GET" })
 export const saveCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (input: { id?: string; title: string; sendToAll: boolean; messageInterval: MessageInterval; templateId?: string }) =>
-      input,
+    (input: {
+      id?: string;
+      title: string;
+      sendToAll: boolean;
+      messageInterval: MessageInterval;
+      templateId?: string;
+      // Campos abaixo: ver comentário em crm-campaigns/index.ts — parte é
+      // especulativa no payload do Wavy, parte é só metadado local.
+      sourceStageId?: string | null;
+      targetStageId?: string | null;
+      contactIds?: string[];
+      pauseAfterCount?: number | null;
+      resumeAfterMinutes?: number | null;
+      saveAudienceList?: boolean;
+    }) => input,
   )
   .handler(async ({ data, context }) => {
     const json = await callCampaigns({ ownerId: context.userId, action: "save", campaign: data });
@@ -99,9 +141,14 @@ export const saveCampaign = createServerFn({ method: "POST" })
 
 export const executeCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { campaignId: string }) => input)
+  .inputValidator((input: { campaignId: string; contactIds?: string[] }) => input)
   .handler(async ({ data, context }) => {
-    const json = await callCampaigns({ ownerId: context.userId, action: "execute", campaignId: data.campaignId });
+    const json = await callCampaigns({
+      ownerId: context.userId,
+      action: "execute",
+      campaignId: data.campaignId,
+      contactIds: data.contactIds,
+    });
     return { ok: true, recipientsCounted: json.recipientsCounted ?? 0 };
   });
 
@@ -130,5 +177,29 @@ export const setDailySendLimit = createServerFn({ method: "POST" })
   .inputValidator((input: { limit: number }) => input)
   .handler(async ({ data, context }) => {
     await callCampaigns({ ownerId: context.userId, action: "set-limit", limit: data.limit });
+    return { ok: true };
+  });
+
+export const getCampaignConfig = createServerFn({ method: "GET" })
+  .inputValidator((input: { campaignId: string }) => input)
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }): Promise<CampaignConfig | null> => {
+    const json = await callCampaigns({ ownerId: context.userId, action: "get-config", campaignId: data.campaignId });
+    return json.config ? mapCampaignConfig(json.config, data.campaignId) : null;
+  });
+
+// Chamado depois do loop de mover contatos pra etapa de destino (rodado no
+// frontend — ver CreateTransmissionDialog): grava só os ids que ainda
+// falharam, permitindo retomar depois; passar [] quando tudo deu certo.
+export const updatePendingMove = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { campaignId: string; remainingIds: string[] }) => input)
+  .handler(async ({ data, context }) => {
+    await callCampaigns({
+      ownerId: context.userId,
+      action: "clear-pending-move",
+      campaignId: data.campaignId,
+      remainingIds: data.remainingIds,
+    });
     return { ok: true };
   });

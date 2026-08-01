@@ -8,6 +8,13 @@
 // partir desta tela. Uma campanha agendada (schedule) que dispara sozinha
 // depois, sem passar por aqui, não é contabilizada no limite diário — não
 // existe webhook do CRM avisando quando isso acontece.
+//
+// `pause_after_count`/`resume_after_minutes`/`contactIds` (segmentação por
+// etapa do pipeline) são campos ESPECULATIVOS — nomes plausíveis, não
+// confirmados com dados reais da API do Wavy. Revisar assim que houver
+// teste com uma campanha real. Pior caso se `contactIds` for ignorado:
+// como `sendToAll` já vai `false` nesse caso, a campanha não envia pra
+// ninguém (falha segura) em vez de enviar pra todo mundo por engano.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { campaignFetch, crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
@@ -29,16 +36,21 @@ async function handleDetail(ownerId: string, campaignId: string) {
   return { ok: true, campaign: unwrap(res) };
 }
 
-async function handleSave(
-  ownerId: string,
-  campaign: {
-    id?: string;
-    title: string;
-    sendToAll: boolean;
-    messageInterval: "1_5" | "5_10" | "10_15" | "15_20";
-    templateId?: string;
-  },
-) {
+interface SaveCampaignInput {
+  id?: string;
+  title: string;
+  sendToAll: boolean;
+  messageInterval: "1_5" | "5_10" | "10_15" | "15_20";
+  templateId?: string;
+  sourceStageId?: string | null;
+  targetStageId?: string | null;
+  contactIds?: string[];
+  pauseAfterCount?: number | null;
+  resumeAfterMinutes?: number | null;
+  saveAudienceList?: boolean;
+}
+
+async function handleSave(ownerId: string, campaign: SaveCampaignInput) {
   const { data: cred } = await supabase
     .from("crm_credentials")
     .select("inbox_id")
@@ -54,19 +66,52 @@ async function handleSave(
     inboxId: cred.inbox_id,
     sendToAll: campaign.sendToAll,
     templateAllocationConfig: campaign.templateId ? { templateId: campaign.templateId } : undefined,
-    deliveryDistribution: { message_interval: campaign.messageInterval },
+    deliveryDistribution: {
+      message_interval: campaign.messageInterval,
+      pause_after_count: campaign.pauseAfterCount ?? undefined,
+      resume_after_minutes: campaign.resumeAfterMinutes ?? undefined,
+    },
+    contactIds: !campaign.sendToAll && campaign.contactIds?.length ? campaign.contactIds : undefined,
   };
   const res = await campaignFetch(supabase, ownerId, path, {
     method: campaign.id ? "PATCH" : "POST",
     body: JSON.stringify(body),
   });
-  return { ok: true, campaign: unwrap(res) };
+  const saved = unwrap(res);
+  const campaignId = String(saved?.id ?? campaign.id ?? "");
+
+  // Guarda localmente o que o Wavy provavelmente não ecoa de volta —
+  // etapas de origem/destino, pacing e a lista de pendências de
+  // movimentação (gravada já aqui, antes do execute, como rede de
+  // segurança caso o loop de movimentação seja interrompido no meio).
+  if (campaignId) {
+    await supabase.from("crm_campaign_configs").upsert(
+      {
+        owner_id: ownerId,
+        campaign_id: campaignId,
+        source_stage_id: campaign.sourceStageId ?? null,
+        target_stage_id: campaign.targetStageId ?? null,
+        pause_after_count: campaign.pauseAfterCount ?? null,
+        resume_after_minutes: campaign.resumeAfterMinutes ?? null,
+        audience_contact_ids: campaign.saveAudienceList ? campaign.contactIds ?? [] : null,
+        save_audience_list: !!campaign.saveAudienceList,
+        move_pending_contact_ids: campaign.targetStageId ? campaign.contactIds ?? [] : [],
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "owner_id,campaign_id" },
+    );
+  }
+
+  return { ok: true, campaign: saved };
 }
 
 // pageSize=1 só pra ler meta.pagination.total sem baixar a lista inteira —
 // confirmado que a paginação de /contacts vem em meta.pagination, não em
-// data.length (que só reflete a página atual).
-async function estimateRecipients(ownerId: string): Promise<number> {
+// data.length (que só reflete a página atual). Quando a campanha é
+// segmentada (contactIds presente), a contagem exata já é conhecida — não
+// precisa dessa estimativa.
+async function estimateRecipients(ownerId: string, contactIds?: string[]): Promise<number> {
+  if (contactIds && contactIds.length > 0) return contactIds.length;
   try {
     const res = await crmFetch(supabase, ownerId, "/api/v1/contacts?page=1&pageSize=1");
     return Number(res?.meta?.pagination?.total ?? 0);
@@ -93,8 +138,8 @@ async function getDailyUsage(ownerId: string): Promise<{ limit: number; usedToda
   return { limit, usedToday };
 }
 
-async function handleExecute(ownerId: string, campaignId: string) {
-  const estimated = await estimateRecipients(ownerId);
+async function handleExecute(ownerId: string, campaignId: string, contactIds?: string[]) {
+  const estimated = await estimateRecipients(ownerId, contactIds);
   const { limit, usedToday } = await getDailyUsage(ownerId);
   if (usedToday + estimated > limit) {
     throw new Error(
@@ -104,7 +149,8 @@ async function handleExecute(ownerId: string, campaignId: string) {
 
   // Resposta confirmada do /execute: { data: { execution_id, workflow_id,
   // run_id, message } } — sem contagem de destinatários. Usamos a
-  // estimativa de /contacts como o número contabilizado no limite diário.
+  // estimativa acima (ou a contagem exata da segmentação) como o número
+  // contabilizado no limite diário.
   const res = await campaignFetch(supabase, ownerId, `/api/v1/campaigns/${campaignId}/execute`, { method: "POST" });
   await supabase.from("crm_campaign_sends").insert({ owner_id: ownerId, campaign_id: campaignId, recipient_count: estimated });
   return { ok: true, campaign: unwrap(res), recipientsCounted: estimated };
@@ -122,6 +168,27 @@ async function handleSetLimit(ownerId: string, limit: number) {
     .from("crm_credentials")
     .update({ daily_send_limit: limit, updated_at: new Date().toISOString() })
     .eq("owner_id", ownerId);
+  return { ok: true };
+}
+
+async function handleGetConfig(ownerId: string, campaignId: string) {
+  const { data } = await supabase
+    .from("crm_campaign_configs")
+    .select("*")
+    .eq("owner_id", ownerId)
+    .eq("campaign_id", campaignId)
+    .maybeSingle();
+  return { ok: true, config: data ?? null };
+}
+
+// Chamado pelo frontend depois do loop de movimentação de pipeline: grava
+// só os ids que ainda falharam (retry), ou zera de vez se tudo deu certo.
+async function handleClearPendingMove(ownerId: string, campaignId: string, remainingIds: string[]) {
+  await supabase
+    .from("crm_campaign_configs")
+    .update({ move_pending_contact_ids: remainingIds, updated_at: new Date().toISOString() })
+    .eq("owner_id", ownerId)
+    .eq("campaign_id", campaignId);
   return { ok: true };
 }
 
@@ -146,7 +213,7 @@ Deno.serve(async (req) => {
         result = await handleSave(ownerId, body.campaign);
         break;
       case "execute":
-        result = await handleExecute(ownerId, body.campaignId);
+        result = await handleExecute(ownerId, body.campaignId, body.contactIds);
         break;
       case "schedule":
         result = await handleLifecycle(ownerId, body.campaignId, "schedule", body.scheduleTo);
@@ -165,6 +232,12 @@ Deno.serve(async (req) => {
         break;
       case "set-limit":
         result = await handleSetLimit(ownerId, Number(body.limit));
+        break;
+      case "get-config":
+        result = await handleGetConfig(ownerId, body.campaignId);
+        break;
+      case "clear-pending-move":
+        result = await handleClearPendingMove(ownerId, body.campaignId, body.remainingIds ?? []);
         break;
       default:
         return new Response(JSON.stringify({ error: `action desconhecida: ${action}` }), { status: 400 });

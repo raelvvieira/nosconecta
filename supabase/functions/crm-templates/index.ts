@@ -18,11 +18,18 @@ async function handleList(ownerId: string) {
   return { ok: true, templates };
 }
 
-async function handleSave(ownerId: string, template: { id?: string; name: string; content: string }) {
+async function handleSave(
+  ownerId: string,
+  template: { id?: string; name: string; content: string; mediaUrl?: string },
+) {
   const path = template.id ? `/api/v1/message_templates/${template.id}` : "/api/v1/message_templates";
   const res = await crmFetch(supabase, ownerId, path, {
     method: template.id ? "PATCH" : "POST",
-    body: JSON.stringify({ message_template: { name: template.name, content: template.content } }),
+    // media_url é especulativo — não confirmado com dados reais do Wavy,
+    // revisar assim que houver teste com uma campanha/template real.
+    body: JSON.stringify({
+      message_template: { name: template.name, content: template.content, media_url: template.mediaUrl ?? undefined },
+    }),
   });
   return { ok: true, template: unwrap(res) };
 }
