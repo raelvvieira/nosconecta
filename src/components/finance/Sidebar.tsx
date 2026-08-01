@@ -496,7 +496,7 @@ export function Sidebar() {
       >
         {(() => {
           const navItems = [
-            { label: "Financeiro", icon: LayoutGrid, to: "/" as const },
+            { label: "Financeiro", icon: LayoutGrid, to: "/financeiro" as const },
             { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" as const },
             { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" as const },
             { label: "Planejamento", icon: TrendingUp, to: "/planejamento" as const },
@@ -686,12 +686,12 @@ export function Sidebar() {
             );
           }
 
-          if (pathname === "/" || inPatients || inSettings || inAtendimentos) {
+          if (pathname === "/inicio" || inPatients || inSettings || inAtendimentos) {
             const homeItems = [
-              { label: "Início", icon: Home, to: "/" as const, isReal: true },
+              { label: "Início", icon: Home, to: "/inicio" as const, isReal: true },
               { label: "Agenda", icon: Calendar, to: "/agenda" as const, isReal: true },
               { label: "Pacientes", icon: Users, to: "/pacientes" as const, isReal: true },
-              { label: "Financeiro", icon: Wallet, to: "/recebimentos" as const, isReal: true },
+              { label: "Financeiro", icon: Wallet, to: "/financeiro" as const, isReal: true },
               { label: "Mais", icon: MoreHorizontal, to: "/configuracoes" as const, isReal: true },
             ];
             const homeItemStyle: React.CSSProperties = {
@@ -792,10 +792,10 @@ export function Sidebar() {
 
       {/* Mobile top-right home button */}
       <Link
-        to="/"
+        to="/inicio"
         className={cn(
           "lg:hidden fixed z-40 flex items-center justify-center",
-          (pathname === "/" || (inPatients && pathname !== "/pacientes")) && "hidden",
+          (pathname === "/inicio" || (inPatients && pathname !== "/pacientes")) && "hidden",
         )}
         style={{
           top: 20,
