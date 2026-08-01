@@ -5,6 +5,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
 const BUCKET = "crm-campaign-media";
+// Bucket é PRIVADO (política do workspace bloqueia buckets públicos), então
+// getPublicUrl() não resolve pra fora — precisa de signed URL. 10 anos é a
+// validade mais longa que faz sentido aqui; ainda assim expira, então um
+// template com imagem reaproveitado depois disso perde o anexo e precisa
+// ser reanexado.
+const SIGNED_URL_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 365 * 10;
 
 export function MediaUploadField({
   mediaUrl,
@@ -31,8 +37,11 @@ export function MediaUploadField({
         upsert: false,
       });
       if (uploadError) throw uploadError;
-      const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-      onChange(data.publicUrl);
+      const { data, error: signError } = await supabase.storage
+        .from(BUCKET)
+        .createSignedUrl(path, SIGNED_URL_EXPIRES_IN_SECONDS);
+      if (signError || !data) throw signError ?? new Error("Falha ao gerar link da imagem.");
+      onChange(data.signedUrl);
     } catch (error) {
       toast.error(
         error instanceof Error
