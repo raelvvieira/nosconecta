@@ -78,7 +78,7 @@ export function Sidebar() {
   const inFinance = useMemo(
     () =>
       FINANCE_PATHS.has(pathname) ||
-      financeItems.some((i) => i.to !== "/" && pathname.startsWith(i.to)),
+      financeItems.some((i) => pathname.startsWith(i.to)),
     [pathname],
   );
   const inAgenda = useMemo(() => AGENDA_PATHS.has(pathname), [pathname]);
@@ -372,7 +372,7 @@ export function Sidebar() {
               )}
 
               {financeItems.map((it) => {
-                const active = pathname === it.to || (it.to !== "/" && pathname.startsWith(it.to));
+                const active = pathname === it.to || pathname.startsWith(it.to);
                 const isReal = REAL_ROUTES.has(it.to);
                 const className = cn(
                   "flex items-center rounded-2xl transition-colors",
