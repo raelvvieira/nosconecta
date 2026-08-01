@@ -505,8 +505,7 @@ export function Sidebar() {
           const right = navItems.slice(2);
 
           const renderItem = (item: (typeof navItems)[number]) => {
-            const active =
-              pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
+            const active = pathname === item.to || pathname.startsWith(item.to);
             const isReal = REAL_ROUTES.has(item.to);
 
             const inner = (
