@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { cn } from "@/lib/utils";
 import {
   connectWhatsapp,
+  disconnectWhatsapp,
   getWhatsappInstance,
   setWhatsappInboxId,
 } from "@/lib/atendimentos/atendimentos.functions";
@@ -23,6 +24,7 @@ export function WhatsappConnectSheet({
   const queryClient = useQueryClient();
   const fetchInstance = useServerFn(getWhatsappInstance);
   const doConnect = useServerFn(connectWhatsapp);
+  const doDisconnect = useServerFn(disconnectWhatsapp);
   const doSetInboxId = useServerFn(setWhatsappInboxId);
 
   const instanceQuery = useQuery({
@@ -37,6 +39,15 @@ export function WhatsappConnectSheet({
   const connectMutation = useMutation({
     mutationFn: () => doConnect({ data: { phoneNumber } }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["atendimentos-instance"] }),
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: () => doDisconnect(),
+    onSuccess: () => {
+      toast.success("Instância desconectada — pode tentar conectar de novo.");
+      queryClient.invalidateQueries({ queryKey: ["atendimentos-instance"] });
+    },
     onError: (error: Error) => toast.error(error.message),
   });
 
@@ -100,6 +111,19 @@ export function WhatsappConnectSheet({
             <RefreshCw className={cn("h-4 w-4", connectMutation.isPending && "animate-spin")} />
             {connecting ? "Gerar novo QR Code" : "Conectar"}
           </Button>
+
+          {instance?.status && instance.status !== "disconnected" && (
+            <button
+              type="button"
+              onClick={() => disconnectMutation.mutate()}
+              disabled={disconnectMutation.isPending}
+              className="mt-3 block w-full text-xs text-muted-foreground underline underline-offset-2"
+            >
+              {connecting
+                ? "O celular recusou o pareamento? Desconecte e tente de novo"
+                : "Desconectar instância"}
+            </button>
+          )}
 
           {!connecting && (
             <div className="mt-4">
