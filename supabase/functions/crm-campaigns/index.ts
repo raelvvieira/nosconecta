@@ -18,6 +18,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { campaignFetch, crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
+import { findWhatsappInboxId } from "../_shared/crm-inbox.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -53,10 +54,29 @@ interface SaveCampaignInput {
 async function handleSave(ownerId: string, campaign: SaveCampaignInput) {
   const { data: cred } = await supabase
     .from("crm_credentials")
-    .select("inbox_id")
+    .select("inbox_id, whatsapp_status")
     .eq("owner_id", ownerId)
     .maybeSingle();
-  if (!cred?.inbox_id) throw new Error("Conecte o WhatsApp desta clínica antes de criar campanhas.");
+
+  let inboxId: string | null = cred?.inbox_id ?? null;
+  if (!inboxId && cred?.whatsapp_status === "open") {
+    // WhatsApp já pareado, só falta o inbox de Campanhas ainda não ter sido
+    // vinculado — tenta resolver agora antes de desistir.
+    inboxId = await findWhatsappInboxId(supabase, ownerId);
+    if (inboxId) {
+      await supabase.from("crm_credentials").update({ inbox_id: inboxId, updated_at: new Date().toISOString() }).eq("owner_id", ownerId);
+    }
+  }
+  if (!inboxId) {
+    if (cred?.whatsapp_status === "open") {
+      throw new Error(
+        "O WhatsApp desta clínica está conectado, mas ainda não conseguimos vincular automaticamente a caixa de " +
+          "entrada de campanhas no CRM. Peça a um administrador do Wavy pra confirmar/criar essa inbox, ou informe " +
+          "o Inbox ID em Atendimentos → Conectar.",
+      );
+    }
+    throw new Error("Conecte o WhatsApp desta clínica antes de criar campanhas.");
+  }
 
   const path = campaign.id ? `/api/v1/campaigns/${campaign.id}` : "/api/v1/campaigns";
   const body = {

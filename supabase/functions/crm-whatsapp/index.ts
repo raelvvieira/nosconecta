@@ -7,9 +7,17 @@
 // `instance_name` E `phone_number` (o número não é descoberto depois do
 // QR, precisa vir antes) — e o `:id` de
 // `DELETE /evolution/instances/:id/logout` é o próprio `instance_name`.
+//
+// De propósito, conectar o WhatsApp (autorizar a instância + parear o QR)
+// NUNCA depende de resolver um inbox_id: /api/v1/conversations já lista
+// tudo da conta sem precisar dele, e tentar criar um inbox via
+// POST /api/v1/inboxes exige campos (`provider_config`) que não temos como
+// preencher com confiança. inbox_id só importa pra Campanhas — ver
+// crm-inbox.ts e crm-campaigns/index.ts.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
+import { findWhatsappInboxId } from "../_shared/crm-inbox.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -30,47 +38,10 @@ async function getCredentialsRow(ownerId: string) {
   return data;
 }
 
-async function findExistingWhatsappInboxId(ownerId: string): Promise<string | null> {
-  try {
-    const res = await crmFetch(supabase, ownerId, "/api/v1/inboxes");
-    const unwrapped = unwrap(res);
-    const list = Array.isArray(unwrapped) ? unwrapped : [];
-    const whatsapp = list.find(
-      (i: any) => i?.channel_type === "Channel::Whatsapp" || i?.channel?.type === "whatsapp",
-    );
-    return whatsapp?.id ? String(whatsapp.id) : null;
-  } catch (e) {
-    console.error("[crm-whatsapp] GET /inboxes falhou, seguindo sem lista:", e);
-    return null;
-  }
-}
-
 async function handleConnect(ownerId: string, phoneNumber?: string) {
   const row = await getCredentialsRow(ownerId);
   if (!row) {
     throw new Error("Esta clínica ainda não tem credenciais do CRM cadastradas.");
-  }
-
-  let inboxId: string | null = row.inbox_id;
-  if (!inboxId) {
-    // O usuário "agent" costuma não ter permissão pra criar inbox — antes
-    // de tentar criar, procura uma que já exista pra essa conta.
-    inboxId = await findExistingWhatsappInboxId(ownerId);
-  }
-  if (!inboxId) {
-    try {
-      const inboxRes = await crmFetch(supabase, ownerId, "/api/v1/inboxes", {
-        method: "POST",
-        body: JSON.stringify({ inbox: { name: "WhatsApp" }, channel: { type: "whatsapp" } }),
-      });
-      inboxId = unwrap(inboxRes)?.id ?? null;
-    } catch (e) {
-      throw new Error(
-        `Não foi possível criar nem encontrar uma caixa de entrada de WhatsApp para esta clínica. ` +
-          `O usuário do CRM provavelmente não tem permissão para criar inboxes — peça a um administrador ` +
-          `do CRM para criar a inbox de WhatsApp da conta (ou liberar essa permissão) e tente de novo. Detalhe: ${e}`,
-      );
-    }
   }
 
   const instanceName: string = row.evolution_instance_name ?? instanceNameFor(ownerId);
@@ -101,7 +72,6 @@ async function handleConnect(ownerId: string, phoneNumber?: string) {
   await supabase
     .from("crm_credentials")
     .update({
-      inbox_id: inboxId,
       evolution_instance_name: instanceName,
       phone_number: effectivePhone,
       whatsapp_status: "connecting",
@@ -131,9 +101,15 @@ async function handleStatus(ownerId: string) {
     const status = connected ? "open" : row.whatsapp_status === "connecting" ? "connecting" : "disconnected";
     const phoneNumber = first?.number ?? first?.phoneNumber ?? row.phone_number ?? null;
 
+    // Best-effort, nunca bloqueia: uma vez pareado, tenta achar o inbox de
+    // Campanhas em segundo plano (pode já existir no CRM, ou surgir depois
+    // que o time do Wavy o cria manualmente).
+    let inboxId: string | null = row.inbox_id;
+    if (connected && !inboxId) inboxId = await findWhatsappInboxId(supabase, ownerId);
+
     const { data: updated } = await supabase
       .from("crm_credentials")
-      .update({ whatsapp_status: status, phone_number: phoneNumber, updated_at: new Date().toISOString() })
+      .update({ whatsapp_status: status, phone_number: phoneNumber, inbox_id: inboxId, updated_at: new Date().toISOString() })
       .eq("owner_id", ownerId)
       .select("whatsapp_status, phone_number, qr_code, qr_expires_at, last_error")
       .single();
