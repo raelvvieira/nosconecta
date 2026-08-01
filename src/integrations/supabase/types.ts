@@ -467,6 +467,7 @@ export type Database = {
           id: string
           last_digits: string | null
           name: string
+          owner_id: string | null
           type: Database["public"]["Enums"]["account_type"]
           updated_at: string
         }
@@ -477,6 +478,7 @@ export type Database = {
           id?: string
           last_digits?: string | null
           name: string
+          owner_id?: string | null
           type: Database["public"]["Enums"]["account_type"]
           updated_at?: string
         }
@@ -487,6 +489,7 @@ export type Database = {
           id?: string
           last_digits?: string | null
           name?: string
+          owner_id?: string | null
           type?: Database["public"]["Enums"]["account_type"]
           updated_at?: string
         }
@@ -498,6 +501,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          owner_id: string | null
           type: Database["public"]["Enums"]["category_type"]
         }
         Insert: {
@@ -505,6 +509,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          owner_id?: string | null
           type: Database["public"]["Enums"]["category_type"]
         }
         Update: {
@@ -512,6 +517,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          owner_id?: string | null
           type?: Database["public"]["Enums"]["category_type"]
         }
         Relationships: []
@@ -524,6 +530,7 @@ export type Database = {
           goal_type: Database["public"]["Enums"]["goal_type"]
           id: string
           name: string
+          owner_id: string | null
           period: Database["public"]["Enums"]["goal_period"]
           start_date: string
           target_amount: number
@@ -536,6 +543,7 @@ export type Database = {
           goal_type: Database["public"]["Enums"]["goal_type"]
           id?: string
           name: string
+          owner_id?: string | null
           period?: Database["public"]["Enums"]["goal_period"]
           start_date?: string
           target_amount?: number
@@ -548,6 +556,7 @@ export type Database = {
           goal_type?: Database["public"]["Enums"]["goal_type"]
           id?: string
           name?: string
+          owner_id?: string | null
           period?: Database["public"]["Enums"]["goal_period"]
           start_date?: string
           target_amount?: number
@@ -566,6 +575,7 @@ export type Database = {
           monthly_revenue: number
           name: string
           one_time_cost: number
+          owner_id: string | null
           scenario_type: Database["public"]["Enums"]["scenario_type"]
           start_date: string
           updated_at: string
@@ -580,6 +590,7 @@ export type Database = {
           monthly_revenue?: number
           name: string
           one_time_cost?: number
+          owner_id?: string | null
           scenario_type: Database["public"]["Enums"]["scenario_type"]
           start_date?: string
           updated_at?: string
@@ -594,6 +605,7 @@ export type Database = {
           monthly_revenue?: number
           name?: string
           one_time_cost?: number
+          owner_id?: string | null
           scenario_type?: Database["public"]["Enums"]["scenario_type"]
           start_date?: string
           updated_at?: string
@@ -614,6 +626,7 @@ export type Database = {
           installment_total: number | null
           is_recurring: boolean
           notes: string | null
+          owner_id: string | null
           paid_date: string | null
           parent_transaction_id: string | null
           patient_id: string | null
@@ -640,6 +653,7 @@ export type Database = {
           installment_total?: number | null
           is_recurring?: boolean
           notes?: string | null
+          owner_id?: string | null
           paid_date?: string | null
           parent_transaction_id?: string | null
           patient_id?: string | null
@@ -666,6 +680,7 @@ export type Database = {
           installment_total?: number | null
           is_recurring?: boolean
           notes?: string | null
+          owner_id?: string | null
           paid_date?: string | null
           parent_transaction_id?: string | null
           patient_id?: string | null
@@ -1012,6 +1027,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_invitation: { Args: { _token: string }; Returns: boolean }
       finance_cash_flow_series: {
         Args: {
           p_company_id: string
@@ -1041,6 +1057,16 @@ export type Database = {
           name: string
           professional_id: string
           total: number
+        }[]
+      }
+      get_invitation_by_token: {
+        Args: { _token: string }
+        Returns: {
+          accepted_at: string
+          email: string
+          expires_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
         }[]
       }
       has_role: {
