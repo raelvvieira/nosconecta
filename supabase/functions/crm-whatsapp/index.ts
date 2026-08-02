@@ -54,6 +54,61 @@ function normalizeBrazilPhone(raw: string): string {
   return `+${digits}`;
 }
 
+// Estados possíveis na resposta de GET /evolution/instances nunca foram
+// confirmados com o Wavy (diferente do resto deste arquivo). Tenta primeiro
+// as convenções nativas da própria Evolution API (string `state`/
+// `connectionStatus`, às vezes aninhada em `instance.*`), com o booleano
+// `connected` como último fallback. Se nada bater, `handleStatus` grava a
+// resposta crua em `crm_status_debug` pra diagnosticar sem precisar pedir
+// pro usuário reproduzir de novo.
+const CRM_INSTANCE_STATE_MAP: Record<string, "open" | "connecting" | "disconnected"> = {
+  open: "open",
+  connected: "open",
+  connecting: "connecting",
+  qrcode: "connecting",
+  qr: "connecting",
+  pairing: "connecting",
+  close: "disconnected",
+  closed: "disconnected",
+  disconnected: "disconnected",
+  logged_out: "disconnected",
+};
+
+function normalizeCrmState(value: unknown): "open" | "connecting" | "disconnected" | null {
+  return typeof value === "string" ? CRM_INSTANCE_STATE_MAP[value.toLowerCase()] ?? null : null;
+}
+
+function deriveConnectionStatus(
+  first: any,
+  previousStatus: string,
+): { status: "open" | "connecting" | "disconnected"; matched: boolean } {
+  const candidates = [
+    first?.connectionStatus,
+    first?.instance?.connectionStatus,
+    first?.state,
+    first?.instance?.state,
+    first?.status,
+    first?.instance?.status,
+    first?.connectionState,
+  ];
+  for (const candidate of candidates) {
+    const normalized = normalizeCrmState(candidate);
+    if (normalized) return { status: normalized, matched: true };
+  }
+  if (typeof first?.connected === "boolean") {
+    return {
+      status: first.connected ? "open" : previousStatus === "connecting" ? "connecting" : "disconnected",
+      matched: true,
+    };
+  }
+  return { status: previousStatus === "connecting" ? "connecting" : "disconnected", matched: false };
+}
+
+function extractPhoneNumber(first: any, fallback: string | null): string | null {
+  const raw = first?.number ?? first?.phoneNumber ?? first?.ownerJid ?? first?.owner ?? first?.instance?.owner ?? null;
+  return raw ? String(raw).split("@")[0] : fallback;
+}
+
 async function getCredentialsRow(ownerId: string) {
   const { data, error } = await supabase
     .from("crm_credentials")
@@ -158,9 +213,9 @@ async function handleStatus(ownerId: string) {
     );
     const unwrapped = unwrap(res);
     const first = Array.isArray(unwrapped) ? unwrapped[0] : unwrapped;
-    const connected = !!first?.connected;
-    const status = connected ? "open" : row.whatsapp_status === "connecting" ? "connecting" : "disconnected";
-    const phoneNumber = first?.number ?? first?.phoneNumber ?? row.phone_number ?? null;
+    const { status, matched } = deriveConnectionStatus(first, row.whatsapp_status);
+    const connected = status === "open";
+    const phoneNumber = extractPhoneNumber(first, row.phone_number);
 
     // Best-effort, nunca bloqueia: uma vez pareado, tenta achar o inbox de
     // Campanhas em segundo plano (pode já existir no CRM, ou surgir depois
@@ -170,7 +225,15 @@ async function handleStatus(ownerId: string) {
 
     const { data: updated } = await supabase
       .from("crm_credentials")
-      .update({ whatsapp_status: status, phone_number: phoneNumber, inbox_id: inboxId, updated_at: new Date().toISOString() })
+      .update({
+        whatsapp_status: status,
+        phone_number: phoneNumber,
+        inbox_id: inboxId,
+        // Autolimpa assim que um formato bate; só fica preenchido enquanto
+        // nenhum candidato conhecido casa com a resposta real do CRM.
+        crm_status_debug: matched ? null : { at: new Date().toISOString(), raw: res },
+        updated_at: new Date().toISOString(),
+      })
       .eq("owner_id", ownerId)
       .select("whatsapp_status, phone_number, qr_code, qr_expires_at, last_error")
       .single();
