@@ -405,6 +405,7 @@ export type Database = {
           created_at: string
           crm_email: string
           crm_password: string
+          crm_status_debug: Json | null
           daily_send_limit: number
           evolution_instance_name: string | null
           id: string
@@ -424,6 +425,7 @@ export type Database = {
           created_at?: string
           crm_email: string
           crm_password: string
+          crm_status_debug?: Json | null
           daily_send_limit?: number
           evolution_instance_name?: string | null
           id?: string
@@ -443,6 +445,7 @@ export type Database = {
           created_at?: string
           crm_email?: string
           crm_password?: string
+          crm_status_debug?: Json | null
           daily_send_limit?: number
           evolution_instance_name?: string | null
           id?: string
