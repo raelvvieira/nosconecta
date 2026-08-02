@@ -1,0 +1,1 @@
+ALTER TABLE public.crm_credentials ADD COLUMN IF NOT EXISTS crm_status_debug jsonb;
