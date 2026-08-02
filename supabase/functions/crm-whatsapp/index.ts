@@ -3,23 +3,31 @@
 // diretamente). Chamada via callEdgeFunction a partir de
 // src/lib/atendimentos/atendimentos.functions.ts, com o service role.
 //
-// Confirmado com o time do CRM: `POST /evolution/authorization` exige
-// `instance_name` E `phone_number` (o número não é descoberto depois do
-// QR, precisa vir antes) — e o `:id` de
-// `DELETE /evolution/instances/:id/logout` é o próprio `instance_name`.
+// Sequência confirmada com o time do Wavy (via VPS), depois de descobrir que
+// `DELETE /evolution/instances/:id/logout` dava 404 "Channel not found"
+// mesmo com authorization+QR funcionando: `POST /evolution/authorization`
+// fala só com o servidor Evolution, nunca grava nada no banco do CRM — ele
+// não sabe que existe inbox nenhuma. Quem cria o registro `Channel::Whatsapp`
+// do qual status/logout dependem é `POST /api/v1/inboxes`, e isso precisa
+// acontecer ANTES de autorizar, não depois:
+//   1. POST /api/v1/inboxes — cria o registro no CRM. Corpo confirmado (201
+//      ao vivo): `name` solto no nível principal (NÃO aninhado em
+//      `inbox: {}`) + `channel: { type: "whatsapp", phone_number: "+55...",
+//      provider: "evolution", provider_config: { instance_name } }`.
+//   2. POST /api/v1/evolution/authorization (instance_name + phone_number)
+//      — cria a instância de verdade no Evolution e registra o webhook de
+//      volta pro CRM.
+//   3. POST /api/v1/evolution/qrcodes — pega o QR.
+//   4. Usuário escaneia — o webhook do Evolution confirma o pareamento
+//      sozinho, nenhuma chamada extra necessária.
+// Só depois desse fluxo completo `DELETE .../logout` (mesmo `instance_name`
+// como `:id`) passa a funcionar.
 //
-// O QR code é sempre buscado via `POST /evolution/qrcodes` com
-// `instance_name` no corpo — a variante `GET /evolution/qrcodes/:instance`
-// (usada antes só na primeira conexão) devolvia 404 "Channel not found for
-// instance" logo depois de autorizar, porque o canal ainda não existe pro
-// GET conseguir ler; o POST cria/atualiza o QR e resolve isso.
-//
-// De propósito, conectar o WhatsApp (autorizar a instância + parear o QR)
-// NUNCA depende de resolver um inbox_id: /api/v1/conversations já lista
-// tudo da conta sem precisar dele, e tentar criar um inbox via
-// POST /api/v1/inboxes exige campos (`provider_config`) que não temos como
-// preencher com confiança. inbox_id só importa pra Campanhas — ver
-// crm-inbox.ts e crm-campaigns/index.ts.
+// CUIDADO: `POST /evolution/authorization` é destrutivo — se a instância já
+// existe no Evolution, ele apaga e recria antes de continuar. Por isso só
+// pode ser chamado quando `evolution_instance_name` ainda é `null` (primeira
+// conexão, ou depois de um "Desconectar" explícito) — nunca em retry/loop
+// sobre uma instância que já pode estar conectada.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
@@ -34,15 +42,16 @@ function instanceNameFor(ownerId: string): string {
   return `clinic_${ownerId.replace(/-/g, "")}`;
 }
 
-// E.164 pra pareamento no WhatsApp: só dígitos, sem zero inicial (formato
-// antigo de DDD interurbano, nunca válido aqui) e sempre com o código do
-// país. Sem isso, o número mandado pro CRM não bate com um número real e o
-// celular recusa o pareamento mesmo com o QR aparecendo normalmente.
+// E.164 pra pareamento no WhatsApp: `+` + código do país + DDD + número, sem
+// zero inicial (formato antigo de DDD interurbano, nunca válido aqui). Sem
+// isso, o número mandado pro CRM não bate com um número real e o celular
+// recusa o pareamento mesmo com o QR aparecendo normalmente. Formato com
+// `+` confirmado com o time do Wavy pro corpo de POST /api/v1/inboxes.
 function normalizeBrazilPhone(raw: string): string {
   let digits = raw.replace(/\D/g, "");
   if (digits.startsWith("0")) digits = digits.slice(1);
   if (!digits.startsWith("55")) digits = `55${digits}`;
-  return digits;
+  return `+${digits}`;
 }
 
 async function getCredentialsRow(ownerId: string) {
@@ -65,12 +74,39 @@ async function handleConnect(ownerId: string, phoneNumber?: string) {
   const rawPhone = phoneNumber?.trim() || row.phone_number || null;
   const effectivePhone = rawPhone ? normalizeBrazilPhone(rawPhone) : null;
 
+  let inboxId: string | null = row.inbox_id;
+
   if (!row.evolution_instance_name) {
-    // Primeira conexão: autoriza a instância antes de pedir QR. O CRM
-    // exige phone_number aqui — não dá pra descobrir depois do QR.
+    // Primeira conexão. O CRM exige phone_number aqui — não dá pra
+    // descobrir depois do QR.
     if (!effectivePhone) {
       throw new Error("Informe o número de WhatsApp da clínica (com DDD) antes de conectar.");
     }
+
+    // Passo 1: cria a inbox (Channel::Whatsapp) no CRM ANTES de autorizar —
+    // é esse registro que status/logout dependem depois. Checa se já existe
+    // uma primeiro (evita duplicar em caso de retry após falha parcial).
+    if (!inboxId) inboxId = await findWhatsappInboxId(supabase, ownerId);
+    if (!inboxId) {
+      const inboxRes = await crmFetch(supabase, ownerId, "/api/v1/inboxes", {
+        method: "POST",
+        body: JSON.stringify({
+          name: `WhatsApp - ${instanceName}`,
+          channel: {
+            type: "whatsapp",
+            phone_number: effectivePhone,
+            provider: "evolution",
+            provider_config: { instance_name: instanceName },
+          },
+        }),
+      });
+      const created = unwrap(inboxRes);
+      inboxId = created?.id ? String(created.id) : null;
+    }
+
+    // Passo 2: autoriza a instância no Evolution. DESTRUTIVO se a instância
+    // já existir — só é seguro aqui porque só entra nesse branch quando
+    // evolution_instance_name ainda é null (primeira vez ou pós-desconexão).
     await crmFetch(supabase, ownerId, "/api/v1/evolution/authorization", {
       method: "POST",
       body: JSON.stringify({ instance_name: instanceName, phone_number: effectivePhone }),
@@ -98,6 +134,7 @@ async function handleConnect(ownerId: string, phoneNumber?: string) {
     .update({
       evolution_instance_name: instanceName,
       phone_number: effectivePhone,
+      inbox_id: inboxId,
       whatsapp_status: "connecting",
       qr_code: qrCode,
       qr_expires_at: new Date(Date.now() + 60_000).toISOString(),
