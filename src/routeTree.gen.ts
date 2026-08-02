@@ -9,67 +9,27 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AgendaRouteImport } from './routes/agenda'
-import { Route as AtendimentosRouteImport } from './routes/atendimentos'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
-import { Route as FinanceiroRouteImport } from './routes/financeiro'
-import { Route as InicioRouteImport } from './routes/inicio'
-import { Route as PacientesRouteImport } from './routes/pacientes'
-import { Route as PagamentosRouteImport } from './routes/pagamentos'
-import { Route as PlanejamentoRouteImport } from './routes/planejamento'
 import { Route as RecebimentosRouteImport } from './routes/recebimentos'
-import { Route as AtendimentosIndexRouteImport } from './routes/atendimentos.index'
-import { Route as AtendimentosCampanhasRouteImport } from './routes/atendimentos.campanhas'
-import { Route as AtendimentosPipelineRouteImport } from './routes/atendimentos.pipeline'
-import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
+import { Route as PlanejamentoRouteImport } from './routes/planejamento'
+import { Route as PagamentosRouteImport } from './routes/pagamentos'
+import { Route as PacientesRouteImport } from './routes/pacientes'
+import { Route as InicioRouteImport } from './routes/inicio'
+import { Route as FinanceiroRouteImport } from './routes/financeiro'
+import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AtendimentosRouteImport } from './routes/atendimentos'
+import { Route as AgendaRouteImport } from './routes/agenda'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as PacientesIndexRouteImport } from './routes/pacientes.index'
+import { Route as AtendimentosIndexRouteImport } from './routes/atendimentos.index'
 import { Route as PacientesPatientIdRouteImport } from './routes/pacientes.$patientId'
+import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
+import { Route as AtendimentosPipelineRouteImport } from './routes/atendimentos.pipeline'
+import { Route as AtendimentosCampanhasRouteImport } from './routes/atendimentos.campanhas'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AgendaRoute = AgendaRouteImport.update({
-  id: '/agenda',
-  path: '/agenda',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AtendimentosRoute = AtendimentosRouteImport.update({
-  id: '/atendimentos',
-  path: '/atendimentos',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
-  id: '/configuracoes',
-  path: '/configuracoes',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FinanceiroRoute = FinanceiroRouteImport.update({
-  id: '/financeiro',
-  path: '/financeiro',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InicioRoute = InicioRouteImport.update({
-  id: '/inicio',
-  path: '/inicio',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PacientesRoute = PacientesRouteImport.update({
-  id: '/pacientes',
-  path: '/pacientes',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PagamentosRoute = PagamentosRouteImport.update({
-  id: '/pagamentos',
-  path: '/pagamentos',
+const RecebimentosRoute = RecebimentosRouteImport.update({
+  id: '/recebimentos',
+  path: '/recebimentos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlanejamentoRoute = PlanejamentoRouteImport.update({
@@ -77,25 +37,65 @@ const PlanejamentoRoute = PlanejamentoRouteImport.update({
   path: '/planejamento',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RecebimentosRoute = RecebimentosRouteImport.update({
-  id: '/recebimentos',
-  path: '/recebimentos',
+const PagamentosRoute = PagamentosRouteImport.update({
+  id: '/pagamentos',
+  path: '/pagamentos',
   getParentRoute: () => rootRouteImport,
+} as any)
+const PacientesRoute = PacientesRouteImport.update({
+  id: '/pacientes',
+  path: '/pacientes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InicioRoute = InicioRouteImport.update({
+  id: '/inicio',
+  path: '/inicio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FinanceiroRoute = FinanceiroRouteImport.update({
+  id: '/financeiro',
+  path: '/financeiro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
+  id: '/configuracoes',
+  path: '/configuracoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AtendimentosRoute = AtendimentosRouteImport.update({
+  id: '/atendimentos',
+  path: '/atendimentos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgendaRoute = AgendaRouteImport.update({
+  id: '/agenda',
+  path: '/agenda',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PacientesIndexRoute = PacientesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PacientesRoute,
 } as any)
 const AtendimentosIndexRoute = AtendimentosIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AtendimentosRoute,
 } as any)
-const AtendimentosCampanhasRoute = AtendimentosCampanhasRouteImport.update({
-  id: '/campanhas',
-  path: '/campanhas',
-  getParentRoute: () => AtendimentosRoute,
-} as any)
-const AtendimentosPipelineRoute = AtendimentosPipelineRouteImport.update({
-  id: '/pipeline',
-  path: '/pipeline',
-  getParentRoute: () => AtendimentosRoute,
+const PacientesPatientIdRoute = PacientesPatientIdRouteImport.update({
+  id: '/$patientId',
+  path: '/$patientId',
+  getParentRoute: () => PacientesRoute,
 } as any)
 const ConfiguracoesNotificacoesRoute =
   ConfiguracoesNotificacoesRouteImport.update({
@@ -103,15 +103,15 @@ const ConfiguracoesNotificacoesRoute =
     path: '/notificacoes',
     getParentRoute: () => ConfiguracoesRoute,
   } as any)
-const PacientesIndexRoute = PacientesIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => PacientesRoute,
+const AtendimentosPipelineRoute = AtendimentosPipelineRouteImport.update({
+  id: '/pipeline',
+  path: '/pipeline',
+  getParentRoute: () => AtendimentosRoute,
 } as any)
-const PacientesPatientIdRoute = PacientesPatientIdRouteImport.update({
-  id: '/$patientId',
-  path: '/$patientId',
-  getParentRoute: () => PacientesRoute,
+const AtendimentosCampanhasRoute = AtendimentosCampanhasRouteImport.update({
+  id: '/campanhas',
+  path: '/campanhas',
+  getParentRoute: () => AtendimentosRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -244,67 +244,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/agenda': {
-      id: '/agenda'
-      path: '/agenda'
-      fullPath: '/agenda'
-      preLoaderRoute: typeof AgendaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/atendimentos': {
-      id: '/atendimentos'
-      path: '/atendimentos'
-      fullPath: '/atendimentos'
-      preLoaderRoute: typeof AtendimentosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/configuracoes': {
-      id: '/configuracoes'
-      path: '/configuracoes'
-      fullPath: '/configuracoes'
-      preLoaderRoute: typeof ConfiguracoesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/financeiro': {
-      id: '/financeiro'
-      path: '/financeiro'
-      fullPath: '/financeiro'
-      preLoaderRoute: typeof FinanceiroRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/inicio': {
-      id: '/inicio'
-      path: '/inicio'
-      fullPath: '/inicio'
-      preLoaderRoute: typeof InicioRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pacientes': {
-      id: '/pacientes'
-      path: '/pacientes'
-      fullPath: '/pacientes'
-      preLoaderRoute: typeof PacientesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pagamentos': {
-      id: '/pagamentos'
-      path: '/pagamentos'
-      fullPath: '/pagamentos'
-      preLoaderRoute: typeof PagamentosRouteImport
+    '/recebimentos': {
+      id: '/recebimentos'
+      path: '/recebimentos'
+      fullPath: '/recebimentos'
+      preLoaderRoute: typeof RecebimentosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/planejamento': {
@@ -314,40 +258,68 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlanejamentoRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/recebimentos': {
-      id: '/recebimentos'
-      path: '/recebimentos'
-      fullPath: '/recebimentos'
-      preLoaderRoute: typeof RecebimentosRouteImport
+    '/pagamentos': {
+      id: '/pagamentos'
+      path: '/pagamentos'
+      fullPath: '/pagamentos'
+      preLoaderRoute: typeof PagamentosRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/atendimentos/': {
-      id: '/atendimentos/'
+    '/pacientes': {
+      id: '/pacientes'
+      path: '/pacientes'
+      fullPath: '/pacientes'
+      preLoaderRoute: typeof PacientesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inicio': {
+      id: '/inicio'
+      path: '/inicio'
+      fullPath: '/inicio'
+      preLoaderRoute: typeof InicioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/financeiro': {
+      id: '/financeiro'
+      path: '/financeiro'
+      fullPath: '/financeiro'
+      preLoaderRoute: typeof FinanceiroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/configuracoes': {
+      id: '/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof ConfiguracoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/atendimentos': {
+      id: '/atendimentos'
+      path: '/atendimentos'
+      fullPath: '/atendimentos'
+      preLoaderRoute: typeof AtendimentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agenda': {
+      id: '/agenda'
+      path: '/agenda'
+      fullPath: '/agenda'
+      preLoaderRoute: typeof AgendaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
       path: '/'
-      fullPath: '/atendimentos/'
-      preLoaderRoute: typeof AtendimentosIndexRouteImport
-      parentRoute: typeof AtendimentosRoute
-    }
-    '/atendimentos/campanhas': {
-      id: '/atendimentos/campanhas'
-      path: '/campanhas'
-      fullPath: '/atendimentos/campanhas'
-      preLoaderRoute: typeof AtendimentosCampanhasRouteImport
-      parentRoute: typeof AtendimentosRoute
-    }
-    '/atendimentos/pipeline': {
-      id: '/atendimentos/pipeline'
-      path: '/pipeline'
-      fullPath: '/atendimentos/pipeline'
-      preLoaderRoute: typeof AtendimentosPipelineRouteImport
-      parentRoute: typeof AtendimentosRoute
-    }
-    '/configuracoes/notificacoes': {
-      id: '/configuracoes/notificacoes'
-      path: '/notificacoes'
-      fullPath: '/configuracoes/notificacoes'
-      preLoaderRoute: typeof ConfiguracoesNotificacoesRouteImport
-      parentRoute: typeof ConfiguracoesRoute
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/pacientes/': {
       id: '/pacientes/'
@@ -356,12 +328,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PacientesIndexRouteImport
       parentRoute: typeof PacientesRoute
     }
+    '/atendimentos/': {
+      id: '/atendimentos/'
+      path: '/'
+      fullPath: '/atendimentos/'
+      preLoaderRoute: typeof AtendimentosIndexRouteImport
+      parentRoute: typeof AtendimentosRoute
+    }
     '/pacientes/$patientId': {
       id: '/pacientes/$patientId'
       path: '/$patientId'
       fullPath: '/pacientes/$patientId'
       preLoaderRoute: typeof PacientesPatientIdRouteImport
       parentRoute: typeof PacientesRoute
+    }
+    '/configuracoes/notificacoes': {
+      id: '/configuracoes/notificacoes'
+      path: '/notificacoes'
+      fullPath: '/configuracoes/notificacoes'
+      preLoaderRoute: typeof ConfiguracoesNotificacoesRouteImport
+      parentRoute: typeof ConfiguracoesRoute
+    }
+    '/atendimentos/pipeline': {
+      id: '/atendimentos/pipeline'
+      path: '/pipeline'
+      fullPath: '/atendimentos/pipeline'
+      preLoaderRoute: typeof AtendimentosPipelineRouteImport
+      parentRoute: typeof AtendimentosRoute
+    }
+    '/atendimentos/campanhas': {
+      id: '/atendimentos/campanhas'
+      path: '/campanhas'
+      fullPath: '/atendimentos/campanhas'
+      preLoaderRoute: typeof AtendimentosCampanhasRouteImport
+      parentRoute: typeof AtendimentosRoute
     }
   }
 }
@@ -424,3 +424,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
