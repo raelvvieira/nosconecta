@@ -240,6 +240,15 @@ async function handleStatus(ownerId: string) {
     return { ok: true, instance: updated };
   } catch (e) {
     console.error("[crm-whatsapp] status falhou:", e);
+    // Antes, esse catch só devolvia os dados antigos em cache sem gravar
+    // nada — se a chamada ao CRM sempre falhasse (token, rede, endpoint),
+    // o status ficava eternamente preso em "connecting" sem nenhum rastro
+    // no banco pra diagnosticar. Agora persiste o erro real em last_error.
+    const message = e instanceof Error ? e.message : String(e);
+    await supabase
+      .from("crm_credentials")
+      .update({ last_error: message, updated_at: new Date().toISOString() })
+      .eq("owner_id", ownerId);
     return {
       ok: true,
       instance: {
@@ -247,7 +256,7 @@ async function handleStatus(ownerId: string) {
         phone_number: row.phone_number,
         qr_code: row.qr_code,
         qr_expires_at: row.qr_expires_at,
-        last_error: row.last_error,
+        last_error: message,
       },
     };
   }
