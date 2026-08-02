@@ -206,13 +206,22 @@ async function handleStatus(ownerId: string) {
   if (!row?.evolution_instance_name) return { ok: true, instance: null };
 
   try {
-    const res = await crmFetch(
-      supabase,
-      ownerId,
-      `/api/v1/evolution/instances?instanceName=${encodeURIComponent(row.evolution_instance_name)}`,
-    );
+    // O filtro `?instanceName=` nunca foi confirmado e vinha devolvendo 404
+    // "Channel not found for instance" mesmo pra uma instância recém-pareada
+    // de verdade — igual ao padrão já confirmado em findWhatsappInboxId
+    // (crm-inbox.ts), lista tudo sem filtro de servidor e acha a instância
+    // certa no código, tentando os nomes de campo mais prováveis.
+    const res = await crmFetch(supabase, ownerId, "/api/v1/evolution/instances");
     const unwrapped = unwrap(res);
-    const first = Array.isArray(unwrapped) ? unwrapped[0] : unwrapped;
+    const list = Array.isArray(unwrapped) ? unwrapped : unwrapped ? [unwrapped] : [];
+    const first =
+      list.find(
+        (i: any) =>
+          i?.instanceName === row.evolution_instance_name ||
+          i?.instance_name === row.evolution_instance_name ||
+          i?.name === row.evolution_instance_name ||
+          i?.instance?.instanceName === row.evolution_instance_name,
+      ) ?? null;
     const { status, matched } = deriveConnectionStatus(first, row.whatsapp_status);
     const connected = status === "open";
     const phoneNumber = extractPhoneNumber(first, row.phone_number);
