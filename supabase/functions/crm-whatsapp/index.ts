@@ -34,6 +34,17 @@ function instanceNameFor(ownerId: string): string {
   return `clinic_${ownerId.replace(/-/g, "")}`;
 }
 
+// E.164 pra pareamento no WhatsApp: só dígitos, sem zero inicial (formato
+// antigo de DDD interurbano, nunca válido aqui) e sempre com o código do
+// país. Sem isso, o número mandado pro CRM não bate com um número real e o
+// celular recusa o pareamento mesmo com o QR aparecendo normalmente.
+function normalizeBrazilPhone(raw: string): string {
+  let digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("0")) digits = digits.slice(1);
+  if (!digits.startsWith("55")) digits = `55${digits}`;
+  return digits;
+}
+
 async function getCredentialsRow(ownerId: string) {
   const { data, error } = await supabase
     .from("crm_credentials")
@@ -51,7 +62,8 @@ async function handleConnect(ownerId: string, phoneNumber?: string) {
   }
 
   const instanceName: string = row.evolution_instance_name ?? instanceNameFor(ownerId);
-  const effectivePhone = phoneNumber?.trim() || row.phone_number || null;
+  const rawPhone = phoneNumber?.trim() || row.phone_number || null;
+  const effectivePhone = rawPhone ? normalizeBrazilPhone(rawPhone) : null;
 
   if (!row.evolution_instance_name) {
     // Primeira conexão: autoriza a instância antes de pedir QR. O CRM

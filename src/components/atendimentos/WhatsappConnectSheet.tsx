@@ -94,7 +94,7 @@ export function WhatsappConnectSheet({
             <Input
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
-              placeholder="Número do WhatsApp da clínica (com DDD)"
+              placeholder="Número com DDD, sem o 0 (ex.: 48 98419-5309)"
               className="mx-auto mt-5 h-11 rounded-[16px] bg-white text-center"
             />
           )}
