@@ -153,12 +153,29 @@ async function handleDisconnect(ownerId: string) {
   const row = await getCredentialsRow(ownerId);
   if (!row?.evolution_instance_name) return { ok: true };
 
-  await crmFetch(supabase, ownerId, `/api/v1/evolution/instances/${encodeURIComponent(row.evolution_instance_name)}/logout`, {
-    method: "DELETE",
-  });
+  try {
+    await crmFetch(supabase, ownerId, `/api/v1/evolution/instances/${encodeURIComponent(row.evolution_instance_name)}/logout`, {
+      method: "DELETE",
+    });
+  } catch (e) {
+    // O CRM pode não ter nenhum "channel" registrado pra essa instância
+    // (ex.: o pareamento nunca completou do lado dele) — nesse caso não há
+    // o que deslogar remotamente, e isso não pode travar o reset local.
+    console.error("[crm-whatsapp] logout no CRM falhou, seguindo com reset local:", e);
+  }
+
+  // Zera evolution_instance_name também: sem isso, a próxima tentativa de
+  // "Conectar" pularia direto pro QR (achando que já tá autorizado) em vez
+  // de reautorizar do zero, que é o que "desconectar e recomeçar" promete.
   await supabase
     .from("crm_credentials")
-    .update({ whatsapp_status: "disconnected", qr_code: null, phone_number: null, updated_at: new Date().toISOString() })
+    .update({
+      whatsapp_status: "disconnected",
+      evolution_instance_name: null,
+      qr_code: null,
+      phone_number: null,
+      updated_at: new Date().toISOString(),
+    })
     .eq("owner_id", ownerId);
   return { ok: true };
 }
