@@ -9,12 +9,16 @@
 // depois, sem passar por aqui, não é contabilizada no limite diário — não
 // existe webhook do CRM avisando quando isso acontece.
 //
-// `pause_after_count`/`resume_after_minutes`/`contactIds` (segmentação por
-// etapa do pipeline) são campos ESPECULATIVOS — nomes plausíveis, não
-// confirmados com dados reais da API do Wavy. Revisar assim que houver
-// teste com uma campanha real. Pior caso se `contactIds` for ignorado:
-// como `sendToAll` já vai `false` nesse caso, a campanha não envia pra
-// ninguém (falha segura) em vez de enviar pra todo mundo por engano.
+// `pause_after_count`/`resume_after_minutes` seguem ESPECULATIVOS — nomes
+// plausíveis, não confirmados com dados reais da API do Wavy.
+//
+// Segmentação de campanha por etapa do pipeline (`contactIds`) foi REMOVIDA
+// — confirmado no manual de integração v2 (seção 14) que campanhas e
+// pipeline não se comunicam no CRM, então esse filtro nunca teria
+// funcionado de verdade. Toda campanha vai `sendToAll: true`. Mover
+// contatos pra uma etapa APÓS o envio continua existindo — é feito pelo
+// frontend via pipeline_items/move_to_stage (confirmado), independe do
+// motor de campanhas.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { campaignFetch, crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
@@ -43,12 +47,14 @@ interface SaveCampaignInput {
   sendToAll: boolean;
   messageInterval: "1_5" | "5_10" | "10_15" | "15_20";
   templateId?: string;
-  sourceStageId?: string | null;
   targetStageId?: string | null;
-  contactIds?: string[];
+  // Ids de pipeline item (não de contato — ver FunnelSection.tsx) que o
+  // frontend pretende mover pra targetStageId depois do disparo. Gravado
+  // aqui como rede de segurança ANTES do loop de movimentação começar, pra
+  // sobreviver a um fechamento de aba no meio do processo.
+  moveContactIds?: string[];
   pauseAfterCount?: number | null;
   resumeAfterMinutes?: number | null;
-  saveAudienceList?: boolean;
 }
 
 async function handleSave(ownerId: string, campaign: SaveCampaignInput) {
@@ -91,7 +97,6 @@ async function handleSave(ownerId: string, campaign: SaveCampaignInput) {
       pause_after_count: campaign.pauseAfterCount ?? undefined,
       resume_after_minutes: campaign.resumeAfterMinutes ?? undefined,
     },
-    contactIds: !campaign.sendToAll && campaign.contactIds?.length ? campaign.contactIds : undefined,
   };
   const res = await campaignFetch(supabase, ownerId, path, {
     method: campaign.id ? "PATCH" : "POST",
@@ -100,22 +105,19 @@ async function handleSave(ownerId: string, campaign: SaveCampaignInput) {
   const saved = unwrap(res);
   const campaignId = String(saved?.id ?? campaign.id ?? "");
 
-  // Guarda localmente o que o Wavy provavelmente não ecoa de volta —
-  // etapas de origem/destino, pacing e a lista de pendências de
-  // movimentação (gravada já aqui, antes do execute, como rede de
-  // segurança caso o loop de movimentação seja interrompido no meio).
+  // Guarda localmente o que o Wavy provavelmente não ecoa de volta — etapa
+  // de destino, pacing e a lista de pendências de movimentação (gravada já
+  // aqui, antes do execute, como rede de segurança caso o loop de
+  // movimentação seja interrompido no meio).
   if (campaignId) {
     await supabase.from("crm_campaign_configs").upsert(
       {
         owner_id: ownerId,
         campaign_id: campaignId,
-        source_stage_id: campaign.sourceStageId ?? null,
         target_stage_id: campaign.targetStageId ?? null,
         pause_after_count: campaign.pauseAfterCount ?? null,
         resume_after_minutes: campaign.resumeAfterMinutes ?? null,
-        audience_contact_ids: campaign.saveAudienceList ? campaign.contactIds ?? [] : null,
-        save_audience_list: !!campaign.saveAudienceList,
-        move_pending_contact_ids: campaign.targetStageId ? campaign.contactIds ?? [] : [],
+        move_pending_contact_ids: campaign.targetStageId ? campaign.moveContactIds ?? [] : [],
         updated_at: new Date().toISOString(),
       },
       { onConflict: "owner_id,campaign_id" },
@@ -127,11 +129,10 @@ async function handleSave(ownerId: string, campaign: SaveCampaignInput) {
 
 // pageSize=1 só pra ler meta.pagination.total sem baixar a lista inteira —
 // confirmado que a paginação de /contacts vem em meta.pagination, não em
-// data.length (que só reflete a página atual). Quando a campanha é
-// segmentada (contactIds presente), a contagem exata já é conhecida — não
-// precisa dessa estimativa.
-async function estimateRecipients(ownerId: string, contactIds?: string[]): Promise<number> {
-  if (contactIds && contactIds.length > 0) return contactIds.length;
+// data.length (que só reflete a página atual). Toda campanha vai pra todos
+// os contatos (segmentação por etapa não é suportada, ver comentário no
+// topo do arquivo), então essa estimativa serve pra qualquer campanha.
+async function estimateRecipients(ownerId: string): Promise<number> {
   try {
     const res = await crmFetch(supabase, ownerId, "/api/v1/contacts?page=1&pageSize=1");
     return Number(res?.meta?.pagination?.total ?? 0);
@@ -158,8 +159,8 @@ async function getDailyUsage(ownerId: string): Promise<{ limit: number; usedToda
   return { limit, usedToday };
 }
 
-async function handleExecute(ownerId: string, campaignId: string, contactIds?: string[]) {
-  const estimated = await estimateRecipients(ownerId, contactIds);
+async function handleExecute(ownerId: string, campaignId: string) {
+  const estimated = await estimateRecipients(ownerId);
   const { limit, usedToday } = await getDailyUsage(ownerId);
   if (usedToday + estimated > limit) {
     throw new Error(
@@ -233,7 +234,7 @@ Deno.serve(async (req) => {
         result = await handleSave(ownerId, body.campaign);
         break;
       case "execute":
-        result = await handleExecute(ownerId, body.campaignId, body.contactIds);
+        result = await handleExecute(ownerId, body.campaignId);
         break;
       case "schedule":
         result = await handleLifecycle(ownerId, body.campaignId, "schedule", body.scheduleTo);

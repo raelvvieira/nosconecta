@@ -6,23 +6,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getPipelineItems, getPipelineStages, type PipelineStage } from "@/lib/atendimentos/pipeline.functions";
 
 export interface ResolvedAudience {
-  // Ids de contato do CRM (PipelineItem.itemId) pra segmentar o disparo —
-  // só faz sentido quando há etapa de origem escolhida.
-  sendContactIds: string[];
-  directCount: number;
-  ignoredConversationCount: number;
   // Ids do próprio pipeline item (PipelineItem.id) pra mover depois do
-  // envio — quando não há etapa de origem, considera todo contato que já
-  // tem algum card no funil (não cria card novo pra quem nunca teve).
+  // envio — todo contato que já tem algum card no funil, em qualquer etapa
+  // (não criamos card novo pra quem nunca teve).
   moveCandidateItemIds: string[];
 }
 
-const EMPTY_AUDIENCE: ResolvedAudience = {
-  sendContactIds: [],
-  directCount: 0,
-  ignoredConversationCount: 0,
-  moveCandidateItemIds: [],
-};
+const EMPTY_AUDIENCE: ResolvedAudience = { moveCandidateItemIds: [] };
 
 function StageDot({ color }: { color: string | null }) {
   return <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color ?? "#94A3B8" }} />;
@@ -60,15 +50,11 @@ function StageSelect({
 }
 
 export function FunnelSection({
-  sourceStageId,
   targetStageId,
-  onSourceStageChange,
   onTargetStageChange,
   onAudienceResolved,
 }: {
-  sourceStageId: string | null;
   targetStageId: string | null;
-  onSourceStageChange: (stageId: string | null) => void;
   onTargetStageChange: (stageId: string | null) => void;
   onAudienceResolved: (audience: ResolvedAudience) => void;
 }) {
@@ -93,23 +79,11 @@ export function FunnelSection({
 
   const audience = useMemo(() => {
     if (!configured) return EMPTY_AUDIENCE;
-
-    const inSourceStage = sourceStageId ? items.filter((i) => i.stageId === sourceStageId) : [];
-    const directCount = inSourceStage.filter((i) => i.type === "contact").length;
-    const ignoredConversationCount = inSourceStage.filter((i) => i.type === "conversation").length;
-    const sendContactIds = inSourceStage.filter((i) => i.type === "contact").map((i) => i.itemId);
-
-    // Candidatos a mover pós-envio: se há etapa de origem, é a mesma
-    // audiência filtrada; senão (sendToAll), é todo contato que já tem
-    // algum card no funil, em qualquer etapa — não criamos card novo pra
-    // quem nunca teve.
-    const moveCandidateItemIds = sourceStageId
-      ? inSourceStage.filter((i) => i.type === "contact").map((i) => i.id)
-      : items.filter((i) => i.type === "contact").map((i) => i.id);
-
-    const resolved: ResolvedAudience = { sendContactIds, directCount, ignoredConversationCount, moveCandidateItemIds };
-    return resolved;
-  }, [configured, items, sourceStageId]);
+    // Toda campanha manda pra todos os contatos (ver comentário abaixo) —
+    // "mover pra etapa" pega todo contato que já tem card no funil.
+    const moveCandidateItemIds = items.filter((i) => i.type === "contact").map((i) => i.id);
+    return { moveCandidateItemIds };
+  }, [configured, items]);
 
   useEffect(() => {
     onAudienceResolved(audience);
@@ -125,7 +99,7 @@ export function FunnelSection({
           <span className="normal-case tracking-normal text-muted-foreground/70">(opcional)</span>
         </p>
         <p className="text-xs text-muted-foreground">
-          Configure um pipeline em Atendimentos → Pipeline pra poder segmentar ou mover contatos por etapa.
+          Configure um pipeline em Atendimentos → Pipeline pra poder mover contatos de etapa após o envio.
         </p>
       </section>
     );
@@ -139,26 +113,17 @@ export function FunnelSection({
         <span className="normal-case tracking-normal text-muted-foreground/70">(opcional)</span>
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="text-sm font-medium">Segmentar por etapa de origem</label>
-          <StageSelect stages={stages} value={sourceStageId} onChange={onSourceStageChange} placeholder="Enviar pra todos" />
-        </div>
-        <div>
-          <label className="text-sm font-medium">Mover pra etapa após o envio</label>
-          <StageSelect stages={stages} value={targetStageId} onChange={onTargetStageChange} placeholder="Não mover" />
-        </div>
+      {/* Segmentar por etapa de origem foi removido: confirmado no manual
+          de integração do CRM (seção 14) que campanhas e pipeline não se
+          comunicam — o filtro nunca teria funcionado de verdade, mesmo
+          aparentando estar segmentando na tela. Toda campanha vai
+          `sendToAll: true`. Mover pra etapa após o envio continua, porque
+          é feito pelo nosso próprio frontend via pipeline_items/move_to_stage
+          (confirmado), não depende do motor de campanhas entender nada. */}
+      <div>
+        <label className="text-sm font-medium">Mover pra etapa após o envio</label>
+        <StageSelect stages={stages} value={targetStageId} onChange={onTargetStageChange} placeholder="Não mover" />
       </div>
-
-      {sourceStageId && (
-        <p className="rounded-2xl border border-border bg-white p-3 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">{audience.directCount} contato(s)</span> nessa etapa vão receber a
-          campanha.
-          {audience.ignoredConversationCount > 0 && (
-            <> {audience.ignoredConversationCount} conversa(s) na mesma etapa sem contato confirmado serão ignoradas.</>
-          )}
-        </p>
-      )}
     </section>
   );
 }

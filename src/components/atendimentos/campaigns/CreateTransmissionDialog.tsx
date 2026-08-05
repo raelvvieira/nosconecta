@@ -10,7 +10,6 @@ export function CreateTransmissionDialog({
   open,
   onOpenChange,
   defaultTitle,
-  audienceSize,
   isPending,
   moveProgress,
   onConfirm,
@@ -18,20 +17,17 @@ export function CreateTransmissionDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultTitle: string;
-  audienceSize: number | null;
   isPending: boolean;
   moveProgress: { done: number; total: number } | null;
-  onConfirm: (title: string, saveAudienceList: boolean) => void;
+  onConfirm: (title: string) => void;
 }) {
   const [title, setTitle] = useState(defaultTitle);
   const [confirmedNoSpam, setConfirmedNoSpam] = useState(false);
-  const [saveAudienceList, setSaveAudienceList] = useState(false);
 
   useEffect(() => {
     if (open) {
       setTitle(defaultTitle);
       setConfirmedNoSpam(false);
-      setSaveAudienceList(false);
     }
   }, [open, defaultTitle]);
 
@@ -74,17 +70,10 @@ export function CreateTransmissionDialog({
               Não irei fazer SPAM
             </label>
 
-            {audienceSize !== null && audienceSize > 0 && (
-              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border bg-white p-3 text-sm">
-                <Checkbox checked={saveAudienceList} onCheckedChange={(v) => setSaveAudienceList(!!v)} className="mt-0.5" />
-                Salvar lista ({audienceSize} contato{audienceSize > 1 ? "s" : ""})
-              </label>
-            )}
-
             <Button
               className="w-full gap-2 bg-gradient-primary text-white"
               disabled={!title.trim() || !confirmedNoSpam || busy}
-              onClick={() => onConfirm(title.trim(), saveAudienceList)}
+              onClick={() => onConfirm(title.trim())}
             >
               {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
               Criar e iniciar transmissão

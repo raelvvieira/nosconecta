@@ -20,12 +20,7 @@ import { MessageComposer, HIDDEN_TEMPLATE_PREFIX, type ComposerState } from "./M
 import { PhonePreview } from "./PhonePreview";
 import { CreateTransmissionDialog } from "./CreateTransmissionDialog";
 
-const EMPTY_AUDIENCE: ResolvedAudience = {
-  sendContactIds: [],
-  directCount: 0,
-  ignoredConversationCount: 0,
-  moveCandidateItemIds: [],
-};
+const EMPTY_AUDIENCE: ResolvedAudience = { moveCandidateItemIds: [] };
 
 const INITIAL_COMPOSER: ComposerState = {
   mode: "digitar",
@@ -58,7 +53,6 @@ export function NewCampaignSheet({
   const doMovePipelineItem = useServerFn(movePipelineItem);
   const doUpdatePendingMove = useServerFn(updatePendingMove);
 
-  const [sourceStageId, setSourceStageId] = useState<string | null>(null);
   const [targetStageId, setTargetStageId] = useState<string | null>(null);
   const [audience, setAudience] = useState<ResolvedAudience>(EMPTY_AUDIENCE);
 
@@ -72,7 +66,6 @@ export function NewCampaignSheet({
   const [moveProgress, setMoveProgress] = useState<{ done: number; total: number } | null>(null);
 
   const reset = () => {
-    setSourceStageId(null);
     setTargetStageId(null);
     setAudience(EMPTY_AUDIENCE);
     setInterval("5_10");
@@ -82,11 +75,10 @@ export function NewCampaignSheet({
     setMoveProgress(null);
   };
 
-  const canProceed =
-    isComposerReady(composer) && (!sourceStageId || audience.sendContactIds.length > 0);
+  const canProceed = isComposerReady(composer);
 
   const confirmMutation = useMutation({
-    mutationFn: async ({ title, saveAudienceList }: { title: string; saveAudienceList: boolean }) => {
+    mutationFn: async ({ title }: { title: string }) => {
       let templateId = composer.templateId;
       if (composer.isNewTemplate) {
         const name =
@@ -100,26 +92,25 @@ export function NewCampaignSheet({
         templateId = result.template.id;
       }
 
+      // sendToAll sempre true: segmentação por etapa do pipeline não é
+      // suportada pelo CRM (confirmado no manual — campanhas e pipeline não
+      // se comunicam). Ver comentário em FunnelSection.tsx.
       const campaignResult = await doSaveCampaign({
         data: {
           title,
-          sendToAll: !sourceStageId,
+          sendToAll: true,
           messageInterval: interval,
           templateId: templateId ?? undefined,
-          sourceStageId,
           targetStageId,
-          contactIds: audience.sendContactIds,
+          moveContactIds: targetStageId ? audience.moveCandidateItemIds : undefined,
           pauseAfterCount,
           resumeAfterMinutes,
-          saveAudienceList,
         },
       });
       const campaignId = campaignResult.campaign?.id;
       if (!campaignId) throw new Error("O CRM não retornou a campanha criada.");
 
-      const executeResult = await doExecuteCampaign({
-        data: { campaignId, contactIds: audience.sendContactIds },
-      });
+      const executeResult = await doExecuteCampaign({ data: { campaignId } });
 
       if (targetStageId && audience.moveCandidateItemIds.length > 0) {
         setMoveProgress({ done: 0, total: audience.moveCandidateItemIds.length });
@@ -181,9 +172,7 @@ export function NewCampaignSheet({
             />
 
             <FunnelSection
-              sourceStageId={sourceStageId}
               targetStageId={targetStageId}
-              onSourceStageChange={setSourceStageId}
               onTargetStageChange={setTargetStageId}
               onAudienceResolved={setAudience}
             />
@@ -214,10 +203,9 @@ export function NewCampaignSheet({
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         defaultTitle=""
-        audienceSize={sourceStageId ? audience.sendContactIds.length : null}
         isPending={confirmMutation.isPending}
         moveProgress={moveProgress}
-        onConfirm={(title, saveAudienceList) => confirmMutation.mutate({ title, saveAudienceList })}
+        onConfirm={(title) => confirmMutation.mutate({ title })}
       />
     </>
   );

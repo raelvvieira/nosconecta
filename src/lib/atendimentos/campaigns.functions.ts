@@ -31,12 +31,9 @@ export interface Campaign {
 
 export interface CampaignConfig {
   campaignId: string;
-  sourceStageId: string | null;
   targetStageId: string | null;
   pauseAfterCount: number | null;
   resumeAfterMinutes: number | null;
-  saveAudienceList: boolean;
-  audienceContactIds: string[];
   movePendingContactIds: string[];
 }
 
@@ -83,12 +80,9 @@ function mapCampaign(row: any): Campaign {
 function mapCampaignConfig(row: any, campaignId: string): CampaignConfig {
   return {
     campaignId,
-    sourceStageId: row?.source_stage_id ?? null,
     targetStageId: row?.target_stage_id ?? null,
     pauseAfterCount: row?.pause_after_count ?? null,
     resumeAfterMinutes: row?.resume_after_minutes ?? null,
-    saveAudienceList: !!row?.save_audience_list,
-    audienceContactIds: row?.audience_contact_ids ?? [],
     movePendingContactIds: row?.move_pending_contact_ids ?? [],
   };
 }
@@ -124,14 +118,18 @@ export const saveCampaign = createServerFn({ method: "POST" })
       sendToAll: boolean;
       messageInterval: MessageInterval;
       templateId?: string;
-      // Campos abaixo: ver comentário em crm-campaigns/index.ts — parte é
-      // especulativa no payload do Wavy, parte é só metadado local.
-      sourceStageId?: string | null;
+      // targetStageId/pauseAfterCount/resumeAfterMinutes: metadado local
+      // (crm_campaign_configs), não vai no payload de segmentação — CRM
+      // não suporta segmentar campanha por etapa do pipeline (confirmado
+      // no manual de integração v2, seção 14). pauseAfterCount/
+      // resumeAfterMinutes seguem especulativos no payload do Wavy — ver
+      // comentário em crm-campaigns/index.ts.
       targetStageId?: string | null;
-      contactIds?: string[];
+      // Ids de pipeline item a mover pra targetStageId após o envio — ver
+      // comentário em crm-campaigns/index.ts.
+      moveContactIds?: string[];
       pauseAfterCount?: number | null;
       resumeAfterMinutes?: number | null;
-      saveAudienceList?: boolean;
     }) => input,
   )
   .handler(async ({ data, context }) => {
@@ -141,14 +139,9 @@ export const saveCampaign = createServerFn({ method: "POST" })
 
 export const executeCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { campaignId: string; contactIds?: string[] }) => input)
+  .inputValidator((input: { campaignId: string }) => input)
   .handler(async ({ data, context }) => {
-    const json = await callCampaigns({
-      ownerId: context.userId,
-      action: "execute",
-      campaignId: data.campaignId,
-      contactIds: data.contactIds,
-    });
+    const json = await callCampaigns({ ownerId: context.userId, action: "execute", campaignId: data.campaignId });
     return { ok: true, recipientsCounted: json.recipientsCounted ?? 0 };
   });
 
