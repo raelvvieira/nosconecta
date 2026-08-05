@@ -46,7 +46,22 @@ async function fetchCredentials(supabase: any, ownerId: string): Promise<CrmCred
 }
 
 async function refreshToken(supabase: any, ownerId: string, row: CrmCredentialsRow): Promise<string> {
-  const { accessToken, expiresInSeconds } = await login(row.crm_email, row.crm_password);
+  // Confirmado no manual (seção 2): "um login novo invalida o token do
+  // login anterior" — sem essa checagem, duas chamadas concorrentes (comum
+  // aqui: badge da sidebar, chat e sheet de conectar pollam de forma
+  // independente) que veem o token expirado ao mesmo tempo relogam em
+  // paralelo, e a segunda invalida o token que a primeira acabou de gravar,
+  // derrubando a chamada que a esperava. Reconsulta o banco bem antes de
+  // logar: se outra chamada concorrente já relogou nesse meio-tempo, reusa
+  // o token dela em vez de logar de novo. Não elimina a corrida por
+  // completo (ainda há uma janela entre esse check e o login em si), mas
+  // reduz bastante a chance na prática.
+  const fresh = await fetchCredentials(supabase, ownerId);
+  if (fresh.access_token && fresh.token_expires_at) {
+    const expiresAt = new Date(fresh.token_expires_at).getTime();
+    if (expiresAt - TOKEN_SAFETY_MARGIN_MS > Date.now()) return fresh.access_token;
+  }
+  const { accessToken, expiresInSeconds } = await login(fresh.crm_email, fresh.crm_password);
   const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
   await supabase
     .from("crm_credentials")

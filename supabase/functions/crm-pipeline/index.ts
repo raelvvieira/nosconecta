@@ -64,7 +64,7 @@ async function handleListStages(ownerId: string) {
 
 async function handleSaveStage(
   ownerId: string,
-  stage: { id?: string; name: string; position?: number; color?: string },
+  stage: { id?: string; name: string; position?: number; color?: string; stageType?: "active" | "completed" | "cancelled" },
 ) {
   const pipelineId = await requirePipelineId(ownerId);
   const path = stage.id
@@ -72,7 +72,19 @@ async function handleSaveStage(
     : `/api/v1/pipelines/${pipelineId}/pipeline_stages`;
   const res = await crmFetch(supabase, ownerId, path, {
     method: stage.id ? "PATCH" : "POST",
-    body: JSON.stringify({ pipeline_stage: { name: stage.name, position: stage.position, color: stage.color } }),
+    body: JSON.stringify({
+      pipeline_stage: {
+        name: stage.name,
+        position: stage.position,
+        color: stage.color,
+        // Confirmado no manual (seção 7): campo obrigatório do CRM, nunca
+        // mandado antes. Etapas do nosso funil de atendimento são todas
+        // "em andamento" por padrão — não temos hoje um conceito de
+        // etapa "ganha"/"perdida" na UI, então não editamos isso ainda,
+        // só evitamos deixar o campo faltando.
+        stage_type: stage.stageType ?? "active",
+      },
+    }),
   });
   return { ok: true, stage: unwrap(res) };
 }
