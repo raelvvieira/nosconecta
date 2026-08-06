@@ -66,13 +66,12 @@ function PipelinePage() {
     queryFn: () => fetchStages(),
     staleTime: 10_000,
   });
-  const configured = stagesQuery.data?.configured ?? true;
+  const configured = stagesQuery.data?.configured ?? false;
   const stages = [...(stagesQuery.data?.stages ?? [])].sort((a, b) => a.position - b.position);
 
   const itemsQuery = useQuery({
     queryKey: ["pipeline-items"],
     queryFn: () => fetchItems(),
-    enabled: configured && stagesQuery.data?.configured === true,
     staleTime: 8_000,
     refetchInterval: 20_000,
   });
@@ -109,10 +108,25 @@ function PipelinePage() {
     return <main className="flex flex-1 items-center justify-center lg:h-full" />;
   }
 
+  // Distinto do estado "sem etapas cadastradas" — antes um erro transitório
+  // (ex.: corrida de relogin no CRM) caía silenciosamente nesse mesmo
+  // estado vazio (ver `configured` acima, que agora usa `?? false` em vez
+  // de `?? true`), fazendo parecer que etapas criadas tinham sumido.
+  if (stagesQuery.isError) {
+    return (
+      <main className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center lg:h-full">
+        <p className="text-sm text-muted-foreground">Não foi possível carregar as etapas do pipeline.</p>
+        <Button variant="outline" onClick={() => stagesQuery.refetch()}>
+          Tentar de novo
+        </Button>
+      </main>
+    );
+  }
+
   return (
     <>
       <main className="flex flex-1 flex-col pb-24 lg:h-full lg:overflow-hidden lg:pb-0">
-        <header className="mx-auto flex w-full max-w-[1180px] items-center justify-between gap-3 px-4 pb-4 pt-6 sm:px-6 lg:px-8 lg:pt-7">
+        <header className="flex w-full items-center justify-between gap-3 px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7">
           <h1 className="flex items-center gap-2 text-[26px] font-semibold tracking-[-0.03em]">
             <Workflow className="h-5 w-5 text-pink" />
             Pipeline
@@ -129,7 +143,7 @@ function PipelinePage() {
         </header>
 
         {!configured ? (
-          <div className="flex flex-1 items-center justify-center px-4 pb-10">
+          <div className="flex flex-1 items-center justify-center px-4 pb-10 sm:px-6 lg:px-10">
             <section className="surface-card w-full max-w-[440px] px-6 py-8 text-center sm:px-10 sm:py-10">
               <span className="mx-auto grid h-14 w-14 place-items-center rounded-[20px] bg-coral-soft text-coral">
                 <Workflow className="h-6 w-6" />
@@ -155,7 +169,7 @@ function PipelinePage() {
             </section>
           </div>
         ) : (
-          <div className="flex-1 overflow-x-auto px-4 pb-6 sm:px-6 lg:px-8 lg:pb-8">
+          <div className="flex-1 overflow-x-auto px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
             <div className="flex h-full min-w-max gap-4">
               {stages.length === 0 && (
                 <p className="mt-4 text-sm text-muted-foreground">Nenhuma etapa cadastrada — clique em "Configurar etapas".</p>

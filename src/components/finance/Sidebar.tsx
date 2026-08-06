@@ -20,6 +20,7 @@ import {
   MessageCircle,
   Workflow,
   Megaphone,
+  LayoutDashboard,
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
@@ -47,11 +48,12 @@ const financeItems: FinanceItem[] = [
 type AtendimentosItem = {
   label: string;
   icon: LucideIcon;
-  to: "/atendimentos" | "/atendimentos/pipeline" | "/atendimentos/campanhas";
+  to: "/atendimentos" | "/atendimentos/chat" | "/atendimentos/pipeline" | "/atendimentos/campanhas";
 };
 
 const atendimentosItems: AtendimentosItem[] = [
-  { label: "Chat", icon: MessageCircle, to: "/atendimentos" },
+  { label: "Dashboard", icon: LayoutDashboard, to: "/atendimentos" },
+  { label: "Chat", icon: MessageCircle, to: "/atendimentos/chat" },
   { label: "Pipeline", icon: Workflow, to: "/atendimentos/pipeline" },
   { label: "Campanhas", icon: Megaphone, to: "/atendimentos/campanhas" },
 ];

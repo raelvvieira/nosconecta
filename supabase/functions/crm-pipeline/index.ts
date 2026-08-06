@@ -37,6 +37,15 @@ async function handleSetPipelineId(ownerId: string, pipelineId: string) {
 }
 
 async function handleCreatePipeline(ownerId: string, name: string) {
+  // Defesa extra: hoje o único caminho que chama essa action é o botão
+  // "Criar pipeline", que só aparece quando `configured === false` — mas
+  // `pipeline_id` é uma coluna única sem histórico (crm_credentials), então
+  // se algo algum dia chamar isso de novo com um pipeline_id já setado, o
+  // pipeline antigo (com todas as etapas) ficaria órfão, não deletado, só
+  // inacessível. Recusa em vez de sobrescrever silenciosamente.
+  const existing = await getPipelineIdOrNull(ownerId);
+  if (existing) throw new Error("Esta clínica já tem um pipeline configurado.");
+
   const res = await crmFetch(supabase, ownerId, "/api/v1/pipelines", {
     method: "POST",
     body: JSON.stringify({
@@ -97,12 +106,16 @@ async function handleDeleteStage(ownerId: string, stageId: string) {
 
 async function handleReorderStages(ownerId: string, orderedIds: string[]) {
   const pipelineId = await requirePipelineId(ownerId);
-  for (let i = 0; i < orderedIds.length; i++) {
-    await crmFetch(supabase, ownerId, `/api/v1/pipelines/${pipelineId}/pipeline_stages/${orderedIds[i]}`, {
-      method: "PATCH",
-      body: JSON.stringify({ pipeline_stage: { position: i } }),
-    });
-  }
+  // Paralelo em vez de sequencial: eram N chamadas ao CRM esperadas uma
+  // atrás da outra dentro de uma única invocação da Edge Function.
+  await Promise.all(
+    orderedIds.map((id, i) =>
+      crmFetch(supabase, ownerId, `/api/v1/pipelines/${pipelineId}/pipeline_stages/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ pipeline_stage: { position: i } }),
+      }),
+    ),
+  );
   return { ok: true };
 }
 
