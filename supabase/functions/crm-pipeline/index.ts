@@ -62,12 +62,45 @@ async function handleCreatePipeline(ownerId: string, name: string) {
   return { ok: true, pipelineId: String(pipelineId) };
 }
 
+// Formato de pipeline_stages/pipeline_items nunca foi confirmado com dados
+// reais (diferente de contacts/campaigns/conversations/login, que o
+// comentário em crm-client.ts já marca como confirmados). Tenta o array
+// solto primeiro (mais provável, mesmo padrão dos outros list endpoints já
+// confirmados), depois os aninhamentos mais plausíveis — o próprio CRM já
+// usa resposta aninhada em outro endpoint confirmado (sales_assistant:
+// `{ data: { etapas: [...] } }`), então é um formato real que ele usa.
+function extractArray(value: any, nestedKeys: string[]): any[] | null {
+  if (Array.isArray(value)) return value;
+  for (const key of nestedKeys) {
+    if (Array.isArray(value?.[key])) return value[key];
+  }
+  return null;
+}
+
+// Antes, se o formato não batesse, isso silenciosamente devolvia lista vazia
+// mas `configured: true` — a tela achava que não tinha nenhuma etapa
+// cadastrada mesmo com etapas reais existindo no CRM. Agora grava a resposta
+// crua pra diagnosticar sem precisar o usuário reproduzir de novo, e falha
+// alto (a tela de erro já criada mostra "Tentar de novo" corretamente).
+async function persistPipelineDebug(ownerId: string, raw: unknown) {
+  await supabase
+    .from("crm_credentials")
+    .update({ crm_pipeline_debug: { at: new Date().toISOString(), raw }, updated_at: new Date().toISOString() })
+    .eq("owner_id", ownerId);
+}
+
 async function handleListStages(ownerId: string) {
   const pipelineId = await getPipelineIdOrNull(ownerId);
   if (!pipelineId) return { ok: true, configured: false, stages: [] };
   const res = await crmFetch(supabase, ownerId, `/api/v1/pipelines/${pipelineId}/pipeline_stages`);
-  const unwrapped = unwrap(res);
-  const stages = Array.isArray(unwrapped) ? unwrapped : [];
+  const stages = extractArray(unwrap(res), ["stages", "pipeline_stages"]);
+  if (stages === null) {
+    await persistPipelineDebug(ownerId, res);
+    throw new Error(`Formato de pipeline_stages não reconhecido. Resposta do CRM: ${JSON.stringify(res)}`);
+  }
+  // Autolimpa: um formato bateu, não fica lixo de diagnóstico de uma falha
+  // anterior confundindo uma próxima investigação.
+  await supabase.from("crm_credentials").update({ crm_pipeline_debug: null }).eq("owner_id", ownerId);
   return { ok: true, configured: true, stages };
 }
 
@@ -123,8 +156,12 @@ async function handleListItems(ownerId: string) {
   const pipelineId = await getPipelineIdOrNull(ownerId);
   if (!pipelineId) return { ok: true, configured: false, items: [] };
   const res = await crmFetch(supabase, ownerId, `/api/v1/pipelines/${pipelineId}/pipeline_items`);
-  const unwrapped = unwrap(res);
-  const items = Array.isArray(unwrapped) ? unwrapped : [];
+  const items = extractArray(unwrap(res), ["items", "pipeline_items"]);
+  if (items === null) {
+    await persistPipelineDebug(ownerId, res);
+    throw new Error(`Formato de pipeline_items não reconhecido. Resposta do CRM: ${JSON.stringify(res)}`);
+  }
+  await supabase.from("crm_credentials").update({ crm_pipeline_debug: null }).eq("owner_id", ownerId);
   return { ok: true, configured: true, items };
 }
 
