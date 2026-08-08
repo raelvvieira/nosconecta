@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useMobileFab } from "@/components/finance/mobile-fab-context";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
 
 type FinanceItem = {
@@ -58,6 +59,42 @@ const atendimentosItems: AtendimentosItem[] = [
   { label: "Campanhas", icon: Megaphone, to: "/atendimentos/campanhas" },
 ];
 
+// Espelha a estrutura do menu lateral do desktop pro painel "Mais" do
+// celular. Só entram rotas que existem de verdade — no desktop há itens
+// desabilitados (ex.: Comissões), que aqui só confundiriam.
+const MOBILE_MENU_GROUPS: {
+  label: string;
+  items: { label: string; icon: LucideIcon; to: string }[];
+}[] = [
+  {
+    label: "Módulos",
+    items: [
+      { label: "Início", icon: Home, to: "/inicio" },
+      { label: "Agenda", icon: CalendarDays, to: "/agenda" },
+      { label: "Pacientes", icon: Users, to: "/pacientes" },
+      { label: "Configurações", icon: Settings, to: "/configuracoes" },
+    ],
+  },
+  {
+    label: "Atendimentos",
+    items: [
+      { label: "Dashboard", icon: LayoutDashboard, to: "/atendimentos" },
+      { label: "Chat", icon: MessageCircle, to: "/atendimentos/chat" },
+      { label: "Pipeline", icon: Workflow, to: "/atendimentos/pipeline" },
+      { label: "Campanhas", icon: Megaphone, to: "/atendimentos/campanhas" },
+    ],
+  },
+  {
+    label: "Financeiro",
+    items: [
+      { label: "Visão Geral", icon: LayoutGrid, to: "/financeiro" },
+      { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" },
+      { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" },
+      { label: "Planejamento", icon: TrendingUp, to: "/planejamento" },
+    ],
+  },
+];
+
 const REAL_ROUTES = new Set(["/financeiro", "/pagamentos", "/recebimentos", "/planejamento"]);
 const FINANCE_PATHS = new Set(["/financeiro", "/recebimentos", "/pagamentos", "/planejamento", "/comissoes"]);
 const AGENDA_PATHS = new Set(["/agenda"]);
@@ -73,6 +110,7 @@ export function Sidebar() {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const fabCtx = useMobileFab();
   const fab = fabCtx?.fab ?? null;
   const navActions = fabCtx?.navActions ?? [];
@@ -688,13 +726,32 @@ export function Sidebar() {
           }
 
           if (pathname === "/inicio" || inPatients || inSettings || inAtendimentos) {
-            const homeItems = [
-              { label: "Início", icon: Home, to: "/inicio" as const, isReal: true },
-              { label: "Agenda", icon: Calendar, to: "/agenda" as const, isReal: true },
-              { label: "Pacientes", icon: Users, to: "/pacientes" as const, isReal: true },
-              { label: "Financeiro", icon: Wallet, to: "/financeiro" as const, isReal: true },
-              { label: "Mais", icon: MoreHorizontal, to: "/configuracoes" as const, isReal: true },
-            ];
+            // Dentro de um módulo com submenu, a barra mostra o submenu —
+            // espelha o que o menu lateral faz no desktop. Fora dele, mostra
+            // os módulos principais. "Mais" abre o resto em vez de ir direto
+            // pra Configurações, que escondia todas as outras opções.
+            const homeItems: {
+              label: string;
+              icon: LucideIcon;
+              to: string | null;
+              isReal: boolean;
+            }[] = inAtendimentos
+              ? [
+                  ...atendimentosItems.map((it) => ({
+                    label: it.label,
+                    icon: it.icon,
+                    to: it.to as string,
+                    isReal: true,
+                  })),
+                  { label: "Mais", icon: MoreHorizontal, to: null, isReal: true },
+                ]
+              : [
+                  { label: "Início", icon: Home, to: "/inicio", isReal: true },
+                  { label: "Agenda", icon: Calendar, to: "/agenda", isReal: true },
+                  { label: "Pacientes", icon: Users, to: "/pacientes", isReal: true },
+                  { label: "Financeiro", icon: Wallet, to: "/financeiro", isReal: true },
+                  { label: "Mais", icon: MoreHorizontal, to: null, isReal: true },
+                ];
             const homeItemStyle: React.CSSProperties = {
               flex: 1,
               display: "flex",
@@ -708,7 +765,11 @@ export function Sidebar() {
                 {homeItems.map((item) => {
                   const active =
                     item.to !== null &&
-                    (pathname === item.to || (item.to === "/pacientes" && inPatients));
+                    (item.to === "/atendimentos"
+                      ? pathname === item.to
+                      : pathname === item.to ||
+                        (item.to === "/pacientes" && inPatients) ||
+                        (item.to.startsWith("/atendimentos/") && pathname.startsWith(item.to)));
                   const iconEl = (
                     <span
                       style={{
@@ -753,7 +814,20 @@ export function Sidebar() {
                       </span>
                     </span>
                   );
-                  if (!item.isReal || !item.to) {
+                  if (!item.to) {
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => setMoreOpen(true)}
+                        aria-label="Mais opções"
+                        style={homeItemStyle}
+                      >
+                        {iconEl}
+                      </button>
+                    );
+                  }
+                  if (!item.isReal) {
                     return (
                       <button
                         key={item.label}
@@ -790,6 +864,50 @@ export function Sidebar() {
           );
         })()}
       </nav>
+
+      {/* Painel "Mais" (mobile): antes o botão ia direto pras Configurações,
+          então todo o resto do sistema ficava sem caminho no celular. Aqui
+          ficam os módulos e, nos que têm submenu, os itens deles — mesma
+          estrutura do menu lateral do desktop. */}
+      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+        <SheetContent side="bottom" className="max-h-[80vh] overflow-y-auto rounded-t-[24px] pb-8 lg:hidden">
+          <SheetHeader className="text-left">
+            <SheetTitle className="text-base">Navegar</SheetTitle>
+          </SheetHeader>
+
+          <div className="mt-2 space-y-5">
+            {MOBILE_MENU_GROUPS.map((group) => (
+              <div key={group.label}>
+                <p className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {group.label}
+                </p>
+                <div className="mt-1.5 space-y-0.5">
+                  {group.items.map((item) => {
+                    const active =
+                      item.to === "/atendimentos" || item.to === "/pacientes"
+                        ? pathname === item.to
+                        : pathname === item.to || pathname.startsWith(`${item.to}/`);
+                    return (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        onClick={() => setMoreOpen(false)}
+                        className={cn(
+                          "flex h-12 w-full items-center gap-3 rounded-2xl px-3 transition-colors",
+                          active ? "bg-[#1B1B1F] text-white" : "text-foreground hover:bg-[#FAFAFA]",
+                        )}
+                      >
+                        <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+                        <span className="text-sm font-medium">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Mobile top-right home button.
           Escondido em Atendimentos: ele é `fixed` e caía em cima do
