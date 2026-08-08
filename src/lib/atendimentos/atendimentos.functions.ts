@@ -24,6 +24,10 @@ export interface MessageRow {
   body: string | null;
   status: "sent" | "received";
   timestamp: string;
+  // Nota interna: registrada na conversa dentro do CRM, nunca enviada ao
+  // contato. Precisa aparecer diferente na thread, senão parece uma
+  // mensagem que o paciente recebeu.
+  isPrivate: boolean;
 }
 
 async function callEdgeFunction(name: string, body: unknown) {
@@ -80,6 +84,7 @@ function mapMessage(row: any): MessageRow {
     body: row?.content ?? null,
     status: outgoing ? "sent" : "received",
     timestamp: toIso(row?.created_at),
+    isPrivate: row?.private === true || row?.private === "true",
   };
 }
 
@@ -159,13 +164,16 @@ export const getMessages = createServerFn({ method: "GET" })
 
 export const sendWhatsappMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { conversationId: string; text: string }) => input)
+  // isPrivate = nota interna: registra na conversa dentro do CRM sem enviar
+  // nada pro contato no WhatsApp.
+  .inputValidator((input: { conversationId: string; text: string; isPrivate?: boolean }) => input)
   .handler(async ({ data, context }) => {
     const json = await callEdgeFunction("crm-conversations", {
       ownerId: context.userId,
       action: "send",
       conversationId: data.conversationId,
       content: data.text,
+      isPrivate: !!data.isPrivate,
     });
     return { ok: !!json.ok };
   });

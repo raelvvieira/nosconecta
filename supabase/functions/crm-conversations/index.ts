@@ -22,10 +22,13 @@ async function handleMessages(ownerId: string, conversationId: string) {
   return { ok: true, messages: Array.isArray(unwrapped) ? unwrapped : [] };
 }
 
-async function handleSend(ownerId: string, conversationId: string, content: string) {
+// `private: true` = nota interna: fica registrada na conversa dentro do CRM
+// mas NÃO é enviada pro contato no WhatsApp. Campo já fazia parte do corpo
+// documentado; só não era configurável daqui.
+async function handleSend(ownerId: string, conversationId: string, content: string, isPrivate = false) {
   const res = await crmFetch(supabase, ownerId, `/api/v1/conversations/${conversationId}/messages`, {
     method: "POST",
-    body: JSON.stringify({ content, message_type: "outgoing", private: false }),
+    body: JSON.stringify({ content, message_type: "outgoing", private: isPrivate }),
   });
   return { ok: true, message: res };
 }
@@ -33,11 +36,12 @@ async function handleSend(ownerId: string, conversationId: string, content: stri
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
   try {
-    const { ownerId, action, conversationId, content } = (await req.json()) as {
+    const { ownerId, action, conversationId, content, isPrivate } = (await req.json()) as {
       ownerId?: string;
       action?: string;
       conversationId?: string;
       content?: string;
+      isPrivate?: boolean;
     };
     if (!ownerId || !action) {
       return new Response(JSON.stringify({ error: "ownerId e action são obrigatórios" }), { status: 400 });
@@ -53,7 +57,7 @@ Deno.serve(async (req) => {
       if (!conversationId || !content?.trim()) {
         return new Response(JSON.stringify({ error: "conversationId e content são obrigatórios" }), { status: 400 });
       }
-      result = await handleSend(ownerId, conversationId, content.trim());
+      result = await handleSend(ownerId, conversationId, content.trim(), !!isPrivate);
     } else {
       return new Response(JSON.stringify({ error: `action desconhecida: ${action}` }), { status: 400 });
     }

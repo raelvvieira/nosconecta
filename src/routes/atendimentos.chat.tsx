@@ -2,13 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CheckCheck, ChevronDown, Search, Send, WifiOff } from "lucide-react";
+import { ArrowLeft, CheckCheck, ChevronDown, Search, StickyNote, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { ChatComposer } from "@/components/atendimentos/chat/ChatComposer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -159,10 +158,13 @@ function ChatPage() {
   const messages = messagesQuery.data ?? [];
 
   const [draft, setDraft] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
   const sendMutation = useMutation({
-    mutationFn: () => doSendMessage({ data: { conversationId: conversationId!, text: draft } }),
+    mutationFn: () => doSendMessage({ data: { conversationId: conversationId!, text: draft, isPrivate } }),
     onSuccess: (res) => {
       setDraft("");
+      if (isPrivate) toast.success("Nota interna salva — o contato não recebeu nada.");
+      setIsPrivate(false);
       queryClient.invalidateQueries({ queryKey: ["atendimentos-messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["atendimentos-conversations"] });
       if (!res.ok) toast.error("Mensagem não confirmada pelo CRM — verifique a conexão.");
@@ -327,18 +329,28 @@ function ChatPage() {
                     <div
                       className={cn(
                         "max-w-[78%] rounded-2xl px-4 py-2.5 text-sm leading-6 shadow-soft",
-                        m.fromMe ? "bg-gradient-primary text-white" : "bg-white text-foreground",
+                        m.isPrivate
+                          ? "border border-warning/30 bg-warning-soft text-foreground"
+                          : m.fromMe
+                            ? "bg-gradient-primary text-white"
+                            : "bg-white text-foreground",
                       )}
                     >
+                      {m.isPrivate && (
+                        <span className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-warning">
+                          <StickyNote className="h-3 w-3" />
+                          Nota interna
+                        </span>
+                      )}
                       <p className="whitespace-pre-wrap break-words">{m.body}</p>
                       <span
                         className={cn(
                           "mt-1 flex items-center justify-end gap-1 text-[10px]",
-                          m.fromMe ? "text-white/70" : "text-muted-foreground",
+                          m.fromMe && !m.isPrivate ? "text-white/70" : "text-muted-foreground",
                         )}
                       >
                         {formatTime(m.timestamp)}
-                        {m.fromMe && <CheckCheck className="h-3 w-3" />}
+                        {m.fromMe && !m.isPrivate && <CheckCheck className="h-3 w-3" />}
                       </span>
                     </div>
                   </div>
@@ -346,36 +358,14 @@ function ChatPage() {
               </div>
             </div>
 
-            <form
-              className="flex items-end gap-2 border-t border-border bg-white/70 px-4 py-3 sm:px-6 lg:px-6"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (draft.trim() && !sendMutation.isPending) sendMutation.mutate();
-              }}
-            >
-              <Textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    if (draft.trim() && !sendMutation.isPending) sendMutation.mutate();
-                  }
-                }}
-                placeholder="Escreva uma mensagem"
-                rows={1}
-                className="max-h-32 min-h-11 flex-1 resize-none rounded-[16px] bg-white"
-              />
-              <Button
-                type="submit"
-                size="icon"
-                className="h-11 w-11 shrink-0 rounded-[16px] bg-gradient-primary text-white"
-                disabled={!draft.trim() || sendMutation.isPending}
-                aria-label="Enviar"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </form>
+            <ChatComposer
+              value={draft}
+              onChange={setDraft}
+              onSend={() => sendMutation.mutate()}
+              isSending={sendMutation.isPending}
+              isPrivate={isPrivate}
+              onPrivateChange={setIsPrivate}
+            />
           </>
         )}
       </section>
