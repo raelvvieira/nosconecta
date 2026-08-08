@@ -1,22 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MoreHorizontal, Plus, Settings2, Trash2, Workflow } from "lucide-react";
+import { Plus, Search, Settings2, Trash2, Workflow } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBadge";
+import { DealDetailSheet } from "@/components/atendimentos/pipeline/DealDetailSheet";
+import { PipelineCard, type CardExtras } from "@/components/atendimentos/pipeline/PipelineCard";
+import { useCardDrag } from "@/components/atendimentos/pipeline/useCardDrag";
 import { cn } from "@/lib/utils";
+import { formatBRL } from "@/lib/finance/format";
+import { getConversations } from "@/lib/atendimentos/atendimentos.functions";
+import { getSalesAssistant } from "@/lib/atendimentos/insights.functions";
+import { getDeals, type Deal } from "@/lib/atendimentos/deals.functions";
 import {
   createPipeline,
   deletePipelineStage,
@@ -25,6 +26,7 @@ import {
   movePipelineItem,
   reorderPipelineStages,
   savePipelineStage,
+  type PipelineItem,
   type PipelineStage,
 } from "@/lib/atendimentos/pipeline.functions";
 
@@ -36,7 +38,7 @@ export const Route = createFileRoute("/atendimentos/pipeline")({
   head: () => ({
     meta: [
       { title: "Pipeline · Atendimentos · NÓS Conecta" },
-      { name: "description", content: "Funil de atendimento — etapas e contatos em cada uma." },
+      { name: "description", content: "Funil de atendimento — etapas, negociações e valores." },
     ],
   }),
   errorComponent: () => (
@@ -50,11 +52,21 @@ export const Route = createFileRoute("/atendimentos/pipeline")({
 });
 
 const STAGE_COLORS = ["#FF6B57", "#8B5CF6", "#0EA5E9", "#F59E0B", "#22C55E", "#EC4899"];
+type StatusFilter = "open" | "all" | "won" | "lost";
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: "open", label: "Em aberto" },
+  { value: "all", label: "Todas" },
+  { value: "won", label: "Ganhas" },
+  { value: "lost", label: "Perdidas" },
+];
 
 function PipelinePage() {
   const queryClient = useQueryClient();
   const fetchStages = useServerFn(getPipelineStages);
   const fetchItems = useServerFn(getPipelineItems);
+  const fetchDeals = useServerFn(getDeals);
+  const fetchConversations = useServerFn(getConversations);
+  const fetchAssistant = useServerFn(getSalesAssistant);
   const doCreatePipeline = useServerFn(createPipeline);
   const doMove = useServerFn(movePipelineItem);
   const doSaveStage = useServerFn(savePipelineStage);
@@ -67,7 +79,10 @@ function PipelinePage() {
     staleTime: 10_000,
   });
   const configured = stagesQuery.data?.configured ?? false;
-  const stages = [...(stagesQuery.data?.stages ?? [])].sort((a, b) => a.position - b.position);
+  const stages = useMemo(
+    () => [...(stagesQuery.data?.stages ?? [])].sort((a, b) => a.position - b.position),
+    [stagesQuery.data],
+  );
 
   const itemsQuery = useQuery({
     queryKey: ["pipeline-items"],
@@ -77,10 +92,55 @@ function PipelinePage() {
   });
   const items = itemsQuery.data?.items ?? [];
 
+  const dealsQuery = useQuery({
+    queryKey: ["pipeline-deals"],
+    queryFn: () => fetchDeals(),
+    staleTime: 10_000,
+  });
+  const dealByItem = useMemo(() => {
+    const map = new Map<string, Deal>();
+    for (const deal of dealsQuery.data ?? []) map.set(deal.itemId, deal);
+    return map;
+  }, [dealsQuery.data]);
+
+  // Telefone e não-lidas já existem na lista de conversas; é só cruzar.
+  // Nenhum endpoint novo do CRM envolvido.
+  const conversationsQuery = useQuery({
+    queryKey: ["atendimentos-conversations"],
+    queryFn: () => fetchConversations(),
+    staleTime: 15_000,
+  });
+  const conversations = conversationsQuery.data ?? [];
+
+  // "Parado há N dias" já era calculado pelo CRM e só aparecia no dashboard.
+  const assistantQuery = useQuery({
+    queryKey: ["sales-assistant"],
+    queryFn: () => fetchAssistant(),
+    staleTime: 5 * 60_000,
+  });
+  const stuckByConversation = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of assistantQuery.data?.travadas ?? []) map.set(row.conversaId, row.paradaHaDias);
+    return map;
+  }, [assistantQuery.data]);
+
+  const extrasFor = (item: PipelineItem): CardExtras => {
+    const conversation =
+      item.type === "conversation"
+        ? conversations.find((c) => c.id === item.itemId)
+        : conversations.find((c) => c.contactId === item.itemId);
+    return {
+      phone: conversation?.phone ?? null,
+      unreadCount: conversation?.unreadCount ?? 0,
+      stuckDays: conversation ? (stuckByConversation.get(conversation.id) ?? null) : null,
+    };
+  };
+
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["pipeline-stages"] });
     queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
   };
+  const refreshDeals = () => queryClient.invalidateQueries({ queryKey: ["pipeline-deals"] });
 
   const [pipelineNameInput, setPipelineNameInput] = useState("Atendimento");
   const setupMutation = useMutation({
@@ -93,16 +153,63 @@ function PipelinePage() {
   });
 
   const moveMutation = useMutation({
-    mutationFn: (vars: { itemId: string; newStageId: string }) =>
-      doMove({ data: { itemId: vars.itemId, newStageId: vars.newStageId } }),
-    onSuccess: () => {
-      toast.success("Movido de etapa");
-      queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
+    mutationFn: (vars: { itemId: string; newStageId: string; notes?: string }) =>
+      doMove({ data: vars }),
+    // Move o card na hora e desfaz se a chamada falhar. Antes só invalidava a
+    // query, então o card ficava parado na coluna antiga até o refetch — com
+    // arraste isso fica insuportável, o card "voltaria" por um instante.
+    onMutate: async (vars) => {
+      await queryClient.cancelQueries({ queryKey: ["pipeline-items"] });
+      const previous = queryClient.getQueryData(["pipeline-items"]);
+      queryClient.setQueryData(["pipeline-items"], (old: any) =>
+        old
+          ? {
+              ...old,
+              items: (old.items ?? []).map((i: PipelineItem) =>
+                i.id === vars.itemId ? { ...i, stageId: vars.newStageId } : i,
+              ),
+            }
+          : old,
+      );
+      return { previous };
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(["pipeline-items"], context.previous);
+      toast.error(error.message);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["pipeline-items"] }),
   });
 
+  const { drag, overStageId, registerColumn, handlers } = useCardDrag((itemId, toStageId) =>
+    moveMutation.mutate({ itemId, newStageId: toStageId }),
+  );
+
   const [configOpen, setConfigOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("open");
+  const [openItemId, setOpenItemId] = useState<string | null>(null);
+
+  const visibleItems = useMemo(() => {
+    const term = query.trim().toLocaleLowerCase("pt-BR");
+    return items.filter((item) => {
+      const status = dealByItem.get(item.id)?.status ?? "negotiating";
+      if (statusFilter === "open" && status !== "negotiating") return false;
+      if (statusFilter === "won" && status !== "won") return false;
+      if (statusFilter === "lost" && status !== "lost") return false;
+      if (!term) return true;
+      const extras = extrasFor(item);
+      return `${item.title ?? ""} ${extras.phone ?? ""}`.toLocaleLowerCase("pt-BR").includes(term);
+    });
+    // extrasFor depende de conversations; recalcular quando qualquer fonte mudar
+  }, [items, dealByItem, statusFilter, query, conversations, stuckByConversation]);
+
+  const openItem = items.find((i) => i.id === openItemId) ?? null;
+  const openStage = openItem ? (stages.find((s) => s.id === openItem.stageId) ?? null) : null;
+  const openConversation = openItem
+    ? (openItem.type === "conversation"
+        ? conversations.find((c) => c.id === openItem.itemId)
+        : conversations.find((c) => c.contactId === openItem.itemId))
+    : undefined;
 
   if (stagesQuery.isLoading) {
     return <main className="flex flex-1 items-center justify-center lg:h-full" />;
@@ -110,8 +217,7 @@ function PipelinePage() {
 
   // Distinto do estado "sem etapas cadastradas" — antes um erro transitório
   // (ex.: corrida de relogin no CRM) caía silenciosamente nesse mesmo
-  // estado vazio (ver `configured` acima, que agora usa `?? false` em vez
-  // de `?? true`), fazendo parecer que etapas criadas tinham sumido.
+  // estado vazio, fazendo parecer que etapas criadas tinham sumido.
   if (stagesQuery.isError) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center lg:h-full">
@@ -126,7 +232,7 @@ function PipelinePage() {
   return (
     <>
       <main className="flex flex-1 flex-col pb-24 lg:h-full lg:overflow-hidden lg:pb-0">
-        <header className="flex w-full items-center justify-between gap-3 px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7">
+        <header className="flex w-full flex-wrap items-center justify-between gap-3 px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7">
           <h1 className="flex items-center gap-2 text-[26px] font-semibold tracking-[-0.03em]">
             <Workflow className="h-5 w-5 text-pink" />
             Pipeline
@@ -141,6 +247,38 @@ function PipelinePage() {
             )}
           </div>
         </header>
+
+        {configured && stages.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6 lg:px-10">
+            <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Buscar por nome ou telefone"
+                className="h-10 rounded-[16px] bg-white pl-10"
+              />
+            </div>
+            {/* Sem isso, ganhos e perdidos entopem o board com o tempo. */}
+            <div className="flex items-center gap-1 rounded-full border border-border bg-white p-1">
+              {STATUS_FILTERS.map((filter) => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => setStatusFilter(filter.value)}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                    statusFilter === filter.value
+                      ? "bg-foreground text-white"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {!configured ? (
           <div className="flex flex-1 items-center justify-center px-4 pb-10 sm:px-6 lg:px-10">
@@ -175,7 +313,11 @@ function PipelinePage() {
                 <p className="mt-4 text-sm text-muted-foreground">Nenhuma etapa cadastrada — clique em "Configurar etapas".</p>
               )}
               {stages.map((stage) => {
-                const stageItems = items.filter((i) => i.stageId === stage.id);
+                const stageItems = visibleItems.filter((i) => i.stageId === stage.id);
+                const total = stageItems.reduce(
+                  (sum, item) => sum + (dealByItem.get(item.id)?.value ?? 0),
+                  0,
+                );
                 return (
                   <div key={stage.id} className="flex w-[280px] shrink-0 flex-col">
                     <div className="mb-2 flex items-center gap-2 px-1">
@@ -184,40 +326,46 @@ function PipelinePage() {
                         style={{ backgroundColor: stage.color ?? "#94A3B8" }}
                       />
                       <span className="truncate text-sm font-semibold">{stage.name}</span>
-                      <span className="ml-auto text-xs text-muted-foreground">{stageItems.length}</span>
+                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                        {stageItems.length}
+                        {total > 0 && ` · ${formatBRL(total)}`}
+                      </span>
                     </div>
-                    <div className="surface-card flex-1 space-y-2 overflow-y-auto p-2">
+                    <div
+                      ref={(el) => registerColumn(stage.id, el)}
+                      className={cn(
+                        "surface-card flex-1 space-y-2 overflow-y-auto p-2 transition-colors",
+                        drag && overStageId === stage.id && "ring-2 ring-pink/40",
+                      )}
+                    >
                       {stageItems.map((item) => (
-                        <div key={item.id} className="rounded-2xl border border-border bg-white p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="min-w-0 truncate text-sm font-medium">{item.title ?? "Sem nome"}</p>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                {stages
-                                  .filter((s) => s.id !== stage.id)
-                                  .map((s) => (
-                                    <DropdownMenuItem
-                                      key={s.id}
-                                      onClick={() => moveMutation.mutate({ itemId: item.id, newStageId: s.id })}
-                                    >
-                                      Mover para {s.name}
-                                    </DropdownMenuItem>
-                                  ))}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                          <p className="mt-1 text-[11px] text-muted-foreground">
-                            {item.type === "contact" ? "Contato" : "Conversa"}
-                          </p>
-                        </div>
+                        <PipelineCard
+                          key={item.id}
+                          item={item}
+                          stage={stage}
+                          stages={stages}
+                          deal={dealByItem.get(item.id) ?? null}
+                          extras={extrasFor(item)}
+                          dragging={drag?.itemId === item.id}
+                          onOpen={() => setOpenItemId(item.id)}
+                          onMove={(toStageId) =>
+                            moveMutation.mutate({ itemId: item.id, newStageId: toStageId })
+                          }
+                          onDragStart={(event) =>
+                            handlers.start(event, {
+                              id: item.id,
+                              stageId: stage.id,
+                              title: item.title ?? "Sem nome",
+                            })
+                          }
+                          onDragMove={handlers.move}
+                          onDragEnd={handlers.end}
+                        />
                       ))}
                       {stageItems.length === 0 && (
-                        <p className="px-2 py-4 text-center text-xs text-muted-foreground">Vazio</p>
+                        <p className="px-2 py-4 text-center text-xs text-muted-foreground">
+                          {query || statusFilter !== "all" ? "Nada aqui com esse filtro" : "Vazio"}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -227,6 +375,32 @@ function PipelinePage() {
           </div>
         )}
       </main>
+
+      {/* Fantasma seguindo o dedo/cursor: sem ele o arraste não tem retorno
+          visual nenhum, já que o card original fica no lugar esmaecido. */}
+      {drag && (
+        <div
+          className="pointer-events-none fixed z-50 w-[240px] rounded-2xl border border-pink/40 bg-white px-3 py-2 text-sm font-medium shadow-lg"
+          style={{ left: drag.x + 12, top: drag.y + 12 }}
+        >
+          {drag.title}
+        </div>
+      )}
+
+      <DealDetailSheet
+        item={openItem}
+        stage={openStage}
+        stages={stages}
+        deal={openItem ? (dealByItem.get(openItem.id) ?? null) : null}
+        conversationId={openConversation?.id ?? null}
+        contactId={openConversation?.contactId ?? (openItem?.type === "contact" ? openItem.itemId : null)}
+        phone={openConversation?.phone ?? null}
+        onOpenChange={(open) => !open && setOpenItemId(null)}
+        onMove={(toStageId, notes) =>
+          openItem && moveMutation.mutate({ itemId: openItem.id, newStageId: toStageId, notes })
+        }
+        onChanged={refreshDeals}
+      />
 
       <StagesSheet
         open={configOpen}

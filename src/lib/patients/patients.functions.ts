@@ -307,6 +307,25 @@ const patientInput = (input: {
   guardianCpf: input.guardianCpf?.trim() || null,
 });
 
+// Caminho inverso do pushContactToCrm: dado um contato do CRM, acha o
+// paciente local correspondente. Até agora esse lookup só existia dentro da
+// Edge Function da Meta CAPI, que roda com service role.
+export const getPatientByCrmContact = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { crmContactId: string }) => input)
+  .handler(async ({ data, context }): Promise<{ id: string; name: string } | null> => {
+    if (!data.crmContactId) return null;
+    const supabase: any = context.supabase;
+    const { data: row, error } = await supabase
+      .from("patients")
+      .select("id, name")
+      .eq("crm_contact_id", data.crmContactId)
+      .eq("owner_id", context.userId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return row ? { id: row.id, name: row.name } : null;
+  });
+
 export const createPatient = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(patientInput)

@@ -51,11 +51,18 @@ import {
 } from "@/lib/integrations/meta-capi.functions";
 
 export const SYSTEM_EVENT_LABEL: Record<SystemEvent, string> = {
+  "deal.status_changed": "Negociação é marcada como ganha ou perdida",
   "pipeline.stage_changed": "Card entra numa etapa do funil",
   "appointment.created": "Agendamento é criado",
   "appointment.status_changed": "Agendamento muda de situação",
   "receivable.paid": "Recebimento é marcado como recebido",
   "patient.created": "Paciente é cadastrado",
+};
+
+const DEAL_STATUS_LABEL: Record<string, string> = {
+  won: "Ganho",
+  lost: "Perdido",
+  negotiating: "Em negociação",
 };
 
 export const APPOINTMENT_STATUS_LABEL: Record<string, string> = {
@@ -196,6 +203,11 @@ function IntegrationsPage() {
     stages.data?.stages.find((stage) => stage.id === stageId)?.name ?? "etapa removida";
 
   const conditionText = (trigger: MetaCapiTrigger) => {
+    if (trigger.systemEvent === "deal.status_changed") {
+      return trigger.conditions.dealStatus
+        ? `situação "${DEAL_STATUS_LABEL[trigger.conditions.dealStatus] ?? trigger.conditions.dealStatus}"`
+        : "qualquer situação";
+    }
     if (trigger.systemEvent === "pipeline.stage_changed") {
       return trigger.conditions.stageId ? `etapa "${stageName(trigger.conditions.stageId)}"` : "qualquer etapa";
     }

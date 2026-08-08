@@ -21,6 +21,8 @@ export interface MetaCapiDispatchContext {
   stageId?: string | null;
   /** Condição do gatilho: novo status do agendamento. */
   status?: string | null;
+  /** Condição do gatilho: negociação marcada como ganha/perdida. */
+  dealStatus?: string | null;
   /** Valor usado quando o gatilho está configurado como "valor do evento". */
   amount?: number | null;
 }

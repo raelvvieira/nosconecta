@@ -43,12 +43,19 @@ const META_EVENTS = [
 ];
 
 const SYSTEM_EVENT_LABEL: Record<SystemEvent, string> = {
+  "deal.status_changed": "Negociação é marcada como ganha ou perdida",
   "pipeline.stage_changed": "Card entra numa etapa do funil",
   "appointment.created": "Agendamento é criado",
   "appointment.status_changed": "Agendamento muda de situação",
   "receivable.paid": "Recebimento é marcado como recebido",
   "patient.created": "Paciente é cadastrado",
 };
+
+const DEAL_STATUSES = [
+  { value: "won", label: "Ganho" },
+  { value: "lost", label: "Perdido" },
+  { value: "negotiating", label: "Em negociação" },
+];
 
 const APPOINTMENT_STATUSES = [
   { value: "confirmed", label: "Confirmado" },
@@ -81,9 +88,10 @@ export function MetaTriggerSheet({
   const save = useServerFn(saveMetaCapiTrigger);
 
   const [name, setName] = useState("");
-  const [systemEvent, setSystemEvent] = useState<SystemEvent>("pipeline.stage_changed");
+  const [systemEvent, setSystemEvent] = useState<SystemEvent>("deal.status_changed");
   const [stageId, setStageId] = useState("");
   const [status, setStatus] = useState("");
+  const [dealStatus, setDealStatus] = useState("");
   const [metaEventName, setMetaEventName] = useState("Purchase");
   const [customEvent, setCustomEvent] = useState("");
   const [valueSource, setValueSource] = useState<ValueSource>("none");
@@ -97,6 +105,7 @@ export function MetaTriggerSheet({
       setSystemEvent(trigger.systemEvent);
       setStageId(trigger.conditions.stageId ?? "");
       setStatus(trigger.conditions.status ?? "");
+      setDealStatus(trigger.conditions.dealStatus ?? "");
       const known = META_EVENTS.includes(trigger.metaEventName);
       setMetaEventName(known ? trigger.metaEventName : CUSTOM);
       setCustomEvent(known ? "" : trigger.metaEventName);
@@ -106,9 +115,10 @@ export function MetaTriggerSheet({
       return;
     }
     setName("");
-    setSystemEvent("pipeline.stage_changed");
+    setSystemEvent("deal.status_changed");
     setStageId("");
     setStatus("");
+    setDealStatus("");
     setMetaEventName("Purchase");
     setCustomEvent("");
     setValueSource("none");
@@ -133,6 +143,7 @@ export function MetaTriggerSheet({
       const conditions: MetaCapiTrigger["conditions"] = {};
       if (systemEvent === "pipeline.stage_changed" && stageId) conditions.stageId = stageId;
       if (systemEvent === "appointment.status_changed" && status) conditions.status = status;
+      if (systemEvent === "deal.status_changed" && dealStatus) conditions.dealStatus = dealStatus;
       return save({
         data: {
           id: trigger?.id,
@@ -209,6 +220,28 @@ export function MetaTriggerSheet({
             </Select>
           </div>
 
+          {systemEvent === "deal.status_changed" && (
+            <div>
+              <Label>Situação da negociação</Label>
+              <Select value={dealStatus} onValueChange={setDealStatus}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Qualquer situação" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEAL_STATUSES.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                Dispara quando a negociação é marcada no painel do card, no funil. O valor da
+                negociação vai junto como valor da conversão.
+              </p>
+            </div>
+          )}
+
           {systemEvent === "pipeline.stage_changed" && (
             <div>
               <Label>Etapa</Label>
@@ -226,7 +259,7 @@ export function MetaTriggerSheet({
               </Select>
               <p className="mt-1.5 text-[11px] text-muted-foreground">
                 {stages.length
-                  ? "Escolha a etapa que representa o ganho — é ela que dispara o evento."
+                  ? "Prefira \u201cNegociação é marcada como ganha ou perdida\u201d: não depende de lembrar qual etapa significa ganho, e leva o valor da negociação junto."
                   : "Nenhuma etapa encontrada. Configure o funil em Atendimentos › Pipeline."}
               </p>
             </div>

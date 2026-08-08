@@ -123,6 +123,18 @@ export const movePipelineItem = createServerFn({ method: "POST" })
     // Meta — qual etapa significa o quê é escolha da clínica, configurada em
     // Configurações › Integrações.
     const moved = json?.item ? mapItem(json.item) : null;
+
+    // Entra na linha do tempo da negociação junto com observações e trocas
+    // de status, para o histórico do card contar a história inteira.
+    const supabase: any = context.supabase;
+    await supabase.from("pipeline_deal_events").insert({
+      owner_id: context.userId,
+      item_id: data.itemId,
+      kind: "stage",
+      body: data.notes?.trim() || null,
+      meta: { stageId: data.newStageId },
+    });
+
     const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
     await dispatchMetaCapiEvent(context.userId, "pipeline.stage_changed", {
       entityId: `${data.itemId}:${data.newStageId}`,

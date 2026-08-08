@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 // aqui é a fonte da verdade — cada valor precisa ter um dispatchMetaCapiEvent
 // correspondente no código que executa a operação.
 export const SYSTEM_EVENTS = [
+  "deal.status_changed",
   "pipeline.stage_changed",
   "appointment.created",
   "appointment.status_changed",
@@ -35,7 +36,7 @@ export interface MetaCapiTrigger {
   id: string;
   name: string;
   systemEvent: SystemEvent;
-  conditions: { stageId?: string; status?: string };
+  conditions: { stageId?: string; status?: string; dealStatus?: string };
   metaEventName: string;
   valueSource: ValueSource;
   fixedValue: number | null;

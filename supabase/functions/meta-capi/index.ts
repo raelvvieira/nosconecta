@@ -37,6 +37,7 @@ interface DispatchContext {
   contactName?: string | null;
   stageId?: string | null;
   status?: string | null;
+  dealStatus?: string | null;
   amount?: number | null;
 }
 
@@ -380,6 +381,9 @@ async function resolvePerson(ownerId: string, ctx: DispatchContext): Promise<Raw
 function matchesConditions(conditions: Record<string, unknown>, ctx: DispatchContext) {
   if (conditions?.stageId && String(conditions.stageId) !== String(ctx.stageId ?? "")) return false;
   if (conditions?.status && String(conditions.status) !== String(ctx.status ?? "")) return false;
+  if (conditions?.dealStatus && String(conditions.dealStatus) !== String(ctx.dealStatus ?? "")) {
+    return false;
+  }
   return true;
 }
 
