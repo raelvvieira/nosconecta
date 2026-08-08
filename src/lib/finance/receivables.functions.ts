@@ -475,8 +475,21 @@ export const markReceivableReceived = createServerFn({ method: "POST" })
     const update: any = { status: "paid", paid_date: data.paid_date };
     if (data.account_id) update.account_id = data.account_id;
     if (data.payment_method) update.payment_method = data.payment_method;
-    const { error } = await supabase.from("financial_transactions").update(update).eq("id", data.id);
+    // owner_id explícito além da RLS, como no resto dos módulos.
+    // .select() alimenta o gatilho da Meta com paciente e valor.
+    const { data: updated, error } = await supabase
+      .from("financial_transactions")
+      .update(update)
+      .eq("id", data.id)
+      .eq("owner_id", context.userId)
+      .select("patient_id, amount")
+      .single();
     if (error) throw error;
+    const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
+    await dispatchMetaCapiEvent(context.userId, "receivable.paid", {
+      patientId: updated?.patient_id ?? null,
+      amount: updated?.amount === null || updated?.amount === undefined ? null : Number(updated.amount),
+    });
     return { ok: true };
   });
 
@@ -488,7 +501,8 @@ export const cancelReceivable = createServerFn({ method: "POST" })
     const { error } = await supabase
       .from("financial_transactions")
       .update({ status: "cancelled" })
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .eq("owner_id", context.userId);
     if (error) throw error;
     return { ok: true };
   });
@@ -498,7 +512,11 @@ export const deleteReceivable = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase = context.supabase;
-    const { error } = await supabase.from("financial_transactions").delete().eq("id", data.id);
+    const { error } = await supabase
+      .from("financial_transactions")
+      .delete()
+      .eq("id", data.id)
+      .eq("owner_id", context.userId);
     if (error) throw error;
     return { ok: true };
   });

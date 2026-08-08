@@ -24,6 +24,8 @@ import { Route as AtendimentosIndexRouteImport } from './routes/atendimentos.ind
 import { Route as AtendimentosCampanhasRouteImport } from './routes/atendimentos.campanhas'
 import { Route as AtendimentosChatRouteImport } from './routes/atendimentos.chat'
 import { Route as AtendimentosPipelineRouteImport } from './routes/atendimentos.pipeline'
+import { Route as ConfiguracoesIndexRouteImport } from './routes/configuracoes.index'
+import { Route as ConfiguracoesIntegracoesRouteImport } from './routes/configuracoes.integracoes'
 import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
 import { Route as PacientesIndexRouteImport } from './routes/pacientes.index'
 import { Route as PacientesPatientIdRouteImport } from './routes/pacientes.$patientId'
@@ -103,6 +105,17 @@ const AtendimentosPipelineRoute = AtendimentosPipelineRouteImport.update({
   path: '/pipeline',
   getParentRoute: () => AtendimentosRoute,
 } as any)
+const ConfiguracoesIndexRoute = ConfiguracoesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ConfiguracoesRoute,
+} as any)
+const ConfiguracoesIntegracoesRoute =
+  ConfiguracoesIntegracoesRouteImport.update({
+    id: '/integracoes',
+    path: '/integracoes',
+    getParentRoute: () => ConfiguracoesRoute,
+  } as any)
 const ConfiguracoesNotificacoesRoute =
   ConfiguracoesNotificacoesRouteImport.update({
     id: '/notificacoes',
@@ -135,16 +148,17 @@ export interface FileRoutesByFullPath {
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
+  '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/atendimentos/': typeof AtendimentosIndexRoute
+  '/configuracoes/': typeof ConfiguracoesIndexRoute
   '/pacientes/': typeof PacientesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
-  '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
   '/pagamentos': typeof PagamentosRoute
@@ -153,9 +167,11 @@ export interface FileRoutesByTo {
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
+  '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/atendimentos': typeof AtendimentosIndexRoute
+  '/configuracoes': typeof ConfiguracoesIndexRoute
   '/pacientes': typeof PacientesIndexRoute
 }
 export interface FileRoutesById {
@@ -174,9 +190,11 @@ export interface FileRoutesById {
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
+  '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/atendimentos/': typeof AtendimentosIndexRoute
+  '/configuracoes/': typeof ConfiguracoesIndexRoute
   '/pacientes/': typeof PacientesIndexRoute
 }
 export interface FileRouteTypes {
@@ -196,16 +214,17 @@ export interface FileRouteTypes {
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
+    | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
     | '/pacientes/$patientId'
     | '/atendimentos/'
+    | '/configuracoes/'
     | '/pacientes/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/agenda'
     | '/auth'
-    | '/configuracoes'
     | '/financeiro'
     | '/inicio'
     | '/pagamentos'
@@ -214,9 +233,11 @@ export interface FileRouteTypes {
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
+    | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
     | '/pacientes/$patientId'
     | '/atendimentos'
+    | '/configuracoes'
     | '/pacientes'
   id:
     | '__root__'
@@ -234,9 +255,11 @@ export interface FileRouteTypes {
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
+    | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
     | '/pacientes/$patientId'
     | '/atendimentos/'
+    | '/configuracoes/'
     | '/pacientes/'
   fileRoutesById: FileRoutesById
 }
@@ -361,6 +384,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AtendimentosPipelineRouteImport
       parentRoute: typeof AtendimentosRoute
     }
+    '/configuracoes/': {
+      id: '/configuracoes/'
+      path: '/'
+      fullPath: '/configuracoes/'
+      preLoaderRoute: typeof ConfiguracoesIndexRouteImport
+      parentRoute: typeof ConfiguracoesRoute
+    }
+    '/configuracoes/integracoes': {
+      id: '/configuracoes/integracoes'
+      path: '/integracoes'
+      fullPath: '/configuracoes/integracoes'
+      preLoaderRoute: typeof ConfiguracoesIntegracoesRouteImport
+      parentRoute: typeof ConfiguracoesRoute
+    }
     '/configuracoes/notificacoes': {
       id: '/configuracoes/notificacoes'
       path: '/notificacoes'
@@ -404,11 +441,15 @@ const AtendimentosRouteWithChildren = AtendimentosRoute._addFileChildren(
 )
 
 interface ConfiguracoesRouteChildren {
+  ConfiguracoesIntegracoesRoute: typeof ConfiguracoesIntegracoesRoute
   ConfiguracoesNotificacoesRoute: typeof ConfiguracoesNotificacoesRoute
+  ConfiguracoesIndexRoute: typeof ConfiguracoesIndexRoute
 }
 
 const ConfiguracoesRouteChildren: ConfiguracoesRouteChildren = {
+  ConfiguracoesIntegracoesRoute: ConfiguracoesIntegracoesRoute,
   ConfiguracoesNotificacoesRoute: ConfiguracoesNotificacoesRoute,
+  ConfiguracoesIndexRoute: ConfiguracoesIndexRoute,
 }
 
 const ConfiguracoesRouteWithChildren = ConfiguracoesRoute._addFileChildren(

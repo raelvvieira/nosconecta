@@ -338,6 +338,8 @@ export const createPatient = createServerFn({ method: "POST" })
     // resposta é enviada, então "fire-and-forget" de verdade não é seguro
     // aqui.
     await pushContactToCrm(context.userId, created.id, data.name, data.phone);
+    const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
+    await dispatchMetaCapiEvent(context.userId, "patient.created", { patientId: created.id });
     return { id: created.id };
   });
 

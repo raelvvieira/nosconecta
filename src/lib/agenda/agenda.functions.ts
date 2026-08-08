@@ -172,6 +172,12 @@ export const createAppointment = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     const { triggerAppointmentNotification } = await import("@/lib/agenda/notifications.server");
     await triggerAppointmentNotification(inserted.id, "confirmation");
+    const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
+    await dispatchMetaCapiEvent(context.userId, "appointment.created", {
+      patientId: row.patient_id,
+      contactName: row.patient_name,
+      amount: row.expected_revenue,
+    });
     return { id: inserted.id };
   });
 
@@ -194,12 +200,23 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string; status: AppointmentStatus }) => input)
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
+    // .select() para que o gatilho da Meta consiga montar o evento (paciente
+    // para o hash, valor previsto para o custom_data) sem uma segunda query.
+    const { data: updated, error } = await context.supabase
       .from("appointments")
       .update({ status: data.status })
       .eq("id", data.id)
-      .eq("owner_id", context.userId);
+      .eq("owner_id", context.userId)
+      .select("patient_id, patient_name, expected_revenue")
+      .single();
     if (error) throw new Error(error.message);
+    const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
+    await dispatchMetaCapiEvent(context.userId, "appointment.status_changed", {
+      status: data.status,
+      patientId: updated?.patient_id ?? null,
+      contactName: updated?.patient_name ?? null,
+      amount: updated?.expected_revenue ?? null,
+    });
     return { ok: true };
   });
 
