@@ -1043,6 +1043,72 @@ export type Database = {
         }
         Relationships: []
       }
+      pipeline_deal_events: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          item_id: string
+          kind: string
+          meta: Json | null
+          owner_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          item_id: string
+          kind?: string
+          meta?: Json | null
+          owner_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          item_id?: string
+          kind?: string
+          meta?: Json | null
+          owner_id?: string
+        }
+        Relationships: []
+      }
+      pipeline_deals: {
+        Row: {
+          created_at: string
+          currency: string
+          id: string
+          item_id: string
+          loss_reason: string | null
+          owner_id: string
+          status: string
+          updated_at: string
+          value: number | null
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          id?: string
+          item_id: string
+          loss_reason?: string | null
+          owner_id: string
+          status?: string
+          updated_at?: string
+          value?: number | null
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          id?: string
+          item_id?: string
+          loss_reason?: string | null
+          owner_id?: string
+          status?: string
+          updated_at?: string
+          value?: number | null
+        }
+        Relationships: []
+      }
       professionals: {
         Row: {
           active: boolean
