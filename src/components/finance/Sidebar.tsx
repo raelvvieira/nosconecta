@@ -100,7 +100,7 @@ const FINANCE_PATHS = new Set(["/financeiro", "/recebimentos", "/pagamentos", "/
 const AGENDA_PATHS = new Set(["/agenda"]);
 const isPatientsPath = (pathname: string) =>
   pathname === "/pacientes" || pathname.startsWith("/pacientes/");
-const isSettingsPath = (pathname: string) => pathname === "/configuracoes";
+const isSettingsPath = (pathname: string) => pathname.startsWith("/configuracoes");
 const isAtendimentosPath = (pathname: string) =>
   pathname === "/atendimentos" || pathname.startsWith("/atendimentos/");
 const STORAGE_KEY = "sidebar-collapsed";

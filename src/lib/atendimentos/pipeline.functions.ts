@@ -117,6 +117,17 @@ export const movePipelineItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { itemId: string; newStageId: string; notes?: string }) => input)
   .handler(async ({ data, context }) => {
-    await callEdgeFunction({ ownerId: context.userId, action: "move-item", move: data });
+    const json = await callEdgeFunction({ ownerId: context.userId, action: "move-item", move: data });
+
+    // Mudança de etapa é o evento que representa "Ganho"/"Perdido" para a
+    // Meta — qual etapa significa o quê é escolha da clínica, configurada em
+    // Configurações › Integrações.
+    const moved = json?.item ? mapItem(json.item) : null;
+    const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
+    await dispatchMetaCapiEvent(context.userId, "pipeline.stage_changed", {
+      stageId: data.newStageId,
+      crmContactId: moved?.type === "contact" ? moved.itemId : null,
+      contactName: moved?.title ?? null,
+    });
     return { ok: true };
   });
