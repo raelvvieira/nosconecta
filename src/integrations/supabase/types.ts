@@ -813,6 +813,152 @@ export type Database = {
           },
         ]
       }
+      meta_capi_credentials: {
+        Row: {
+          access_token: string | null
+          api_version: string
+          created_at: string
+          enabled: boolean
+          id: string
+          last_error: string | null
+          last_success_at: string | null
+          offline_event_set_id: string | null
+          owner_id: string
+          pixel_id: string | null
+          test_event_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          api_version?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_error?: string | null
+          last_success_at?: string | null
+          offline_event_set_id?: string | null
+          owner_id: string
+          pixel_id?: string | null
+          test_event_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          api_version?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_error?: string | null
+          last_success_at?: string | null
+          offline_event_set_id?: string | null
+          owner_id?: string
+          pixel_id?: string | null
+          test_event_code?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      meta_capi_events: {
+        Row: {
+          created_at: string
+          dropped_keys: Json | null
+          error: string | null
+          event_id: string
+          id: string
+          meta_event_name: string
+          owner_id: string
+          payload: Json | null
+          response: Json | null
+          sent_at: string
+          status: string
+          system_event: string
+          trigger_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          dropped_keys?: Json | null
+          error?: string | null
+          event_id: string
+          id?: string
+          meta_event_name: string
+          owner_id: string
+          payload?: Json | null
+          response?: Json | null
+          sent_at?: string
+          status: string
+          system_event: string
+          trigger_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          dropped_keys?: Json | null
+          error?: string | null
+          event_id?: string
+          id?: string
+          meta_event_name?: string
+          owner_id?: string
+          payload?: Json | null
+          response?: Json | null
+          sent_at?: string
+          status?: string
+          system_event?: string
+          trigger_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_capi_events_trigger_id_fkey"
+            columns: ["trigger_id"]
+            isOneToOne: false
+            referencedRelation: "meta_capi_triggers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_capi_triggers: {
+        Row: {
+          active: boolean
+          conditions: Json
+          created_at: string
+          currency: string
+          fixed_value: number | null
+          id: string
+          meta_event_name: string
+          name: string
+          owner_id: string
+          system_event: string
+          updated_at: string
+          value_source: string
+        }
+        Insert: {
+          active?: boolean
+          conditions?: Json
+          created_at?: string
+          currency?: string
+          fixed_value?: number | null
+          id?: string
+          meta_event_name: string
+          name: string
+          owner_id: string
+          system_event: string
+          updated_at?: string
+          value_source?: string
+        }
+        Update: {
+          active?: boolean
+          conditions?: Json
+          created_at?: string
+          currency?: string
+          fixed_value?: number | null
+          id?: string
+          meta_event_name?: string
+          name?: string
+          owner_id?: string
+          system_event?: string
+          updated_at?: string
+          value_source?: string
+        }
+        Relationships: []
+      }
       patients: {
         Row: {
           address: string | null
