@@ -96,7 +96,7 @@ function SettingsRegistryPage() {
     [items, query],
   );
   const activeCount = items.filter((item: SettingsRecord) => item.active).length;
-  const label = SECTION_LABEL[section];
+  const label = SECTION_LABEL[section as SettingsSection];
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["settings"] });
   const toggle = useMutation({
