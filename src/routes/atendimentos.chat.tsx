@@ -384,6 +384,8 @@ function ChatPage() {
               onPrivateChange={setIsPrivate}
               attachments={attachments}
               onAttachmentsChange={setAttachments}
+              conversationId={selected.id}
+              contactId={selected.contactId}
             />
           </>
         )}

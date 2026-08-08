@@ -11,6 +11,9 @@ export interface WhatsappInstance {
 
 export interface ConversationRow {
   id: string;
+  // Id do contato no CRM — exigido por /scheduled_actions (agendamento) e
+  // pelas consultas por contato. Vinha na resposta e era descartado.
+  contactId: string | null;
   contactName: string | null;
   phone: string | null;
   lastMessagePreview: string | null;
@@ -72,6 +75,7 @@ function mapConversation(row: any): ConversationRow {
   const contact = row?.contact ?? {};
   return {
     id: String(row?.id),
+    contactId: contact?.id ? String(contact.id) : null,
     contactName: contact?.name ?? null,
     phone: contact?.phone_number ?? null,
     lastMessagePreview: null,
@@ -197,4 +201,62 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
       attachments: data.attachments ?? [],
     });
     return { ok: !!json.ok };
+  });
+
+export interface ScheduledMessage {
+  id: string;
+  content: string | null;
+  scheduledFor: string | null;
+  status: string;
+}
+
+// Estados do CRM: scheduled, executing, completed, failed, cancelled.
+function mapScheduled(row: any): ScheduledMessage {
+  return {
+    id: String(row?.id),
+    content: row?.payload?.content ?? null,
+    scheduledFor: row?.scheduled_for ?? null,
+    status: row?.status ?? "scheduled",
+  };
+}
+
+export const scheduleWhatsappMessage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: { conversationId: string; contactId?: string | null; text: string; scheduledFor: string }) => input,
+  )
+  .handler(async ({ data, context }) => {
+    await callEdgeFunction("crm-conversations", {
+      ownerId: context.userId,
+      action: "schedule",
+      conversationId: data.conversationId,
+      contactId: data.contactId ?? null,
+      content: data.text,
+      scheduledFor: data.scheduledFor,
+    });
+    return { ok: true };
+  });
+
+export const getScheduledMessages = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { contactId: string }) => input)
+  .handler(async ({ data, context }): Promise<ScheduledMessage[]> => {
+    const json = await callEdgeFunction("crm-conversations", {
+      ownerId: context.userId,
+      action: "list-scheduled",
+      contactId: data.contactId,
+    });
+    return (json.scheduled ?? []).map(mapScheduled);
+  });
+
+export const cancelScheduledMessage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { scheduledId: string }) => input)
+  .handler(async ({ data, context }) => {
+    await callEdgeFunction("crm-conversations", {
+      ownerId: context.userId,
+      action: "cancel-scheduled",
+      scheduledId: data.scheduledId,
+    });
+    return { ok: true };
   });

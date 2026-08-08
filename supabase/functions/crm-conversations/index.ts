@@ -81,17 +81,56 @@ async function handleSend(
   return { ok: true, message: res };
 }
 
+// Agendamento é um recurso genérico do CRM (/scheduled_actions serve pra
+// mensagem, tarefa, mudança de etapa etc.). Aqui só usamos `send_message`,
+// que é o caso do chat.
+async function handleSchedule(
+  ownerId: string,
+  input: { conversationId: string; contactId?: string | null; content: string; scheduledFor: string },
+) {
+  const res = await crmFetch(supabase, ownerId, "/api/v1/scheduled_actions", {
+    method: "POST",
+    body: JSON.stringify({
+      scheduled_action: {
+        action_type: "send_message",
+        scheduled_for: input.scheduledFor,
+        conversation_id: input.conversationId,
+        contact_id: input.contactId ?? undefined,
+        payload: { content: input.content },
+        recurrence_type: "once",
+        max_retries: 3,
+      },
+    }),
+  });
+  return { ok: true, scheduled: unwrap(res) };
+}
+
+async function handleListScheduled(ownerId: string, contactId: string) {
+  const res = await crmFetch(supabase, ownerId, `/api/v1/scheduled_actions/by_contact/${contactId}`);
+  const unwrapped = unwrap(res);
+  return { ok: true, scheduled: Array.isArray(unwrapped) ? unwrapped : [] };
+}
+
+async function handleCancelScheduled(ownerId: string, scheduledId: string) {
+  await crmFetch(supabase, ownerId, `/api/v1/scheduled_actions/${scheduledId}`, { method: "DELETE" });
+  return { ok: true };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
   try {
-    const { ownerId, action, conversationId, content, isPrivate, attachments } = (await req.json()) as {
-      ownerId?: string;
-      action?: string;
-      conversationId?: string;
-      content?: string;
-      isPrivate?: boolean;
-      attachments?: OutgoingAttachment[];
-    };
+    const { ownerId, action, conversationId, content, isPrivate, attachments, contactId, scheduledFor, scheduledId } =
+      (await req.json()) as {
+        ownerId?: string;
+        action?: string;
+        conversationId?: string;
+        content?: string;
+        isPrivate?: boolean;
+        attachments?: OutgoingAttachment[];
+        contactId?: string | null;
+        scheduledFor?: string;
+        scheduledId?: string;
+      };
     if (!ownerId || !action) {
       return new Response(JSON.stringify({ error: "ownerId e action são obrigatórios" }), { status: 400 });
     }
@@ -111,6 +150,25 @@ Deno.serve(async (req) => {
         });
       }
       result = await handleSend(ownerId, conversationId, content?.trim() ?? "", !!isPrivate, files);
+    } else if (action === "schedule") {
+      if (!conversationId || !content?.trim() || !scheduledFor) {
+        return new Response(
+          JSON.stringify({ error: "conversationId, content e scheduledFor são obrigatórios" }),
+          { status: 400 },
+        );
+      }
+      result = await handleSchedule(ownerId, {
+        conversationId,
+        contactId,
+        content: content.trim(),
+        scheduledFor,
+      });
+    } else if (action === "list-scheduled") {
+      if (!contactId) return new Response(JSON.stringify({ error: "contactId é obrigatório" }), { status: 400 });
+      result = await handleListScheduled(ownerId, contactId);
+    } else if (action === "cancel-scheduled") {
+      if (!scheduledId) return new Response(JSON.stringify({ error: "scheduledId é obrigatório" }), { status: 400 });
+      result = await handleCancelScheduled(ownerId, scheduledId);
     } else {
       return new Response(JSON.stringify({ error: `action desconhecida: ${action}` }), { status: 400 });
     }

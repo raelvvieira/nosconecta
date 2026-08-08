@@ -33,6 +33,7 @@ import { fileToPendingAttachment } from "@/lib/atendimentos/attachments";
 import { EmojiPicker } from "./EmojiPicker";
 import { AiAssistDialog } from "./AiAssistDialog";
 import { AttachmentTray, type PendingAttachment } from "./AttachmentTray";
+import { ScheduleMessageDialog } from "./ScheduleMessageDialog";
 
 // Recursos ainda sem caminho no CRM ficam visíveis mas desabilitados, com o
 // motivo no tooltip — some da tela seria pior: o time não saberia que estão
@@ -48,6 +49,8 @@ export function ChatComposer({
   onPrivateChange,
   attachments,
   onAttachmentsChange,
+  conversationId,
+  contactId,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -57,6 +60,8 @@ export function ChatComposer({
   onPrivateChange: (isPrivate: boolean) => void;
   attachments: PendingAttachment[];
   onAttachmentsChange: (next: PendingAttachment[]) => void;
+  conversationId: string;
+  contactId: string | null;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
@@ -66,6 +71,7 @@ export function ChatComposer({
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
 
   const fetchTemplates = useServerFn(getMessageTemplates);
@@ -240,7 +246,7 @@ export function ChatComposer({
               <ImageIcon className="mr-2 h-4 w-4" />
               Fotos e Vídeos
             </DropdownMenuItem>
-            <DropdownMenuItem disabled title={SOON}>
+            <DropdownMenuItem onClick={() => setScheduleOpen(true)}>
               <CalendarClock className="mr-2 h-4 w-4" />
               Agendar
             </DropdownMenuItem>
@@ -374,6 +380,17 @@ export function ChatComposer({
       </Popover>
 
       <AiAssistDialog open={aiOpen} onOpenChange={setAiOpen} />
+
+      <ScheduleMessageDialog
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        conversationId={conversationId}
+        contactId={contactId}
+        initialText={value}
+        // Agendou usando o que estava escrito: limpa o campo pra não sobrar
+        // o mesmo texto parecendo que ainda falta enviar.
+        onScheduled={() => onChange("")}
+      />
     </div>
   );
 }
