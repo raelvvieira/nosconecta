@@ -49,6 +49,7 @@ export interface PatientSummary {
   name: string;
   initials: string;
   phone: string | null;
+  email: string | null;
   cpf: string | null;
   birthDate: string | null;
   age: number | null;
@@ -160,6 +161,7 @@ function buildSummary(row: any, transactions: any[]): PatientSummary {
     name: row.name,
     initials: initialsOf(row.name),
     phone: row.phone ?? null,
+    email: row.email ?? null,
     cpf: row.cpf ?? null,
     birthDate: row.birth_date ?? null,
     age: ageFromBirthDate(row.birth_date),
@@ -210,7 +212,7 @@ export const getPatientsOverview = createServerFn({ method: "GET" })
     const patients = all.filter((patient: PatientSummary) => {
       const matchesQuery =
         !data.q ||
-        `${patient.name} ${patient.phone ?? ""} ${patient.cpf ?? ""}`
+        `${patient.name} ${patient.phone ?? ""} ${patient.email ?? ""} ${patient.cpf ?? ""}`
           .toLocaleLowerCase("pt-BR")
           .includes(data.q);
       const matchesStatus = data.status === "all" || patient.status === data.status;
@@ -269,6 +271,7 @@ const patientInput = (input: {
   id?: string;
   name: string;
   phone?: string;
+  email?: string;
   cpf?: string;
   birthDate?: string;
   status?: PatientStatus;
@@ -287,6 +290,7 @@ const patientInput = (input: {
   id: input.id,
   name: input.name.trim(),
   phone: input.phone?.trim() || null,
+  email: input.email?.trim().toLowerCase() || null,
   cpf: input.cpf?.trim() || null,
   birthDate: input.birthDate || null,
   status: input.status ?? "active",
@@ -315,6 +319,7 @@ export const createPatient = createServerFn({ method: "POST" })
         owner_id: context.userId,
         name: data.name,
         phone: data.phone,
+        email: data.email,
         cpf: data.cpf,
         birth_date: data.birthDate,
         status: data.status,
@@ -357,6 +362,7 @@ export const updatePatient = createServerFn({ method: "POST" })
       .update({
         name: data.name,
         phone: data.phone,
+        email: data.email,
         cpf: data.cpf,
         birth_date: data.birthDate,
         status: data.status,

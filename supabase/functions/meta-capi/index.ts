@@ -427,7 +427,7 @@ async function handleDispatch(ownerId: string, systemEvent: string, ctx: Dispatc
           trigger_id: trigger.id,
           system_event: systemEvent,
           meta_event_name: trigger.meta_event_name,
-          event_id: `${trigger.id}:${ctx.entityId ?? "sem-id"}`,
+          event_id: `${trigger.meta_event_name}:${ctx.entityId ?? "sem-id"}`,
           status: "failed",
           payload: null,
           response: null,
@@ -444,9 +444,14 @@ async function handleDispatch(ownerId: string, systemEvent: string, ctx: Dispatc
   const results = await Promise.all(
     matching.map(async (trigger: any) => {
       const value = resolveValue(trigger, ctx);
-      // event_id estável (gatilho + registro que converteu): reenviar o mesmo
-      // evento não faz a Meta contar a conversão duas vezes.
-      const eventId = `${trigger.id}:${ctx.entityId ?? eventTime}`;
+      // O event_id identifica a CONVERSÃO, não o gatilho que a disparou.
+      // Por isso é (evento da Meta + registro que converteu), e não o id do
+      // gatilho: dois gatilhos configurados para mandar "Purchase" no mesmo
+      // acontecimento descrevem a mesma conversão, e com o id do gatilho no
+      // meio eles virariam dois event_id distintos e a Meta contaria duas
+      // vezes. Gatilhos com eventos diferentes (Purchase + Lead) continuam
+      // separados, que é o desejado.
+      const eventId = `${trigger.meta_event_name}:${ctx.entityId ?? eventTime}`;
       const event: Record<string, unknown> = {
         event_name: trigger.meta_event_name,
         event_time: eventTime,

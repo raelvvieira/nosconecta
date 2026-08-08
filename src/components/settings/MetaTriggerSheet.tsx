@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation } from "@tanstack/react-query";
-import { Zap } from "lucide-react";
+import { AlertTriangle, Zap } from "lucide-react";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -64,11 +64,20 @@ interface Props {
   open: boolean;
   trigger: MetaCapiTrigger | null;
   stages: PipelineStage[];
+  /** Todos os gatilhos já criados — usados só para avisar de redundância. */
+  existing: MetaCapiTrigger[];
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }
 
-export function MetaTriggerSheet({ open, trigger, stages, onOpenChange, onSaved }: Props) {
+export function MetaTriggerSheet({
+  open,
+  trigger,
+  stages,
+  existing,
+  onOpenChange,
+  onSaved,
+}: Props) {
   const save = useServerFn(saveMetaCapiTrigger);
 
   const [name, setName] = useState("");
@@ -106,6 +115,18 @@ export function MetaTriggerSheet({ open, trigger, stages, onOpenChange, onSaved 
     setFixedValue("");
     setActive(true);
   }, [open, trigger]);
+
+  // Dois gatilhos ativos mandando o mesmo evento no mesmo acontecimento
+  // descrevem a mesma conversão. O event_id agora é (evento + registro), então
+  // a Meta deduplica — mas o mais provável é que seja engano, e vale avisar.
+  const resolvedEventName = metaEventName === CUSTOM ? customEvent.trim() : metaEventName;
+  const duplicate = existing.find(
+    (item) =>
+      item.id !== trigger?.id &&
+      item.active &&
+      item.systemEvent === systemEvent &&
+      item.metaEventName === resolvedEventName,
+  );
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -251,6 +272,16 @@ export function MetaTriggerSheet({ open, trigger, stages, onOpenChange, onSaved 
                 placeholder="NomeDoSeuEvento"
                 className="mt-2"
               />
+            )}
+            {duplicate && (
+              <p className="mt-2 flex items-start gap-2 rounded-2xl bg-coral-soft px-3 py-2 text-[11px] text-foreground/80">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-coral" />
+                <span>
+                  O gatilho “{duplicate.name}” já manda {resolvedEventName} neste mesmo
+                  acontecimento. A Meta trata os dois como a mesma conversão e não conta duas
+                  vezes — mas confira se é isso mesmo que você quer.
+                </span>
+              </p>
             )}
           </div>
 

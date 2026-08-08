@@ -218,6 +218,9 @@ function IntegrationsPage() {
     settings.data?.hasToken && (settings.data?.pixelId || settings.data?.offlineEventSetId),
   );
   const offlineMode = Boolean(settings.data?.offlineEventSetId);
+  // Lê o campo do formulário, não o valor salvo: a marcação de destino
+  // precisa reagir enquanto a pessoa digita, antes de salvar.
+  const offlineFilled = Boolean(offlineEventSetId.trim());
 
   return (
     <>
@@ -255,8 +258,14 @@ function IntegrationsPage() {
         </div>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="pixel-id">Pixel ID</Label>
+          {/* Os dois campos são destinos alternativos, nunca simultâneos — o
+              código manda para um só. Sem deixar isso visível, a leitura
+              natural é que preencher ambos duplicaria as conversões. */}
+          <div className={cn(offlineFilled && "opacity-55")}>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="pixel-id">Pixel ID</Label>
+              {!offlineFilled && <InUseTag />}
+            </div>
             <Input
               id="pixel-id"
               value={pixelId}
@@ -264,19 +273,27 @@ function IntegrationsPage() {
               placeholder="1234567890123456"
               className="mt-1.5 bg-white"
             />
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              {offlineFilled
+                ? "Guardado, mas não usado enquanto houver conjunto offline preenchido."
+                : "Recomendado para começar: funciona sem nenhum passo manual na Meta."}
+            </p>
           </div>
           <div>
-            <Label htmlFor="offline-set">Conjunto de eventos offline (opcional)</Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="offline-set">Conjunto de eventos offline (opcional)</Label>
+              {offlineFilled && <InUseTag />}
+            </div>
             <Input
               id="offline-set"
               value={offlineEventSetId}
               onChange={(event) => setOfflineEventSetId(event.target.value)}
-              placeholder="1234567890123456"
+              placeholder="Deixe em branco para usar o Pixel"
               className="mt-1.5 bg-white"
             />
             <p className="mt-1.5 text-[11px] text-muted-foreground">
-              Preenchido, os eventos vão para ele em vez do Pixel. É o destino certo para venda
-              fechada por WhatsApp, telefone ou no balcão.
+              Preenchido, os eventos vão para ele <strong>em vez</strong> do Pixel — nunca para os
+              dois. Só compensa se o conjunto estiver vinculado às campanhas.
             </p>
           </div>
           <div>
@@ -508,6 +525,7 @@ function IntegrationsPage() {
         open={sheetOpen}
         trigger={editing}
         stages={stages.data?.stages ?? []}
+        existing={list}
         onOpenChange={setSheetOpen}
         onSaved={() => {
           refreshTriggers();
@@ -538,6 +556,14 @@ function IntegrationsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+function InUseTag() {
+  return (
+    <span className="rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-semibold text-success">
+      em uso
+    </span>
   );
 }
 

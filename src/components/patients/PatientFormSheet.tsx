@@ -39,6 +39,7 @@ type Props = {
 const EMPTY = {
   name: "",
   phone: "",
+  email: "",
   cpf: "",
   birthDate: "",
   status: "active" as PatientStatus,
@@ -67,6 +68,7 @@ export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props
         ? {
             name: patient.name,
             phone: patient.phone ?? "",
+            email: patient.email ?? "",
             cpf: patient.cpf ?? "",
             birthDate: patient.birthDate ?? "",
             status: patient.status,
@@ -158,6 +160,21 @@ export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="patient-email">E-mail</Label>
+                <Input
+                  id="patient-email"
+                  value={form.email}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, email: event.target.value }))
+                  }
+                  placeholder="paciente@email.com"
+                  inputMode="email"
+                  type="email"
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
                 <Label htmlFor="patient-cpf">CPF</Label>
                 <Input
                   id="patient-cpf"
@@ -169,8 +186,6 @@ export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props
                   inputMode="numeric"
                 />
               </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="patient-birth">Data de nascimento</Label>
                 <Input
@@ -182,6 +197,8 @@ export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props
                   }
                 />
               </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Situação</Label>
                 <Select
@@ -201,27 +218,27 @@ export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Sexo</Label>
-              <Select
-                value={form.gender || "unset"}
-                onValueChange={(gender) =>
-                  setForm((current) => ({
-                    ...current,
-                    gender: gender === "unset" ? "" : (gender as PatientGender),
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Não informado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unset">Não informado</SelectItem>
-                  <SelectItem value="F">Feminino</SelectItem>
-                  <SelectItem value="M">Masculino</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label>Sexo</Label>
+                <Select
+                  value={form.gender || "unset"}
+                  onValueChange={(gender) =>
+                    setForm((current) => ({
+                      ...current,
+                      gender: gender === "unset" ? "" : (gender as PatientGender),
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Não informado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unset">Não informado</SelectItem>
+                    <SelectItem value="F">Feminino</SelectItem>
+                    <SelectItem value="M">Masculino</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </section>
 
