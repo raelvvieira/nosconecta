@@ -22,10 +22,15 @@ CREATE TABLE public.pipeline_deals (
 CREATE UNIQUE INDEX idx_pipeline_deals_owner_item
   ON public.pipeline_deals (owner_id, item_id);
 
+-- GRANT além da policy: no Supabase a RLS filtra linhas, mas sem privilégio
+-- de tabela o papel `authenticated` nem chega a executar o comando. Faltar
+-- isso foi o que quebrou a gravação das credenciais da Meta.
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.pipeline_deals TO authenticated;
+GRANT ALL ON public.pipeline_deals TO service_role;
 ALTER TABLE public.pipeline_deals ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS pipeline_deals_owner ON public.pipeline_deals;
 CREATE POLICY pipeline_deals_owner ON public.pipeline_deals
-  FOR ALL USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid());
+  FOR ALL TO authenticated USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid());
 
 -- Linha do tempo da negociação, append-only. Resolve "observações" e
 -- "histórico" de uma vez: a observação escrita à mão e a troca de status
@@ -44,7 +49,9 @@ CREATE TABLE public.pipeline_deal_events (
 CREATE INDEX idx_pipeline_deal_events_owner_item
   ON public.pipeline_deal_events (owner_id, item_id, created_at DESC);
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.pipeline_deal_events TO authenticated;
+GRANT ALL ON public.pipeline_deal_events TO service_role;
 ALTER TABLE public.pipeline_deal_events ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS pipeline_deal_events_owner ON public.pipeline_deal_events;
 CREATE POLICY pipeline_deal_events_owner ON public.pipeline_deal_events
-  FOR ALL USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid());
+  FOR ALL TO authenticated USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid());
