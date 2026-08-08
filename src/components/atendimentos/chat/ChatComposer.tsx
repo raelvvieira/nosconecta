@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import {
   CalendarClock,
+  CalendarPlus,
   FileText,
   Image as ImageIcon,
   Mic,
@@ -51,6 +52,7 @@ export function ChatComposer({
   onAttachmentsChange,
   conversationId,
   contactId,
+  onScheduleAppointment,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -62,6 +64,9 @@ export function ChatComposer({
   onAttachmentsChange: (next: PendingAttachment[]) => void;
   conversationId: string;
   contactId: string | null;
+  /** Abre o formulário de agendamento da Agenda (mesmo formulário, mesma
+   *  gravação) com o contato desta conversa já preenchido. */
+  onScheduleAppointment: () => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
@@ -246,9 +251,13 @@ export function ChatComposer({
               <ImageIcon className="mr-2 h-4 w-4" />
               Fotos e Vídeos
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onScheduleAppointment()}>
+              <CalendarPlus className="mr-2 h-4 w-4" />
+              Agendar consulta
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setScheduleOpen(true)}>
               <CalendarClock className="mr-2 h-4 w-4" />
-              Agendar
+              Agendar mensagem
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

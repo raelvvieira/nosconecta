@@ -21,10 +21,9 @@ import {
   procedures as fallbackProcedures,
 } from "@/components/agenda/mock-data";
 import { getSettings } from "@/lib/settings/settings.functions";
+import { useSaveAppointment } from "@/lib/agenda/useSaveAppointment";
 import {
   getAgendaOverview,
-  createAppointment,
-  updateAppointment,
   updateAppointmentStatus,
   createBlockedTime,
   type AgendaOverview,
@@ -93,8 +92,6 @@ function AgendaPage() {
       })) ?? fallbackProcedures;
 
   const fetchOverview = useServerFn(getAgendaOverview);
-  const createApptFn = useServerFn(createAppointment);
-  const updateApptFn = useServerFn(updateAppointment);
   const updateStatusFn = useServerFn(updateAppointmentStatus);
   const createBlockFn = useServerFn(createBlockedTime);
 
@@ -130,39 +127,13 @@ function AgendaPage() {
 
   const todayStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`;
 
-  const saveApptMutation = useMutation({
-    mutationFn: async (data: Partial<Appointment>) => {
-      const payload = {
-        id: selectedAppt?.id,
-        patientId: data.patientId ?? null,
-        patientName: data.patientName ?? "",
-        procedureName: data.procedureName ?? "",
-        professionalId: data.professionalId || null,
-        professionalName: data.professionalName ?? "",
-        roomId: data.roomId || null,
-        roomName: data.roomName ?? "",
-        date: data.date ?? todayStr,
-        startTime: data.startTime ?? "09:00",
-        endTime: data.endTime ?? "10:00",
-        status: data.status,
-        type: data.type,
-        expectedRevenue: data.expectedRevenue ?? 0,
-        notes: data.notes ?? null,
-        generateFinancial: data.generateFinancial ?? true,
-      };
-      if (selectedAppt) {
-        await updateApptFn({ data: payload });
-      } else {
-        await createApptFn({ data: payload });
-      }
-    },
-    onSuccess: () => {
-      toast.success(selectedAppt ? "Agendamento atualizado" : "Agendamento criado");
-      invalidate();
+  // Mesma gravação usada pelo chat (useSaveAppointment) — ver comentário lá
+  // sobre por que isso não pode ser duplicado.
+  const saveApptMutation = useSaveAppointment({
+    onSaved: () => {
       setApptDrawerOpen(false);
       setSelectedAppt(null);
     },
-    onError: (e: any) => toast.error(e?.message ?? "Erro ao salvar agendamento"),
   });
 
   const saveBlockMutation = useMutation({
@@ -195,7 +166,8 @@ function AgendaPage() {
     onError: (e: any) => toast.error(e?.message ?? "Erro ao alterar status"),
   });
 
-  const handleSaveAppt = (data: Partial<Appointment>) => saveApptMutation.mutate(data);
+  const handleSaveAppt = (data: Partial<Appointment>) =>
+    saveApptMutation.mutate({ data, existingId: selectedAppt?.id });
   const handleSaveBlock = (data: Partial<(typeof blocked)[number]>) => saveBlockMutation.mutate(data);
 
   const handleApptClick = (appt: Appointment) => {

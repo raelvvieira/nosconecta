@@ -32,6 +32,8 @@ interface Props {
   defaultPatient?: { id: string; name: string } | null;
   catalog?: { professionals: Professional[]; procedures: Procedure[]; rooms: Room[] };
   isSaving?: boolean;
+  /** Aviso de contexto quando aberto fora da Agenda (ex.: a partir do chat). */
+  origin?: string;
   onClose: () => void;
   onSave: (data: Partial<Appointment>) => void;
 }
@@ -59,6 +61,7 @@ export function AppointmentDrawer({
   defaultPatient,
   catalog,
   isSaving,
+  origin,
   onClose,
   onSave,
 }: Props) {
@@ -141,14 +144,17 @@ export function AppointmentDrawer({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex">
+    // Pop-up centralizado (antes era gaveta lateral): mesmo formulário é
+    // aberto tanto pela Agenda quanto pelo chat, e no chat uma gaveta
+    // lateral cobriria a conversa que se está lendo pra agendar.
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="flex-1 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Drawer */}
+      {/* Modal */}
       <div
-        className="w-full max-w-[480px] bg-white flex flex-col overflow-hidden"
-        style={{ boxShadow: "-8px 0 32px rgba(0,0,0,0.10)" }}
+        className="relative flex max-h-[90vh] w-full max-w-[480px] flex-col overflow-hidden rounded-[24px] bg-white"
+        style={{ boxShadow: "0 24px 64px rgba(0,0,0,0.18)" }}
       >
         {/* Header */}
         <div
@@ -175,6 +181,10 @@ export function AppointmentDrawer({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+          {origin && (
+            <p className="rounded-xl bg-coral-soft px-3 py-2 text-xs leading-5 text-coral">{origin}</p>
+          )}
+
           {/* Dados do paciente */}
           <section className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">

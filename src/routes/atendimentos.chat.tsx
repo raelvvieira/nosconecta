@@ -9,6 +9,9 @@ import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Input } from "@/components/ui/input";
 import { ChatComposer } from "@/components/atendimentos/chat/ChatComposer";
 import type { PendingAttachment } from "@/components/atendimentos/chat/AttachmentTray";
+import { AppointmentDrawer } from "@/components/agenda/AppointmentDrawer";
+import { useAgendaCatalog } from "@/lib/agenda/useAppointmentForm";
+import { useSaveAppointment } from "@/lib/agenda/useSaveAppointment";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -161,6 +164,9 @@ function ChatPage() {
   const [draft, setDraft] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [appointmentOpen, setAppointmentOpen] = useState(false);
+  const agendaCatalog = useAgendaCatalog();
+  const saveAppointment = useSaveAppointment({ onSaved: () => setAppointmentOpen(false) });
   const sendMutation = useMutation({
     mutationFn: () =>
       doSendMessage({
@@ -386,10 +392,31 @@ function ChatPage() {
               onAttachmentsChange={setAttachments}
               conversationId={selected.id}
               contactId={selected.contactId}
+              onScheduleAppointment={() => setAppointmentOpen(true)}
             />
           </>
         )}
       </section>
+
+      {/* Mesmo formulário e mesma gravação da Agenda — um agendamento feito
+          aqui aparece lá igual a qualquer outro. O nome do contato do
+          WhatsApp entra como sugestão de paciente; quem agenda confirma ou
+          troca pelo cadastro certo. */}
+      {selected && (
+        <AppointmentDrawer
+          open={appointmentOpen}
+          catalog={agendaCatalog}
+          origin={`Agendamento a partir da conversa de WhatsApp com ${
+            selected.contactName ?? selected.phone ?? "este contato"
+          }.`}
+          defaultPatient={
+            selected.contactName ? { id: "", name: selected.contactName } : null
+          }
+          isSaving={saveAppointment.isPending}
+          onClose={() => setAppointmentOpen(false)}
+          onSave={(data) => saveAppointment.mutate({ data })}
+        />
+      )}
     </main>
   );
 }
