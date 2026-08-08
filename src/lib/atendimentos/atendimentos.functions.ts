@@ -67,10 +67,13 @@ function mapConversation(row: any): ConversationRow {
   };
 }
 
-// message_type: 0 = incoming (do contato), 1 = outgoing (da clínica) —
-// confirmado com dado real.
+// message_type: 0 = incoming (do contato), 1 = outgoing (da clínica).
+// Aceita número ou string porque o valor chegou como string em teste real —
+// com a comparação estrita em número, TODA mensagem caía como recebida e as
+// respostas da clínica apareciam do lado errado da conversa.
 function mapMessage(row: any): MessageRow {
-  const outgoing = row?.message_type === 1;
+  const type = row?.message_type;
+  const outgoing = type === 1 || type === "1" || type === "outgoing";
   return {
     id: String(row?.id),
     fromMe: outgoing,

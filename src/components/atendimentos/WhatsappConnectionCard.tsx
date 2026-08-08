@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, RefreshCw } from "lucide-react";
+import { CheckCircle2, MessageCircle, RefreshCw } from "lucide-react";
 import { getWhatsappInstance } from "@/lib/atendimentos/atendimentos.functions";
+import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { WhatsappConnectSheet } from "./WhatsappConnectSheet";
 
 const STATUS_CONFIG: Record<string, { dot: string; label: string; cta: string }> = {
@@ -27,22 +28,33 @@ export function WhatsappConnectionCard({ dailyUsage }: { dailyUsage?: { limit: n
   });
   const instance = instanceQuery.data ?? null;
   const config = STATUS_CONFIG[instance?.status ?? "disconnected"];
-  const label =
-    instance?.status === "open" && instance.phoneNumber ? `Conectado · ${instance.phoneNumber}` : config.label;
+  const connected = instance?.status === "open";
 
   return (
     <>
       <section className="surface-card flex h-full flex-col justify-between gap-4 p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-coral-soft text-coral">
-              <MessageCircle className="h-5 w-5" />
+            <span
+              className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${
+                connected ? "bg-success-soft text-success" : "bg-coral-soft text-coral"
+              }`}
+            >
+              {connected ? <CheckCircle2 className="h-6 w-6" /> : <MessageCircle className="h-5 w-5" />}
             </span>
             <div>
-              <p className="text-sm font-semibold">WhatsApp</p>
-              <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className={`h-2 w-2 shrink-0 rounded-full ${config.dot}`} />
-                {label}
+              <p className="text-sm font-semibold">
+                {connected && instance?.phoneNumber ? formatWhatsappNumber(instance.phoneNumber) : "WhatsApp"}
+              </p>
+              <p className="mt-0.5 flex items-center gap-1.5 text-xs">
+                {connected ? (
+                  <span className="font-medium text-success">Conectado</span>
+                ) : (
+                  <>
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${config.dot}`} />
+                    <span className="text-muted-foreground">{config.label}</span>
+                  </>
+                )}
               </p>
             </div>
           </div>

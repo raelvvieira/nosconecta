@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { QrCode, RefreshCw, WifiOff } from "lucide-react";
+import { CheckCircle2, QrCode, RefreshCw, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import {
   getWhatsappInstance,
   setWhatsappInboxId,
 } from "@/lib/atendimentos/atendimentos.functions";
+import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 
 export function WhatsappConnectSheet({
   open,
@@ -70,23 +71,47 @@ export function WhatsappConnectSheet({
   });
 
   const connecting = instance?.status === "connecting";
+  const connected = instance?.status === "open";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>{connecting ? "Escaneie o QR Code" : "Conectar WhatsApp"}</SheetTitle>
+          <SheetTitle>
+            {connected ? "WhatsApp conectado" : connecting ? "Escaneie o QR Code" : "Conectar WhatsApp"}
+          </SheetTitle>
         </SheetHeader>
 
         <div className="mt-2 text-center">
-          <span className="mx-auto grid h-14 w-14 place-items-center rounded-[20px] bg-coral-soft text-coral">
-            {connecting ? <QrCode className="h-6 w-6" /> : <WifiOff className="h-6 w-6" />}
+          <span
+            className={cn(
+              "mx-auto grid h-14 w-14 place-items-center rounded-[20px]",
+              connected ? "bg-success-soft text-success" : "bg-coral-soft text-coral",
+            )}
+          >
+            {connected ? (
+              <CheckCircle2 className="h-7 w-7" />
+            ) : connecting ? (
+              <QrCode className="h-6 w-6" />
+            ) : (
+              <WifiOff className="h-6 w-6" />
+            )}
           </span>
-          <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-muted-foreground">
-            {connecting
-              ? "Abra o WhatsApp no celular da clínica → Aparelhos conectados → Conectar um aparelho."
-              : "Conecte o número da clínica para espelhar as conversas de WhatsApp aqui."}
-          </p>
+
+          {connected ? (
+            <>
+              <p className="mt-4 text-base font-semibold">{formatWhatsappNumber(instance?.phoneNumber)}</p>
+              <p className="mx-auto mt-1 max-w-sm text-sm leading-6 text-muted-foreground">
+                Número conectado. As conversas deste WhatsApp aparecem em Atendimentos → Chat.
+              </p>
+            </>
+          ) : (
+            <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-muted-foreground">
+              {connecting
+                ? "Abra o WhatsApp no celular da clínica → Aparelhos conectados → Conectar um aparelho."
+                : "Conecte o número da clínica para espelhar as conversas de WhatsApp aqui."}
+            </p>
+          )}
 
           {connecting && instance?.qrCode && (
             <img
@@ -96,7 +121,7 @@ export function WhatsappConnectSheet({
             />
           )}
 
-          {!connecting && (
+          {!connecting && !connected && (
             <Input
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
@@ -109,29 +134,47 @@ export function WhatsappConnectSheet({
             <p className="mt-4 rounded-xl bg-danger-soft px-3 py-2 text-xs text-danger">{instance.lastError}</p>
           )}
 
-          <Button
-            className="mt-6 gap-2 bg-gradient-primary text-white"
-            onClick={() => connectMutation.mutate()}
-            disabled={connectMutation.isPending || (!connecting && !phoneNumber.trim())}
-          >
-            <RefreshCw className={cn("h-4 w-4", connectMutation.isPending && "animate-spin")} />
-            {connecting ? "Gerar novo QR Code" : "Conectar"}
-          </Button>
+          {/* Já conectado não mostra botão de conectar — só a saída de
+              desconectar logo abaixo. Antes caía no mesmo visual de
+              "desconectado" (campo de número + botão "Conectar"), o que
+              fazia parecer que a conexão não tinha funcionado. */}
+          {!connected && (
+            <Button
+              className="mt-6 gap-2 bg-gradient-primary text-white"
+              onClick={() => connectMutation.mutate()}
+              disabled={connectMutation.isPending || (!connecting && !phoneNumber.trim())}
+            >
+              <RefreshCw className={cn("h-4 w-4", connectMutation.isPending && "animate-spin")} />
+              {connecting ? "Gerar novo QR Code" : "Conectar"}
+            </Button>
+          )}
 
           {instance?.status && instance.status !== "disconnected" && (
             <button
               type="button"
               onClick={() => disconnectMutation.mutate()}
               disabled={disconnectMutation.isPending}
-              className="mt-3 block w-full text-xs text-muted-foreground underline underline-offset-2"
+              className={cn(
+                "block w-full text-xs text-muted-foreground underline underline-offset-2",
+                connected ? "mt-6" : "mt-3",
+              )}
             >
               {connecting
                 ? "O celular recusou o pareamento? Desconecte e tente de novo"
-                : "Desconectar instância"}
+                : connected
+                  ? "Desconectar este número"
+                  : "Desconectar instância"}
             </button>
           )}
 
-          {!connecting && (
+          {connected && (
+            <p className="mx-auto mt-2 max-w-xs text-[11px] leading-5 text-muted-foreground">
+              Desconectar não apaga as conversas já sincronizadas — elas continuam no CRM. Você pode
+              conectar outro número depois.
+            </p>
+          )}
+
+          {!connecting && !connected && (
             <div className="mt-4">
               {!showInboxIdField ? (
                 <button
