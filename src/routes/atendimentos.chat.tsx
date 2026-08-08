@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CheckCheck, ChevronDown, Search, StickyNote, WifiOff } from "lucide-react";
+import { ArrowLeft, CheckCheck, ChevronDown, Search, StickyNote } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -192,9 +192,9 @@ function ChatPage() {
         )}
       >
         <header className="px-4 pb-3 pt-6 sm:px-6 lg:px-5 lg:pt-7">
-          <div className="flex items-center justify-between gap-2">
-            <h1 className="text-[26px] font-semibold tracking-[-0.03em]">Conversas</h1>
-            <WhatsappStatusBadge />
+          <h1 className="text-[26px] font-semibold tracking-[-0.03em]">Conversas</h1>
+          <div className="mt-0.5">
+            <WhatsappStatusBadge variant="minimal" />
           </div>
           <div className="relative mt-4">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -205,14 +205,14 @@ function ChatPage() {
               placeholder="Buscar conversa"
             />
           </div>
+          {/* O status em si já aparece no indicador acima — aqui só o
+              caminho pra resolver, sem repetir o texto. */}
           {!connected && (
-            <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <WifiOff className="h-3.5 w-3.5 shrink-0" />
-              WhatsApp não conectado —{" "}
-              <Link to="/atendimentos" className="underline underline-offset-2">
-                conecte pelo Dashboard
-              </Link>
-              .
+            <p className="mt-3 text-xs text-muted-foreground">
+              <Link to="/atendimentos" className="underline underline-offset-2 hover:text-foreground">
+                Conecte pelo Dashboard
+              </Link>{" "}
+              para ver as conversas aqui.
             </p>
           )}
         </header>

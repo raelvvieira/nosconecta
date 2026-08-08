@@ -16,7 +16,11 @@ const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {
   error: { dot: "bg-danger", label: "Erro na conexão" },
 };
 
-export function WhatsappStatusBadge() {
+// "pill" nos cabeçalhos largos (Dashboard, Pipeline, Campanhas).
+// "minimal" onde o espaço é apertado, como a coluna de conversas: só um
+// ponto e o número em texto pequeno, sem caixa nem cor de fundo — o pill
+// verde com o número inteiro competia com o título da página.
+export function WhatsappStatusBadge({ variant = "pill" }: { variant?: "pill" | "minimal" }) {
   const fetchInstance = useServerFn(getWhatsappInstance);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -29,11 +33,24 @@ export function WhatsappStatusBadge() {
   const instance = instanceQuery.data ?? null;
   const config = STATUS_CONFIG[instance?.status ?? "disconnected"];
   const connected = instance?.status === "open";
-  const label = connected
-    ? instance?.phoneNumber
-      ? `Conectado · ${formatWhatsappNumber(instance.phoneNumber)}`
-      : "Conectado"
-    : config.label;
+  const formattedPhone = formatWhatsappNumber(instance?.phoneNumber);
+
+  if (variant === "minimal") {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
+          title={connected ? "WhatsApp conectado — clique para gerenciar" : config.label}
+          className="flex max-w-full items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", connected ? "bg-success" : config.dot)} />
+          <span className="truncate">{connected ? formattedPhone || "Conectado" : config.label}</span>
+        </button>
+        <WhatsappConnectSheet open={sheetOpen} onOpenChange={setSheetOpen} />
+      </>
+    );
+  }
 
   return (
     <>
@@ -52,7 +69,7 @@ export function WhatsappStatusBadge() {
         ) : (
           <span className={cn("h-2 w-2 shrink-0 rounded-full", config.dot)} />
         )}
-        {label}
+        {connected ? (formattedPhone ? `Conectado · ${formattedPhone}` : "Conectado") : config.label}
       </button>
       <WhatsappConnectSheet open={sheetOpen} onOpenChange={setSheetOpen} />
     </>
