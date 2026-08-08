@@ -3,55 +3,49 @@
 // diretamente). Chamada via callEdgeFunction a partir de
 // src/lib/atendimentos/atendimentos.functions.ts, com o service role.
 //
-// Sequência confirmada com o time do Wavy (via VPS), depois de descobrir que
-// `DELETE /evolution/instances/:id/logout` dava 404 "Channel not found"
-// mesmo com authorization+QR funcionando: `POST /evolution/authorization`
-// fala só com o servidor Evolution, nunca grava nada no banco do CRM — ele
-// não sabe que existe inbox nenhuma. Quem cria o registro `Channel::Whatsapp`
-// do qual status/logout dependem é `POST /api/v1/inboxes`, e isso precisa
-// acontecer ANTES de autorizar, não depois:
-//   1. POST /api/v1/inboxes — cria o registro no CRM. Corpo confirmado (201
-//      ao vivo): `name` solto no nível principal (NÃO aninhado em
-//      `inbox: {}`) + `channel: { type: "whatsapp", phone_number: "+55...",
-//      provider: "evolution", provider_config: { instance_name } }`.
-//   2. POST /api/v1/evolution/authorization (instance_name + phone_number)
-//      — cria a instância de verdade no Evolution e registra o webhook de
-//      volta pro CRM.
-//   3. POST /api/v1/evolution/qrcodes — pega o QR.
-//   4. Usuário escaneia — o webhook do Evolution confirma o pareamento
-//      sozinho, nenhuma chamada extra necessária.
-// Só depois desse fluxo completo `DELETE .../logout` (mesmo `instance_name`
-// como `:id`) passa a funcionar.
+// Fluxo atual: UM único endpoint faz a conexão inteira.
 //
-// CUIDADO: `POST /evolution/authorization` é destrutivo — se a instância já
-// existe no Evolution, ele apaga e recria antes de continuar. Por isso só
-// pode ser chamado quando `evolution_instance_name` ainda é `null` (primeira
-// conexão, ou depois de um "Desconectar" explícito) — nunca em retry/loop
-// sobre uma instância que já pode estar conectada.
+//   POST /api/v1/evolution/connections  { phone_number: "5548984195309" }
+//   → { success, data: { inbox_id, inbox_name, instance_name, adopted, qrcode } }
+//
+// O CRM cria a inbox, gera o `instance_name` (garantindo que não colide) e
+// devolve o QR pronto. `adopted: true` significa que já existia uma
+// instância conectada pra esse número — não vem QR e NÃO é erro.
+//
+// Guardamos o `inbox_id`: é ele que identifica a caixa dessa conexão.
+// Modelo é UM NÚMERO = UMA CAIXA — trocar de número cria uma caixa nova em
+// vez de sobrescrever a anterior, então as conversas já sincronizadas do
+// número antigo continuam existindo no CRM.
+//
+// HISTÓRICO (não repetir): antes montávamos o nome da instância aqui como
+// `clinic_<ownerId>` — fixo por clínica — e chamávamos
+// `POST /evolution/authorization`. Esse endpoint APAGA e recria a instância
+// quando encontra uma com o mesmo nome: como o nome era sempre o mesmo,
+// isso quase derrubou a conexão real da clínica (17k mensagens, 4.5k
+// contatos). Só não aconteceu porque o gateway devolveu 400. Hoje esse
+// endpoint recusa apagar instância conectada, de propósito. Não voltar a
+// usá-lo, e não voltar a gerar o nome da instância deste lado.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
-import { findWhatsappInboxId } from "../_shared/crm-inbox.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-function instanceNameFor(ownerId: string): string {
-  return `clinic_${ownerId.replace(/-/g, "")}`;
-}
-
-// E.164 pra pareamento no WhatsApp: `+` + código do país + DDD + número, sem
-// zero inicial (formato antigo de DDD interurbano, nunca válido aqui). Sem
-// isso, o número mandado pro CRM não bate com um número real e o celular
-// recusa o pareamento mesmo com o QR aparecendo normalmente. Formato com
-// `+` confirmado com o time do Wavy pro corpo de POST /api/v1/inboxes.
+// Só dígitos: código do país + DDD + número, sem zero inicial (formato
+// antigo de DDD interurbano, nunca válido aqui). Sem essa limpeza, o número
+// mandado pro CRM não bate com um número real e o celular recusa o
+// pareamento mesmo com o QR aparecendo normalmente.
+//
+// Sem `+`: é o formato do corpo de POST /api/v1/evolution/connections
+// ("5548984195309"), conforme especificado pelo time do CRM.
 function normalizeBrazilPhone(raw: string): string {
   let digits = raw.replace(/\D/g, "");
   if (digits.startsWith("0")) digits = digits.slice(1);
   if (!digits.startsWith("55")) digits = `55${digits}`;
-  return `+${digits}`;
+  return digits;
 }
 
 // Estados possíveis na resposta de GET /evolution/instances nunca foram
@@ -125,63 +119,51 @@ async function handleConnect(ownerId: string, phoneNumber?: string) {
     throw new Error("Esta clínica ainda não tem credenciais do CRM cadastradas.");
   }
 
-  const instanceName: string = row.evolution_instance_name ?? instanceNameFor(ownerId);
   const rawPhone = phoneNumber?.trim() || row.phone_number || null;
   const effectivePhone = rawPhone ? normalizeBrazilPhone(rawPhone) : null;
-
-  let inboxId: string | null = row.inbox_id;
-
-  if (!row.evolution_instance_name) {
-    // Primeira conexão. O CRM exige phone_number aqui — não dá pra
-    // descobrir depois do QR.
-    if (!effectivePhone) {
-      throw new Error("Informe o número de WhatsApp da clínica (com DDD) antes de conectar.");
-    }
-
-    // Passo 1: cria a inbox (Channel::Whatsapp) no CRM ANTES de autorizar —
-    // é esse registro que status/logout dependem depois. Checa se já existe
-    // uma primeiro (evita duplicar em caso de retry após falha parcial).
-    if (!inboxId) inboxId = await findWhatsappInboxId(supabase, ownerId);
-    if (!inboxId) {
-      const inboxRes = await crmFetch(supabase, ownerId, "/api/v1/inboxes", {
-        method: "POST",
-        body: JSON.stringify({
-          name: `WhatsApp - ${instanceName}`,
-          channel: {
-            type: "whatsapp",
-            phone_number: effectivePhone,
-            provider: "evolution",
-            provider_config: { instance_name: instanceName },
-          },
-        }),
-      });
-      const created = unwrap(inboxRes);
-      inboxId = created?.id ? String(created.id) : null;
-    }
-
-    // Passo 2: autoriza a instância no Evolution. DESTRUTIVO se a instância
-    // já existir — só é seguro aqui porque só entra nesse branch quando
-    // evolution_instance_name ainda é null (primeira vez ou pós-desconexão).
-    await crmFetch(supabase, ownerId, "/api/v1/evolution/authorization", {
-      method: "POST",
-      body: JSON.stringify({ instance_name: instanceName, phone_number: effectivePhone }),
-    });
+  if (!effectivePhone) {
+    throw new Error("Informe o número de WhatsApp da clínica (com DDD) antes de conectar.");
   }
 
-  // Pede o QR (primeira conexão ou reconexão — mesmo endpoint nos dois casos).
-  const qrRes = await crmFetch(supabase, ownerId, "/api/v1/evolution/qrcodes", {
+  // Um único endpoint faz tudo: cria a inbox, gera o instance_name sem
+  // colidir, e devolve o QR. Nunca mandamos instance_name — quem nomeia é o
+  // CRM (ver comentário no topo sobre por que não geramos mais).
+  const res = await crmFetch(supabase, ownerId, "/api/v1/evolution/connections", {
     method: "POST",
-    body: JSON.stringify({ instance_name: instanceName }),
+    body: JSON.stringify({ phone_number: effectivePhone }),
   });
-  const qrData = unwrap(qrRes);
-  // Formato exato da resposta ainda não confirmado — tenta os campos mais
-  // prováveis (padrão da própria Evolution API é `base64`, mas o CRM pode
-  // aninhar diferente). Se nenhum bater, falha alto com o corpo cru em vez
-  // de deixar a tela sem QR silenciosamente.
-  const qrCode: string | null =
-    qrData?.base64 ?? qrData?.qrcode?.base64 ?? qrData?.qrCode ?? qrData?.qr ?? qrData?.code ?? null;
+  const data = unwrap(res);
+
+  const inboxId: string | null = data?.inbox_id ? String(data.inbox_id) : null;
+  const instanceName: string | null = data?.instance_name ? String(data.instance_name) : null;
+  const adopted = !!data?.adopted;
+  const qrCode: string | null = data?.qrcode ?? null;
+
+  if (!inboxId) {
+    throw new Error(`O CRM não retornou o inbox_id da conexão. Resposta: ${JSON.stringify(res)}`);
+  }
+
+  // `adopted: true` = já existia uma instância conectada pra esse número.
+  // Não vem QR e não é erro: já está pareado, é só refletir isso na tela.
+  if (adopted) {
+    await supabase
+      .from("crm_credentials")
+      .update({
+        evolution_instance_name: instanceName,
+        phone_number: effectivePhone,
+        inbox_id: inboxId,
+        whatsapp_status: "open",
+        qr_code: null,
+        qr_expires_at: null,
+        last_error: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("owner_id", ownerId);
+    return { ok: true, status: "open", qrCode: null, adopted: true };
+  }
+
   if (!qrCode) {
-    throw new Error(`QR code não veio no formato esperado. Resposta do CRM: ${JSON.stringify(qrRes)}`);
+    throw new Error(`O CRM não retornou QR code nem marcou a instância como já conectada. Resposta: ${JSON.stringify(res)}`);
   }
 
   await supabase
@@ -198,7 +180,7 @@ async function handleConnect(ownerId: string, phoneNumber?: string) {
     })
     .eq("owner_id", ownerId);
 
-  return { ok: true, status: "connecting", qrCode };
+  return { ok: true, status: "connecting", qrCode, adopted: false };
 }
 
 async function handleStatus(ownerId: string) {
@@ -223,11 +205,13 @@ async function handleStatus(ownerId: string) {
     const connected = status === "open";
     const phoneNumber = extractPhoneNumber(first, row.phone_number);
 
-    // Best-effort, nunca bloqueia: uma vez pareado, tenta achar o inbox de
-    // Campanhas em segundo plano (pode já existir no CRM, ou surgir depois
-    // que o time do Wavy o cria manualmente).
-    let inboxId: string | null = row.inbox_id;
-    if (connected && !inboxId) inboxId = await findWhatsappInboxId(supabase, ownerId);
+    // Não adivinhamos mais o inbox aqui. Antes havia um fallback que listava
+    // as inboxes e pegava a primeira de WhatsApp — inofensivo quando só
+    // podia existir uma, mas errado agora: com um número = uma caixa, trocar
+    // de número deixa mais de uma caixa de WhatsApp na conta, e "a primeira"
+    // pode ser a do número antigo. Quem define o inbox_id é o connect (que
+    // recebe do CRM) ou o vínculo manual por Inbox ID.
+    const inboxId: string | null = row.inbox_id;
 
     const { data: updated } = await supabase
       .from("crm_credentials")
@@ -291,15 +275,22 @@ async function handleDisconnect(ownerId: string) {
     console.error("[crm-whatsapp] logout no CRM falhou, seguindo com reset local:", e);
   }
 
-  // Zera evolution_instance_name também: sem isso, a próxima tentativa de
-  // "Conectar" pularia direto pro QR (achando que já tá autorizado) em vez
-  // de reautorizar do zero, que é o que "desconectar e recomeçar" promete.
+  // Zera inbox_id junto: modelo é um número = uma caixa, então conectar um
+  // número diferente depois precisa criar uma caixa NOVA. Mantendo o
+  // inbox_id antigo aqui, a próxima conexão continuaria apontando pra caixa
+  // do número anterior — número pareado e caixa em desacordo.
+  //
+  // Isso não apaga nada: a caixa antiga e as conversas já sincronizadas
+  // continuam existindo no CRM, só deixam de ser a caixa ativa desta
+  // clínica.
   await supabase
     .from("crm_credentials")
     .update({
       whatsapp_status: "disconnected",
       evolution_instance_name: null,
+      inbox_id: null,
       qr_code: null,
+      qr_expires_at: null,
       phone_number: null,
       updated_at: new Date().toISOString(),
     })

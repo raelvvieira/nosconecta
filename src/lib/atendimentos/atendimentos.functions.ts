@@ -105,7 +105,16 @@ export const connectWhatsapp = createServerFn({ method: "POST" })
       action: "connect",
       phoneNumber: data.phoneNumber,
     });
-    return { status: "connecting", qrCode: json.qrCode ?? null, qrExpiresAt: null, phoneNumber: data.phoneNumber ?? null, lastError: null };
+    // O status vem do CRM: normalmente "connecting" (usuário ainda vai
+    // escanear), mas pode já vir "open" quando a instância daquele número
+    // já existia e estava conectada (`adopted`) — nesse caso não há QR.
+    return {
+      status: json.status === "open" ? "open" : "connecting",
+      qrCode: json.qrCode ?? null,
+      qrExpiresAt: null,
+      phoneNumber: data.phoneNumber ?? null,
+      lastError: null,
+    };
   });
 
 export const disconnectWhatsapp = createServerFn({ method: "POST" })

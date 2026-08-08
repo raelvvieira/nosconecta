@@ -38,7 +38,13 @@ export function WhatsappConnectSheet({
   const [phoneNumber, setPhoneNumber] = useState("");
   const connectMutation = useMutation({
     mutationFn: () => doConnect({ data: { phoneNumber } }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["atendimentos-instance"] }),
+    onSuccess: (res) => {
+      // Sem QR e já conectado: o CRM adotou uma instância que já existia pra
+      // esse número. É sucesso, não erro — mas sem avisar, a tela só ficaria
+      // sem QR e pareceria que nada aconteceu.
+      if (res.status === "open") toast.success("Este número já estava conectado — pronto pra usar.");
+      queryClient.invalidateQueries({ queryKey: ["atendimentos-instance"] });
+    },
     onError: (error: Error) => toast.error(error.message),
   });
 
