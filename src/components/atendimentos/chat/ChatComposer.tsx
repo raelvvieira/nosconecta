@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -77,6 +78,7 @@ export function ChatComposer({
   const [aiOpen, setAiOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [mobileEmojiOpen, setMobileEmojiOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
 
   const fetchTemplates = useServerFn(getMessageTemplates);
@@ -259,13 +261,43 @@ export function ChatComposer({
               <CalendarClock className="mr-2 h-4 w-4" />
               Agendar mensagem
             </DropdownMenuItem>
+
+            {/* No celular não cabe uma barra de ícones sem espremer o campo
+                de texto, então emoji/macros/IA/áudio entram aqui. No desktop
+                seguem como botões soltos, que é mais rápido. */}
+            <DropdownMenuSeparator className="sm:hidden" />
+            <DropdownMenuItem className="sm:hidden" onClick={() => setMobileEmojiOpen(true)}>
+              <Smile className="mr-2 h-4 w-4" />
+              Emojis
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="sm:hidden"
+              onClick={() => (isRecording ? stopRecording() : startRecording())}
+            >
+              <Mic className="mr-2 h-4 w-4" />
+              {isRecording ? "Parar gravação" : "Gravar áudio"}
+            </DropdownMenuItem>
+            <DropdownMenuItem className="sm:hidden" onClick={() => setAiOpen(true)}>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Assistência de IA
+            </DropdownMenuItem>
+            <DropdownMenuItem className="sm:hidden" disabled>
+              <Zap className="mr-2 h-4 w-4" />
+              Macros — nenhuma disponível
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
         {/* Emojis */}
         <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
           <PopoverTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-coral" aria-label="Emojis">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="hidden h-10 w-10 shrink-0 text-coral sm:inline-flex"
+              aria-label="Emojis"
+            >
               <Smile className="h-5 w-5" />
             </Button>
           </PopoverTrigger>
@@ -282,7 +314,13 @@ export function ChatComposer({
         {/* Macros */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-coral" aria-label="Macros">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="hidden h-10 w-10 shrink-0 text-coral sm:inline-flex"
+              aria-label="Macros"
+            >
               <Zap className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -318,7 +356,7 @@ export function ChatComposer({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-10 w-10 shrink-0 text-coral"
+          className="hidden h-10 w-10 shrink-0 text-coral sm:inline-flex"
           onClick={() => setAiOpen(true)}
           aria-label="Assistência de IA"
         >
@@ -330,7 +368,9 @@ export function ChatComposer({
           size="icon"
           className={cn(
             "h-10 w-10 shrink-0",
-            isRecording ? "animate-pulse bg-danger-soft text-danger" : "text-coral",
+            // Enquanto grava, o botão aparece também no celular — precisa
+            // ter como parar sem abrir menu.
+            isRecording ? "animate-pulse bg-danger-soft text-danger" : "hidden text-coral sm:inline-flex",
           )}
           onClick={() => (isRecording ? stopRecording() : startRecording())}
           title={isRecording ? "Parar gravação" : "Gravar áudio"}
@@ -387,6 +427,24 @@ export function ChatComposer({
           </div>
         </PopoverContent>
       </Popover>
+
+      {/* No celular o seletor vem de baixo, não como popover — popover
+          ancorado num item de menu ficaria fora da tela. */}
+      <Sheet open={mobileEmojiOpen} onOpenChange={setMobileEmojiOpen}>
+        <SheetContent side="bottom" className="h-auto rounded-t-[24px] pb-8">
+          <SheetHeader className="pb-2 text-left">
+            <SheetTitle className="text-base">Emojis</SheetTitle>
+          </SheetHeader>
+          <div className="flex justify-center">
+            <EmojiPicker
+              onSelect={(emoji) => {
+                insertAtCursor(emoji);
+                setMobileEmojiOpen(false);
+              }}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <AiAssistDialog open={aiOpen} onOpenChange={setAiOpen} />
 

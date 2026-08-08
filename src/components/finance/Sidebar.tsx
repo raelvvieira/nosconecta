@@ -791,12 +791,16 @@ export function Sidebar() {
         })()}
       </nav>
 
-      {/* Mobile top-right home button */}
+      {/* Mobile top-right home button.
+          Escondido em Atendimentos: ele é `fixed` e caía em cima do
+          cabeçalho da conversa, colidindo com o seletor de etapa do
+          pipeline. Não se perde navegação — a barra inferior já mostra
+          "Início" nessas telas. */}
       <Link
         to="/inicio"
         className={cn(
           "lg:hidden fixed z-40 flex items-center justify-center",
-          (pathname === "/inicio" || (inPatients && pathname !== "/pacientes")) && "hidden",
+          (pathname === "/inicio" || inAtendimentos || (inPatients && pathname !== "/pacientes")) && "hidden",
         )}
         style={{
           top: 20,
