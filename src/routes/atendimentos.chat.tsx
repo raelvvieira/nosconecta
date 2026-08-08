@@ -8,6 +8,7 @@ import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Input } from "@/components/ui/input";
 import { ChatComposer } from "@/components/atendimentos/chat/ChatComposer";
+import type { PendingAttachment } from "@/components/atendimentos/chat/AttachmentTray";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -159,12 +160,28 @@ function ChatPage() {
 
   const [draft, setDraft] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const sendMutation = useMutation({
-    mutationFn: () => doSendMessage({ data: { conversationId: conversationId!, text: draft, isPrivate } }),
+    mutationFn: () =>
+      doSendMessage({
+        data: {
+          conversationId: conversationId!,
+          text: draft,
+          isPrivate,
+          attachments: attachments.map(({ name, type, data, isRecordedAudio }) => ({
+            name,
+            type,
+            data,
+            isRecordedAudio,
+          })),
+        },
+      }),
     onSuccess: (res) => {
       setDraft("");
       if (isPrivate) toast.success("Nota interna salva — o contato não recebeu nada.");
       setIsPrivate(false);
+      attachments.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+      setAttachments([]);
       queryClient.invalidateQueries({ queryKey: ["atendimentos-messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["atendimentos-conversations"] });
       if (!res.ok) toast.error("Mensagem não confirmada pelo CRM — verifique a conexão.");
@@ -365,6 +382,8 @@ function ChatPage() {
               isSending={sendMutation.isPending}
               isPrivate={isPrivate}
               onPrivateChange={setIsPrivate}
+              attachments={attachments}
+              onAttachmentsChange={setAttachments}
             />
           </>
         )}

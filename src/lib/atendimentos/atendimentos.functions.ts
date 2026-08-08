@@ -18,6 +18,15 @@ export interface ConversationRow {
   unreadCount: number;
 }
 
+export interface OutgoingAttachment {
+  name: string;
+  type: string;
+  /** Base64 puro, sem o prefixo `data:...;base64,`. */
+  data: string;
+  /** Áudio gravado na hora — faz o WhatsApp exibir como mensagem de voz. */
+  isRecordedAudio?: boolean;
+}
+
 export interface MessageRow {
   id: string;
   fromMe: boolean;
@@ -166,7 +175,18 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   // isPrivate = nota interna: registra na conversa dentro do CRM sem enviar
   // nada pro contato no WhatsApp.
-  .inputValidator((input: { conversationId: string; text: string; isPrivate?: boolean }) => input)
+  //
+  // attachments vão em base64 porque server function e Edge Function só
+  // trafegam JSON; a Edge Function remonta o arquivo e envia como
+  // multipart/form-data pro CRM (não existe upload separado lá).
+  .inputValidator(
+    (input: {
+      conversationId: string;
+      text: string;
+      isPrivate?: boolean;
+      attachments?: OutgoingAttachment[];
+    }) => input,
+  )
   .handler(async ({ data, context }) => {
     const json = await callEdgeFunction("crm-conversations", {
       ownerId: context.userId,
@@ -174,6 +194,7 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
       conversationId: data.conversationId,
       content: data.text,
       isPrivate: !!data.isPrivate,
+      attachments: data.attachments ?? [],
     });
     return { ok: !!json.ok };
   });

@@ -10,6 +10,7 @@ import {
   Send,
   Smile,
   Sparkles,
+  Square,
   StickyNote,
   X,
   Zap,
@@ -28,8 +29,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { getMessageTemplates } from "@/lib/atendimentos/campaigns.functions";
+import { fileToPendingAttachment } from "@/lib/atendimentos/attachments";
 import { EmojiPicker } from "./EmojiPicker";
 import { AiAssistDialog } from "./AiAssistDialog";
+import { AttachmentTray, type PendingAttachment } from "./AttachmentTray";
 
 // Recursos ainda sem caminho no CRM ficam visíveis mas desabilitados, com o
 // motivo no tooltip — some da tela seria pior: o time não saberia que estão
@@ -43,6 +46,8 @@ export function ChatComposer({
   isSending,
   isPrivate,
   onPrivateChange,
+  attachments,
+  onAttachmentsChange,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -50,11 +55,18 @@ export function ChatComposer({
   isSending: boolean;
   isPrivate: boolean;
   onPrivateChange: (isPrivate: boolean) => void;
+  attachments: PendingAttachment[];
+  onAttachmentsChange: (next: PendingAttachment[]) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
 
   const fetchTemplates = useServerFn(getMessageTemplates);
   const templatesQuery = useQuery({
@@ -84,7 +96,61 @@ export function ChatComposer({
     });
   };
 
-  const canSend = value.trim().length > 0 && !isSending;
+  const addFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const accepted: PendingAttachment[] = [];
+    for (const file of Array.from(files)) {
+      try {
+        accepted.push(await fileToPendingAttachment(file));
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Não foi possível anexar o arquivo.");
+      }
+    }
+    if (accepted.length > 0) onAttachmentsChange([...attachments, ...accepted]);
+  };
+
+  const removeAttachment = (id: string) => {
+    const target = attachments.find((a) => a.id === id);
+    if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+    onAttachmentsChange(attachments.filter((a) => a.id !== id));
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      chunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = async () => {
+        // Encerra o microfone: sem isso o indicador de gravação do navegador
+        // fica aceso mesmo depois de parar.
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        const file = new File([blob], `audio-${Date.now()}.webm`, { type: blob.type });
+        try {
+          const attachment = await fileToPendingAttachment(file, { isRecordedAudio: true });
+          onAttachmentsChange([...attachments, attachment]);
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Não foi possível preparar o áudio.");
+        }
+      };
+      recorder.start();
+      recorderRef.current = recorder;
+      setIsRecording(true);
+    } catch {
+      toast.error("Não foi possível acessar o microfone. Verifique a permissão do navegador.");
+    }
+  };
+
+  const stopRecording = () => {
+    recorderRef.current?.stop();
+    recorderRef.current = null;
+    setIsRecording(false);
+  };
+
+  const canSend = (value.trim().length > 0 || attachments.length > 0) && !isSending && !isRecording;
 
   return (
     <div className={cn("border-t border-border transition-colors", isPrivate ? "bg-warning-soft/40" : "bg-white/70")}>
@@ -102,6 +168,40 @@ export function ChatComposer({
           </button>
         </div>
       )}
+
+      {isRecording && (
+        <div className="flex items-center gap-2 px-4 pt-2.5 text-xs text-danger sm:px-6">
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-danger" />
+          Gravando áudio… toque no quadrado pra parar.
+        </div>
+      )}
+
+      <AttachmentTray items={attachments} onRemove={removeAttachment} />
+
+      {/* Inputs ocultos: o menu de anexos dispara o clique neles. Separados
+          por tipo pra abrir o seletor já filtrado no celular. */}
+      <input
+        ref={documentInputRef}
+        type="file"
+        multiple
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip"
+        className="hidden"
+        onChange={(e) => {
+          void addFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={mediaInputRef}
+        type="file"
+        multiple
+        accept="image/*,video/*"
+        className="hidden"
+        onChange={(e) => {
+          void addFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
 
       <form
         className="flex items-end gap-1.5 px-4 py-3 sm:px-6"
@@ -132,11 +232,11 @@ export function ChatComposer({
               Notas da Conversa
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled title={SOON}>
+            <DropdownMenuItem onClick={() => documentInputRef.current?.click()}>
               <FileText className="mr-2 h-4 w-4" />
               Documentos
             </DropdownMenuItem>
-            <DropdownMenuItem disabled title={SOON}>
+            <DropdownMenuItem onClick={() => mediaInputRef.current?.click()}>
               <ImageIcon className="mr-2 h-4 w-4" />
               Fotos e Vídeos
             </DropdownMenuItem>
@@ -213,12 +313,15 @@ export function ChatComposer({
           type="button"
           variant="ghost"
           size="icon"
-          className="hidden h-10 w-10 shrink-0 text-muted-foreground sm:inline-flex"
-          disabled
-          title={SOON}
-          aria-label="Gravar áudio"
+          className={cn(
+            "h-10 w-10 shrink-0",
+            isRecording ? "animate-pulse bg-danger-soft text-danger" : "text-coral",
+          )}
+          onClick={() => (isRecording ? stopRecording() : startRecording())}
+          title={isRecording ? "Parar gravação" : "Gravar áudio"}
+          aria-label={isRecording ? "Parar gravação" : "Gravar áudio"}
         >
-          <Mic className="h-5 w-5" />
+          {isRecording ? <Square className="h-4 w-4 fill-current" /> : <Mic className="h-5 w-5" />}
         </Button>
 
         <Button

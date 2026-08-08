@@ -16,11 +16,15 @@ export interface RawResponse {
 const REQUEST_TIMEOUT_MS = 15_000;
 
 export async function rawFetch(baseUrl: string, path: string, init: RequestInit = {}): Promise<RawResponse> {
+  // Com FormData (envio de anexo), o content-type NÃO pode ser definido por
+  // nós: o fetch precisa gerar o header com o boundary do multipart. Fixar
+  // application/json aqui quebraria o upload.
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
   const res = await fetch(`${baseUrl}${path}`, {
     ...init,
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     headers: {
-      "content-type": "application/json",
+      ...(isFormData ? {} : { "content-type": "application/json" }),
       ...(init.headers ?? {}),
     },
   });
