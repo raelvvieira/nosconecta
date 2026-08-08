@@ -487,6 +487,7 @@ export const markReceivableReceived = createServerFn({ method: "POST" })
     if (error) throw error;
     const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
     await dispatchMetaCapiEvent(context.userId, "receivable.paid", {
+      entityId: data.id,
       patientId: updated?.patient_id ?? null,
       amount: updated?.amount === null || updated?.amount === undefined ? null : Number(updated.amount),
     });

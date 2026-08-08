@@ -339,7 +339,10 @@ export const createPatient = createServerFn({ method: "POST" })
     // aqui.
     await pushContactToCrm(context.userId, created.id, data.name, data.phone);
     const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
-    await dispatchMetaCapiEvent(context.userId, "patient.created", { patientId: created.id });
+    await dispatchMetaCapiEvent(context.userId, "patient.created", {
+      entityId: created.id,
+      patientId: created.id,
+    });
     return { id: created.id };
   });
 

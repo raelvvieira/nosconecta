@@ -122,6 +122,7 @@ function IntegrationsPage() {
   });
 
   const [pixelId, setPixelId] = useState("");
+  const [offlineEventSetId, setOfflineEventSetId] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [testEventCode, setTestEventCode] = useState("");
   const [enabled, setEnabled] = useState(false);
@@ -135,6 +136,7 @@ function IntegrationsPage() {
   useEffect(() => {
     if (!settings.data) return;
     setPixelId(settings.data.pixelId);
+    setOfflineEventSetId(settings.data.offlineEventSetId);
     setTestEventCode(settings.data.testEventCode);
     setEnabled(settings.data.enabled);
   }, [settings.data]);
@@ -147,7 +149,7 @@ function IntegrationsPage() {
 
   const saveMutation = useMutation({
     mutationFn: () =>
-      save({ data: { pixelId, accessToken, testEventCode, enabled } }),
+      save({ data: { pixelId, offlineEventSetId, accessToken, testEventCode, enabled } }),
     onSuccess: () => {
       toast.success("Integração salva");
       setAccessToken("");
@@ -212,7 +214,10 @@ function IntegrationsPage() {
   };
 
   const list = triggers.data ?? [];
-  const connected = Boolean(settings.data?.pixelId && settings.data?.hasToken);
+  const connected = Boolean(
+    settings.data?.hasToken && (settings.data?.pixelId || settings.data?.offlineEventSetId),
+  );
+  const offlineMode = Boolean(settings.data?.offlineEventSetId);
 
   return (
     <>
@@ -230,15 +235,23 @@ function IntegrationsPage() {
           <div>
             <h3 className="font-semibold">Meta Conversions API</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Pixel ID e token de acesso do Gerenciador de Eventos.
+              Credenciais do Gerenciador de Eventos.
             </p>
           </div>
-          <StatusPill
-            connected={connected}
-            enabled={settings.data?.enabled ?? false}
-            lastError={settings.data?.lastError ?? null}
-            lastSuccessAt={settings.data?.lastSuccessAt ?? null}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {connected && (
+              <span className="rounded-full bg-foreground/5 px-3 py-1 text-xs font-semibold">
+                {offlineMode ? "Dataset offline" : "Pixel"}
+              </span>
+            )}
+            <StatusPill
+              connected={connected}
+              enabled={settings.data?.enabled ?? false}
+              lastError={settings.data?.lastError ?? null}
+              lastSuccessAt={settings.data?.lastSuccessAt ?? null}
+              needsReconnect={settings.data?.needsReconnect ?? false}
+            />
+          </div>
         </div>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -251,6 +264,20 @@ function IntegrationsPage() {
               placeholder="1234567890123456"
               className="mt-1.5 bg-white"
             />
+          </div>
+          <div>
+            <Label htmlFor="offline-set">Conjunto de eventos offline (opcional)</Label>
+            <Input
+              id="offline-set"
+              value={offlineEventSetId}
+              onChange={(event) => setOfflineEventSetId(event.target.value)}
+              placeholder="1234567890123456"
+              className="mt-1.5 bg-white"
+            />
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              Preenchido, os eventos vão para ele em vez do Pixel. É o destino certo para venda
+              fechada por WhatsApp, telefone ou no balcão.
+            </p>
           </div>
           <div>
             <Label htmlFor="access-token">Token de acesso</Label>
@@ -313,6 +340,19 @@ function IntegrationsPage() {
             {testMutation.isPending ? "Enviando..." : "Enviar evento de teste"}
           </Button>
         </div>
+
+        {/* Sem esse vínculo os eventos chegam na Meta mas não viram conversão
+            atribuída — e a integração parece quebrada sem estar. É
+            configuração manual no Gerenciador, não dá pra fazer por código. */}
+        {offlineMode && (
+          <p className="mt-4 flex items-start gap-2 rounded-2xl bg-coral-soft px-4 py-3 text-[12px] text-foreground/80">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-coral" />
+            <span>
+              No modo dataset offline, vincule o conjunto de eventos às campanhas no Gerenciador de
+              Eventos da Meta. Sem isso os eventos chegam, mas não geram conversão atribuída.
+            </span>
+          </p>
+        )}
       </div>
 
       {/* Gatilhos */}
@@ -439,6 +479,13 @@ function IntegrationsPage() {
                 {SYSTEM_EVENT_LABEL[row.systemEvent as SystemEvent] ?? row.systemEvent}
                 {row.error ? ` · ${row.error}` : ""}
               </p>
+              {/* Campo descartado é a pista de match ruim: o dado existe no
+                  cadastro mas está num formato que a Meta não aceita. */}
+              {row.droppedKeys.length > 0 && (
+                <p className="truncate text-[11px] text-coral">
+                  Campos descartados: {row.droppedKeys.join(", ")} — confira o cadastro do paciente.
+                </p>
+              )}
             </div>
             <span className="shrink-0 text-[11px] text-muted-foreground">
               {new Date(row.sentAt).toLocaleString("pt-BR", {
@@ -499,16 +546,30 @@ function StatusPill({
   enabled,
   lastError,
   lastSuccessAt,
+  needsReconnect,
 }: {
   connected: boolean;
   enabled: boolean;
   lastError: string | null;
   lastSuccessAt: string | null;
+  needsReconnect: boolean;
 }) {
   if (!connected) {
     return (
       <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
         Não configurado
+      </span>
+    );
+  }
+  // Token expirado/revogado é diferente de falha de envio: reenviar não
+  // resolve, precisa gerar outro token no Gerenciador.
+  if (needsReconnect) {
+    return (
+      <span
+        className="rounded-full bg-danger-soft px-3 py-1 text-xs font-semibold text-danger"
+        title={lastError ?? undefined}
+      >
+        Reconectar — token expirado
       </span>
     );
   }

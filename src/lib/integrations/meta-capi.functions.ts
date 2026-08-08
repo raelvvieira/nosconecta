@@ -17,6 +17,9 @@ export type ValueSource = "none" | "event" | "fixed";
 
 export interface MetaCapiSettings {
   pixelId: string;
+  offlineEventSetId: string;
+  /** Destino em uso — o conjunto offline ganha do pixel quando existe. */
+  mode: "offline_dataset" | "pixel_events";
   testEventCode: string;
   apiVersion: string;
   enabled: boolean;
@@ -24,6 +27,8 @@ export interface MetaCapiSettings {
   tokenPreview: string;
   lastSuccessAt: string | null;
   lastError: string | null;
+  /** Último erro foi código 190 (token expirado/revogado). */
+  needsReconnect: boolean;
 }
 
 export interface MetaCapiTrigger {
@@ -44,6 +49,8 @@ export interface MetaCapiEventLogRow {
   metaEventName: string;
   status: "sent" | "failed";
   error: string | null;
+  /** Campos descartados na normalização — diagnóstico de qualidade de match. */
+  droppedKeys: string[];
   sentAt: string;
 }
 
@@ -90,13 +97,16 @@ export const saveMetaCapiSettings = createServerFn({ method: "POST" })
   .inputValidator(
     (input: {
       pixelId: string;
+      offlineEventSetId?: string;
       accessToken?: string;
       testEventCode?: string;
       apiVersion?: string;
       enabled: boolean;
     }) => {
-      if (input.enabled && !input.pixelId?.trim()) {
-        throw new Error("Informe o Pixel ID para ativar a integração.");
+      if (input.enabled && !input.pixelId?.trim() && !input.offlineEventSetId?.trim()) {
+        throw new Error(
+          "Informe o Pixel ID ou o conjunto de eventos offline para ativar a integração.",
+        );
       }
       return input;
     },
@@ -127,6 +137,7 @@ export const getMetaCapiEventLog = createServerFn({ method: "GET" })
       metaEventName: row.meta_event_name,
       status: row.status,
       error: row.error ?? null,
+      droppedKeys: Array.isArray(row.dropped_keys) ? row.dropped_keys : [],
       sentAt: row.sent_at,
     }));
   });

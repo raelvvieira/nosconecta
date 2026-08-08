@@ -174,6 +174,7 @@ export const createAppointment = createServerFn({ method: "POST" })
     await triggerAppointmentNotification(inserted.id, "confirmation");
     const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
     await dispatchMetaCapiEvent(context.userId, "appointment.created", {
+      entityId: inserted.id,
       patientId: row.patient_id,
       contactName: row.patient_name,
       amount: row.expected_revenue,
@@ -212,6 +213,9 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
     await dispatchMetaCapiEvent(context.userId, "appointment.status_changed", {
+      // Status entra no id: cada mudança é uma conversão distinta, mas
+      // repetir a MESMA mudança não deve contar duas vezes.
+      entityId: `${data.id}:${data.status}`,
       status: data.status,
       patientId: updated?.patient_id ?? null,
       contactName: updated?.patient_name ?? null,

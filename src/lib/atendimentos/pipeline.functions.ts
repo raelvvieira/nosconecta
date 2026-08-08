@@ -125,6 +125,7 @@ export const movePipelineItem = createServerFn({ method: "POST" })
     const moved = json?.item ? mapItem(json.item) : null;
     const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
     await dispatchMetaCapiEvent(context.userId, "pipeline.stage_changed", {
+      entityId: `${data.itemId}:${data.newStageId}`,
       stageId: data.newStageId,
       crmContactId: moved?.type === "contact" ? moved.itemId : null,
       contactName: moved?.title ?? null,

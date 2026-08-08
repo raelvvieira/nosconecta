@@ -9,9 +9,14 @@ CREATE TABLE public.meta_capi_credentials (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id uuid NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
   pixel_id text,
+  -- Quando preenchido, os eventos vão para o conjunto de eventos offline em
+  -- vez do pixel. É o destino correto para conversão que acontece fora da
+  -- internet (fechamento por WhatsApp, atendimento presencial, recebimento
+  -- no balcão) — que é o caso deste sistema. Muda endpoint e action_source.
+  offline_event_set_id text,
   access_token text,
   test_event_code text,
-  api_version text NOT NULL DEFAULT 'v21.0',
+  api_version text NOT NULL DEFAULT 'v24.0',
   enabled boolean NOT NULL DEFAULT false,
   last_success_at timestamptz,
   last_error text,
@@ -62,6 +67,14 @@ CREATE POLICY meta_capi_triggers_owner ON public.meta_capi_triggers
 -- "por que esse evento não chegou na Meta" sem sair do sistema.
 -- payload guarda o que foi enviado (com os dados pessoais JÁ hasheados, nunca
 -- e-mail/telefone em claro).
+--
+-- event_id é estável (derivado do gatilho + do registro que converteu), não
+-- aleatório: é ele que permite reenviar sem a Meta contar a conversão duas
+-- vezes.
+--
+-- dropped_keys lista os campos que foram descartados na normalização por não
+-- passarem na validação. É o diagnóstico de qualidade de match: se um campo
+-- que deveria estar lá aparece aqui, a origem do dado está torta.
 CREATE TABLE public.meta_capi_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -72,6 +85,7 @@ CREATE TABLE public.meta_capi_events (
   status text NOT NULL, -- sent | failed
   payload jsonb,
   response jsonb,
+  dropped_keys jsonb,
   error text,
   sent_at timestamptz NOT NULL DEFAULT now(),
   created_at timestamptz NOT NULL DEFAULT now()

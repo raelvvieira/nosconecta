@@ -5,6 +5,12 @@
 // src/lib/agenda/notifications.server.ts.
 
 export interface MetaCapiDispatchContext {
+  /**
+   * Id estável do registro que converteu (transação, agendamento, paciente,
+   * card do funil). Compõe o `event_id` mandado à Meta, que é o que permite
+   * reenviar o mesmo evento sem a conversão ser contada duas vezes.
+   */
+  entityId?: string | null;
   /** Paciente local — de onde saem nome/e-mail/telefone para o hash. */
   patientId?: string | null;
   /** Contato do CRM externo; resolvido via patients.crm_contact_id. */
