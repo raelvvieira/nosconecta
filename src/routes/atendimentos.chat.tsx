@@ -346,7 +346,12 @@ function ChatPage() {
             </header>
 
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-              <div className="mx-auto flex max-w-[720px] flex-col gap-2">
+              {/* Sem `mx-auto`: centralizada, a coluna flutuava no meio da
+                  tela e as mensagens recebidas ficavam longe do nome do
+                  contato. Encostada à esquerda, a conversa acompanha o
+                  cabeçalho. O limite de largura fica só pra linha não
+                  esticar demais e ficar cansativa de ler. */}
+              <div className="flex max-w-[760px] flex-col gap-2">
                 {messages.map((m) => (
                   <div key={m.id} className={cn("flex", m.fromMe ? "justify-end" : "justify-start")}>
                     <div
