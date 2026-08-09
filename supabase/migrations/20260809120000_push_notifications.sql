@@ -9,7 +9,7 @@
 -- dado e não segredo — daí RLS de dono normal, e não o deny-all de
 -- crm_credentials: o próprio front registra e remove o aparelho.
 
-CREATE TABLE public.push_subscriptions (
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   -- URL que o navegador dá; é o identificador único do aparelho+navegador.
@@ -21,7 +21,7 @@ CREATE TABLE public.push_subscriptions (
   last_seen_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_push_subscriptions_owner ON public.push_subscriptions (owner_id);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_owner ON public.push_subscriptions (owner_id);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.push_subscriptions TO authenticated;
 GRANT ALL ON public.push_subscriptions TO service_role;
@@ -32,7 +32,7 @@ CREATE POLICY push_subscriptions_owner ON public.push_subscriptions
 
 -- Quais tipos a clínica quer receber. Colunas explícitas em vez de jsonb:
 -- são quatro chaves conhecidas, viram checkbox direto e o banco valida.
-CREATE TABLE public.push_preferences (
+CREATE TABLE IF NOT EXISTS public.push_preferences (
   owner_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   whatsapp_message boolean NOT NULL DEFAULT true,
   daily_agenda boolean NOT NULL DEFAULT true,
@@ -55,7 +55,7 @@ CREATE POLICY push_preferences_owner ON public.push_preferences
 -- comparando o contador de não-lidas de cada conversa com o da rodada
 -- anterior. Não dá para usar data: o `created_at` que a lista devolve é o da
 -- criação da conversa, não o da última mensagem.
-CREATE TABLE public.push_poll_state (
+CREATE TABLE IF NOT EXISTS public.push_poll_state (
   owner_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   unread_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
   updated_at timestamptz NOT NULL DEFAULT now()
