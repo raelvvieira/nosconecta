@@ -1184,6 +1184,87 @@ export type Database = {
         }
         Relationships: []
       }
+      push_poll_state: {
+        Row: {
+          owner_id: string
+          unread_snapshot: Json
+          updated_at: string
+        }
+        Insert: {
+          owner_id: string
+          unread_snapshot?: Json
+          updated_at?: string
+        }
+        Update: {
+          owner_id?: string
+          unread_snapshot?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      push_preferences: {
+        Row: {
+          appointment_reply: boolean
+          created_at: string
+          daily_agenda: boolean
+          deal_result: boolean
+          owner_id: string
+          updated_at: string
+          whatsapp_message: boolean
+        }
+        Insert: {
+          appointment_reply?: boolean
+          created_at?: string
+          daily_agenda?: boolean
+          deal_result?: boolean
+          owner_id: string
+          updated_at?: string
+          whatsapp_message?: boolean
+        }
+        Update: {
+          appointment_reply?: boolean
+          created_at?: string
+          daily_agenda?: boolean
+          deal_result?: boolean
+          owner_id?: string
+          updated_at?: string
+          whatsapp_message?: boolean
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          last_seen_at: string
+          owner_id: string
+          p256dh: string
+          user_agent: string | null
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          last_seen_at?: string
+          owner_id: string
+          p256dh: string
+          user_agent?: string | null
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          last_seen_at?: string
+          owner_id?: string
+          p256dh?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
