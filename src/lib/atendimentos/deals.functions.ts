@@ -188,6 +188,15 @@ export const saveDealStatus = createServerFn({ method: "POST" })
       amount: deal?.value === null || deal?.value === undefined ? null : Number(deal.value),
     });
 
+    if (data.status === "won") {
+      const { sendPushToOwner } = await import("@/lib/notifications/push.server");
+      await sendPushToOwner(context.userId, "deal_result", {
+        title: "Negociação ganha 🎉",
+        body: data.contactName ? `${data.contactName} fechou.` : "Uma negociação foi fechada.",
+        url: "/atendimentos/pipeline",
+      });
+    }
+
     return { ok: true };
   });
 

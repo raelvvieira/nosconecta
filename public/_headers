@@ -1,0 +1,17 @@
+# Regras extras do Cloudflare Workers Assets. O Nitro PRESERVA este arquivo e
+# anexa as regras dele depois (o `/assets/*` immutable), então não há conflito.
+#
+# Service worker e manifest precisam ser no-cache: se o Workers servir uma
+# versão antiga do sw.js, o app fica preso num SW velho — e é justamente o
+# arquivo que não dá pra invalidar por hash, porque o nome precisa ser estável.
+
+/sw.js
+  cache-control: no-cache, no-store, must-revalidate
+  service-worker-allowed: /
+
+/manifest.webmanifest
+  cache-control: no-cache
+  content-type: application/manifest+json; charset=utf-8
+
+/offline.html
+  cache-control: no-cache
