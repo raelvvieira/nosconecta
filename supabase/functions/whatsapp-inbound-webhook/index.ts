@@ -10,6 +10,7 @@
 // secret (WHATSAPP_WEBHOOK_SECRET) via a ?secret= query param on the
 // webhook URL configured in Brevo Conversations > Settings > Webhooks.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { pushToOwner } from "../_shared/push.ts";
 import { onlyDigits, phoneMatches } from "../_shared/phone-match.ts";
 
 const supabase = createClient(
@@ -97,7 +98,7 @@ Deno.serve(async (req) => {
 
     const { data: patients } = await supabase
       .from("patients")
-      .select("id, owner_id, phone")
+      .select("id, owner_id, phone, name")
       .not("phone", "is", null);
     const patient = (patients ?? []).find((p: any) => phoneMatches(onlyDigits(p.phone), fromPhone));
 
@@ -156,6 +157,20 @@ Deno.serve(async (req) => {
       messageText,
       action,
     });
+
+    // "declined" era o pior buraco do fluxo: o paciente pedia pra remarcar e
+    // ninguém era avisado — ficava esperando alguém abrir a tela de
+    // Notificações por acaso. Push resolve os dois casos.
+    if (action === "confirmed" || action === "declined") {
+      await pushToOwner(supabase, patient.owner_id, "appointment_reply", {
+        title: action === "confirmed" ? "Agendamento confirmado" : "Paciente quer remarcar",
+        body:
+          action === "confirmed"
+            ? `${patient.name ?? "O paciente"} confirmou o agendamento.`
+            : `${patient.name ?? "O paciente"} respondeu pedindo para cancelar ou remarcar.`,
+        url: "/agenda",
+      }).catch((e) => console.error("[whatsapp-inbound-webhook] push falhou:", e));
+    }
 
     return new Response(JSON.stringify({ ok: true, matched: true, action }), {
       headers: { "content-type": "application/json" },

@@ -6,6 +6,7 @@
 // send-appointment-notification using the service role key from its own
 // Edge Function environment.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { pushToOwner } from "../_shared/push.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -38,7 +39,13 @@ Deno.serve(async (_req) => {
 
   const [{ data: tomorrowAppts, error: tErr }, { data: todayAppts, error: yErr }] = await Promise.all([
     supabase.from("appointments").select("id").eq("date", tomorrow).neq("status", "cancelled"),
-    supabase.from("appointments").select("id").eq("date", today).neq("status", "cancelled"),
+    // owner_id e horário entram por causa do resumo por push abaixo — os
+    // lembretes em si só precisam do id.
+    supabase
+      .from("appointments")
+      .select("id, owner_id, start_time")
+      .eq("date", today)
+      .neq("status", "cancelled"),
   ]);
   if (tErr || yErr) {
     console.error("[send-appointment-reminders]", tErr ?? yErr);
@@ -47,8 +54,29 @@ Deno.serve(async (_req) => {
 
   await Promise.all([
     ...(tomorrowAppts ?? []).map((a) => notify(a.id, "reminder_day_before")),
-    ...(todayAppts ?? []).map((a) => notify(a.id, "reminder_day_of")),
+    ...(todayAppts ?? []).map((a: any) => notify(a.id, "reminder_day_of")),
   ]);
+
+  // Resumo do dia para a EQUIPE. Os lembretes acima vão para o paciente;
+  // até agora ninguém da clínica era avisado de nada por aqui.
+  const byOwner = new Map<string, string[]>();
+  for (const appointment of (todayAppts ?? []) as any[]) {
+    if (!appointment.owner_id) continue;
+    const list = byOwner.get(appointment.owner_id) ?? [];
+    list.push(String(appointment.start_time ?? "").slice(0, 5));
+    byOwner.set(appointment.owner_id, list);
+  }
+  await Promise.all(
+    [...byOwner.entries()].map(([ownerId, times]) => {
+      const sorted = times.filter(Boolean).sort();
+      const first = sorted[0];
+      return pushToOwner(supabase, ownerId, "daily_agenda", {
+        title: `${sorted.length} ${sorted.length === 1 ? "atendimento" : "atendimentos"} hoje`,
+        body: first ? `O primeiro é às ${first}.` : "Confira a agenda do dia.",
+        url: "/agenda",
+      }).catch((e) => console.error("[send-appointment-reminders] push falhou:", e));
+    }),
+  );
 
   return new Response(
     JSON.stringify({

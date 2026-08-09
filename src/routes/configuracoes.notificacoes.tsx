@@ -6,6 +6,7 @@ import { Mail, MessageCircle, MessageSquareText, RotateCw, Send } from "lucide-r
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
+import { PushSettingsCard } from "@/components/settings/PushSettingsCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -254,6 +255,8 @@ function NotificationsPage() {
           )}
         </div>
       </section>
+
+      <PushSettingsCard />
     </>
   );
 }

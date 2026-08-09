@@ -181,6 +181,9 @@
     letter-spacing: -0.005em;
     overflow-x: hidden;
     max-width: 100%;
+    /* Instalado, o "rubber band" do iOS ao puxar além do fim entrega na hora
+       que é uma página web dentro de uma casca. */
+    overscroll-behavior-y: none;
   }
 
   .tabular-nums {

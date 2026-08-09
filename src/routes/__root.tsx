@@ -15,6 +15,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { MobileFabProvider } from "@/components/finance/mobile-fab-context";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { supabase } from "@/integrations/supabase/client";
+import { registerServiceWorker } from "@/lib/pwa/service-worker";
 
 function NotFoundComponent() {
   return <ResponsiveRouteState title="Página não encontrada" notFound />;
@@ -43,7 +44,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      {
+        name: "viewport",
+        // viewport-fit=cover é o que faz env(safe-area-inset-*) reportar
+        // valores reais no iOS. Sem ele o app instalado passa por baixo do
+        // notch e da barra de gestos.
+        content: "width=device-width, initial-scale=1, viewport-fit=cover",
+      },
       { title: "Nós Conecta" },
       { name: "description", content: "Sistema de gestão financeira para clínicas odontológicas." },
       { name: "author", content: "NÓS Conecta" },
@@ -69,6 +76,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f8a90e44-aa95-437f-9ffc-a812fd85284b/id-preview-07a4c3cc--d99d44d3-aac2-4003-ad96-b3d585719075.lovable.app-1781664690838.png",
       },
+      { name: "theme-color", content: "#FF7A59" },
+      { name: "application-name", content: "NÓS Conecta" },
+      // O iOS ignora o manifest para decidir se abre em tela cheia; quem
+      // manda são estas duas.
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
+      { name: "apple-mobile-web-app-title", content: "NÓS Conecta" },
+      { name: "mobile-web-app-capable", content: "yes" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -78,6 +93,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap",
       },
       { rel: "stylesheet", href: appCss },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "icon", href: "/favicon.png", type: "image/png" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
     ],
   }),
   shellComponent: RootShell,
@@ -88,7 +106,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="pt-BR">
       <head>
         <HeadContent />
       </head>
@@ -102,6 +120,10 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    registerServiceWorker();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

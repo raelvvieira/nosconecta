@@ -523,7 +523,11 @@ export function Sidebar() {
         style={{
           left: 16,
           right: 16,
-          bottom: 14,
+          // O marginBottom com env() abaixo era inerte até o viewport-fit=cover
+          // entrar; agora ele vale de verdade. Em aparelho com barra de gestos
+          // o inset já afasta o suficiente, então o respiro fixo cai de 14 para
+          // 8 e a ilha não descola demais da borda.
+          bottom: 8,
           height: 68,
           borderRadius: 24,
           background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(250,250,250,1) 100%)",
@@ -921,7 +925,8 @@ export function Sidebar() {
           (pathname === "/inicio" || inAtendimentos || (inPatients && pathname !== "/pacientes")) && "hidden",
         )}
         style={{
-          top: 20,
+          // Em standalone com notch, um top fixo colide com a status bar.
+          top: "calc(env(safe-area-inset-top) + 20px)",
           right: 16,
           width: 52,
           height: 52,

@@ -491,6 +491,14 @@ export const markReceivableReceived = createServerFn({ method: "POST" })
       patientId: updated?.patient_id ?? null,
       amount: updated?.amount === null || updated?.amount === undefined ? null : Number(updated.amount),
     });
+    const { sendPushToOwner } = await import("@/lib/notifications/push.server");
+    await sendPushToOwner(context.userId, "deal_result", {
+      title: "Pagamento recebido",
+      body: updated?.amount
+        ? `Entrou ${Number(updated.amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}.`
+        : "Um recebimento foi marcado como recebido.",
+      url: "/recebimentos",
+    });
     return { ok: true };
   });
 

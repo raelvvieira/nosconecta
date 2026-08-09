@@ -36,7 +36,7 @@ const cardStyle: React.CSSProperties = {
 function Header() {
   const { firstName, initial, greeting } = useGreetingUser();
   return (
-    <div style={{ padding: "52px 24px 0 24px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+    <div style={{ padding: "calc(env(safe-area-inset-top) + 52px) 24px 0 24px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
       <div style={{ minWidth: 0 }}>
         <h1 style={{ fontSize: 27, lineHeight: "33px", fontWeight: 700, letterSpacing: "-0.03em", color: "#111827", margin: 0 }}>
           {greeting}{firstName ? `, ${firstName}` : ""}
