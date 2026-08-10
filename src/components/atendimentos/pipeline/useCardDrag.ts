@@ -365,15 +365,22 @@ export function useCardDrag(onDrop: (itemId: string, toStageId: string) => void)
       const destX = targetRect ? targetRect.left + 12 - grab.current.x : origin.current.x;
       const destY = targetRect ? targetRect.top + 12 - grab.current.y : origin.current.y;
 
+      // Capturado agora: `pending.current` pode já ter sido trocado por outro
+      // gesto quando o voo terminar.
+      const dragged = pending.current;
+
       const finish = () => {
         settle.current = null;
-        setDrag((current) => {
-          if (current && target && target !== current.fromStageId) {
-            haptic("commit");
-            onDrop(current.itemId, target);
-          }
-          return null;
-        });
+        // O aviso ao chamador fica FORA do updater do setDrag. Um updater tem
+        // de ser puro: o React pode chamá-lo mais de uma vez pelo mesmo
+        // resultado, e em desenvolvimento chama de propósito — o que fazia o
+        // onDrop disparar duas vezes e mandar duas requisições para o mesmo
+        // movimento. Só apareceu ao exercitar o arraste num navegador.
+        if (dragged && target && target !== dragged.stageId) {
+          haptic("commit");
+          onDrop(dragged.id, target);
+        }
+        setDrag(null);
         setOverStageId(null);
         overRef.current = null;
         bounds.current = null;
