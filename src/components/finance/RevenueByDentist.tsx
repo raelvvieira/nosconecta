@@ -25,7 +25,7 @@ export function RevenueByDentist({ data }: { data: Item[] }) {
       <ul className="space-y-4">
         {data.map((d) => (
           <li key={d.id} className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-soft to-info-soft grid place-items-center text-[11px] font-semibold text-foreground/70">
+            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-soft to-info-soft grid place-items-center text-2xs font-semibold text-foreground/70">
               {initials(d.name)}
             </div>
             <div className="flex-1 min-w-0">

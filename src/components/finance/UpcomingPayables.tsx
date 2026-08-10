@@ -27,7 +27,7 @@ export function UpcomingPayables({ items }: { items: PayableItem[] }) {
         <button className="text-xs text-primary hover:underline font-medium">Ver todos</button>
       </div>
 
-      <div className="grid grid-cols-[1.2fr_1.2fr_0.9fr_0.9fr] text-[11px] uppercase tracking-wider text-muted-foreground pb-2 border-b border-border/60">
+      <div className="grid grid-cols-[1.2fr_1.2fr_0.9fr_0.9fr] text-2xs uppercase tracking-wider text-muted-foreground pb-2 border-b border-border/60">
         <span>Conta</span>
         <span>Categoria</span>
         <span className="text-right">Valor</span>

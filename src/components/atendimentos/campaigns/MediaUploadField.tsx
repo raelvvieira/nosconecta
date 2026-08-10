@@ -55,7 +55,7 @@ export function MediaUploadField({
 
   if (disabled) {
     return (
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-2xs text-muted-foreground">
         Anexo de imagem só está disponível ao criar uma mensagem nova (não dá pra anexar a um template já existente, pra
         não vazar mídia entre clínicas que compartilham o mesmo template).
       </p>

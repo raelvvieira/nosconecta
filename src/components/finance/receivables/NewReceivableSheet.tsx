@@ -237,7 +237,7 @@ export function NewReceivableSheet({
             <h3 className="text-sm font-medium">Observações</h3>
             <Textarea placeholder="Adicione observações (opcional)" value={notes}
               onChange={(e) => setNotes(e.target.value)} maxLength={200} rows={3} />
-            <p className="text-[11px] text-muted-foreground text-right">{notes.length}/200</p>
+            <p className="text-2xs text-muted-foreground text-right">{notes.length}/200</p>
           </section>
 
           <div className="flex items-center gap-3 pt-4 border-t">

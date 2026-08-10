@@ -149,7 +149,7 @@ export function PushSettingsCard() {
             </div>
 
             {!push.hasServerKeys && (
-              <p className="mt-3 rounded-2xl bg-coral-soft px-4 py-3 text-[12px] text-foreground/80">
+              <p className="mt-3 rounded-2xl bg-coral-soft px-4 py-3 text-xs text-foreground/80">
                 As chaves VAPID ainda não foram cadastradas no servidor. Sem elas o navegador não
                 consegue criar a inscrição.
               </p>
@@ -171,7 +171,7 @@ export function PushSettingsCard() {
             >
               <span className="min-w-0">
                 <span className="block text-sm font-medium">{meta.title}</span>
-                <span className="mt-0.5 block text-[12px] text-muted-foreground">
+                <span className="mt-0.5 block text-xs text-muted-foreground">
                   {meta.description}
                 </span>
               </span>
@@ -192,7 +192,7 @@ export function PushSettingsCard() {
               <Smartphone className="h-4 w-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{describeDevice(device.userAgent)}</p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   Ativo desde {new Date(device.createdAt).toLocaleDateString("pt-BR")}
                 </p>
               </div>

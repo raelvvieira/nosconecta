@@ -107,10 +107,10 @@ export function DesktopHome({
                 <p className="text-xs text-muted-foreground truncate">{appt.procedure}</p>
               </div>
               <span
-                className="text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0"
+                className="text-2xs font-semibold px-2.5 py-1 rounded-full shrink-0"
                 style={{
                   background: appt.status === "Confirmado" ? "rgba(34,197,94,0.12)" : "rgba(249,115,22,0.12)",
-                  color: appt.status === "Confirmado" ? "#16A34A" : "#F97316",
+                  color: appt.status === "Confirmado" ? "var(--success)" : "var(--warning)",
                 }}
               >
                 {appt.status}

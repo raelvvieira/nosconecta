@@ -52,7 +52,7 @@ export function AttachmentTray({
               <span className="block truncate text-xs font-medium">
                 {item.isRecordedAudio ? "Áudio gravado" : item.name}
               </span>
-              <span className="block text-[10px] text-muted-foreground">{formatSize(item.size)}</span>
+              <span className="block text-3xs text-muted-foreground">{formatSize(item.size)}</span>
             </span>
             <button
               type="button"

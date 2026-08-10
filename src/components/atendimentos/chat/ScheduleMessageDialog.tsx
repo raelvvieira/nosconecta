@@ -177,7 +177,7 @@ export function ScheduleMessageDialog({
                     <span className="min-w-0 flex-1">
                       <span className="block text-xs font-medium text-foreground">{formatWhen(s.scheduledFor)}</span>
                       <span className="mt-0.5 block line-clamp-2 text-xs text-muted-foreground">{s.content}</span>
-                      <span className="mt-1 inline-block rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                      <span className="mt-1 inline-block rounded-full bg-muted px-2 py-0.5 text-3xs text-muted-foreground">
                         {STATUS_LABEL[s.status] ?? s.status}
                       </span>
                     </span>

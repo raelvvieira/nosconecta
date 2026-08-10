@@ -131,15 +131,17 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Cancelado",
 };
 
+// Repetia, valor por valor, a paleta que já estava em --chart-1..5 mais três
+// semânticas. Agora aponta para elas: mudar a marca muda o gráfico junto.
 const CHART_COLORS = [
-  "#FF7A59",
-  "#F55F95",
-  "#FFB086",
-  "#7C5CFA",
-  "#1F9D55",
-  "#2F6FE0",
-  "#C7821F",
-  "#9A9AA1",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--info)",
+  "var(--warning)",
+  "var(--foreground-subtle)",
 ];
 
 const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("pt-BR");
@@ -284,7 +286,7 @@ function PagamentosPage() {
                   from={search.from}
                   to={search.to}
                   onChange={(r) => setSearch({ from: r.from, to: r.to, page: 1 })}
-                  className="h-11 px-4 rounded-[14px] border-[#ECECEC] bg-white"
+                  className="h-11 px-4 rounded-[14px] border-input bg-white"
                 />
               </FilterField>
               <FilterField label="Categoria">
@@ -417,7 +419,7 @@ function PagamentosPage() {
             <div className="-mx-2 hidden overflow-x-auto lg:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <tr className="text-left text-2xs uppercase tracking-wider text-muted-foreground">
                     <th className="py-3 px-3 w-8 font-medium">
                       <Checkbox
                         checked={rows.length > 0 && rows.every((r) => selected.has(r.id))}
@@ -462,7 +464,7 @@ function PagamentosPage() {
                     return (
                       <tr
                         key={t.id}
-                        className="border-t border-[#F5F5F5] hover:bg-[#FAFAFA] transition-colors h-[72px]"
+                        className="border-t border-surface-subtle hover:bg-surface-subtle transition-colors h-[72px]"
                       >
                         <td className="px-3">
                           <Checkbox
@@ -485,7 +487,7 @@ function PagamentosPage() {
                         </td>
                         <td className="pr-4">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="h-9 w-9 shrink-0 rounded-full bg-[#F2F2F4] text-foreground grid place-items-center text-[11px] font-semibold">
+                            <div className="h-9 w-9 shrink-0 rounded-full bg-muted text-foreground grid place-items-center text-2xs font-semibold">
                               {supplierInitials}
                             </div>
                             <div className="min-w-0">
@@ -624,7 +626,7 @@ function PayableActions({
         <button
           type="button"
           aria-label="Ações do pagamento"
-          className="relative tap-44 grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-[#F2F2F4]"
+          className="relative tap-44 grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted"
         >
           <MoreHorizontal className="h-4 w-4" />
         </button>
@@ -649,7 +651,7 @@ function PayableActions({
 function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5 min-w-0">
-      <p className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+      <p className="text-2xs font-medium tracking-wider text-muted-foreground uppercase">
         {label}
       </p>
       {children}
@@ -710,7 +712,7 @@ function CategoryBreakdownCard({ items }: { items: PayablesOverview["categoryBre
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <ul className="flex-1 min-w-0 space-y-2 text-[13px]">
+        <ul className="flex-1 min-w-0 space-y-2 text-sm">
           {data.map((c, i) => (
             <li key={c.id} className="flex items-center gap-2">
               <span

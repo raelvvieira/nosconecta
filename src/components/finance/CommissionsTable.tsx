@@ -25,12 +25,12 @@ export function CommissionsTable({ data }: { data: Item[] }) {
       <ul className="space-y-3">
         {data.map((d) => (
           <li key={d.id} className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-soft to-info-soft grid place-items-center text-[11px] font-semibold text-foreground/70">
+            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-soft to-info-soft grid place-items-center text-2xs font-semibold text-foreground/70">
               {initials(d.name)}
             </div>
             <span className="flex-1 text-sm font-medium truncate">{d.name}</span>
             <span className="text-sm tabular-nums font-semibold">{formatBRL(d.value)}</span>
-            <span className="inline-flex items-center justify-center text-[11px] font-medium px-2 py-0.5 rounded-full bg-violet-soft text-violet tabular-nums min-w-[40px]">
+            <span className="inline-flex items-center justify-center text-2xs font-medium px-2 py-0.5 rounded-full bg-violet-soft text-violet tabular-nums min-w-[40px]">
               {d.pct}%
             </span>
           </li>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import type { Appointment } from "../types";
 
 const MONTHS_PT = [
@@ -43,30 +43,26 @@ export function MobileCalendarSheet({ open, selectedDate, appointments, onClose,
   };
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent
-        side="bottom"
-        className="rounded-t-[28px] border-0 p-0"
-        style={{ background: "#F8F8FA" }}
-      >
-        <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-[#E2E8F0]" />
+    <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
+      <DrawerContent className="border-0" style={{ background: "var(--surface)" }}>
+        <DrawerTitle className="sr-only">Escolher data</DrawerTitle>
         <div className="p-5">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-base font-semibold text-[#111827]">
+            <span className="text-base font-semibold text-foreground">
               {MONTHS_PT[month]}, {year}
             </span>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setCursor(new Date(year, month - 1, 1))}
-                className="h-9 w-9 grid place-items-center rounded-xl bg-white border border-[#EEF2F7] text-[#6B7280]"
+                className="h-9 w-9 grid place-items-center rounded-xl bg-white border border-surface-muted text-muted-foreground"
               >
                 <ChevronLeft className="h-4 w-4" strokeWidth={2} />
               </button>
               <button
                 type="button"
                 onClick={() => setCursor(new Date(year, month + 1, 1))}
-                className="h-9 w-9 grid place-items-center rounded-xl bg-white border border-[#EEF2F7] text-[#6B7280]"
+                className="h-9 w-9 grid place-items-center rounded-xl bg-white border border-surface-muted text-muted-foreground"
               >
                 <ChevronRight className="h-4 w-4" strokeWidth={2} />
               </button>
@@ -75,7 +71,7 @@ export function MobileCalendarSheet({ open, selectedDate, appointments, onClose,
 
           <div className="grid grid-cols-7 mb-1">
             {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
-              <div key={i} className="text-center text-[11px] font-semibold text-[#6B7280] py-1">{d}</div>
+              <div key={i} className="text-center text-2xs font-semibold text-muted-foreground py-1">{d}</div>
             ))}
           </div>
 
@@ -91,29 +87,29 @@ export function MobileCalendarSheet({ open, selectedDate, appointments, onClose,
                   key={i}
                   type="button"
                   onClick={() => { onSelect(new Date(year, month, day)); onClose(); }}
-                  className="flex flex-col items-center py-1 rounded-xl active:bg-[#F1F5F9] transition-colors"
+                  className="flex flex-col items-center py-1 rounded-xl active:bg-surface-muted transition-colors"
                 >
                   <span
                     className="text-sm font-medium w-9 h-9 flex items-center justify-center rounded-full"
                     style={
                       isSelected
-                        ? { background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)", color: "#fff" }
+                        ? { background: "var(--gradient-primary)", color: "var(--primary-foreground)" }
                         : isToday
-                        ? { border: "1.5px solid #FF6FA7", color: "#FF6FA7" }
-                        : { color: "#374151" }
+                        ? { border: "1.5px solid var(--pink)", color: "var(--pink)" }
+                        : { color: "var(--foreground-secondary)" }
                     }
                   >
                     {day}
                   </span>
                   {count > 0 && !isSelected && (
-                    <div style={{ width: 4, height: 4, borderRadius: 999, background: "#FF6FA7", marginTop: 2 }} />
+                    <div style={{ width: 4, height: 4, borderRadius: 999, background: "var(--pink)", marginTop: 2 }} />
                   )}
                 </button>
               );
             })}
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DrawerContent>
+    </Drawer>
   );
 }

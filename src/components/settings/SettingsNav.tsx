@@ -146,7 +146,7 @@ export function SettingsNav() {
       <aside className="surface-card hidden overflow-hidden p-2 lg:sticky lg:top-8 lg:block">
         {GROUPS.map((group) => (
           <div key={group.label} className="mb-1 last:mb-0">
-            <p className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
+            <p className="px-3 pb-1 pt-3 text-2xs font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
               {group.label}
             </p>
             {group.items.map((item) => {
@@ -169,7 +169,7 @@ export function SettingsNav() {
                     <span className="block truncate text-sm font-medium">{item.label}</span>
                     <span
                       className={cn(
-                        "mt-0.5 block truncate text-[11px]",
+                        "mt-0.5 block truncate text-2xs",
                         active ? "text-white/65" : "text-muted-foreground",
                       )}
                     >

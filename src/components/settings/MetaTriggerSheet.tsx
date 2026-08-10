@@ -235,7 +235,7 @@ export function MetaTriggerSheet({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
+              <p className="mt-1.5 text-2xs text-muted-foreground">
                 Dispara quando a negociação é marcada no painel do card, no funil. O valor da
                 negociação vai junto como valor da conversão.
               </p>
@@ -257,7 +257,7 @@ export function MetaTriggerSheet({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
+              <p className="mt-1.5 text-2xs text-muted-foreground">
                 {stages.length
                   ? "Prefira \u201cNegociação é marcada como ganha ou perdida\u201d: não depende de lembrar qual etapa significa ganho, e leva o valor da negociação junto."
                   : "Nenhuma etapa encontrada. Configure o funil em Atendimentos › Pipeline."}
@@ -307,7 +307,7 @@ export function MetaTriggerSheet({
               />
             )}
             {duplicate && (
-              <p className="mt-2 flex items-start gap-2 rounded-2xl bg-coral-soft px-3 py-2 text-[11px] text-foreground/80">
+              <p className="mt-2 flex items-start gap-2 rounded-2xl bg-coral-soft px-3 py-2 text-2xs text-foreground/80">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-coral" />
                 <span>
                   O gatilho “{duplicate.name}” já manda {resolvedEventName} neste mesmo
@@ -334,7 +334,7 @@ export function MetaTriggerSheet({
               </SelectContent>
             </Select>
             {valueSource === "event" && (
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
+              <p className="mt-1.5 text-2xs text-muted-foreground">
                 Usa o valor do lançamento ou o valor previsto do agendamento. Mudança de etapa e
                 cadastro de paciente não carregam valor — nesses casos o evento vai sem.
               </p>
@@ -353,7 +353,7 @@ export function MetaTriggerSheet({
           <label className="flex items-center justify-between gap-3 rounded-2xl border border-border px-4 py-3">
             <span>
               <span className="block text-sm font-medium">Gatilho ativo</span>
-              <span className="block text-[11px] text-muted-foreground">
+              <span className="block text-2xs text-muted-foreground">
                 Pausado, ele fica salvo mas não dispara.
               </span>
             </span>

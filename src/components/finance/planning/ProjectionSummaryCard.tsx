@@ -45,7 +45,7 @@ export function ProjectionSummaryCard({ forecast }: { forecast: ForecastSummary 
           <div className="absolute inset-0 grid place-items-center text-center pointer-events-none">
             <div>
               <p className="text-lg font-semibold tracking-tight tabular-nums">R$ {(projectedNet / 1000).toFixed(0)}k</p>
-              <p className="text-[10px] text-muted-foreground">Saldo líquido</p>
+              <p className="text-3xs text-muted-foreground">Saldo líquido</p>
             </div>
           </div>
         </div>

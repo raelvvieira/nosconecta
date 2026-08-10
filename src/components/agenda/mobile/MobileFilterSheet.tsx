@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import type { AgendaFilters, Professional, Room } from "../types";
@@ -14,7 +14,7 @@ interface Props {
 }
 
 const selectCls =
-  "w-full text-sm border border-[#EEF2F7] rounded-[14px] px-3 py-3 text-[#111827] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6FA7]/30";
+  "w-full text-sm border border-surface-muted rounded-[14px] px-3 py-3 text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-pink/30";
 
 export function MobileFilterSheet({ open, filters, professionals, rooms, onClose, onApply }: Props) {
   const [draft, setDraft] = useState<AgendaFilters>(filters);
@@ -26,19 +26,14 @@ export function MobileFilterSheet({ open, filters, professionals, rooms, onClose
   const clear = () => setDraft({ professionalId: "", roomId: "", type: "", status: "" });
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent
-        side="bottom"
-        className="rounded-t-[28px] border-0 p-0"
-        style={{ background: "#F8F8FA" }}
-      >
-        <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-[#E2E8F0]" />
+    <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
+      <DrawerContent className="border-0" style={{ background: "var(--surface)" }}>
         <div className="p-5 space-y-4">
-          <h2 className="text-lg font-semibold text-[#111827]">Filtros</h2>
+          <DrawerTitle className="text-lg font-semibold text-foreground">Filtros</DrawerTitle>
 
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label className="text-sm text-[#374151]">Profissional</Label>
+              <Label className="text-sm text-foreground-secondary">Profissional</Label>
               <select
                 className={selectCls}
                 value={draft.professionalId}
@@ -50,7 +45,7 @@ export function MobileFilterSheet({ open, filters, professionals, rooms, onClose
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-sm text-[#374151]">Sala</Label>
+              <Label className="text-sm text-foreground-secondary">Sala</Label>
               <select
                 className={selectCls}
                 value={draft.roomId}
@@ -62,7 +57,7 @@ export function MobileFilterSheet({ open, filters, professionals, rooms, onClose
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-sm text-[#374151]">Status</Label>
+              <Label className="text-sm text-foreground-secondary">Status</Label>
               <select
                 className={selectCls}
                 value={draft.status}
@@ -79,7 +74,7 @@ export function MobileFilterSheet({ open, filters, professionals, rooms, onClose
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-sm text-[#374151]">Tipo</Label>
+              <Label className="text-sm text-foreground-secondary">Tipo</Label>
               <select
                 className={selectCls}
                 value={draft.type}
@@ -96,19 +91,19 @@ export function MobileFilterSheet({ open, filters, professionals, rooms, onClose
           </div>
 
           <div className="flex gap-3 pt-2">
-            <Button variant="outline" onClick={clear} className="flex-1 h-12 rounded-[14px] border-[#EEF2F7]">
+            <Button variant="outline" onClick={clear} className="flex-1 h-12 rounded-[14px] border-surface-muted">
               Limpar filtros
             </Button>
             <Button
               onClick={() => { onApply(draft); onClose(); }}
               className="flex-1 h-12 rounded-[14px] text-white font-semibold"
-              style={{ background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)" }}
+              style={{ background: "var(--gradient-primary)" }}
             >
               Aplicar filtros
             </Button>
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DrawerContent>
+    </Drawer>
   );
 }

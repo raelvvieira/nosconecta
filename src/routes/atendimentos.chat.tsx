@@ -215,7 +215,7 @@ function ChatPage() {
         )}
       >
         <header className="px-4 pb-3 pt-6 sm:px-6 lg:px-5 lg:pt-7">
-          <h1 className="text-[26px] font-semibold tracking-[-0.03em]">Conversas</h1>
+          <h1 className="text-2xl font-semibold tracking-[-0.03em]">Conversas</h1>
           <div className="mt-0.5">
             <WhatsappStatusBadge variant="minimal" />
           </div>
@@ -272,7 +272,7 @@ function ChatPage() {
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-semibold">{name}</span>
-                    <span className={cn("shrink-0 text-[11px]", active ? "text-white/70" : "text-muted-foreground")}>
+                    <span className={cn("shrink-0 text-2xs", active ? "text-white/70" : "text-muted-foreground")}>
                       {formatTime(row.lastMessageAt)}
                     </span>
                   </span>
@@ -281,7 +281,7 @@ function ChatPage() {
                       {row.lastMessagePreview ?? "—"}
                     </span>
                     {row.unreadCount > 0 && (
-                      <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-gradient-primary px-1.5 text-[10px] font-bold text-white">
+                      <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-gradient-primary px-1.5 text-3xs font-bold text-white">
                         {row.unreadCount}
                       </span>
                     )}
@@ -328,7 +328,7 @@ function ChatPage() {
                     >
                       <span
                         className="h-2 w-2 shrink-0 rounded-full"
-                        style={{ backgroundColor: currentStage?.color ?? "#94A3B8" }}
+                        style={{ backgroundColor: currentStage?.color ?? "var(--foreground-subtle)" }}
                       />
                       {currentStage?.name ?? "Sem etapa"}
                       <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -365,7 +365,7 @@ function ChatPage() {
                       )}
                     >
                       {m.isPrivate && (
-                        <span className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-warning">
+                        <span className="mb-1 flex items-center gap-1 text-3xs font-semibold uppercase tracking-wide text-warning">
                           <StickyNote className="h-3 w-3" />
                           Nota interna
                         </span>
@@ -373,7 +373,7 @@ function ChatPage() {
                       <p className="whitespace-pre-wrap break-words">{m.body}</p>
                       <span
                         className={cn(
-                          "mt-1 flex items-center justify-end gap-1 text-[10px]",
+                          "mt-1 flex items-center justify-end gap-1 text-3xs",
                           m.fromMe && !m.isPrivate ? "text-white/70" : "text-muted-foreground",
                         )}
                       >

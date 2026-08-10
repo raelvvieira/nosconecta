@@ -302,7 +302,7 @@ function StatusPill({ status }: { status: NotificationLogRow["status"] }) {
           ? { bg: "bg-muted", text: "text-muted-foreground", label: "Pulado" }
           : { bg: "bg-warning-soft", text: "text-warning", label: "Pendente" };
   return (
-    <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold", style.bg, style.text)}>
+    <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-2xs font-semibold", style.bg, style.text)}>
       {style.label}
     </span>
   );
@@ -320,7 +320,7 @@ function ReplyActionPill({ action }: { action: string }) {
             ? { bg: "bg-muted", text: "text-muted-foreground", label: "Sem agendamento futuro" }
             : { bg: "bg-muted", text: "text-muted-foreground", label: "Não entendido" };
   return (
-    <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold", style.bg, style.text)}>
+    <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-2xs font-semibold", style.bg, style.text)}>
       {style.label}
     </span>
   );

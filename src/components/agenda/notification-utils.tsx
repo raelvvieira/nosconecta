@@ -28,15 +28,15 @@ export function NotificationBadge({
 }) {
   const style =
     status === "sent"
-      ? { bg: "rgba(34,197,94,0.12)", color: "#16A34A", text: "Enviado" }
+      ? { bg: "rgba(34,197,94,0.12)", color: "var(--success)", text: "Enviado" }
       : status === "failed"
-        ? { bg: "rgba(239,68,68,0.12)", color: "#EF4444", text: "Falhou" }
+        ? { bg: "rgba(239,68,68,0.12)", color: "var(--danger)", text: "Falhou" }
         : status === "skipped"
-          ? { bg: "rgba(148,163,184,0.15)", color: "#64748B", text: "Sem contato" }
-          : { bg: "rgba(148,163,184,0.12)", color: "#94A3B8", text: "Pendente" };
+          ? { bg: "rgba(148,163,184,0.15)", color: "var(--muted-foreground)", text: "Sem contato" }
+          : { bg: "rgba(148,163,184,0.12)", color: "var(--foreground-subtle)", text: "Pendente" };
   return (
     <span
-      className="text-[10px] font-semibold px-2 py-1 rounded-full whitespace-nowrap"
+      className="text-3xs font-semibold px-2 py-1 rounded-full whitespace-nowrap"
       style={{ background: style.bg, color: style.color }}
       title={`${label}: ${style.text}`}
     >

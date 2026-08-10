@@ -29,7 +29,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useMobileFab } from "@/components/finance/mobile-fab-context";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { supabase } from "@/integrations/supabase/client";
 
 type FinanceItem = {
@@ -231,7 +231,7 @@ export function Sidebar() {
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
-            className="h-9 w-9 grid place-items-center rounded-xl text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground transition-colors"
+            className="h-9 w-9 grid place-items-center rounded-xl text-muted-foreground hover:bg-surface-subtle hover:text-foreground transition-colors"
             aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
           >
             {collapsed ? (
@@ -256,7 +256,7 @@ export function Sidebar() {
                   type="button"
                   onClick={() => setView("modules")}
                   className={cn(
-                    "flex items-center rounded-2xl text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground transition-colors",
+                    "flex items-center rounded-2xl text-muted-foreground hover:bg-surface-subtle hover:text-foreground transition-colors",
                     collapsed ? "h-10 w-10 justify-center" : "h-9 w-full px-3 gap-2 mb-1",
                   )}
                   aria-label="Voltar aos módulos"
@@ -268,7 +268,7 @@ export function Sidebar() {
               )}
 
               {!collapsed && (
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
+                <span className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
                   Agenda
                 </span>
               )}
@@ -280,8 +280,8 @@ export function Sidebar() {
                     "flex items-center rounded-2xl transition-colors",
                     collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
                     pathname === "/agenda"
-                      ? "bg-[#1B1B1F] text-white"
-                      : "text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground",
+                      ? "bg-foreground text-white"
+                      : "text-muted-foreground hover:bg-surface-subtle hover:text-foreground",
                   )}
                   aria-label="Agenda"
                 >
@@ -294,7 +294,7 @@ export function Sidebar() {
           ) : view === "modules" ? (
             <>
               {!collapsed && (
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
+                <span className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
                   Módulos
                 </span>
               )}
@@ -311,10 +311,10 @@ export function Sidebar() {
                   "flex items-center rounded-2xl transition-colors",
                   collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
                   active
-                    ? "bg-[#1B1B1F] text-white"
+                    ? "bg-foreground text-white"
                     : m.disabled
                       ? "text-muted-foreground opacity-40 cursor-not-allowed"
-                      : "text-foreground hover:bg-[#FAFAFA]",
+                      : "text-foreground hover:bg-surface-subtle",
                 );
                 const inner = (
                   <>
@@ -342,7 +342,7 @@ export function Sidebar() {
                   type="button"
                   onClick={() => setView("modules")}
                   className={cn(
-                    "flex items-center rounded-2xl text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground transition-colors",
+                    "flex items-center rounded-2xl text-muted-foreground hover:bg-surface-subtle hover:text-foreground transition-colors",
                     collapsed ? "h-10 w-10 justify-center" : "h-9 w-full px-3 gap-2 mb-1",
                   )}
                   aria-label="Voltar aos módulos"
@@ -354,7 +354,7 @@ export function Sidebar() {
               )}
 
               {!collapsed && (
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
+                <span className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
                   Atendimentos
                 </span>
               )}
@@ -365,8 +365,8 @@ export function Sidebar() {
                   "flex items-center rounded-2xl transition-colors",
                   collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
                   active
-                    ? "bg-[#1B1B1F] text-white"
-                    : "text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground",
+                    ? "bg-foreground text-white"
+                    : "text-muted-foreground hover:bg-surface-subtle hover:text-foreground",
                 );
                 const inner = (
                   <>
@@ -394,7 +394,7 @@ export function Sidebar() {
                   type="button"
                   onClick={() => setView("modules")}
                   className={cn(
-                    "flex items-center rounded-2xl text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground transition-colors",
+                    "flex items-center rounded-2xl text-muted-foreground hover:bg-surface-subtle hover:text-foreground transition-colors",
                     collapsed ? "h-10 w-10 justify-center" : "h-9 w-full px-3 gap-2 mb-1",
                   )}
                   aria-label="Voltar aos módulos"
@@ -406,7 +406,7 @@ export function Sidebar() {
               )}
 
               {!collapsed && (
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
+                <span className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
                   Financeiro
                 </span>
               )}
@@ -418,8 +418,8 @@ export function Sidebar() {
                   "flex items-center rounded-2xl transition-colors",
                   collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
                   active
-                    ? "bg-[#1B1B1F] text-white"
-                    : "text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground",
+                    ? "bg-foreground text-white"
+                    : "text-muted-foreground hover:bg-surface-subtle hover:text-foreground",
                   !isReal && "opacity-40 cursor-not-allowed",
                 );
                 const inner = (
@@ -473,8 +473,8 @@ export function Sidebar() {
               className={cn(
                 "flex items-center transition-colors",
                 collapsed
-                  ? "h-10 w-10 rounded-full bg-[#FAFAFA] border border-border text-foreground justify-center text-xs font-semibold hover:bg-muted"
-                  : "h-12 w-full rounded-2xl px-3 gap-3 hover:bg-[#FAFAFA]",
+                  ? "h-10 w-10 rounded-full bg-surface-subtle border border-border text-foreground justify-center text-xs font-semibold hover:bg-muted"
+                  : "h-12 w-full rounded-2xl px-3 gap-3 hover:bg-surface-subtle",
               )}
               aria-label="Conta"
             >
@@ -482,14 +482,14 @@ export function Sidebar() {
                 userInitial
               ) : (
                 <>
-                  <span className="h-8 w-8 rounded-full bg-[#FAFAFA] border border-border grid place-items-center text-xs font-semibold shrink-0">
+                  <span className="h-8 w-8 rounded-full bg-surface-subtle border border-border grid place-items-center text-xs font-semibold shrink-0">
                     {userInitial}
                   </span>
                   <span className="flex flex-col text-left leading-tight min-w-0">
                     <span className="text-sm font-medium text-foreground truncate">
                       {userName}
                     </span>
-                    <span className="text-[11px] text-muted-foreground truncate">
+                    <span className="text-2xs text-muted-foreground truncate">
                       Administrador
                     </span>
                   </span>
@@ -504,7 +504,7 @@ export function Sidebar() {
               type="button"
               onClick={handleSignOut}
               className={cn(
-                "flex items-center rounded-2xl text-muted-foreground hover:bg-[#FAFAFA] hover:text-foreground transition-colors",
+                "flex items-center rounded-2xl text-muted-foreground hover:bg-surface-subtle hover:text-foreground transition-colors",
                 collapsed ? "h-10 w-10 justify-center" : "h-11 w-full px-3 gap-3",
               )}
               aria-label="Sair"
@@ -519,7 +519,7 @@ export function Sidebar() {
 
       {/* Mobile bottom navigation — premium floating card with central FAB */}
       <nav
-        className="lg:hidden fixed z-50 flex items-center justify-between"
+        className="lg:hidden fixed z-50 flex items-center justify-between material-bar"
         style={{
           left: 16,
           right: 16,
@@ -530,8 +530,9 @@ export function Sidebar() {
           bottom: 8,
           height: 68,
           borderRadius: 24,
-          background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(250,250,250,1) 100%)",
-          boxShadow: "0 8px 30px rgba(15,23,42,0.08), 0 2px 8px rgba(15,23,42,0.04)",
+          // O fundo vem do utilitário `material-bar` (vidro fosco, com volta
+          // para superfície sólida quando o sistema pede menos transparência).
+          boxShadow: "var(--shadow-3)",
           border: "1px solid rgba(226,232,240,0.6)",
           paddingLeft: 6,
           paddingRight: 6,
@@ -581,7 +582,7 @@ export function Sidebar() {
                     style={{
                       width: 18,
                       height: 18,
-                      color: active ? "#FF6B57" : "#6B7280",
+                      color: active ? "var(--coral)" : "var(--muted-foreground)",
                     }}
                     strokeWidth={2}
                   />
@@ -592,11 +593,11 @@ export function Sidebar() {
                     // Texto miúdo precisa de tracking POSITIVO para respirar;
                     // o negativo (herdado do corpo) fechava as letras e é o
                     // contrário do que o tamanho pede.
-                    fontSize: 10,
+                    fontSize: "0.625rem",
                     fontWeight: 500,
                     letterSpacing: "0.01em",
                     lineHeight: 1,
-                    color: active ? "#FF6B57" : "#6B7280",
+                    color: active ? "var(--coral)" : "var(--muted-foreground)",
                     whiteSpace: "nowrap",
                   }}
                 >
@@ -696,16 +697,16 @@ export function Sidebar() {
                       justifyContent: "center",
                     }}
                   >
-                    <a.icon style={{ width: 18, height: 18, color: "#6B7280" }} strokeWidth={2} />
+                    <a.icon style={{ width: 18, height: 18, color: "var(--muted-foreground)" }} strokeWidth={2} />
                   </span>
                   <span
                     style={{
                       fontFamily: "Inter, sans-serif",
-                      fontSize: 9.5,
+                      fontSize: "0.625rem",
                       fontWeight: 500,
                       letterSpacing: "-0.01em",
                       lineHeight: 1,
-                      color: "#6B7280",
+                      color: "var(--muted-foreground)",
                       whiteSpace: "nowrap",
                     }}
                   >
@@ -809,18 +810,18 @@ export function Sidebar() {
                         }}
                       >
                         <item.icon
-                          style={{ width: 18, height: 18, color: active ? "#FF6B57" : "#6B7280" }}
+                          style={{ width: 18, height: 18, color: active ? "var(--coral)" : "var(--muted-foreground)" }}
                           strokeWidth={2}
                         />
                       </span>
                       <span
                         style={{
                           fontFamily: "Inter, sans-serif",
-                          fontSize: 9.5,
+                          fontSize: "0.625rem",
                           fontWeight: 500,
                           letterSpacing: "-0.01em",
                           lineHeight: 1,
-                          color: active ? "#FF6B57" : "#6B7280",
+                          color: active ? "var(--coral)" : "var(--muted-foreground)",
                           whiteSpace: "nowrap",
                         }}
                       >
@@ -883,16 +884,16 @@ export function Sidebar() {
           então todo o resto do sistema ficava sem caminho no celular. Aqui
           ficam os módulos e, nos que têm submenu, os itens deles — mesma
           estrutura do menu lateral do desktop. */}
-      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-        <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto rounded-t-[24px] pb-8 lg:hidden">
-          <SheetHeader className="text-left">
-            <SheetTitle className="text-base">Navegar</SheetTitle>
-          </SheetHeader>
+      <Drawer open={moreOpen} onOpenChange={setMoreOpen}>
+        <DrawerContent className="max-h-[80dvh] lg:hidden">
+          <DrawerHeader className="text-left">
+            <DrawerTitle className="text-base">Navegar</DrawerTitle>
+          </DrawerHeader>
 
-          <div className="mt-2 space-y-5">
+          <div className="mt-2 space-y-5 px-4 pb-4">
             {MOBILE_MENU_GROUPS.map((group) => (
               <div key={group.label}>
-                <p className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <p className="px-1 text-3xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {group.label}
                 </p>
                 <div className="mt-1.5 space-y-0.5">
@@ -908,7 +909,7 @@ export function Sidebar() {
                         onClick={() => setMoreOpen(false)}
                         className={cn(
                           "flex h-12 w-full items-center gap-3 rounded-2xl px-3 transition-colors",
-                          active ? "bg-[#1B1B1F] text-white" : "text-foreground hover:bg-[#FAFAFA]",
+                          active ? "bg-foreground text-white" : "text-foreground hover:bg-surface-subtle",
                         )}
                       >
                         <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
@@ -920,8 +921,8 @@ export function Sidebar() {
               </div>
             ))}
           </div>
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
 
       {/* Mobile top-right home button.
           Escondido em Atendimentos: ele é `fixed` e caía em cima do
@@ -941,13 +942,13 @@ export function Sidebar() {
           width: 52,
           height: 52,
           borderRadius: 17,
-          background: "#FFFFFF",
-          border: "1px solid #EEF2F7",
-          boxShadow: "0 8px 24px rgba(15,23,42,0.05)",
+          background: "var(--card)",
+          border: "1px solid var(--surface-muted)",
+          boxShadow: "var(--shadow-2)",
         }}
         aria-label="Home"
       >
-        <Home className="h-[21px] w-[21px] text-[#111827]" strokeWidth={1.75} />
+        <Home className="h-[21px] w-[21px] text-foreground" strokeWidth={1.75} />
       </Link>
     </TooltipProvider>
   );

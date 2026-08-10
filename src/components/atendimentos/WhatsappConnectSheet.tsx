@@ -168,7 +168,7 @@ export function WhatsappConnectSheet({
           )}
 
           {connected && (
-            <p className="mx-auto mt-2 max-w-xs text-[11px] leading-5 text-muted-foreground">
+            <p className="mx-auto mt-2 max-w-xs text-2xs leading-5 text-muted-foreground">
               Desconectar não apaga as conversas já sincronizadas — elas continuam no CRM. Você pode
               conectar outro número depois.
             </p>

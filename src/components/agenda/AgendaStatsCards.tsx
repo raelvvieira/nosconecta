@@ -24,7 +24,7 @@ function StatCard({
   return (
     <div
       className="bg-white flex flex-col gap-3 p-5"
-      style={{ borderRadius: 20, border: "1px solid #EEF2F7", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
     >
       <div className="flex items-start gap-3">
         <div
@@ -34,13 +34,13 @@ function StatCard({
           <Icon className="h-5 w-5" style={{ color: iconColor }} strokeWidth={1.75} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-[#6B7280] font-medium">{label}</p>
-          <p className="text-2xl font-semibold text-[#111827] tracking-tight tabular-nums mt-0.5">
+          <p className="text-xs text-muted-foreground font-medium">{label}</p>
+          <p className="text-2xl font-semibold text-foreground tracking-tight tabular-nums mt-0.5">
             {value}
           </p>
         </div>
       </div>
-      <p className="text-xs text-[#6B7280]">{sub}</p>
+      <p className="text-xs text-muted-foreground">{sub}</p>
     </div>
   );
 }
@@ -61,8 +61,8 @@ export function AgendaStatsCards({ appointments, date }: Props) {
         label="Atendimentos Hoje"
         value={total}
         sub="Total de agendamentos"
-        iconBg="rgba(139,124,255,0.10)"
-        iconColor="#8B7CFF"
+        iconBg="color-mix(in oklab, var(--violet) 10%, transparent)"
+        iconColor="var(--violet)"
       />
       <StatCard
         icon={CheckCircle2}
@@ -70,15 +70,15 @@ export function AgendaStatsCards({ appointments, date }: Props) {
         value={confirmed}
         sub={pct(confirmed)}
         iconBg="rgba(34,197,94,0.10)"
-        iconColor="#22C55E"
+        iconColor="var(--success)"
       />
       <StatCard
         icon={Clock}
         label="Pendentes"
         value={pending}
         sub={pct(pending)}
-        iconBg="rgba(255,138,76,0.10)"
-        iconColor="#FF8A4C"
+        iconBg="color-mix(in oklab, var(--coral) 10%, transparent)"
+        iconColor="var(--coral)"
       />
       <StatCard
         icon={UserX}
@@ -86,7 +86,7 @@ export function AgendaStatsCards({ appointments, date }: Props) {
         value={missed}
         sub={pct(missed)}
         iconBg="rgba(239,68,68,0.10)"
-        iconColor="#EF4444"
+        iconColor="var(--danger)"
       />
     </div>
   );

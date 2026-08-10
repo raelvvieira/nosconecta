@@ -97,7 +97,7 @@ function PendingMoveBadge({ campaignId }: { campaignId: string }) {
       type="button"
       onClick={() => retryMutation.mutate()}
       disabled={retryMutation.isPending}
-      className="flex items-center gap-1.5 rounded-full bg-warning-soft px-2.5 py-1 text-[11px] font-semibold text-warning hover:opacity-80"
+      className="flex items-center gap-1.5 rounded-full bg-warning-soft px-2.5 py-1 text-2xs font-semibold text-warning hover:opacity-80"
     >
       {retryMutation.isPending ? <RefreshCw className="h-3 w-3 animate-spin" /> : <AlertTriangle className="h-3 w-3" />}
       Movimentação pendente ({pending.length}) — tentar de novo
@@ -157,7 +157,7 @@ function CampanhasPage() {
     <>
       <main className="mx-auto w-full max-w-[900px] px-4 pb-28 pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
         <header className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="flex items-center gap-2 text-[26px] font-semibold tracking-[-0.03em]">
+          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-[-0.03em]">
             <Megaphone className="h-5 w-5 text-pink" />
             Campanhas
           </h1>

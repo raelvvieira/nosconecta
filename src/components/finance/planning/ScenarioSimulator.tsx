@@ -54,10 +54,10 @@ export function ScenarioSimulator({
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">{s.name}</p>
                     <p className="text-xs text-muted-foreground truncate">{s.subtitle}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{s.baseValue}</p>
+                    <p className="text-2xs text-muted-foreground mt-0.5 truncate">{s.baseValue}</p>
                   </div>
                   <div className="text-right shrink-0 pr-7">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Impacto em 90 dias</p>
+                    <p className="text-3xs text-muted-foreground uppercase tracking-wide">Impacto em 90 dias</p>
                     <p className={cn(
                       "text-sm font-semibold tabular-nums whitespace-nowrap",
                       positive ? "text-success" : "text-danger",

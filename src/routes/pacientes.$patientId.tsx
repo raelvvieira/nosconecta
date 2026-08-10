@@ -155,7 +155,7 @@ function PatientDetailPage() {
             <p className="mt-2 text-sm text-muted-foreground">
               {patient.age ? `${patient.age} anos` : "Idade não informada"}
             </p>
-            <p className="mt-1 text-[15px] text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground">
               {patient.phone ?? "Telefone não informado"}
             </p>
           </div>
@@ -419,7 +419,7 @@ function CareTimeline({ events }: { events: CareEvent[] }) {
               </span>
               <span
                 className={cn(
-                  "rounded-full px-2.5 py-1 text-[10px] font-semibold",
+                  "rounded-full px-2.5 py-1 text-3xs font-semibold",
                   event.status === "completed"
                     ? "bg-success-soft text-success"
                     : event.status === "current"

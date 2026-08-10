@@ -118,10 +118,10 @@ function PatientsPage() {
       <main className="mx-auto w-full max-w-[1180px] px-4 pb-28 pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
         <header className="pr-16 lg:flex lg:items-end lg:justify-between lg:gap-6 lg:pr-0">
           <div>
-            <h1 className="text-[30px] font-semibold tracking-[-0.035em] text-foreground lg:text-4xl leading-[1.1]">
+            <h1 className="text-3xl font-semibold tracking-[-0.035em] text-foreground lg:text-4xl leading-[1.1]">
               Pacientes
             </h1>
-            <p className="mt-1 text-[15px] text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground">
               Encontre e acompanhe seus pacientes
             </p>
           </div>
@@ -140,7 +140,7 @@ function PatientsPage() {
               aria-label="Buscar pacientes"
               value={search.q ?? ""}
               onChange={(event) => setSearch({ q: event.target.value || undefined })}
-              className="h-14 rounded-[20px] bg-white pl-12 text-[15px] shadow-soft"
+              className="h-14 rounded-[20px] bg-white pl-12 text-sm shadow-soft"
               placeholder="Buscar por nome, telefone ou CPF"
             />
           </div>
@@ -219,10 +219,10 @@ function PatientsPage() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-[15px] font-semibold">{patient.name}</span>
+                      <span className="truncate text-sm font-semibold">{patient.name}</span>
                       <span
                         className={cn(
-                          "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                          "rounded-full px-2.5 py-1 text-2xs font-semibold",
                           STATUS[patient.status].className,
                         )}
                       >

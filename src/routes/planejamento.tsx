@@ -180,7 +180,7 @@ function PlanningPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-[11px] md:text-sm text-muted-foreground">
+                    <p className="text-2xs md:text-sm text-muted-foreground">
                       Fôlego Financeiro
                     </p>
                     <Tooltip>
