@@ -86,7 +86,7 @@ export function PacingSection({
           </Select>
         </div>
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-2xs text-muted-foreground">
         Pausar/retomar ainda não foi confirmado com o CRM — pode não ter efeito até validarmos com um disparo real.
       </p>
     </section>

@@ -285,7 +285,7 @@ function IntegrationsPage() {
               placeholder="1234567890123456"
               className="mt-1.5 bg-white"
             />
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
+            <p className="mt-1.5 text-2xs text-muted-foreground">
               {offlineFilled
                 ? "Guardado, mas não usado enquanto houver conjunto offline preenchido."
                 : "Recomendado para começar: funciona sem nenhum passo manual na Meta."}
@@ -303,7 +303,7 @@ function IntegrationsPage() {
               placeholder="Deixe em branco para usar o Pixel"
               className="mt-1.5 bg-white"
             />
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
+            <p className="mt-1.5 text-2xs text-muted-foreground">
               Preenchido, os eventos vão para ele <strong>em vez</strong> do Pixel — nunca para os
               dois. Só compensa se o conjunto estiver vinculado às campanhas.
             </p>
@@ -318,7 +318,7 @@ function IntegrationsPage() {
               placeholder={settings.data?.hasToken ? settings.data.tokenPreview : "EAAG..."}
               className="mt-1.5 bg-white"
             />
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
+            <p className="mt-1.5 text-2xs text-muted-foreground">
               {settings.data?.hasToken
                 ? "Já existe um token salvo. Deixe em branco para mantê-lo."
                 : "Gere em Gerenciador de Eventos › Configurações › Conversions API."}
@@ -333,7 +333,7 @@ function IntegrationsPage() {
               placeholder="TEST12345"
               className="mt-1.5 bg-white"
             />
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
+            <p className="mt-1.5 text-2xs text-muted-foreground">
               Com o código preenchido, os eventos aparecem em Test Events e não contam como
               produção.
             </p>
@@ -342,7 +342,7 @@ function IntegrationsPage() {
             <label className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border bg-white/65 px-4 py-3">
               <span>
                 <span className="block text-sm font-medium">Integração ativa</span>
-                <span className="block text-[11px] text-muted-foreground">
+                <span className="block text-2xs text-muted-foreground">
                   Desligado, nenhum gatilho dispara.
                 </span>
               </span>
@@ -374,7 +374,7 @@ function IntegrationsPage() {
             atribuída — e a integração parece quebrada sem estar. É
             configuração manual no Gerenciador, não dá pra fazer por código. */}
         {offlineMode && (
-          <p className="mt-4 flex items-start gap-2 rounded-2xl bg-coral-soft px-4 py-3 text-[12px] text-foreground/80">
+          <p className="mt-4 flex items-start gap-2 rounded-2xl bg-coral-soft px-4 py-3 text-xs text-foreground/80">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-coral" />
             <span>
               No modo dataset offline, vincule o conjunto de eventos às campanhas no Gerenciador de
@@ -419,12 +419,12 @@ function IntegrationsPage() {
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate text-sm font-semibold sm:text-[15px]">{trigger.name}</p>
-                  <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-[10px] font-semibold">
+                  <p className="truncate text-sm font-semibold sm:text-sm">{trigger.name}</p>
+                  <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-3xs font-semibold">
                     {trigger.metaEventName}
                   </span>
                   {!trigger.active && (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-3xs font-semibold text-muted-foreground">
                       Pausado
                     </span>
                   )}
@@ -433,7 +433,7 @@ function IntegrationsPage() {
                   {SYSTEM_EVENT_LABEL[trigger.systemEvent]}
                   {condition ? ` · ${condition}` : ""}
                 </p>
-                <p className="mt-1 truncate text-[11px] text-muted-foreground/80">
+                <p className="mt-1 truncate text-2xs text-muted-foreground/80">
                   {valueText(trigger)}
                 </p>
               </div>
@@ -504,19 +504,19 @@ function IntegrationsPage() {
             )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{row.metaEventName}</p>
-              <p className="truncate text-[11px] text-muted-foreground">
+              <p className="truncate text-2xs text-muted-foreground">
                 {SYSTEM_EVENT_LABEL[row.systemEvent as SystemEvent] ?? row.systemEvent}
                 {row.error ? ` · ${row.error}` : ""}
               </p>
               {/* Campo descartado é a pista de match ruim: o dado existe no
                   cadastro mas está num formato que a Meta não aceita. */}
               {row.droppedKeys.length > 0 && (
-                <p className="truncate text-[11px] text-coral">
+                <p className="truncate text-2xs text-coral">
                   Campos descartados: {row.droppedKeys.join(", ")} — confira o cadastro do paciente.
                 </p>
               )}
             </div>
-            <span className="shrink-0 text-[11px] text-muted-foreground">
+            <span className="shrink-0 text-2xs text-muted-foreground">
               {new Date(row.sentAt).toLocaleString("pt-BR", {
                 day: "2-digit",
                 month: "2-digit",
@@ -573,7 +573,7 @@ function IntegrationsPage() {
 
 function InUseTag() {
   return (
-    <span className="rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-semibold text-success">
+    <span className="rounded-full bg-success-soft px-2 py-0.5 text-3xs font-semibold text-success">
       em uso
     </span>
   );

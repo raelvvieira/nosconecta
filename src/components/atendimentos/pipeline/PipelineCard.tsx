@@ -113,27 +113,27 @@ export function PipelineCard({
       </div>
 
       {extras.phone && (
-        <p className="mt-1 pl-5 text-[11px] text-muted-foreground">{extras.phone}</p>
+        <p className="mt-1 pl-5 text-2xs text-muted-foreground">{extras.phone}</p>
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-5">
         {deal?.value ? (
-          <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-[10px] font-semibold">
+          <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-3xs font-semibold">
             {formatBRL(deal.value)}
           </span>
         ) : null}
         {status === "won" && (
-          <span className="rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-semibold text-success">
+          <span className="rounded-full bg-success-soft px-2 py-0.5 text-3xs font-semibold text-success">
             Ganho
           </span>
         )}
         {status === "lost" && (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+          <span className="rounded-full bg-muted px-2 py-0.5 text-3xs font-semibold text-muted-foreground">
             Perdido
           </span>
         )}
         {extras.unreadCount > 0 && (
-          <span className="flex items-center gap-1 rounded-full bg-coral-soft px-2 py-0.5 text-[10px] font-semibold text-coral">
+          <span className="flex items-center gap-1 rounded-full bg-coral-soft px-2 py-0.5 text-3xs font-semibold text-coral">
             <MessageCircle className="h-3 w-3" />
             {extras.unreadCount}
           </span>
@@ -141,7 +141,7 @@ export function PipelineCard({
         {/* Já vinha do assistente de vendas do CRM, mas só aparecia no
             dashboard — é no card que essa informação muda uma decisão. */}
         {extras.stuckDays !== null && status === "negotiating" && (
-          <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+          <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-3xs font-semibold text-amber-700">
             <AlertTriangle className="h-3 w-3" />
             {extras.stuckDays}d parado
           </span>

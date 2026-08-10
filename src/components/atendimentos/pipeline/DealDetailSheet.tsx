@@ -212,13 +212,13 @@ export function DealDetailSheet({
                   to="/atendimentos/chat"
                   search={{ conversationId }}
                   onClick={() => onOpenChange(false)}
-                  className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-white p-3 text-center text-[11px] font-medium transition-colors hover:bg-muted/50"
+                  className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-white p-3 text-center text-2xs font-medium transition-colors hover:bg-muted/50"
                 >
                   <MessageCircle className="h-4 w-4 text-pink" />
                   Abrir conversa
                 </Link>
               ) : (
-                <span className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-white/50 p-3 text-center text-[11px] font-medium text-muted-foreground">
+                <span className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-white/50 p-3 text-center text-2xs font-medium text-muted-foreground">
                   <MessageCircle className="h-4 w-4" />
                   Sem conversa
                 </span>
@@ -226,7 +226,7 @@ export function DealDetailSheet({
               <button
                 type="button"
                 onClick={() => setAppointmentOpen(true)}
-                className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-white p-3 text-center text-[11px] font-medium transition-colors hover:bg-muted/50"
+                className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-white p-3 text-center text-2xs font-medium transition-colors hover:bg-muted/50"
               >
                 <CalendarPlus className="h-4 w-4 text-pink" />
                 Agendar
@@ -236,13 +236,13 @@ export function DealDetailSheet({
                   href={`https://wa.me/${phone.replace(/\D/g, "")}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-white p-3 text-center text-[11px] font-medium transition-colors hover:bg-muted/50"
+                  className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-white p-3 text-center text-2xs font-medium transition-colors hover:bg-muted/50"
                 >
                   <Phone className="h-4 w-4 text-pink" />
                   WhatsApp
                 </a>
               ) : (
-                <span className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-white/50 p-3 text-center text-[11px] font-medium text-muted-foreground">
+                <span className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-white/50 p-3 text-center text-2xs font-medium text-muted-foreground">
                   <Phone className="h-4 w-4" />
                   Sem telefone
                 </span>
@@ -304,7 +304,7 @@ export function DealDetailSheet({
                         type="button"
                         onClick={() => setLossReason(reason)}
                         className={cn(
-                          "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
+                          "rounded-full border px-2.5 py-1 text-2xs transition-colors",
                           lossReason === reason
                             ? "border-transparent bg-foreground text-white"
                             : "border-border hover:bg-muted/50",
@@ -336,7 +336,7 @@ export function DealDetailSheet({
                 </div>
               )}
               {status === "lost" && deal?.lossReason && !askingLoss && (
-                <p className="mt-2 text-[11px] text-muted-foreground">
+                <p className="mt-2 text-2xs text-muted-foreground">
                   Motivo: {deal.lossReason}
                 </p>
               )}
@@ -365,7 +365,7 @@ export function DealDetailSheet({
                   Salvar
                 </Button>
               </div>
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
+              <p className="mt-1.5 text-2xs text-muted-foreground">
                 Soma no total da etapa e vai como valor da conversão na Meta.
               </p>
             </section>
@@ -412,7 +412,7 @@ export function DealDetailSheet({
                 className="mt-1.5 min-h-20"
               />
               {conversationId && (
-                <label className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+                <label className="mt-2 flex items-center gap-2 text-2xs text-muted-foreground">
                   <Checkbox
                     checked={mirrorNote}
                     onCheckedChange={(checked) => setMirrorNote(checked === true)}
@@ -486,7 +486,7 @@ function StatusButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex items-center justify-center gap-1.5 rounded-2xl border px-2 py-2.5 text-[11px] font-semibold transition-colors",
+        "flex items-center justify-center gap-1.5 rounded-2xl border px-2 py-2.5 text-2xs font-semibold transition-colors",
         !active && "border-border bg-white text-muted-foreground hover:bg-muted/50",
         active && tone === "neutral" && "border-transparent bg-foreground text-white",
         active && tone === "win" && "border-transparent bg-success text-white",
@@ -517,8 +517,8 @@ function TimelineRow({ event, stages }: { event: DealEvent; stages: PipelineStag
   return (
     <li className="rounded-2xl border border-border bg-white px-4 py-3">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-semibold">{label()}</span>
-        <span className="shrink-0 text-[10px] text-muted-foreground">
+        <span className="text-2xs font-semibold">{label()}</span>
+        <span className="shrink-0 text-3xs text-muted-foreground">
           {new Date(event.createdAt).toLocaleString("pt-BR", {
             day: "2-digit",
             month: "2-digit",

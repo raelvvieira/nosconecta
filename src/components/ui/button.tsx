@@ -21,15 +21,15 @@ const buttonVariants = cva(
         premium:
           "bg-gradient-primary text-white shadow-soft hover:opacity-95 active:opacity-90",
         dark:
-          "bg-[#1B1B1F] text-white hover:bg-[#26262B] active:bg-[#33333A]",
+          "bg-foreground text-white hover:bg-foreground-hover active:bg-foreground-active",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80",
         outline:
-          "border border-[#ECECEC] bg-white text-foreground hover:bg-[#FAFAFA] active:bg-[#F0F0F2]",
+          "border border-input bg-white text-foreground hover:bg-surface-subtle active:bg-border",
         secondary:
-          "bg-white border border-[#ECECEC] text-foreground hover:bg-[#FAFAFA] active:bg-[#F0F0F2]",
+          "bg-white border border-input text-foreground hover:bg-surface-subtle active:bg-border",
         ghost:
-          "text-foreground hover:bg-[#FAFAFA] active:bg-[#F0F0F2]",
+          "text-foreground hover:bg-surface-subtle active:bg-border",
         link:
           "text-primary underline-offset-4 hover:underline active:opacity-70",
       },

@@ -154,26 +154,26 @@ export function AppointmentDrawer({
       {/* Modal */}
       <div
         className="relative flex max-h-[90dvh] w-full max-w-[480px] flex-col overflow-hidden rounded-[24px] bg-white"
-        style={{ boxShadow: "0 24px 64px rgba(0,0,0,0.18)" }}
+        style={{ boxShadow: "var(--shadow-4)" }}
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-6 py-5 border-b border-[#EEF2F7]"
+          className="flex items-center justify-between px-6 py-5 border-b border-surface-muted"
           style={{
             background:
-              "linear-gradient(135deg,rgba(255,111,167,0.06) 0%,rgba(255,138,76,0.04) 100%)",
+              "linear-gradient(135deg,color-mix(in oklab, var(--pink) 6%, transparent) 0%,color-mix(in oklab, var(--coral) 4%, transparent) 100%)",
           }}
         >
           <div>
-            <h2 className="text-lg font-semibold text-[#111827]">
+            <h2 className="text-lg font-semibold text-foreground">
               {isEdit ? "Detalhes do Agendamento" : "Novo Agendamento"}
             </h2>
-            {isEdit && <p className="text-sm text-[#6B7280] mt-0.5">{appointment?.patientName}</p>}
+            {isEdit && <p className="text-sm text-muted-foreground mt-0.5">{appointment?.patientName}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="h-9 w-9 grid place-items-center rounded-xl text-[#6B7280] hover:bg-[#F8F8FA] transition-colors"
+            className="h-9 w-9 grid place-items-center rounded-xl text-muted-foreground hover:bg-surface transition-colors"
           >
             <X className="h-5 w-5" strokeWidth={1.75} />
           </button>
@@ -187,11 +187,11 @@ export function AppointmentDrawer({
 
           {/* Dados do paciente */}
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Paciente
             </h3>
             <div className="space-y-2">
-              <Label htmlFor="patient" className="text-sm text-[#374151]">
+              <Label htmlFor="patient" className="text-sm text-foreground-secondary">
                 Nome do paciente *
               </Label>
               <PatientCombobox
@@ -200,11 +200,11 @@ export function AppointmentDrawer({
                 onChange={({ id, name }) =>
                   setForm((f) => ({ ...f, patientId: id, patientName: name }))
                 }
-                className="rounded-xl border-[#EEF2F7]"
+                className="rounded-xl border-surface-muted"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="notes_patient" className="text-sm text-[#374151]">
+              <Label htmlFor="notes_patient" className="text-sm text-foreground-secondary">
                 Observações
               </Label>
               <Textarea
@@ -213,7 +213,7 @@ export function AppointmentDrawer({
                 rows={2}
                 value={form.notes}
                 onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                className="rounded-xl border-[#EEF2F7] resize-none"
+                className="rounded-xl border-surface-muted resize-none"
               />
             </div>
           </section>
@@ -221,13 +221,13 @@ export function AppointmentDrawer({
           {/* Confirmação e lembretes (Brevo) */}
           {isEdit && (
             <section className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Confirmação e Lembretes
               </h3>
-              <div className="rounded-xl border border-[#EEF2F7] divide-y divide-[#F1F5F9]">
+              <div className="rounded-xl border border-surface-muted divide-y divide-surface-muted">
                 {NOTIFICATION_KINDS.map((k) => (
                   <div key={k.value} className="flex items-center justify-between gap-2 px-3 py-2.5">
-                    <span className="text-sm text-[#374151] shrink-0">{k.label}</span>
+                    <span className="text-sm text-foreground-secondary shrink-0">{k.label}</span>
                     <div className="flex items-center gap-2 flex-wrap justify-end">
                       <NotificationBadge
                         label="E-mail"
@@ -250,12 +250,12 @@ export function AppointmentDrawer({
 
           {/* Dados do atendimento */}
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Atendimento
             </h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label className="text-sm text-[#374151]">Procedimento</Label>
+                <Label className="text-sm text-foreground-secondary">Procedimento</Label>
                 <Combobox
                   value={form.procedureName ?? ""}
                   onChange={handleProcedure}
@@ -266,9 +266,9 @@ export function AppointmentDrawer({
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm text-[#374151]">Tipo</Label>
+                <Label className="text-sm text-foreground-secondary">Tipo</Label>
                 <select
-                  className="w-full text-sm border border-[#EEF2F7] rounded-xl px-3 py-2 text-[#111827] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6FA7]/30"
+                  className="w-full text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-pink/30"
                   value={form.type}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, type: e.target.value as AppointmentType }))
@@ -282,7 +282,7 @@ export function AppointmentDrawer({
                 </select>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm text-[#374151]">Profissional</Label>
+                <Label className="text-sm text-foreground-secondary">Profissional</Label>
                 <Combobox
                   value={form.professionalId ?? ""}
                   onChange={handleProfessional}
@@ -293,7 +293,7 @@ export function AppointmentDrawer({
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm text-[#374151]">Sala</Label>
+                <Label className="text-sm text-foreground-secondary">Sala</Label>
                 <Combobox
                   value={form.roomId ?? ""}
                   onChange={handleRoom}
@@ -308,41 +308,41 @@ export function AppointmentDrawer({
 
           {/* Data e horário */}
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Data e Horário
             </h3>
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-3 space-y-2">
-                <Label className="text-sm text-[#374151]">Data</Label>
+                <Label className="text-sm text-foreground-secondary">Data</Label>
                 <Input
                   type="date"
                   value={form.date}
                   onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                  className="rounded-xl border-[#EEF2F7]"
+                  className="rounded-xl border-surface-muted"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm text-[#374151]">Início</Label>
+                <Label className="text-sm text-foreground-secondary">Início</Label>
                 <Input
                   type="time"
                   value={form.startTime}
                   onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
-                  className="rounded-xl border-[#EEF2F7]"
+                  className="rounded-xl border-surface-muted"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm text-[#374151]">Fim</Label>
+                <Label className="text-sm text-foreground-secondary">Fim</Label>
                 <Input
                   type="time"
                   value={form.endTime}
                   onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
-                  className="rounded-xl border-[#EEF2F7]"
+                  className="rounded-xl border-surface-muted"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-sm text-[#374151]">Status</Label>
+                <Label className="text-sm text-foreground-secondary">Status</Label>
                 <select
-                  className="w-full text-sm border border-[#EEF2F7] rounded-xl px-3 py-2 text-[#111827] bg-white focus:outline-none"
+                  className="w-full text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
                   value={form.status}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, status: e.target.value as AppointmentStatus }))
@@ -360,13 +360,13 @@ export function AppointmentDrawer({
 
           {/* Financeiro */}
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#6B7280]">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Financeiro
             </h3>
             <div className="space-y-2">
-              <Label className="text-sm text-[#374151]">Valor previsto</Label>
+              <Label className="text-sm text-foreground-secondary">Valor previsto</Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[#6B7280]">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                   R$
                 </span>
                 <Input
@@ -375,22 +375,22 @@ export function AppointmentDrawer({
                   onChange={(e) =>
                     setForm((f) => ({ ...f, expectedRevenue: Number(e.target.value) }))
                   }
-                  className="rounded-xl border-[#EEF2F7] pl-9"
+                  className="rounded-xl border-surface-muted pl-9"
                 />
               </div>
               {(form.expectedRevenue ?? 0) > 0 && (
-                <p className="text-xs text-[#6B7280]">
+                <p className="text-xs text-muted-foreground">
                   Valor formatado:{" "}
-                  <span className="font-medium text-[#111827]">
+                  <span className="font-medium text-foreground">
                     {formatBRL(form.expectedRevenue ?? 0)}
                   </span>
                 </p>
               )}
             </div>
-            <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-[#F8F8FA]">
+            <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-surface">
               <div>
-                <p className="text-sm font-medium text-[#111827]">Gerar cobrança ao concluir</p>
-                <p className="text-xs text-[#6B7280]">
+                <p className="text-sm font-medium text-foreground">Gerar cobrança ao concluir</p>
+                <p className="text-xs text-muted-foreground">
                   Cria recebimento automaticamente ao concluir o atendimento
                 </p>
               </div>
@@ -403,7 +403,7 @@ export function AppointmentDrawer({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-[#EEF2F7] flex gap-3">
+        <div className="px-6 py-4 border-t border-surface-muted flex gap-3">
           <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl">
             Cancelar
           </Button>
@@ -411,7 +411,7 @@ export function AppointmentDrawer({
             onClick={handleSave}
             disabled={isSaving}
             className="flex-1 rounded-xl text-white font-semibold"
-            style={{ background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)" }}
+            style={{ background: "var(--gradient-primary)" }}
           >
             {isSaving ? "Salvando..." : isEdit ? "Salvar alterações" : "Salvar Agendamento"}
           </Button>

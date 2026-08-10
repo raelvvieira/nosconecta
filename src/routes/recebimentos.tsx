@@ -344,21 +344,21 @@ function RecebimentosPage() {
                       }}
                       formatter={(v: number, name) => [formatBRL(v), name]}
                     />
-                    <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingBottom: 12 }} />
-                    <Bar dataKey="received" name="Recebido" stackId="a" fill="#86efac" />
-                    <Bar dataKey="expected" name="Previsto" stackId="a" fill="#fcd34d" />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: "0.75rem", paddingBottom: 12 }} />
+                    <Bar dataKey="received" name="Recebido" stackId="a" fill="var(--success-soft)" />
+                    <Bar dataKey="expected" name="Previsto" stackId="a" fill="var(--warning-soft)" />
                     <Bar
                       dataKey="overdue"
                       name="Atrasado"
                       stackId="a"
-                      fill="#fca5a5"
+                      fill="var(--danger-soft)"
                       radius={[6, 6, 0, 0]}
                     />
                     <Line
                       type="monotone"
                       dataKey="goal"
                       name="Meta mensal"
-                      stroke="#60a5fa"
+                      stroke="var(--info)"
                       strokeWidth={2}
                       strokeDasharray="4 4"
                       dot={{ r: 3 }}

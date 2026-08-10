@@ -39,12 +39,12 @@ function initialsOf(name: string) {
 function InfoRow({ icon: Icon, label, value }: { icon: typeof Clock; label: string; value: string }) {
   return (
     <div className="flex items-center gap-3 py-2.5">
-      <div className="h-9 w-9 rounded-xl grid place-items-center bg-[#F8F8FA] shrink-0">
-        <Icon className="h-4 w-4 text-[#6B7280]" strokeWidth={1.75} />
+      <div className="h-9 w-9 rounded-xl grid place-items-center bg-surface shrink-0">
+        <Icon className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
       </div>
       <div className="min-w-0">
-        <p className="text-[11px] text-[#6B7280]">{label}</p>
-        <p className="text-sm font-medium text-[#111827] truncate">{value}</p>
+        <p className="text-2xs text-muted-foreground">{label}</p>
+        <p className="text-sm font-medium text-foreground truncate">{value}</p>
       </div>
     </div>
   );
@@ -61,17 +61,17 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
   };
 
   const actions: { label: string; icon: typeof CheckCircle2; status?: AppointmentStatus; onClick?: () => void; tone: string }[] = [
-    { label: "Confirmar", icon: CheckCircle2, status: "confirmed", tone: "#22C55E" },
-    { label: "Iniciar", icon: PlayCircle, status: "in_progress", tone: "#8B7CFF" },
-    { label: "Concluir", icon: CheckCheck, status: "completed", tone: "#16A34A" },
-    { label: "Reagendar", icon: CalendarClock, onClick: () => { onEdit(a); onClose(); }, tone: "#FF6FA7" },
-    { label: "Marcar falta", icon: UserX, status: "missed", tone: "#EF4444" },
-    { label: "Cancelar", icon: XCircle, status: "cancelled", tone: "#64748B" },
+    { label: "Confirmar", icon: CheckCircle2, status: "confirmed", tone: "var(--success)" },
+    { label: "Iniciar", icon: PlayCircle, status: "in_progress", tone: "var(--violet)" },
+    { label: "Concluir", icon: CheckCheck, status: "completed", tone: "var(--success)" },
+    { label: "Reagendar", icon: CalendarClock, onClick: () => { onEdit(a); onClose(); }, tone: "var(--pink)" },
+    { label: "Marcar falta", icon: UserX, status: "missed", tone: "var(--danger)" },
+    { label: "Cancelar", icon: XCircle, status: "cancelled", tone: "var(--muted-foreground)" },
   ];
 
   return (
     <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
-      <DrawerContent className="border-0" style={{ background: "#F8F8FA" }}>
+      <DrawerContent className="border-0" style={{ background: "var(--surface)" }}>
         <DrawerTitle className="sr-only">{a.patientName}</DrawerTitle>
 
         <div className="p-5 space-y-4">
@@ -79,13 +79,13 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
           <div className="flex items-center gap-3">
             <div
               className="h-14 w-14 rounded-full grid place-items-center text-white text-lg font-bold shrink-0"
-              style={{ background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)" }}
+              style={{ background: "var(--gradient-primary)" }}
             >
               {initialsOf(a.patientName)}
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-semibold text-[#111827] truncate">{a.patientName}</h2>
-              <p className="text-sm text-[#6B7280] truncate">{a.procedureName}</p>
+              <h2 className="text-lg font-semibold text-foreground truncate">{a.patientName}</h2>
+              <p className="text-sm text-muted-foreground truncate">{a.procedureName}</p>
             </div>
             <span
               className="px-3 py-1 rounded-full text-xs font-semibold shrink-0"
@@ -97,8 +97,8 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
 
           {/* Info */}
           <div
-            className="bg-white rounded-[20px] px-4 divide-y divide-[#F1F5F9]"
-            style={{ border: "1px solid #EEF2F7", boxShadow: "0 8px 24px rgba(15,23,42,0.04)" }}
+            className="bg-white rounded-[20px] px-4 divide-y divide-surface-muted"
+            style={{ border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
           >
             <InfoRow icon={Clock} label="Data e horário" value={`${a.date.split("-").reverse().join("/")} · ${a.startTime} – ${a.endTime}`} />
             <InfoRow icon={Stethoscope} label="Tipo" value={TYPE_LABEL[a.type]} />
@@ -110,12 +110,12 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
 
           {/* Confirmação e lembretes (Brevo) */}
           <div
-            className="bg-white rounded-[20px] px-4 py-1 divide-y divide-[#F1F5F9]"
-            style={{ border: "1px solid #EEF2F7", boxShadow: "0 8px 24px rgba(15,23,42,0.04)" }}
+            className="bg-white rounded-[20px] px-4 py-1 divide-y divide-surface-muted"
+            style={{ border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
           >
             {NOTIFICATION_KINDS.map((k) => (
               <div key={k.value} className="flex items-center justify-between gap-2 py-2.5">
-                <span className="text-sm text-[#374151] shrink-0">{k.label}</span>
+                <span className="text-sm text-foreground-secondary shrink-0">{k.label}</span>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
                   <NotificationBadge label="E-mail" status={statusFor(a.notifications, k.value, "email")} />
                   <NotificationBadge label="SMS" status={statusFor(a.notifications, k.value, "sms")} />
@@ -133,10 +133,10 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
                 type="button"
                 onClick={() => (act.onClick ? act.onClick() : act.status && setStatus(act.status))}
                 className="bg-white rounded-[16px] py-3 flex flex-col items-center gap-1.5 active:scale-[0.97] transition-transform"
-                style={{ border: "1px solid #EEF2F7" }}
+                style={{ border: "1px solid var(--surface-muted)" }}
               >
                 <act.icon className="h-5 w-5" style={{ color: act.tone }} strokeWidth={1.75} />
-                <span className="text-[11px] font-medium text-[#374151]">{act.label}</span>
+                <span className="text-2xs font-medium text-foreground-secondary">{act.label}</span>
               </button>
             ))}
           </div>
@@ -144,7 +144,7 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
           <Button
             onClick={() => { onEdit(a); onClose(); }}
             className="w-full h-12 rounded-[14px] text-white font-semibold gap-2"
-            style={{ background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)" }}
+            style={{ background: "var(--gradient-primary)" }}
           >
             <Pencil className="h-4 w-4" /> Editar agendamento
           </Button>

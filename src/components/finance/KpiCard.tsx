@@ -49,7 +49,7 @@ export function KpiCard({
           <p className="text-2xl font-semibold tracking-tight tabular-nums mt-1">{value}</p>
         </div>
         {/* Mobile only: label next to icon */}
-        <p className="md:hidden text-[11px] leading-tight text-muted-foreground pt-0.5 flex-1 min-w-0">{label}</p>
+        <p className="md:hidden text-2xs leading-tight text-muted-foreground pt-0.5 flex-1 min-w-0">{label}</p>
       </div>
 
       {/* Mobile only: value full width */}

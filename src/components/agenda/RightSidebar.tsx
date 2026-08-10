@@ -45,24 +45,24 @@ function MiniCalendar({
   return (
     <div
       className="bg-white p-4"
-      style={{ borderRadius: 20, border: "1px solid #EEF2F7", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-semibold text-[#111827]">
+        <span className="text-sm font-semibold text-foreground">
           {MONTHS_PT[month]}, {year}
         </span>
         <div className="flex gap-1">
           <button
             type="button"
             onClick={() => navigateMonth(-1)}
-            className="h-7 w-7 grid place-items-center rounded-lg text-[#6B7280] hover:bg-[#F8F8FA] transition-colors"
+            className="h-7 w-7 grid place-items-center rounded-lg text-muted-foreground hover:bg-surface transition-colors"
           >
             <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2} />
           </button>
           <button
             type="button"
             onClick={() => navigateMonth(1)}
-            className="h-7 w-7 grid place-items-center rounded-lg text-[#6B7280] hover:bg-[#F8F8FA] transition-colors"
+            className="h-7 w-7 grid place-items-center rounded-lg text-muted-foreground hover:bg-surface transition-colors"
           >
             <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} />
           </button>
@@ -71,7 +71,7 @@ function MiniCalendar({
 
       <div className="grid grid-cols-7 mb-1">
         {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
-          <div key={i} className="text-center text-[10px] font-semibold text-[#6B7280] py-1">{d}</div>
+          <div key={i} className="text-center text-3xs font-semibold text-muted-foreground py-1">{d}</div>
         ))}
       </div>
 
@@ -88,22 +88,22 @@ function MiniCalendar({
               key={i}
               type="button"
               onClick={() => onSelect(new Date(year, month, day))}
-              className="flex flex-col items-center py-0.5 rounded-lg hover:bg-[#F8F8FA] transition-colors"
+              className="flex flex-col items-center py-0.5 rounded-lg hover:bg-surface transition-colors"
             >
               <span
-                className="text-[11px] font-medium w-6 h-6 flex items-center justify-center rounded-full"
+                className="text-2xs font-medium w-6 h-6 flex items-center justify-center rounded-full"
                 style={
                   isSelected
-                    ? { background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)", color: "#fff" }
+                    ? { background: "var(--gradient-primary)", color: "var(--primary-foreground)" }
                     : isToday
-                    ? { border: "1.5px solid #FF6FA7", color: "#FF6FA7" }
-                    : { color: "#374151" }
+                    ? { border: "1.5px solid var(--pink)", color: "var(--pink)" }
+                    : { color: "var(--foreground-secondary)" }
                 }
               >
                 {day}
               </span>
               {has && !isSelected && (
-                <div style={{ width: 3, height: 3, borderRadius: 999, background: "#FF6FA7", marginTop: 1 }} />
+                <div style={{ width: 3, height: 3, borderRadius: 999, background: "var(--pink)", marginTop: 1 }} />
               )}
             </button>
           );
@@ -127,17 +127,17 @@ function UpcomingAppointmentsCard({ appointments, selectedDate }: { appointments
   return (
     <div
       className="bg-white p-4"
-      style={{ borderRadius: 20, border: "1px solid #EEF2F7", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-semibold text-[#111827]">Próximos atendimentos</span>
-        <button type="button" className="text-xs font-medium" style={{ color: "#FF6FA7" }}>
+        <span className="text-sm font-semibold text-foreground">Próximos atendimentos</span>
+        <button type="button" className="text-xs font-medium" style={{ color: "var(--pink)" }}>
           Ver todos
         </button>
       </div>
 
       {upcoming.length === 0 ? (
-        <p className="text-xs text-[#6B7280] text-center py-4">Nenhum atendimento próximo</p>
+        <p className="text-xs text-muted-foreground text-center py-4">Nenhum atendimento próximo</p>
       ) : (
         <div className="space-y-2">
           {upcoming.map((a) => {
@@ -146,17 +146,17 @@ function UpcomingAppointmentsCard({ appointments, selectedDate }: { appointments
               <div
                 key={a.id}
                 className="flex items-start gap-3 p-3 rounded-xl"
-                style={{ background: "#F8F8FA" }}
+                style={{ background: "var(--surface)" }}
               >
                 <div className="flex flex-col items-center shrink-0">
-                  <span className="text-xs font-bold text-[#FF6FA7]">{a.startTime}</span>
-                  <div style={{ width: 1, height: 16, background: "#EEF2F7", margin: "2px 0" }} />
-                  <span className="text-[10px] text-[#6B7280]">{a.endTime}</span>
+                  <span className="text-xs font-bold text-pink">{a.startTime}</span>
+                  <div style={{ width: 1, height: 16, background: "var(--surface-muted)", margin: "2px 0" }} />
+                  <span className="text-3xs text-muted-foreground">{a.endTime}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-[#111827] truncate">{a.patientName}</p>
-                  <p className="text-[11px] text-[#6B7280] truncate">{a.procedureName}</p>
-                  <p className="text-[11px] text-[#6B7280] truncate">{a.professionalName}</p>
+                  <p className="text-xs font-semibold text-foreground truncate">{a.patientName}</p>
+                  <p className="text-2xs text-muted-foreground truncate">{a.procedureName}</p>
+                  <p className="text-2xs text-muted-foreground truncate">{a.professionalName}</p>
                 </div>
                 <div
                   style={{
@@ -183,40 +183,40 @@ function WaitingListCard({ items }: { items: WaitingListItem[] }) {
   return (
     <div
       className="bg-white p-4"
-      style={{ borderRadius: 20, border: "1px solid #EEF2F7", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-semibold text-[#111827]">Lista de Espera</span>
-        <button type="button" className="text-xs font-medium" style={{ color: "#FF6FA7" }}>
+        <span className="text-sm font-semibold text-foreground">Lista de Espera</span>
+        <button type="button" className="text-xs font-medium" style={{ color: "var(--pink)" }}>
           Ver todos
         </button>
       </div>
       {items.length === 0 ? (
-        <p className="text-xs text-[#6B7280] text-center py-4">Lista de espera vazia</p>
+        <p className="text-xs text-muted-foreground text-center py-4">Lista de espera vazia</p>
       ) : (
         <div className="space-y-2">
           {items.map((item) => (
             <div
               key={item.id}
               className="flex items-center gap-3 p-3 rounded-xl"
-              style={{ background: "#F8F8FA" }}
+              style={{ background: "var(--surface)" }}
             >
               <div
                 className="h-8 w-8 rounded-full grid place-items-center text-xs font-bold text-white shrink-0"
-                style={{ background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)" }}
+                style={{ background: "var(--gradient-primary)" }}
               >
                 {item.patientName.charAt(0)}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-[#111827] truncate">{item.patientName}</p>
-                <p className="text-[11px] text-[#6B7280] truncate">{item.procedureName}</p>
-                <p className="text-[10px] text-[#94A3B8]">Entrou há {item.daysWaiting} dia{item.daysWaiting !== 1 ? "s" : ""}</p>
+                <p className="text-xs font-semibold text-foreground truncate">{item.patientName}</p>
+                <p className="text-2xs text-muted-foreground truncate">{item.procedureName}</p>
+                <p className="text-3xs text-foreground-subtle">Entrou há {item.daysWaiting} dia{item.daysWaiting !== 1 ? "s" : ""}</p>
               </div>
               <button
                 type="button"
                 className="h-7 w-7 grid place-items-center rounded-lg hover:bg-white transition-colors"
               >
-                <Bell className="h-3.5 w-3.5 text-[#6B7280]" strokeWidth={1.75} />
+                <Bell className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.75} />
               </button>
             </div>
           ))}
@@ -247,19 +247,19 @@ function QuickFiltersCard({
   return (
     <div
       className="bg-white p-4"
-      style={{ borderRadius: 20, border: "1px solid #EEF2F7", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-semibold text-[#111827]">Filtros rápidos</span>
+        <span className="text-sm font-semibold text-foreground">Filtros rápidos</span>
         {hasFilters && (
-          <button type="button" onClick={clearAll} className="text-xs font-medium text-[#6B7280] hover:text-[#FF6FA7] transition-colors">
+          <button type="button" onClick={clearAll} className="text-xs font-medium text-muted-foreground hover:text-pink transition-colors">
             Limpar filtros
           </button>
         )}
       </div>
       <div className="space-y-2">
         <select
-          className="w-full text-xs border border-[#EEF2F7] rounded-xl px-3 py-2 text-[#6B7280] bg-white focus:outline-none"
+          className="w-full text-xs border border-surface-muted rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
           value={filters.professionalId}
           onChange={(e) => onFiltersChange({ ...filters, professionalId: e.target.value })}
         >
@@ -267,7 +267,7 @@ function QuickFiltersCard({
           {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <select
-          className="w-full text-xs border border-[#EEF2F7] rounded-xl px-3 py-2 text-[#6B7280] bg-white focus:outline-none"
+          className="w-full text-xs border border-surface-muted rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
           value={filters.roomId}
           onChange={(e) => onFiltersChange({ ...filters, roomId: e.target.value })}
         >
@@ -275,7 +275,7 @@ function QuickFiltersCard({
           {rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
         <select
-          className="w-full text-xs border border-[#EEF2F7] rounded-xl px-3 py-2 text-[#6B7280] bg-white focus:outline-none"
+          className="w-full text-xs border border-surface-muted rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
           value={filters.type}
           onChange={(e) => onFiltersChange({ ...filters, type: e.target.value })}
         >
@@ -287,7 +287,7 @@ function QuickFiltersCard({
           <option value="emergency">Emergência</option>
         </select>
         <select
-          className="w-full text-xs border border-[#EEF2F7] rounded-xl px-3 py-2 text-[#6B7280] bg-white focus:outline-none"
+          className="w-full text-xs border border-surface-muted rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
           value={filters.status}
           onChange={(e) => onFiltersChange({ ...filters, status: e.target.value })}
         >

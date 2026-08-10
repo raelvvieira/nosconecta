@@ -36,7 +36,7 @@ export function UpcomingReceivables({ items }: { items: ReceivableItem[] }) {
         <button className="text-xs text-primary hover:underline font-medium">Ver todos</button>
       </div>
 
-      <div className="grid grid-cols-[1.4fr_1.4fr_0.9fr_0.9fr] text-[11px] uppercase tracking-wider text-muted-foreground pb-2 border-b border-border/60">
+      <div className="grid grid-cols-[1.4fr_1.4fr_0.9fr_0.9fr] text-2xs uppercase tracking-wider text-muted-foreground pb-2 border-b border-border/60">
         <span>Paciente</span>
         <span>Procedimento</span>
         <span className="text-right">Valor</span>
@@ -53,7 +53,7 @@ export function UpcomingReceivables({ items }: { items: ReceivableItem[] }) {
               className="grid grid-cols-[1.4fr_1.4fr_0.9fr_0.9fr] items-center py-3 border-b border-border/40 last:border-0 text-sm"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-soft to-info-soft grid place-items-center text-[10px] font-semibold text-foreground/70">
+                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-soft to-info-soft grid place-items-center text-3xs font-semibold text-foreground/70">
                   {initials(name)}
                 </div>
                 <span className="truncate">{name}</span>

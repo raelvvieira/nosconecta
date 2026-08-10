@@ -81,10 +81,10 @@ function StatsCarousel({ appointments, date }: { appointments: Appointment[]; da
   const pct = (n: number) => (total > 0 ? `${Math.round((n / total) * 100)}% do total` : "—");
 
   const cards = [
-    { icon: CalendarCheck, label: "Atendimentos Hoje", value: String(total), sub: "Total de agendamentos", bg: "rgba(139,124,255,0.10)", color: "#8B7CFF" },
-    { icon: CheckCircle2, label: "Confirmados", value: String(confirmed), sub: pct(confirmed), bg: "rgba(34,197,94,0.10)", color: "#22C55E" },
-    { icon: Clock, label: "Pendentes", value: String(pending), sub: pct(pending), bg: "rgba(255,138,76,0.10)", color: "#FF8A4C" },
-    { icon: UserX, label: "Faltas", value: String(missed), sub: pct(missed), bg: "rgba(239,68,68,0.10)", color: "#EF4444" },
+    { icon: CalendarCheck, label: "Atendimentos Hoje", value: String(total), sub: "Total de agendamentos", bg: "color-mix(in oklab, var(--violet) 10%, transparent)", color: "var(--violet)" },
+    { icon: CheckCircle2, label: "Confirmados", value: String(confirmed), sub: pct(confirmed), bg: "rgba(34,197,94,0.10)", color: "var(--success)" },
+    { icon: Clock, label: "Pendentes", value: String(pending), sub: pct(pending), bg: "color-mix(in oklab, var(--coral) 10%, transparent)", color: "var(--coral)" },
+    { icon: UserX, label: "Faltas", value: String(missed), sub: pct(missed), bg: "rgba(239,68,68,0.10)", color: "var(--danger)" },
   ];
 
   return (
@@ -93,16 +93,16 @@ function StatsCarousel({ appointments, date }: { appointments: Appointment[]; da
         <div
           key={c.label}
           className="bg-white p-4 flex flex-col gap-2"
-          style={{ borderRadius: 20, border: "1px solid #EEF2F7", boxShadow: "0 8px 24px rgba(15,23,42,0.04)" }}
+          style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
         >
           <div className="h-9 w-9 rounded-xl grid place-items-center" style={{ background: c.bg }}>
             <c.icon style={{ color: c.color, width: 18, height: 18 }} strokeWidth={1.75} />
           </div>
           <div>
-            <p className="text-[11px] text-[#6B7280] leading-tight">{c.label}</p>
-            <p className="text-xl font-semibold text-[#111827] tracking-tight tabular-nums mt-0.5">{c.value}</p>
+            <p className="text-2xs text-muted-foreground leading-tight">{c.label}</p>
+            <p className="text-xl font-semibold text-foreground tracking-tight tabular-nums mt-0.5">{c.value}</p>
           </div>
-          <p className="text-[11px] text-[#6B7280]">{c.sub}</p>
+          <p className="text-2xs text-muted-foreground">{c.sub}</p>
         </div>
       ))}
     </div>
@@ -131,7 +131,7 @@ function DateSelector({ selectedDate, onDateChange }: { selectedDate: Date; onDa
       <button
         type="button"
         onClick={() => shiftWeek(-1)}
-        className="h-10 w-7 shrink-0 grid place-items-center rounded-xl text-[#6B7280] active:bg-[#F1F5F9]"
+        className="h-10 w-7 shrink-0 grid place-items-center rounded-xl text-muted-foreground active:bg-surface-muted"
       >
         <ChevronLeft className="h-4 w-4" strokeWidth={2} />
       </button>
@@ -151,11 +151,11 @@ function DateSelector({ selectedDate, onDateChange }: { selectedDate: Date; onDa
               )}
               style={
                 active
-                  ? { background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)", color: "#fff", boxShadow: "0 10px 24px rgba(255,111,167,0.24)" }
-                  : { border: "1px solid #EEF2F7", color: "#374151" }
+                  ? { background: "var(--gradient-primary)", color: "var(--primary-foreground)", boxShadow: "var(--shadow-brand)" }
+                  : { border: "1px solid var(--surface-muted)", color: "var(--foreground-secondary)" }
               }
             >
-              <span className={cn("text-[11px] font-medium", active ? "text-white/90" : "text-[#6B7280]")}>
+              <span className={cn("text-2xs font-medium", active ? "text-white/90" : "text-muted-foreground")}>
                 {DAYS_SHORT[d.getDay()]}
               </span>
               <span className="text-base font-bold mt-0.5">{d.getDate()}</span>
@@ -167,7 +167,7 @@ function DateSelector({ selectedDate, onDateChange }: { selectedDate: Date; onDa
       <button
         type="button"
         onClick={() => shiftWeek(1)}
-        className="h-10 w-7 shrink-0 grid place-items-center rounded-xl text-[#6B7280] active:bg-[#F1F5F9]"
+        className="h-10 w-7 shrink-0 grid place-items-center rounded-xl text-muted-foreground active:bg-surface-muted"
       >
         <ChevronRight className="h-4 w-4" strokeWidth={2} />
       </button>
@@ -184,37 +184,37 @@ function AppointmentCard({ appt, onClick }: { appt: Appointment; onClick: () => 
       type="button"
       onClick={onClick}
       className="w-full text-left bg-white p-4 flex items-center gap-3 active:scale-[0.985] transition-transform"
-      style={{ borderRadius: 20, border: "1px solid #EEF2F7", boxShadow: "0 8px 24px rgba(15,23,42,0.04)" }}
+      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
     >
       <div className="flex flex-col items-center shrink-0 w-12">
-        <span className="text-sm font-bold text-[#111827]">{appt.startTime}</span>
-        <span className="text-[10px] text-[#6B7280]">{appt.endTime}</span>
+        <span className="text-sm font-bold text-foreground">{appt.startTime}</span>
+        <span className="text-3xs text-muted-foreground">{appt.endTime}</span>
         <div className="mt-1.5" style={{ width: 8, height: 8, borderRadius: 999, background: s.badge }} />
       </div>
 
       <div
         className="h-11 w-11 rounded-full grid place-items-center text-white text-sm font-bold shrink-0"
-        style={{ background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)" }}
+        style={{ background: "var(--gradient-primary)" }}
       >
         {initialsOf(appt.patientName)}
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-[#111827] truncate">{appt.patientName}</p>
-        <p className="text-[12px] text-[#6B7280] truncate">{appt.procedureName}</p>
-        <p className="text-[11px] text-[#94A3B8] truncate mt-0.5">
+        <p className="text-sm font-semibold text-foreground truncate">{appt.patientName}</p>
+        <p className="text-xs text-muted-foreground truncate">{appt.procedureName}</p>
+        <p className="text-2xs text-foreground-subtle truncate mt-0.5">
           {appt.professionalName} · {appt.roomName}
         </p>
       </div>
 
       <div className="flex flex-col items-end gap-1.5 shrink-0">
         <span
-          className="px-2.5 py-1 rounded-full text-[10px] font-semibold whitespace-nowrap"
+          className="px-2.5 py-1 rounded-full text-3xs font-semibold whitespace-nowrap"
           style={{ background: s.bg, color: s.text }}
         >
           {STATUS_LABEL[appt.status]}
         </span>
-        <ChevronRight className="h-4 w-4 text-[#CBD5E1]" strokeWidth={2} />
+        <ChevronRight className="h-4 w-4 text-divider" strokeWidth={2} />
       </div>
     </button>
   );
@@ -231,15 +231,15 @@ function BlockCard({ block }: { block: BlockedTime }) {
       }}
     >
       <div className="flex flex-col items-center shrink-0 w-12">
-        <span className="text-sm font-bold text-[#64748B]">{block.startTime}</span>
-        <span className="text-[10px] text-[#94A3B8]">{block.endTime}</span>
+        <span className="text-sm font-bold text-muted-foreground">{block.startTime}</span>
+        <span className="text-3xs text-foreground-subtle">{block.endTime}</span>
       </div>
-      <div className="h-11 w-11 rounded-full grid place-items-center bg-[#E2E8F0] shrink-0">
-        <Lock className="h-4 w-4 text-[#64748B]" strokeWidth={2} />
+      <div className="h-11 w-11 rounded-full grid place-items-center bg-divider shrink-0">
+        <Lock className="h-4 w-4 text-muted-foreground" strokeWidth={2} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-[#475569]">Bloqueado</p>
-        <p className="text-[12px] text-[#64748B] truncate">{block.reason}</p>
+        <p className="text-sm font-semibold text-foreground-secondary">Bloqueado</p>
+        <p className="text-xs text-muted-foreground truncate">{block.reason}</p>
       </div>
     </div>
   );
@@ -250,10 +250,10 @@ function BlockCard({ block }: { block: BlockedTime }) {
 function EmptyState({ onNew: _onNew }: { onNew: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="h-14 w-14 rounded-2xl grid place-items-center bg-[#F1F5F9] mb-4">
-        <CalendarDays className="h-6 w-6 text-[#94A3B8]" strokeWidth={1.5} />
+      <div className="h-14 w-14 rounded-2xl grid place-items-center bg-surface-muted mb-4">
+        <CalendarDays className="h-6 w-6 text-foreground-subtle" strokeWidth={1.5} />
       </div>
-      <p className="text-sm text-[#6B7280]">Nenhum agendamento para este dia.</p>
+      <p className="text-sm text-muted-foreground">Nenhum agendamento para este dia.</p>
     </div>
   );
 }
@@ -289,22 +289,22 @@ function MonthGrid({
   return (
     <div
       className="bg-white p-4"
-      style={{ borderRadius: 20, border: "1px solid #EEF2F7", boxShadow: "0 8px 24px rgba(15,23,42,0.04)" }}
+      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
     >
       <div className="flex items-center justify-between mb-3">
-        <span className="text-base font-semibold text-[#111827]">{MONTHS_CAP[month]}, {year}</span>
+        <span className="text-base font-semibold text-foreground">{MONTHS_CAP[month]}, {year}</span>
         <div className="flex gap-2">
-          <button type="button" onClick={() => setCursor(new Date(year, month - 1, 1))} className="h-8 w-8 grid place-items-center rounded-lg border border-[#EEF2F7] text-[#6B7280]">
+          <button type="button" onClick={() => setCursor(new Date(year, month - 1, 1))} className="h-8 w-8 grid place-items-center rounded-lg border border-surface-muted text-muted-foreground">
             <ChevronLeft className="h-4 w-4" strokeWidth={2} />
           </button>
-          <button type="button" onClick={() => setCursor(new Date(year, month + 1, 1))} className="h-8 w-8 grid place-items-center rounded-lg border border-[#EEF2F7] text-[#6B7280]">
+          <button type="button" onClick={() => setCursor(new Date(year, month + 1, 1))} className="h-8 w-8 grid place-items-center rounded-lg border border-surface-muted text-muted-foreground">
             <ChevronRight className="h-4 w-4" strokeWidth={2} />
           </button>
         </div>
       </div>
       <div className="grid grid-cols-7 mb-1">
         {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
-          <div key={i} className="text-center text-[10px] font-semibold text-[#6B7280] py-1">{d}</div>
+          <div key={i} className="text-center text-3xs font-semibold text-muted-foreground py-1">{d}</div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-y-1">
@@ -319,16 +319,16 @@ function MonthGrid({
               key={i}
               type="button"
               onClick={() => onSelectDay(new Date(year, month, day))}
-              className="flex flex-col items-center py-1 rounded-xl active:bg-[#F1F5F9]"
+              className="flex flex-col items-center py-1 rounded-xl active:bg-surface-muted"
             >
               <span
                 className="text-sm font-medium w-8 h-8 flex items-center justify-center rounded-full"
                 style={
                   isSelected
-                    ? { background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)", color: "#fff" }
+                    ? { background: "var(--gradient-primary)", color: "var(--primary-foreground)" }
                     : isToday
-                    ? { border: "1.5px solid #FF6FA7", color: "#FF6FA7" }
-                    : { color: "#374151" }
+                    ? { border: "1.5px solid var(--pink)", color: "var(--pink)" }
+                    : { color: "var(--foreground-secondary)" }
                 }
               >
                 {day}
@@ -414,13 +414,13 @@ export function MobileAgenda({
   ];
 
   return (
-    <div className="lg:hidden flex-1 min-w-0 min-h-dvh" style={{ background: "#F8F8FA" }}>
+    <div className="lg:hidden flex-1 min-w-0 min-h-dvh" style={{ background: "var(--surface)" }}>
       <div className="px-4 pt-6 pb-28 space-y-5">
         {/* Header */}
         <header>
           <div className="min-w-0">
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#111827]">Agenda</h1>
-            <p className="text-sm text-[#6B7280] mt-1 capitalize">{subtitle}</p>
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">Agenda</h1>
+            <p className="text-sm text-muted-foreground mt-1 capitalize">{subtitle}</p>
           </div>
         </header>
 
@@ -431,18 +431,18 @@ export function MobileAgenda({
         <button
           type="button"
           onClick={() => setFilterOpen(true)}
-          className="w-full flex items-center gap-2 px-4 h-11 rounded-[14px] bg-white border border-[#EEF2F7] text-[#374151]"
-          style={{ boxShadow: "0 4px 12px rgba(15,23,42,0.04)" }}
+          className="w-full flex items-center gap-2 px-4 h-11 rounded-[14px] bg-white border border-surface-muted text-foreground-secondary"
+          style={{ boxShadow: "var(--shadow-2)" }}
         >
-          <SlidersHorizontal className="h-4 w-4 text-[#6B7280]" strokeWidth={1.75} />
-          <span className="text-sm font-medium text-[#374151]">Filtros</span>
+          <SlidersHorizontal className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
+          <span className="text-sm font-medium text-foreground-secondary">Filtros</span>
         </button>
 
         {/* Date selector */}
         <DateSelector selectedDate={selectedDate} onDateChange={onDateChange} />
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-white p-1 rounded-[14px]" style={{ border: "1px solid #EEF2F7" }}>
+        <div className="flex gap-1 bg-white p-1 rounded-[14px]" style={{ border: "1px solid var(--surface-muted)" }}>
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -450,9 +450,9 @@ export function MobileAgenda({
               onClick={() => setTab(t.id)}
               className={cn(
                 "flex-1 py-2 text-sm font-medium rounded-[10px] transition-colors",
-                tab === t.id ? "text-[#FF5F7E]" : "text-[#6B7280]",
+                tab === t.id ? "text-pink" : "text-muted-foreground",
               )}
-              style={tab === t.id ? { background: "rgba(255,111,167,0.12)" } : {}}
+              style={tab === t.id ? { background: "color-mix(in oklab, var(--pink) 12%, transparent)" } : {}}
             >
               {t.label}
             </button>
@@ -466,16 +466,16 @@ export function MobileAgenda({
           ) : (
             <div className="relative pl-4">
               {/* vertical connector line */}
-              <div className="absolute left-1.5 top-2 bottom-2 w-px bg-[#E2E8F0]" />
+              <div className="absolute left-1.5 top-2 bottom-2 w-px bg-divider" />
               <div className="space-y-3">
                 {timelineItems.map((item) => (
                   <div key={item.kind + item.data.id} className="relative">
                     <div
-                      className="absolute -left-[14px] top-5 rounded-full ring-4 ring-[#F8F8FA]"
+                      className="absolute -left-[14px] top-5 rounded-full ring-4 ring-surface"
                       style={{
                         width: 9,
                         height: 9,
-                        background: item.kind === "appt" ? statusStyle(item.data.status).badge : "#94A3B8",
+                        background: item.kind === "appt" ? statusStyle(item.data.status).badge : "var(--foreground-subtle)",
                       }}
                     />
                     {item.kind === "appt" ? (
@@ -500,7 +500,7 @@ export function MobileAgenda({
               if (items.length === 0) return null;
               return (
                 <div key={ds} className="space-y-2.5">
-                  <h3 className="text-sm font-semibold text-[#111827] capitalize px-1">
+                  <h3 className="text-sm font-semibold text-foreground capitalize px-1">
                     {DAYS_SHORT[d.getDay()]}, {d.getDate()} de {MONTHS_PT[d.getMonth()]}
                   </h3>
                   {items.map((a) => (

@@ -13,7 +13,7 @@ export function StuckConversationsCard({ assistant }: { assistant: SalesAssistan
           Conversas travadas
         </h2>
         {assistant?.gargalo && (
-          <span className="rounded-full bg-warning-soft px-2.5 py-1 text-[11px] font-semibold text-warning">
+          <span className="rounded-full bg-warning-soft px-2.5 py-1 text-2xs font-semibold text-warning">
             Gargalo: {assistant.gargalo.etapa} ({assistant.gargalo.travadas}/{assistant.gargalo.totalNaEtapa})
           </span>
         )}

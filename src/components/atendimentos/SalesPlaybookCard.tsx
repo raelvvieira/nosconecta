@@ -16,7 +16,7 @@ export function SalesPlaybookCard({ playbook }: { playbook: SalesPlaybook | null
         </h2>
         {p && (
           <span
-            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+            className={`rounded-full px-2.5 py-1 text-2xs font-semibold ${
               p.ativo ? "bg-success-soft text-success" : "bg-muted text-muted-foreground"
             }`}
           >

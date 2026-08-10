@@ -51,14 +51,14 @@ export function BlockedTimeDrawer({
       <div className="flex-1 bg-black/30 backdrop-blur-sm" onClick={onClose} />
       <div
         className="w-full max-w-[420px] bg-white flex flex-col overflow-hidden"
-        style={{ boxShadow: "-8px 0 32px rgba(0,0,0,0.10)" }}
+        style={{ boxShadow: "var(--shadow-3)" }}
       >
-        <div className="flex items-center justify-between px-6 py-5 border-b border-[#EEF2F7]">
-          <h2 className="text-lg font-semibold text-[#111827]">Bloquear Horário</h2>
+        <div className="flex items-center justify-between px-6 py-5 border-b border-surface-muted">
+          <h2 className="text-lg font-semibold text-foreground">Bloquear Horário</h2>
           <button
             type="button"
             onClick={onClose}
-            className="h-9 w-9 grid place-items-center rounded-xl text-[#6B7280] hover:bg-[#F8F8FA] transition-colors"
+            className="h-9 w-9 grid place-items-center rounded-xl text-muted-foreground hover:bg-surface transition-colors"
           >
             <X className="h-5 w-5" strokeWidth={1.75} />
           </button>
@@ -66,9 +66,9 @@ export function BlockedTimeDrawer({
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           <div className="space-y-2">
-            <Label className="text-sm text-[#374151]">Profissional *</Label>
+            <Label className="text-sm text-foreground-secondary">Profissional *</Label>
             <select
-              className="w-full text-sm border border-[#EEF2F7] rounded-xl px-3 py-2 text-[#111827] bg-white focus:outline-none"
+              className="w-full text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
               value={form.professionalId}
               onChange={(e) => setForm((f) => ({ ...f, professionalId: e.target.value }))}
             >
@@ -77,9 +77,9 @@ export function BlockedTimeDrawer({
             </select>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-[#374151]">Sala</Label>
+            <Label className="text-sm text-foreground-secondary">Sala</Label>
             <select
-              className="w-full text-sm border border-[#EEF2F7] rounded-xl px-3 py-2 text-[#111827] bg-white focus:outline-none"
+              className="w-full text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
               value={form.roomId}
               onChange={(e) => setForm((f) => ({ ...f, roomId: e.target.value }))}
             >
@@ -88,38 +88,38 @@ export function BlockedTimeDrawer({
             </select>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-[#374151]">Data</Label>
+            <Label className="text-sm text-foreground-secondary">Data</Label>
             <Input
               type="date"
               value={form.date}
               onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-              className="rounded-xl border-[#EEF2F7]"
+              className="rounded-xl border-surface-muted"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label className="text-sm text-[#374151]">Hora início</Label>
+              <Label className="text-sm text-foreground-secondary">Hora início</Label>
               <Input
                 type="time"
                 value={form.startTime}
                 onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
-                className="rounded-xl border-[#EEF2F7]"
+                className="rounded-xl border-surface-muted"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-sm text-[#374151]">Hora fim</Label>
+              <Label className="text-sm text-foreground-secondary">Hora fim</Label>
               <Input
                 type="time"
                 value={form.endTime}
                 onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
-                className="rounded-xl border-[#EEF2F7]"
+                className="rounded-xl border-surface-muted"
               />
             </div>
           </div>
           <div className="space-y-2">
-            <Label className="text-sm text-[#374151]">Motivo</Label>
+            <Label className="text-sm text-foreground-secondary">Motivo</Label>
             <select
-              className="w-full text-sm border border-[#EEF2F7] rounded-xl px-3 py-2 text-[#111827] bg-white focus:outline-none"
+              className="w-full text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
               value={form.reason}
               onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
             >
@@ -128,13 +128,13 @@ export function BlockedTimeDrawer({
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-[#EEF2F7] flex gap-3">
+        <div className="px-6 py-4 border-t border-surface-muted flex gap-3">
           <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl">Cancelar</Button>
           <Button
             onClick={handleSave}
             disabled={isSaving}
             className="flex-1 rounded-xl text-white"
-            style={{ background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)" }}
+            style={{ background: "var(--gradient-primary)" }}
           >
             {isSaving ? "Salvando..." : "Bloquear"}
           </Button>

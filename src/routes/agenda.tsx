@@ -196,7 +196,7 @@ function AgendaPage() {
   };
 
   return (
-    <div className="min-h-dvh flex" style={{ background: "#F8F8FA" }}>
+    <div className="min-h-dvh flex" style={{ background: "var(--surface)" }}>
       <Sidebar />
 
       {/* Mobile */}
@@ -220,10 +220,10 @@ function AgendaPage() {
         {/* Header */}
         <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#111827] leading-[1.1]">
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground leading-[1.1]">
               Agenda
             </h1>
-            <p className="text-sm mt-1" style={{ color: "#6B7280" }}>
+            <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
               Gerencie os agendamentos da sua clínica
             </p>
           </div>
@@ -235,7 +235,7 @@ function AgendaPage() {
                 setApptDrawerOpen(true);
               }}
               className="gap-2 text-white font-semibold rounded-xl"
-              style={{ background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)" }}
+              style={{ background: "var(--gradient-primary)" }}
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Novo Agendamento</span>
@@ -244,14 +244,14 @@ function AgendaPage() {
             <Button
               variant="outline"
               onClick={() => setBlockDrawerOpen(true)}
-              className="gap-2 rounded-xl border-[#EEF2F7] text-[#374151] hover:bg-[#F8F8FA]"
+              className="gap-2 rounded-xl border-surface-muted text-foreground-secondary hover:bg-surface"
             >
               <Lock className="h-4 w-4" />
               <span className="hidden sm:inline">Bloqueio de Horário</span>
             </Button>
             <Button
               variant="outline"
-              className="gap-2 rounded-xl border-[#EEF2F7] text-[#374151] hover:bg-[#F8F8FA]"
+              className="gap-2 rounded-xl border-surface-muted text-foreground-secondary hover:bg-surface"
             >
               <MoreHorizontal className="h-4 w-4" />
             </Button>

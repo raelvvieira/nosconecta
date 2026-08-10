@@ -15,7 +15,7 @@ export interface ResolvedAudience {
 const EMPTY_AUDIENCE: ResolvedAudience = { moveCandidateItemIds: [] };
 
 function StageDot({ color }: { color: string | null }) {
-  return <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color ?? "#94A3B8" }} />;
+  return <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color ?? "var(--foreground-subtle)" }} />;
 }
 
 function StageSelect({

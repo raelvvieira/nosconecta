@@ -15,6 +15,14 @@
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-subtle: var(--foreground-subtle);
+  --color-foreground-hover: var(--foreground-hover);
+  --color-foreground-active: var(--foreground-active);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-muted: var(--surface-muted);
+  --color-divider: var(--divider);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-card-dark: var(--card-dark);
@@ -70,14 +78,63 @@
 
   --font-sans: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Os dois degraus abaixo de text-xs que a interface densa realmente usa —
+     etiqueta de card, contador, legenda de gráfico. Existiam como 9px, 10px e
+     11px cravados em 124 lugares; viram dois nomes.
+
+     Em rem, não em px: `px` ignora o tamanho de fonte que a pessoa escolheu no
+     navegador, e é justamente o texto pequeno que precisa acompanhar. */
+  --text-3xs: 0.625rem; /* 10px */
+  --text-2xs: 0.6875rem; /* 11px */
+}
+
+/* Os utilitários de sombra do Tailwind caem na nossa escala. Sem isto,
+   `shadow-lg` num cartão e `shadow-elev` no cartão ao lado desenham duas
+   sombras de cor e altura diferentes na mesma tela. */
+@theme {
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-3: 0 10px 30px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-4: 0 24px 64px rgba(0, 0, 0, 0.18);
+
+  --shadow-xs: var(--shadow-1);
+  --shadow-sm: var(--shadow-1);
+  --shadow-md: var(--shadow-2);
+  --shadow-lg: var(--shadow-3);
+  --shadow-xl: var(--shadow-3);
+  --shadow-2xl: var(--shadow-4);
 }
 
 :root {
   --radius: 14px;
 
-  /* Neutrals */
+  /* Neutrals
+     Escala neutra, não azulada. A agenda, a home do celular e o menu foram
+     construídos com o cinza *slate* do Tailwind (#111827, #6B7280, #94A3B8),
+     que puxa para o azul; o resto do app usa esta. Lado a lado na mesma tela
+     isso lia como dois produtos. Fica esta por dois motivos: é a que o
+     financeiro, pacientes e configurações já usam, e cinza azulado briga com
+     uma marca rosa-laranja — o quente e o frio se anulam. */
   --background: #F6F6F7;
   --foreground: #1B1B1F;
+
+  /* Degraus de texto abaixo de --foreground. --muted-foreground fica no meio;
+     estes dois fecham as pontas que a agenda vinha resolvendo com HEX. */
+  --foreground-secondary: #3A3A42;
+  --foreground-subtle: #9A9AA1;
+
+  /* Superfícies entre o fundo da página e o cartão branco. */
+  --surface: #F8F8FA;
+  --surface-subtle: #FAFAFA;
+  --surface-muted: #EFEFF2;
+
+  /* Divisor mais firme que --border, para separar blocos e não só linhas. */
+  --divider: #E4E4E8;
+
+  /* Estados do botão escuro. */
+  --foreground-hover: #26262B;
+  --foreground-active: #33333A;
 
   --card: #FFFFFF;
   --card-foreground: #1B1B1F;
@@ -142,9 +199,17 @@
   --sidebar-border: #F0F0F2;
   --sidebar-ring: #FF7A59;
 
-  /* Effects */
-  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.03);
-  --shadow-elev: 0 10px 30px rgba(0, 0, 0, 0.04);
+  /* Elevação: os quatro degraus vivem no @theme acima, para que os utilitários
+     do Tailwind caiam neles também. Aqui ficam só os derivados.
+
+     A única sombra colorida que se justifica: o brilho da marca sob o botão
+     principal e sob a pílula ativa. Segue o coral, não o preto. */
+  --shadow-brand: 0 10px 24px color-mix(in oklab, var(--pink) 24%, transparent);
+
+  /* Nomes antigos, mantidos porque estão em ~30 lugares. Agora apontam para a
+     escala em vez de terem valor próprio. */
+  --shadow-soft: var(--shadow-1);
+  --shadow-elev: var(--shadow-2);
   --gradient-primary: linear-gradient(135deg, #F55F95 0%, #FF7A59 50%, #FFB086 100%);
 }
 

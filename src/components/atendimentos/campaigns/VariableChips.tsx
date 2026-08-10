@@ -18,18 +18,18 @@ export function renderMessagePreview(content: string): string {
 export function VariableChips({ onInsert }: { onInsert: (placeholder: string) => void }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <span className="text-[11px] text-muted-foreground">Inserir variável:</span>
+      <span className="text-2xs text-muted-foreground">Inserir variável:</span>
       {MESSAGE_VARIABLES.map((v) => (
         <button
           key={v.placeholder}
           type="button"
           onClick={() => onInsert(v.placeholder)}
-          className="text-[11px] font-medium text-pink hover:underline"
+          className="text-2xs font-medium text-pink hover:underline"
         >
           {v.label}
         </button>
       ))}
-      <span className="text-[10px] text-warning">Sintaxe não confirmada com o CRM — teste antes de usar</span>
+      <span className="text-3xs text-warning">Sintaxe não confirmada com o CRM — teste antes de usar</span>
     </div>
   );
 }

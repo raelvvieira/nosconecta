@@ -101,9 +101,9 @@ export function CashProjectionChart({
               </linearGradient>
             </defs>
             <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} opacity={0.6} />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="label" tick={{ fontSize: "0.6875rem", fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
             <YAxis
-              tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+              tick={{ fontSize: "0.6875rem", fill: "hsl(var(--muted-foreground))" }}
               axisLine={false} tickLine={false}
               tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`}
               width={60}

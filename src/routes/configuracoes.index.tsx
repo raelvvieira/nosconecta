@@ -258,10 +258,10 @@ function SettingsRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-semibold sm:text-[15px]">{item.name}</p>
+          <p className="truncate text-sm font-semibold sm:text-sm">{item.name}</p>
           <span
             className={cn(
-              "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+              "rounded-full px-2 py-0.5 text-3xs font-semibold",
               item.active ? "bg-success-soft text-success" : "bg-muted text-muted-foreground",
             )}
           >
@@ -269,7 +269,7 @@ function SettingsRow({
           </span>
         </div>
         <p className="mt-1 truncate text-xs text-muted-foreground">{subtitle}</p>
-        {detail && <p className="mt-1 truncate text-[11px] text-muted-foreground/80">{detail}</p>}
+        {detail && <p className="mt-1 truncate text-2xs text-muted-foreground/80">{detail}</p>}
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

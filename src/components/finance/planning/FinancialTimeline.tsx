@@ -24,7 +24,7 @@ export function FinancialTimeline({ events }: { events: TimelineEvent[] }) {
             <li key={e.id} className="flex items-center gap-4 p-2 -mx-2 rounded-xl hover:bg-muted/40 transition-colors">
               <div className="h-14 w-14 shrink-0 rounded-2xl bg-muted/60 grid place-content-center text-center">
                 <div className="text-base font-semibold leading-none tabular-nums">{String(d.getDate()).padStart(2, "0")}</div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground mt-1">{MONTHS_PT[d.getMonth()]}</div>
+                <div className="text-3xs uppercase tracking-wide text-muted-foreground mt-1">{MONTHS_PT[d.getMonth()]}</div>
               </div>
 
               <div className={cn(
@@ -46,13 +46,13 @@ export function FinancialTimeline({ events }: { events: TimelineEvent[] }) {
                 )}>
                   {isIn ? "+" : "-"} {formatBRL(Math.abs(e.amount))}
                 </p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {isIn ? "Recebimento" : "Pagamento"}
                 </p>
               </div>
 
               <div className="hidden xl:block text-right shrink-0 min-w-[120px]">
-                <p className="text-[11px] text-muted-foreground">Saldo após evento</p>
+                <p className="text-2xs text-muted-foreground">Saldo após evento</p>
                 <p className="text-sm font-medium tabular-nums">{formatBRL(e.balanceAfter)}</p>
               </div>
             </li>

@@ -194,7 +194,7 @@ export function NewPaymentSheet({
             <div className="space-y-2">
               <Label>Data de pagamento</Label>
               <Input type="date" value={paidDate} onChange={(e) => setPaidDate(e.target.value)} placeholder="Selecione a data" />
-              <p className="text-[11px] text-muted-foreground">Se preenchida, o pagamento já é registrado como pago nessa data.</p>
+              <p className="text-2xs text-muted-foreground">Se preenchida, o pagamento já é registrado como pago nessa data.</p>
             </div>
           </section>
 
@@ -213,7 +213,7 @@ export function NewPaymentSheet({
                 <div className="space-y-2">
                   <Label>Entrada (opcional)</Label>
                   <Input inputMode="decimal" placeholder="R$ 0,00" value={downPayment} onChange={(e) => setDownPayment(e.target.value)} />
-                  <p className="text-[11px] text-muted-foreground">Valor pago à vista; o restante é dividido nas parcelas.</p>
+                  <p className="text-2xs text-muted-foreground">Valor pago à vista; o restante é dividido nas parcelas.</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Quantidade de parcelas</Label>
@@ -258,7 +258,7 @@ export function NewPaymentSheet({
               maxLength={200}
               rows={3}
             />
-            <p className="text-[11px] text-muted-foreground text-right">{notes.length}/200</p>
+            <p className="text-2xs text-muted-foreground text-right">{notes.length}/200</p>
           </section>
 
           <div className="flex items-center gap-3 pt-4 border-t">

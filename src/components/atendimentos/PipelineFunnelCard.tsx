@@ -5,7 +5,7 @@ import type { PipelineItem, PipelineStage } from "@/lib/atendimentos/pipeline.fu
 
 // Mesmo padrão donut+legenda de RevenueByProcedure.tsx (finance), adaptado
 // pra contagem de itens por etapa em vez de faturamento em BRL.
-const FALLBACK_COLOR = "#94A3B8";
+const FALLBACK_COLOR = "var(--foreground-subtle)";
 
 export function PipelineFunnelCard({
   configured,

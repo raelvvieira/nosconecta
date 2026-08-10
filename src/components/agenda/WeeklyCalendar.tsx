@@ -82,7 +82,7 @@ function MonthView({ appointments, selectedDate, onDateChange }: {
     <div className="p-4">
       <div className="grid grid-cols-7 mb-2">
         {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((d) => (
-          <div key={d} className="text-center text-[11px] font-semibold text-[#6B7280] py-2">{d}</div>
+          <div key={d} className="text-center text-2xs font-semibold text-muted-foreground py-2">{d}</div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1">
@@ -96,19 +96,19 @@ function MonthView({ appointments, selectedDate, onDateChange }: {
               key={i}
               type="button"
               onClick={() => onDateChange(new Date(year, month, day))}
-              className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-[#F8F8FA] transition-colors"
+              className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-surface transition-colors"
             >
               <span
                 className="text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full"
                 style={isSelected ? {
-                  background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)",
-                  color: "#fff",
-                } : isToday ? { border: "2px solid #FF6FA7", color: "#FF6FA7" } : { color: "#111827" }}
+                  background: "var(--gradient-primary)",
+                  color: "var(--primary-foreground)",
+                } : isToday ? { border: "2px solid var(--pink)", color: "var(--pink)" } : { color: "var(--foreground)" }}
               >
                 {day}
               </span>
               {count > 0 && (
-                <span className="text-[10px] font-medium" style={{ color: "#FF6FA7" }}>
+                <span className="text-3xs font-medium" style={{ color: "var(--pink)" }}>
                   {count} apmt{count > 1 ? "s" : ""}
                 </span>
               )}
@@ -179,13 +179,13 @@ export function WeeklyCalendar({
   return (
     <div
       className="bg-white flex flex-col"
-      style={{ borderRadius: 20, border: "1px solid #EEF2F7", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
     >
       {/* Top bar */}
-      <div className="flex flex-col gap-3 p-4 border-b border-[#EEF2F7]">
+      <div className="flex flex-col gap-3 p-4 border-b border-surface-muted">
         {/* View tabs */}
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-1 bg-[#F8F8FA] rounded-xl p-1">
+          <div className="flex items-center gap-1 bg-surface rounded-xl p-1">
             {VIEWS.map((v) => (
               <button
                 key={v.id}
@@ -194,10 +194,10 @@ export function WeeklyCalendar({
                 className={cn(
                   "px-3 py-1.5 text-sm font-medium rounded-lg transition-colors",
                   view === v.id
-                    ? "text-[#FF5F7E]"
-                    : "text-[#6B7280] hover:text-[#111827]",
+                    ? "text-pink"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
-                style={view === v.id ? { background: "rgba(255,111,167,0.12)" } : {}}
+                style={view === v.id ? { background: "color-mix(in oklab, var(--pink) 12%, transparent)" } : {}}
               >
                 {v.label}
               </button>
@@ -207,7 +207,7 @@ export function WeeklyCalendar({
           {/* Filters */}
           <div className="flex items-center gap-2">
             <select
-              className="text-xs border border-[#EEF2F7] rounded-xl px-3 py-1.5 text-[#6B7280] bg-white focus:outline-none"
+              className="text-xs border border-surface-muted rounded-xl px-3 py-1.5 text-muted-foreground bg-white focus:outline-none"
               value={filters.professionalId}
               onChange={(e) => onFiltersChange({ ...filters, professionalId: e.target.value })}
             >
@@ -215,7 +215,7 @@ export function WeeklyCalendar({
               {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             <select
-              className="text-xs border border-[#EEF2F7] rounded-xl px-3 py-1.5 text-[#6B7280] bg-white focus:outline-none"
+              className="text-xs border border-surface-muted rounded-xl px-3 py-1.5 text-muted-foreground bg-white focus:outline-none"
               value={filters.roomId}
               onChange={(e) => onFiltersChange({ ...filters, roomId: e.target.value })}
             >
@@ -224,7 +224,7 @@ export function WeeklyCalendar({
             </select>
             <button
               type="button"
-              className="h-8 w-8 grid place-items-center rounded-xl border border-[#EEF2F7] text-[#6B7280] hover:bg-[#F8F8FA] transition-colors"
+              className="h-8 w-8 grid place-items-center rounded-xl border border-surface-muted text-muted-foreground hover:bg-surface transition-colors"
             >
               <Settings2 className="h-4 w-4" strokeWidth={1.75} />
             </button>
@@ -236,21 +236,21 @@ export function WeeklyCalendar({
           <button
             type="button"
             onClick={() => navigateWeek(-1)}
-            className="h-8 w-8 grid place-items-center rounded-xl border border-[#EEF2F7] text-[#6B7280] hover:bg-[#F8F8FA] transition-colors"
+            className="h-8 w-8 grid place-items-center rounded-xl border border-surface-muted text-muted-foreground hover:bg-surface transition-colors"
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={2} />
           </button>
           <button
             type="button"
             onClick={() => onDateChange(new Date())}
-            className="text-sm font-semibold text-[#111827] hover:text-[#FF6FA7] transition-colors min-w-[200px] text-left"
+            className="text-sm font-semibold text-foreground hover:text-pink transition-colors min-w-[200px] text-left"
           >
             {weekLabel}
           </button>
           <button
             type="button"
             onClick={() => navigateWeek(1)}
-            className="h-8 w-8 grid place-items-center rounded-xl border border-[#EEF2F7] text-[#6B7280] hover:bg-[#F8F8FA] transition-colors"
+            className="h-8 w-8 grid place-items-center rounded-xl border border-surface-muted text-muted-foreground hover:bg-surface transition-colors"
           >
             <ChevronRight className="h-4 w-4" strokeWidth={2} />
           </button>
@@ -266,7 +266,7 @@ export function WeeklyCalendar({
       {view !== "month" && (
         <>
           {/* Day headers */}
-          <div className="flex border-b border-[#EEF2F7]">
+          <div className="flex border-b border-surface-muted">
             <div className="w-16 shrink-0" />
             {displayDays.map((day) => {
               const ds = toDateStr(day);
@@ -275,18 +275,18 @@ export function WeeklyCalendar({
               return (
                 <div
                   key={ds}
-                  className="flex-1 flex flex-col items-center py-3 cursor-pointer hover:bg-[#FAFAFA] transition-colors"
+                  className="flex-1 flex flex-col items-center py-3 cursor-pointer hover:bg-surface-subtle transition-colors"
                   onClick={() => onDateChange(day)}
                 >
-                  <span className="text-[11px] font-medium text-[#6B7280]">
+                  <span className="text-2xs font-medium text-muted-foreground">
                     {DAYS_PT[day.getDay()]}
                   </span>
                   <span
                     className="mt-1 h-8 w-8 flex items-center justify-center rounded-full text-sm font-semibold"
                     style={
                       isToday || isSelected
-                        ? { background: "linear-gradient(135deg,#FF6FA7 0%,#FF8A4C 100%)", color: "#fff" }
-                        : { color: "#111827" }
+                        ? { background: "var(--gradient-primary)", color: "var(--primary-foreground)" }
+                        : { color: "var(--foreground)" }
                     }
                   >
                     {day.getDate()}
@@ -304,7 +304,7 @@ export function WeeklyCalendar({
                 {HOURS.map((h) => (
                   <div
                     key={h}
-                    className="flex items-start justify-end pr-2 text-[11px] text-[#6B7280]"
+                    className="flex items-start justify-end pr-2 text-2xs text-muted-foreground"
                     style={{ height: HOUR_HEIGHT, paddingTop: 4 }}
                   >
                     {String(h).padStart(2, "0")}:00
@@ -324,7 +324,7 @@ export function WeeklyCalendar({
                     <div
                       key={ds}
                       className="flex-1 relative min-w-0"
-                      style={{ borderLeft: "1px solid #EEF2F7" }}
+                      style={{ borderLeft: "1px solid var(--surface-muted)" }}
                     >
                       {/* Hour lines */}
                       {HOURS.map((h) => (
@@ -336,8 +336,8 @@ export function WeeklyCalendar({
                             left: 0,
                             right: 0,
                             height: HOUR_HEIGHT,
-                            borderTop: "1px solid #EEF2F7",
-                            background: isToday ? "rgba(255,111,167,0.015)" : undefined,
+                            borderTop: "1px solid var(--surface-muted)",
+                            background: isToday ? "color-mix(in oklab, var(--pink) 1.5%, transparent)" : undefined,
                           }}
                         />
                       ))}
@@ -355,8 +355,8 @@ export function WeeklyCalendar({
                             alignItems: "center",
                           }}
                         >
-                          <div style={{ width: 7, height: 7, borderRadius: 999, background: "#FF6FA7", marginLeft: -3.5 }} />
-                          <div style={{ flex: 1, height: 2, background: "#FF6FA7" }} />
+                          <div style={{ width: 7, height: 7, borderRadius: 999, background: "var(--pink)", marginLeft: -3.5 }} />
+                          <div style={{ flex: 1, height: 2, background: "var(--pink)" }} />
                         </div>
                       )}
 
@@ -378,7 +378,7 @@ export function WeeklyCalendar({
                             alignItems: "center",
                           }}
                         >
-                          <span className="text-[10px] text-[#64748B] font-medium truncate">{b.reason}</span>
+                          <span className="text-3xs text-muted-foreground font-medium truncate">{b.reason}</span>
                         </div>
                       ))}
 
@@ -409,14 +409,14 @@ export function WeeklyCalendar({
                           >
                             <div className="flex items-start justify-between gap-1">
                               <div className="flex flex-col min-w-0">
-                                <span className="text-[10px] font-semibold text-[#374151] truncate">
+                                <span className="text-3xs font-semibold text-foreground-secondary truncate">
                                   {appt.startTime} – {appt.endTime}
                                 </span>
-                                <span className="text-[11px] font-semibold text-[#111827] truncate">
+                                <span className="text-2xs font-semibold text-foreground truncate">
                                   {appt.patientName}
                                 </span>
-                                <span className="text-[10px] text-[#6B7280] truncate">{appt.procedureName}</span>
-                                <span className="text-[10px] text-[#6B7280] truncate">{appt.professionalName}</span>
+                                <span className="text-3xs text-muted-foreground truncate">{appt.procedureName}</span>
+                                <span className="text-3xs text-muted-foreground truncate">{appt.professionalName}</span>
                               </div>
                               <div
                                 className="shrink-0 mt-0.5"
@@ -439,19 +439,19 @@ export function WeeklyCalendar({
           </div>
 
           {/* Legend */}
-          <div className="flex flex-wrap items-center gap-3 p-4 border-t border-[#EEF2F7]">
+          <div className="flex flex-wrap items-center gap-3 p-4 border-t border-surface-muted">
             {(
               [
-                ["Confirmado", "#22C55E"],
-                ["Pendente", "#FF8A4C"],
-                ["Em andamento", "#8B7CFF"],
-                ["Faltou", "#EF4444"],
-                ["Bloqueado", "#94A3B8"],
+                ["Confirmado", "var(--success)"],
+                ["Pendente", "var(--coral)"],
+                ["Em andamento", "var(--violet)"],
+                ["Faltou", "var(--danger)"],
+                ["Bloqueado", "var(--foreground-subtle)"],
               ] as [string, string][]
             ).map(([label, color]) => (
               <div key={label} className="flex items-center gap-1.5">
                 <div style={{ width: 8, height: 8, borderRadius: 999, background: color }} />
-                <span className="text-[11px] text-[#6B7280]">{label}</span>
+                <span className="text-2xs text-muted-foreground">{label}</span>
               </div>
             ))}
           </div>

@@ -233,7 +233,7 @@ function PipelinePage() {
     <>
       <main className="flex flex-1 flex-col pb-24 lg:h-full lg:overflow-hidden lg:pb-0">
         <header className="flex w-full flex-wrap items-center justify-between gap-3 px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7">
-          <h1 className="flex items-center gap-2 text-[26px] font-semibold tracking-[-0.03em]">
+          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-[-0.03em]">
             <Workflow className="h-5 w-5 text-pink" />
             Pipeline
           </h1>
@@ -323,7 +323,7 @@ function PipelinePage() {
                     <div className="mb-2 flex items-center gap-2 px-1">
                       <span
                         className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: stage.color ?? "#94A3B8" }}
+                        style={{ backgroundColor: stage.color ?? "var(--foreground-subtle)" }}
                       />
                       <span className="truncate text-sm font-semibold">{stage.name}</span>
                       <span className="ml-auto shrink-0 text-xs text-muted-foreground">
@@ -386,7 +386,7 @@ function PipelinePage() {
       {drag && (
         <div
           ref={ghostRef}
-          className="pointer-events-none fixed left-0 top-0 z-50 w-[240px] rounded-2xl border border-pink/40 bg-white px-3 py-2 text-sm font-medium shadow-lg will-change-transform"
+          className="pointer-events-none fixed left-0 top-0 z-50 w-[240px] rounded-2xl border border-pink/40 bg-white px-3 py-2 text-sm font-medium shadow-4 will-change-transform"
           style={{ transform: `translate3d(${drag.x + 12}px, ${drag.y + 12}px, 0)` }}
         >
           {drag.title}
@@ -479,7 +479,7 @@ function StagesSheet({
         <div className="mt-4 space-y-2">
           {stages.map((stage, index) => (
             <div key={stage.id} className="flex items-center gap-2 rounded-2xl border border-border p-2">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: stage.color ?? "#94A3B8" }} />
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: stage.color ?? "var(--foreground-subtle)" }} />
               <Input
                 value={editing[stage.id] ?? stage.name}
                 onChange={(e) => setEditing((prev) => ({ ...prev, [stage.id]: e.target.value }))}
