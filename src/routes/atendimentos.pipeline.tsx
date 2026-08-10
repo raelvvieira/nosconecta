@@ -382,12 +382,20 @@ function PipelinePage() {
           Fica ancorado em 0,0 e se move só por `transform`, que roda no
           compositor. Posicionar por `left`/`top` refazia o layout da página a
           cada pixel de arraste. Quem escreve o transform é o próprio hook, a
-          um requestAnimationFrame por quadro. */}
+          um requestAnimationFrame por quadro — durante o arraste e durante o
+          voo até o destino.
+
+          Largura e deslocamento vêm do card de origem: assim ele levanta de
+          onde estava, no ponto em que o dedo o pegou, em vez de aparecer com
+          outro tamanho a 12px do dedo. */}
       {drag && (
         <div
           ref={ghostRef}
-          className="pointer-events-none fixed left-0 top-0 z-50 w-[240px] rounded-2xl border border-pink/40 bg-white px-3 py-2 text-sm font-medium shadow-4 will-change-transform"
-          style={{ transform: `translate3d(${drag.x + 12}px, ${drag.y + 12}px, 0)` }}
+          className="pointer-events-none fixed left-0 top-0 z-50 rounded-2xl border border-pink/40 bg-white px-3 py-2 text-sm font-medium shadow-4 will-change-transform"
+          style={{
+            width: drag.width,
+            transform: `translate3d(${drag.x + drag.offsetX}px, ${drag.y + drag.offsetY}px, 0)`,
+          }}
         >
           {drag.title}
         </div>

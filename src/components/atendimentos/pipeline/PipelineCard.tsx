@@ -49,6 +49,9 @@ export function PipelineCard({
 
   return (
     <div
+      // O arraste mede este elemento para o fantasma nascer exatamente sobre o
+      // card, no ponto em que o dedo o pegou.
+      data-pipeline-card=""
       role="button"
       tabIndex={0}
       onClick={onOpen}
