@@ -37,6 +37,11 @@ const PROJECTION = DECELERATION / (1 - DECELERATION);
 // UIScrollView: puxar além do limite anda, mas cada vez menos.
 const RUBBER = 0.55;
 
+// Quanto o dedo precisa andar antes de o arraste valer. Sem isso o card levanta
+// no primeiro pixel, e um dedo trêmulo — ou um toque que só queria pegar na
+// alça — já começa a arrastar. 10px é o mesmo valor que o iOS usa.
+const THRESHOLD = 10;
+
 /**
  * Amortece o quanto se pode passar de um limite. Quanto mais longe, mais duro
  * fica — nunca trava de vez, e nunca deixa ir embora reto.
@@ -69,6 +74,12 @@ export function useCardDrag(onDrop: (itemId: string, toStageId: string) => void)
   const lastSample = useRef({ x: 0, y: 0, t: 0 });
   const frame = useRef<number | null>(null);
   const overRef = useRef<string | null>(null);
+
+  // O gesto entre o pointerdown e o 10º pixel: já estamos ouvindo, mas ainda
+  // não é um arraste. `armed` é o que separa "encostou na alça" de "arrastou".
+  const origin = useRef({ x: 0, y: 0 });
+  const armed = useRef(false);
+  const pending = useRef<{ id: string; stageId: string; title: string } | null>(null);
 
   const registerColumn = useCallback((stageId: string, el: HTMLElement | null) => {
     if (el) columns.current.set(stageId, el);
@@ -141,26 +152,27 @@ export function useCardDrag(onDrop: (itemId: string, toStageId: string) => void)
       eased.current = { ...point.current };
       velocity.current = { x: 0, y: 0 };
       lastSample.current = { x: event.clientX, y: event.clientY, t: event.timeStamp };
-      overRef.current = item.stageId;
 
-      setDrag({
-        itemId: item.id,
-        fromStageId: item.stageId,
-        title: item.title,
-        x: event.clientX,
-        y: event.clientY,
-      });
-      setOverStageId(item.stageId);
+      // Ainda não é arraste: nada de estado, nada de fantasma. Só quando o dedo
+      // passar do limiar é que o card levanta.
+      origin.current = { x: event.clientX, y: event.clientY };
+      armed.current = false;
+      pending.current = { id: item.id, stageId: item.stageId, title: item.title };
     },
     [],
   );
 
   const move = useCallback(
     (event: React.PointerEvent) => {
+      const item = pending.current;
+      if (!item) return;
+
       point.current = { x: event.clientX, y: event.clientY };
 
       // Velocidade em px/s, suavizada: uma média exponencial evita que um único
       // evento errático (o dedo tremendo no fim do gesto) defina a projeção.
+      // Amostrada desde o pointerdown, mesmo antes de armar: quem já vem
+      // rápido do primeiro pixel não deve perder essa velocidade no caminho.
       const dt = event.timeStamp - lastSample.current.t;
       if (dt > 0) {
         const vx = ((event.clientX - lastSample.current.x) / dt) * 1000;
@@ -170,6 +182,26 @@ export function useCardDrag(onDrop: (itemId: string, toStageId: string) => void)
           y: velocity.current.y * 0.7 + vy * 0.3,
         };
         lastSample.current = { x: event.clientX, y: event.clientY, t: event.timeStamp };
+      }
+
+      if (!armed.current) {
+        const dx = event.clientX - origin.current.x;
+        const dy = event.clientY - origin.current.y;
+        if (Math.hypot(dx, dy) < THRESHOLD) return;
+
+        // Passou do limiar: agora é arraste. O fantasma nasce sob o dedo, na
+        // posição atual — não na de origem, senão ele apareceria 10px atrás.
+        armed.current = true;
+        eased.current = { x: event.clientX, y: event.clientY };
+        overRef.current = item.stageId;
+        setDrag({
+          itemId: item.id,
+          fromStageId: item.stageId,
+          title: item.title,
+          x: event.clientX,
+          y: event.clientY,
+        });
+        setOverStageId(item.stageId);
       }
 
       schedule();
@@ -185,6 +217,15 @@ export function useCardDrag(onDrop: (itemId: string, toStageId: string) => void)
       if (frame.current !== null) {
         cancelAnimationFrame(frame.current);
         frame.current = null;
+      }
+
+      // Nunca passou do limiar: foi um toque na alça, não um arraste. Sai sem
+      // mover nada e sem vibrar — mover um card por causa de um toque é
+      // exatamente o erro que o limiar existe para evitar.
+      if (!armed.current) {
+        pending.current = null;
+        bounds.current = null;
+        return;
       }
 
       // Onde o dedo *ia* parar, não onde soltou. É isto que faz um flick rápido
@@ -211,6 +252,8 @@ export function useCardDrag(onDrop: (itemId: string, toStageId: string) => void)
       setOverStageId(null);
       overRef.current = null;
       bounds.current = null;
+      armed.current = false;
+      pending.current = null;
     },
     [onDrop],
   );

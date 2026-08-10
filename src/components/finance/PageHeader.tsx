@@ -39,7 +39,7 @@ export function PageHeader({
               key={o.value}
               onClick={() => onPeriodChange(o.value)}
               className={cn(
-                "px-4 h-9 text-sm rounded-lg transition-all",
+                "px-4 h-9 text-sm rounded-lg transition-[background-color,color,box-shadow]",
                 !isCustom && period === o.value
                   ? "bg-primary text-primary-foreground shadow-sm font-medium"
                   : "text-muted-foreground hover:text-foreground",

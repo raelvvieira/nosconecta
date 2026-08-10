@@ -51,7 +51,7 @@ export function FinancialGoalsCard({ goals }: { goals: FinancialGoal[] }) {
       <div className="mt-4">
         <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-violet to-primary transition-all"
+            className="h-full rounded-full bg-gradient-to-r from-violet to-primary transition-[width]"
             style={{ width: `${(fill / 120) * 100}%` }}
           />
         </div>

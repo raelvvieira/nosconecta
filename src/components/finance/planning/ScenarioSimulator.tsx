@@ -46,7 +46,7 @@ export function ScenarioSimulator({
               <li key={s.id} className="group relative">
                 <button
                   type="button"
-                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-border/60 bg-card/50 hover:bg-muted/40 hover:border-border transition-all text-left"
+                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-border/60 bg-card/50 hover:bg-muted/40 hover:border-border transition-colors text-left"
                 >
                   <div className="h-10 w-10 shrink-0 rounded-xl bg-violet-soft text-violet grid place-items-center">
                     <Icon className="h-4 w-4" />

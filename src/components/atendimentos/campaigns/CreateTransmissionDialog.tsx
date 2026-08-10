@@ -47,7 +47,7 @@ export function CreateTransmissionDialog({
             </p>
             <div className="h-2 overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-gradient-primary transition-all"
+                className="h-full rounded-full bg-gradient-primary transition-[width]"
                 style={{ width: `${(moveProgress.done / Math.max(1, moveProgress.total)) * 100}%` }}
               />
             </div>

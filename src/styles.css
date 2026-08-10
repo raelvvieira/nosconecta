@@ -87,6 +87,7 @@
      navegador, e é justamente o texto pequeno que precisa acompanhar. */
   --text-3xs: 0.625rem; /* 10px */
   --text-2xs: 0.6875rem; /* 11px */
+
 }
 
 /* Os utilitários de sombra do Tailwind caem na nossa escala. Sem isto,
@@ -104,6 +105,30 @@
   --shadow-lg: var(--shadow-3);
   --shadow-xl: var(--shadow-3);
   --shadow-2xl: var(--shadow-4);
+
+  /* Molas, como curvas de easing.
+     Uma animação de duração fixa não responde a entrada nova; uma mola
+     responde, porque a entrada só muda o alvo. Sem biblioteca de animação no
+     projeto, a aproximação honesta é `linear()`: amostramos um oscilador
+     harmônico e viramos os pontos em easing. Continua sendo duração fixa — não
+     entrega a retomada de velocidade da §5 — mas entrega a *forma* do
+     movimento, que é o que separa "some de vez" de "assenta".
+
+     Os dois parâmetros são os da Apple: razão de amortecimento e response
+     (o período natural, não a duração — a duração emerge).
+
+     Servem para o que se MOVE. Cor não tem inércia: `transition-colors`
+     continua no easing padrão de propósito. */
+
+  /* ζ = 1,0 · response 0,4s — criticamente amortecida, sem ultrapassar. Padrão. */
+  --ease-spring: linear(0, 0.02, 0.0697, 0.1367, 0.2126, 0.2914, 0.3692, 0.4434, 0.5124, 0.5756, 0.6326, 0.6834, 0.7283, 0.7676, 0.8019, 0.8316, 0.8573, 0.8793, 0.8981, 0.9142, 0.9278, 0.9394, 0.9492, 0.9575, 0.9645, 0.9704, 0.9753, 0.9794, 0.9829, 0.9858, 0.9882, 0.9902, 0.9919, 0.9932, 0.9944, 0.9954, 0.9962, 0.9968, 0.9974, 0.9978, 0.9982, 0.9985, 0.9988, 1);
+  --duration-spring: 588ms;
+
+  /* ζ = 0,8 · response 0,35s — ultrapassa 1,5% e volta. Só onde o gesto trazia
+     inércia: soltar um card, um painel que veio de um arremesso. Overshoot num
+     menu que só apareceu fica errado. */
+  --ease-spring-bounce: linear(0, 0.0176, 0.0633, 0.1279, 0.2042, 0.2864, 0.3702, 0.4523, 0.5304, 0.6031, 0.6693, 0.7286, 0.7809, 0.8263, 0.8652, 0.8981, 0.9254, 0.9479, 0.9659, 0.9803, 0.9913, 0.9997, 1.0058, 1.0101, 1.0128, 1.0144, 1.0151, 1.0151, 1.0146, 1.0137, 1.0126, 1.0114, 1.0101, 1.0089, 1.0077, 1.0065, 1.0055, 1.0045, 1.0037, 1.0029, 1.0023, 1.0018, 1.0013, 1);
+  --duration-spring-bounce: 474ms;
 }
 
 :root {
@@ -292,6 +317,14 @@
       --tw-exit-scale: 1 !important;
     }
 
+    /* As molas viram easing comum. Limitar a duração não bastava: a forma com
+       overshoot ultrapassa o alvo e volta mesmo em 120ms, e ultrapassar é
+       justamente o tipo de movimento que a preferência existe para tirar. */
+    :root {
+      --ease-spring: ease-out;
+      --ease-spring-bounce: ease-out;
+    }
+
     /* O press continua, mas sem afundar. */
     :active {
       scale: 1 !important;
@@ -375,11 +408,15 @@
 /* Retorno de press para cards e linhas clicáveis, que não passam pelo
    componente Button. Mesma assimetria: entra rápido, volta devagar. */
 @utility press {
-  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), background-color 200ms ease-out;
+  /* A volta assenta como mola; a cor acompanha no easing normal, porque cor
+     não tem inércia. Duração menor que --duration-spring de propósito: a
+     curva é a mesma forma, só que uma mola mais rápida. */
+  transition: transform 260ms var(--ease-spring), background-color 200ms ease-out;
 
   &:active {
     transform: scale(0.985);
-    transition-duration: 75ms;
+    /* Entrar é resposta a um toque, não movimento físico: direto e curto. */
+    transition: transform 75ms ease-out, background-color 75ms ease-out;
   }
 }
 
@@ -387,11 +424,13 @@
    toque, então o translate mora aqui junto com a escala. */
 @utility press-fab {
   transform: translateY(-18px);
-  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease-out;
+  /* O FAB afunda bastante (0,92), então a volta é a que mais se nota no app
+     inteiro — é a que ganha o bounce, e é o único lugar que ganha. */
+  transition: transform var(--duration-spring-bounce) var(--ease-spring-bounce), opacity 200ms ease-out;
 
   &:active:not(:disabled) {
     transform: translateY(-18px) scale(0.92);
-    transition-duration: 75ms;
+    transition: transform 75ms ease-out, opacity 75ms ease-out;
   }
 }
 

@@ -9,10 +9,15 @@ import { cn } from "@/lib/utils";
 // que existia antes nunca acontece no celular, então até aqui ~209 botões
 // não davam retorno nenhum ao dedo.
 //
-// A entrada é mais rápida (75ms) que a volta (200ms): o dedo chega de
-// repente e sai devagar, e a assimetria é o que faz parecer físico.
+// A entrada é mais rápida (75ms, ease-out) que a volta (260ms, mola): o dedo
+// chega de repente e sai devagar, e a assimetria é o que faz parecer físico.
+// Afundar é resposta a um toque; voltar é o objeto assentando sozinho, e só a
+// volta tem forma de mola.
+//
+// A transição lista as propriedades em vez de `all`: `all` inclui o que é
+// layout, e aí cada quadro sai do compositor.
 const buttonVariants = cva(
-  "inline-flex touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-[14px] text-sm font-medium cursor-pointer transition-all duration-200 ease-out active:duration-75 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-[14px] text-sm font-medium cursor-pointer transition-[transform,background-color,border-color,color,box-shadow,opacity] duration-[260ms] ease-spring active:duration-75 active:ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {

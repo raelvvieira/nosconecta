@@ -146,7 +146,7 @@ function DateSelector({ selectedDate, onDateChange }: { selectedDate: Date; onDa
               type="button"
               onClick={() => onDateChange(d)}
               className={cn(
-                "flex-1 min-w-[44px] flex flex-col items-center py-2.5 rounded-[18px] transition-all",
+                "flex-1 min-w-[44px] flex flex-col items-center py-2.5 rounded-[18px] transition-[background-color,color,box-shadow]",
                 !active && "bg-white",
               )}
               style={
