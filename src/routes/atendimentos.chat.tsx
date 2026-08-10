@@ -417,9 +417,22 @@ function ChatPage() {
           defaultPatient={
             selected.contactName ? { id: "", name: selected.contactName } : null
           }
+          contact={{
+            name: selected.contactName,
+            phone: selected.phone,
+            crmContactId: selected.contactId,
+          }}
           isSaving={saveAppointment.isPending}
           onClose={() => setAppointmentOpen(false)}
-          onSave={(data) => saveAppointment.mutate({ data })}
+          onSave={(data) =>
+            saveAppointment.mutate({
+              data,
+              contact: {
+                phone: selected.phone,
+                crmContactId: selected.contactId,
+              },
+            })
+          }
         />
       )}
     </main>

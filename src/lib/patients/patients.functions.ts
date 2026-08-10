@@ -286,9 +286,21 @@ const patientInput = (input: {
   addressComplement?: string;
   guardianName?: string;
   guardianCpf?: string;
+  /**
+   * Contato do CRM que originou este paciente, quando ele nasce de uma
+   * conversa de WhatsApp em vez do cadastro manual.
+   *
+   * Gravar isto na criação importa por dois motivos. O `handleUpsert` do
+   * crm-contacts lê esta coluna: com ela preenchida ele faz PATCH no contato
+   * que já existe, sem ela cria um contato duplicado. E é por ela que o
+   * `resolvePerson` da Meta CAPI acha o paciente quando o evento não traz
+   * patientId.
+   */
+  crmContactId?: string;
 }) => ({
   id: input.id,
   name: input.name.trim(),
+  crmContactId: input.crmContactId?.trim() || null,
   phone: input.phone?.trim() || null,
   email: input.email?.trim().toLowerCase() || null,
   cpf: input.cpf?.trim() || null,
@@ -353,6 +365,7 @@ export const createPatient = createServerFn({ method: "POST" })
         address_complement: data.addressComplement,
         guardian_name: data.guardianName,
         guardian_cpf: data.guardianCpf,
+        crm_contact_id: data.crmContactId,
       })
       .select("id")
       .single();

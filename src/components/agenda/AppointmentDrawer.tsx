@@ -24,6 +24,7 @@ import {
 import { STATUS_LABEL, TYPE_LABEL } from "./appointment-utils";
 import { NOTIFICATION_KINDS, NotificationBadge, statusFor } from "./notification-utils";
 import { formatBRL } from "@/lib/finance/format";
+import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 
 interface Props {
   open: boolean;
@@ -34,6 +35,14 @@ interface Props {
   isSaving?: boolean;
   /** Aviso de contexto quando aberto fora da Agenda (ex.: a partir do chat). */
   origin?: string;
+  /**
+   * Contato de origem, quando o agendamento nasce de uma conversa de WhatsApp.
+   *
+   * Muda a seção Paciente: o nome vira campo editável (o do WhatsApp costuma
+   * ser apelido, emoji ou o próprio número) e o telefone aparece para
+   * conferência. Sem isto o formulário se comporta exatamente como na Agenda.
+   */
+  contact?: { name: string | null; phone: string | null; crmContactId: string | null } | null;
   onClose: () => void;
   onSave: (data: Partial<Appointment>) => void;
 }
@@ -62,10 +71,16 @@ export function AppointmentDrawer({
   catalog,
   isSaving,
   origin,
+  contact,
   onClose,
   onSave,
 }: Props) {
   const isEdit = !!appointment;
+
+  // Quem clicou em "vincular a um paciente existente" quer o combobox de volta,
+  // mesmo sem ter escolhido ninguém ainda.
+  const [buscandoPaciente, setBuscandoPaciente] = useState(false);
+
   const professionals = catalog?.professionals ?? fallbackProfessionals;
   const procedures = catalog?.procedures ?? fallbackProcedures;
   const rooms = catalog?.rooms ?? fallbackRooms;
@@ -88,8 +103,14 @@ export function AppointmentDrawer({
     generateFinancial: appointment?.generateFinancial ?? true,
   });
 
+  // Nome editável quando o agendamento nasce de uma conversa e ainda não há
+  // paciente de verdade por trás. Vinculando um paciente existente, ou editando
+  // um agendamento já salvo, o campo volta a ser o combobox de sempre.
+  const modoContato = Boolean(contact) && !isEdit && !form.patientId && !buscandoPaciente;
+
   useEffect(() => {
     if (!open) return;
+    setBuscandoPaciente(false);
     setForm({
       patientId: appointment?.patientId ?? defaultPatient?.id,
       patientName: appointment?.patientName ?? defaultPatient?.name ?? "",
@@ -194,15 +215,56 @@ export function AppointmentDrawer({
               <Label htmlFor="patient" className="text-sm text-foreground-secondary">
                 Nome do paciente *
               </Label>
-              <PatientCombobox
-                value={form.patientName ?? ""}
-                patientId={form.patientId}
-                onChange={({ id, name }) =>
-                  setForm((f) => ({ ...f, patientId: id, patientName: name }))
-                }
-                className="rounded-xl border-surface-muted"
-              />
+              {modoContato ? (
+                <>
+                  {/* Campo de texto comum, não o combobox: o nome que veio do
+                      WhatsApp quase nunca é o nome da pessoa, e o que se quer
+                      aqui é corrigir o que está escrito — não procurar alguém. */}
+                  <Input
+                    id="patient"
+                    value={form.patientName ?? ""}
+                    onChange={(e) => setForm((f) => ({ ...f, patientName: e.target.value }))}
+                    placeholder="Nome completo do paciente"
+                    className="rounded-xl border-surface-muted"
+                  />
+                  {/* `relative tap-44` porque o texto sozinho dá 16px de alvo,
+                      bem abaixo do mínimo que o resto do app já respeita. */}
+                  <button
+                    type="button"
+                    onClick={() => setBuscandoPaciente(true)}
+                    className="relative tap-44 text-xs text-coral underline-offset-2 hover:underline"
+                  >
+                    Vincular a um paciente existente
+                  </button>
+                </>
+              ) : (
+                <PatientCombobox
+                  value={form.patientName ?? ""}
+                  patientId={form.patientId}
+                  onChange={({ id, name }) =>
+                    setForm((f) => ({ ...f, patientId: id, patientName: name }))
+                  }
+                  className="rounded-xl border-surface-muted"
+                />
+              )}
             </div>
+
+            {/* Telefone do WhatsApp, só leitura. É o número da própria conversa,
+                então já está correto — aparece para conferência porque é ele que
+                vai para a Meta, e um número errado ali é um match perdido. */}
+            {!isEdit && contact?.phone && (
+              <div className="space-y-1.5 rounded-xl bg-surface px-3 py-2.5">
+                <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Telefone do WhatsApp
+                </p>
+                <p className="font-mono text-sm text-foreground">
+                  {formatWhatsappNumber(contact.phone)}
+                </p>
+                <p className="text-2xs leading-4 text-muted-foreground">
+                  Confira antes de salvar: é este número que será enviado à Meta.
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="notes_patient" className="text-sm text-foreground-secondary">
                 Observações

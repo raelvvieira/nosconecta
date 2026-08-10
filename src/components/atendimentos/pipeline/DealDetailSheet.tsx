@@ -459,9 +459,14 @@ export function DealDetailSheet({
                 ? { id: "", name: item.title }
                 : null
           }
+          contact={
+            // Só quando o contato ainda não virou paciente: com paciente
+            // vinculado o nome já é o certo e o telefone já está no cadastro.
+            patient.data ? null : { name: item.title, phone, crmContactId: contactId }
+          }
           isSaving={saveAppointment.isPending}
           onClose={() => setAppointmentOpen(false)}
-          onSave={(data) => saveAppointment.mutate({ data })}
+          onSave={(data) => saveAppointment.mutate({ data, contact: { phone, crmContactId: contactId } })}
         />
       )}
     </>
