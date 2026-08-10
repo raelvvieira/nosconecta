@@ -32,6 +32,7 @@ import { useAgendaCatalog } from "@/lib/agenda/useAppointmentForm";
 import { useSaveAppointment } from "@/lib/agenda/useSaveAppointment";
 import { sendWhatsappMessage } from "@/lib/atendimentos/atendimentos.functions";
 import { getPatientByCrmContact } from "@/lib/patients/patients.functions";
+import { haptic } from "@/lib/haptics";
 import type { PipelineItem, PipelineStage } from "@/lib/atendimentos/pipeline.functions";
 import {
   addDealNote,
@@ -142,6 +143,8 @@ export function DealDetailSheet({
         },
       }),
     onSuccess: (_result, vars) => {
+      // Acompanha o toast, não substitui: no iPhone não vibra nada.
+      haptic(vars.status === "lost" ? "warn" : "commit");
       toast.success(`Marcado como ${DEAL_STATUS_LABEL[vars.status]}`);
       setAskingLoss(false);
       refreshTimeline();

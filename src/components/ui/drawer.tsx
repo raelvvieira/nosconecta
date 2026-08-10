@@ -3,8 +3,21 @@ import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/lib/utils";
 
+// Gaveta inferior que se arrasta.
+//
+// Diferente do Sheet (Radix), que abre e fecha por animação fixa, esta segue o
+// dedo: dá para puxar para baixo, soltar no meio, e a velocidade do gesto
+// decide se ela fecha ou volta. É a mesma gaveta do iOS.
+//
+// O Sheet continua sendo o certo para as gavetas laterais do desktop — esta
+// existe só para o `side="bottom"` do celular, onde o arraste é o gesto que a
+// pessoa já espera.
+
 const Drawer = ({
-  shouldScaleBackground = true,
+  // O padrão do shadcn é escalar o fundo enquanto a gaveta sobe, mas isso exige
+  // um `data-vaul-drawer-wrapper` na raiz da árvore, e os layouts `h-dvh flex`
+  // do app não sobrevivem a um div a mais no meio.
+  shouldScaleBackground = false,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
   <DrawerPrimitive.Root shouldScaleBackground={shouldScaleBackground} {...props} />
@@ -23,28 +36,44 @@ const DrawerOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Overlay
     ref={ref}
-    className={cn("fixed inset-0 z-50 bg-black/80", className)}
+    // 30% em vez dos 80% do shadcn: a gaveta cobre no máximo 88% da tela, e um
+    // véu quase preto faz o que sobra parecer desligado em vez de atrás.
+    className={cn("fixed inset-0 z-50 bg-black/30 backdrop-blur-[2px]", className)}
     {...props}
   />
 ));
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 
+interface DrawerContentProps
+  extends React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> {
+  /** Esconde a alça quando o conteúdo já desenha a sua. */
+  hideHandle?: boolean;
+}
+
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DrawerPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  DrawerContentProps
+>(({ className, children, hideHandle = false, ...props }, ref) => (
   <DrawerPortal>
     <DrawerOverlay />
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background",
+        "fixed inset-x-0 bottom-0 z-50 flex max-h-[88dvh] flex-col rounded-t-[28px] border-t border-border bg-background",
+        "pb-[env(safe-area-inset-bottom)] outline-none",
         className,
       )}
       {...props}
     >
-      <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
-      {children}
+      {!hideHandle && (
+        <DrawerPrimitive.Handle className="mx-auto my-3 !h-1.5 !w-10 shrink-0 !rounded-full !bg-border" />
+      )}
+      {/* O conteúdo rola aqui dentro. O vaul lê o scrollTop deste elemento para
+          decidir entre arrastar a gaveta e rolar a lista: só arrasta quando a
+          rolagem já está no topo, que é o que evita os dois gestos brigarem. */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scroll">
+        {children}
+      </div>
     </DrawerPrimitive.Content>
   </DrawerPortal>
 ));

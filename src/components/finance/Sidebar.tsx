@@ -29,7 +29,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useMobileFab } from "@/components/finance/mobile-fab-context";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { supabase } from "@/integrations/supabase/client";
 
 type FinanceItem = {
@@ -519,7 +519,7 @@ export function Sidebar() {
 
       {/* Mobile bottom navigation — premium floating card with central FAB */}
       <nav
-        className="lg:hidden fixed z-50 flex items-center justify-between"
+        className="lg:hidden fixed z-50 flex items-center justify-between material-bar"
         style={{
           left: 16,
           right: 16,
@@ -530,7 +530,8 @@ export function Sidebar() {
           bottom: 8,
           height: 68,
           borderRadius: 24,
-          background: "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(250,250,250,1) 100%)",
+          // O fundo vem do utilitário `material-bar` (vidro fosco, com volta
+          // para superfície sólida quando o sistema pede menos transparência).
           boxShadow: "0 8px 30px rgba(15,23,42,0.08), 0 2px 8px rgba(15,23,42,0.04)",
           border: "1px solid rgba(226,232,240,0.6)",
           paddingLeft: 6,
@@ -883,13 +884,13 @@ export function Sidebar() {
           então todo o resto do sistema ficava sem caminho no celular. Aqui
           ficam os módulos e, nos que têm submenu, os itens deles — mesma
           estrutura do menu lateral do desktop. */}
-      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-        <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto rounded-t-[24px] pb-8 lg:hidden">
-          <SheetHeader className="text-left">
-            <SheetTitle className="text-base">Navegar</SheetTitle>
-          </SheetHeader>
+      <Drawer open={moreOpen} onOpenChange={setMoreOpen}>
+        <DrawerContent className="max-h-[80dvh] lg:hidden">
+          <DrawerHeader className="text-left">
+            <DrawerTitle className="text-base">Navegar</DrawerTitle>
+          </DrawerHeader>
 
-          <div className="mt-2 space-y-5">
+          <div className="mt-2 space-y-5 px-4 pb-4">
             {MOBILE_MENU_GROUPS.map((group) => (
               <div key={group.label}>
                 <p className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -920,8 +921,8 @@ export function Sidebar() {
               </div>
             ))}
           </div>
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
 
       {/* Mobile top-right home button.
           Escondido em Atendimentos: ele é `fixed` e caía em cima do

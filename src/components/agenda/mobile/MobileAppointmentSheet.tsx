@@ -1,7 +1,8 @@
 import {
-  Sheet,
-  SheetContent,
-} from "@/components/ui/sheet";
+  Drawer,
+  DrawerContent,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import {
   CheckCircle2,
@@ -69,13 +70,9 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
   ];
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent
-        side="bottom"
-        className="rounded-t-[28px] border-0 p-0 max-h-[88dvh] overflow-y-auto"
-        style={{ background: "#F8F8FA" }}
-      >
-        <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-[#E2E8F0]" />
+    <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
+      <DrawerContent className="border-0" style={{ background: "#F8F8FA" }}>
+        <DrawerTitle className="sr-only">{a.patientName}</DrawerTitle>
 
         <div className="p-5 space-y-4">
           {/* Patient header */}
@@ -152,7 +149,7 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
             <Pencil className="h-4 w-4" /> Editar agendamento
           </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DrawerContent>
+    </Drawer>
   );
 }

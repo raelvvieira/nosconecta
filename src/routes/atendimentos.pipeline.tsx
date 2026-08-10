@@ -180,7 +180,7 @@ function PipelinePage() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["pipeline-items"] }),
   });
 
-  const { drag, overStageId, registerColumn, handlers } = useCardDrag((itemId, toStageId) =>
+  const { drag, overStageId, registerColumn, ghostRef, handlers } = useCardDrag((itemId, toStageId) =>
     moveMutation.mutate({ itemId, newStageId: toStageId }),
   );
 
@@ -377,11 +377,17 @@ function PipelinePage() {
       </main>
 
       {/* Fantasma seguindo o dedo/cursor: sem ele o arraste não tem retorno
-          visual nenhum, já que o card original fica no lugar esmaecido. */}
+          visual nenhum, já que o card original fica no lugar esmaecido.
+
+          Fica ancorado em 0,0 e se move só por `transform`, que roda no
+          compositor. Posicionar por `left`/`top` refazia o layout da página a
+          cada pixel de arraste. Quem escreve o transform é o próprio hook, a
+          um requestAnimationFrame por quadro. */}
       {drag && (
         <div
-          className="pointer-events-none fixed z-50 w-[240px] rounded-2xl border border-pink/40 bg-white px-3 py-2 text-sm font-medium shadow-lg"
-          style={{ left: drag.x + 12, top: drag.y + 12 }}
+          ref={ghostRef}
+          className="pointer-events-none fixed left-0 top-0 z-50 w-[240px] rounded-2xl border border-pink/40 bg-white px-3 py-2 text-sm font-medium shadow-lg will-change-transform"
+          style={{ transform: `translate3d(${drag.x + 12}px, ${drag.y + 12}px, 0)` }}
         >
           {drag.title}
         </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import type { AgendaFilters, Professional, Room } from "../types";
@@ -26,15 +26,10 @@ export function MobileFilterSheet({ open, filters, professionals, rooms, onClose
   const clear = () => setDraft({ professionalId: "", roomId: "", type: "", status: "" });
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent
-        side="bottom"
-        className="rounded-t-[28px] border-0 p-0"
-        style={{ background: "#F8F8FA" }}
-      >
-        <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-[#E2E8F0]" />
+    <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
+      <DrawerContent className="border-0" style={{ background: "#F8F8FA" }}>
         <div className="p-5 space-y-4">
-          <h2 className="text-lg font-semibold text-[#111827]">Filtros</h2>
+          <DrawerTitle className="text-lg font-semibold text-[#111827]">Filtros</DrawerTitle>
 
           <div className="space-y-3">
             <div className="space-y-1.5">
@@ -108,7 +103,7 @@ export function MobileFilterSheet({ open, filters, professionals, rooms, onClose
             </Button>
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DrawerContent>
+    </Drawer>
   );
 }

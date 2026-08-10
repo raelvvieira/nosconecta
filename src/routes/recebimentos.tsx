@@ -70,6 +70,7 @@ import {
 } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
+import { haptic } from "@/lib/haptics";
 import {
   getReceivablesOverview,
   markReceivableReceived,
@@ -189,6 +190,8 @@ function RecebimentosPage() {
   const markMutation = useMutation({
     mutationFn: (id: string) => markFn({ data: { id } }),
     onSuccess: () => {
+      // Acompanha o toast, não substitui: no iPhone não vibra nada.
+      haptic("commit");
       toast.success("Recebimento confirmado");
       invalidate();
     },

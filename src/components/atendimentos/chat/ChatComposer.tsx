@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -430,12 +430,12 @@ export function ChatComposer({
 
       {/* No celular o seletor vem de baixo, não como popover — popover
           ancorado num item de menu ficaria fora da tela. */}
-      <Sheet open={mobileEmojiOpen} onOpenChange={setMobileEmojiOpen}>
-        <SheetContent side="bottom" className="h-auto rounded-t-[24px] pb-8">
-          <SheetHeader className="pb-2 text-left">
-            <SheetTitle className="text-base">Emojis</SheetTitle>
-          </SheetHeader>
-          <div className="flex justify-center">
+      <Drawer open={mobileEmojiOpen} onOpenChange={setMobileEmojiOpen}>
+        <DrawerContent>
+          <DrawerHeader className="pb-2 text-left">
+            <DrawerTitle className="text-base">Emojis</DrawerTitle>
+          </DrawerHeader>
+          <div className="flex justify-center pb-4">
             <EmojiPicker
               onSelect={(emoji) => {
                 insertAtCursor(emoji);
@@ -443,8 +443,8 @@ export function ChatComposer({
               }}
             />
           </div>
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
 
       <AiAssistDialog open={aiOpen} onOpenChange={setAiOpen} />
 

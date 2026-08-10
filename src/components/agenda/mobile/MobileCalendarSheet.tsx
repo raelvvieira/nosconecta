@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import type { Appointment } from "../types";
 
 const MONTHS_PT = [
@@ -43,13 +43,9 @@ export function MobileCalendarSheet({ open, selectedDate, appointments, onClose,
   };
 
   return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent
-        side="bottom"
-        className="rounded-t-[28px] border-0 p-0"
-        style={{ background: "#F8F8FA" }}
-      >
-        <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-[#E2E8F0]" />
+    <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
+      <DrawerContent className="border-0" style={{ background: "#F8F8FA" }}>
+        <DrawerTitle className="sr-only">Escolher data</DrawerTitle>
         <div className="p-5">
           <div className="flex items-center justify-between mb-4">
             <span className="text-base font-semibold text-[#111827]">
@@ -113,7 +109,7 @@ export function MobileCalendarSheet({ open, selectedDate, appointments, onClose,
             })}
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DrawerContent>
+    </Drawer>
   );
 }

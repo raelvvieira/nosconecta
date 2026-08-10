@@ -290,6 +290,23 @@
   box-shadow: var(--shadow-elev);
 }
 
+/* Vidro fosco para o que flutua sobre o conteúdo: a ilha da navegação
+   inferior, cabeçalhos grudados no topo. O conteúdo passando por baixo é o
+   que diz "isto está numa camada acima" — melhor do que aumentar a sombra.
+
+   Quem pede menos transparência recebe a superfície sólida: não basta tirar o
+   blur, porque texto sobre um fundo a 92% ainda concorre com o que passa por
+   baixo. Por isso a opacidade volta a 1 junto. */
+@utility material-bar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(250, 250, 250, 0.92) 100%);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+
+  @media (prefers-reduced-transparency: reduce) {
+    background: linear-gradient(180deg, rgb(255, 255, 255) 0%, rgb(250, 250, 250) 100%);
+  }
+}
+
 /* Retorno de press para cards e linhas clicáveis, que não passam pelo
    componente Button. Mesma assimetria: entra rápido, volta devagar. */
 @utility press {
