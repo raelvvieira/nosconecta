@@ -67,7 +67,7 @@ interface Props {
   onNewAppointment: () => void;
   onNewBlock: () => void;
   onEditAppointment: (a: Appointment) => void;
-  onStatusChange: (id: string, status: AppointmentStatus) => void;
+  onStatusChange: (id: string, status: AppointmentStatus, actualRevenue?: number) => void;
 }
 
 // ─── Stats carousel ──────────────────────────────────────────────────────────

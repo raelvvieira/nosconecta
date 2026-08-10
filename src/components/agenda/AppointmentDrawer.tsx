@@ -22,7 +22,8 @@ import {
   rooms as fallbackRooms,
 } from "./mock-data";
 import { STATUS_LABEL, TYPE_LABEL } from "./appointment-utils";
-import { NOTIFICATION_KINDS, NotificationBadge, statusFor } from "./notification-utils";
+import { NOTIFICATION_KINDS, NotificationRow } from "./notification-utils";
+import { ConfirmCompletion } from "./ConfirmCompletion";
 import { formatBRL } from "@/lib/finance/format";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 
@@ -47,11 +48,13 @@ interface Props {
   onSave: (data: Partial<Appointment>) => void;
 }
 
+// "completed" ficou de fora de propósito: concluir passou a ser uma ação
+// própria, que pede o valor cobrado junto. Deixar a opção aqui seria um
+// caminho paralelo para concluir sem valor — exatamente o que a regra evita.
 const STATUS_OPTIONS: AppointmentStatus[] = [
   "pending",
   "confirmed",
   "in_progress",
-  "completed",
   "missed",
   "cancelled",
 ];
@@ -99,6 +102,7 @@ export function AppointmentDrawer({
     status: appointment?.status ?? "pending",
     type: appointment?.type ?? "consultation",
     expectedRevenue: appointment?.expectedRevenue ?? 0,
+    actualRevenue: appointment?.actualRevenue ?? null,
     notes: appointment?.notes ?? "",
     generateFinancial: appointment?.generateFinancial ?? true,
   });
@@ -125,6 +129,7 @@ export function AppointmentDrawer({
       status: appointment?.status ?? "pending",
       type: appointment?.type ?? "consultation",
       expectedRevenue: appointment?.expectedRevenue ?? 0,
+      actualRevenue: appointment?.actualRevenue ?? null,
       notes: appointment?.notes ?? "",
       generateFinancial: appointment?.generateFinancial ?? true,
     });
@@ -204,6 +209,19 @@ export function AppointmentDrawer({
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
           {origin && (
             <p className="rounded-xl bg-coral-soft px-3 py-2 text-xs leading-5 text-coral">{origin}</p>
+          )}
+
+          {/* Confirmar que aconteceu é a ação mais importante deste card, então
+              fica no topo — não escondida num select entre outros status. */}
+          {isEdit && (
+            <ConfirmCompletion
+              expectedRevenue={form.expectedRevenue ?? 0}
+              actualRevenue={form.status === "completed" ? (form.actualRevenue ?? 0) : null}
+              isPending={isSaving}
+              onConfirm={(valor) =>
+                onSave({ ...form, status: "completed", actualRevenue: valor })
+              }
+            />
           )}
 
           {/* Dados do paciente */}
@@ -286,25 +304,14 @@ export function AppointmentDrawer({
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Confirmação e Lembretes
               </h3>
-              <div className="rounded-xl border border-surface-muted divide-y divide-surface-muted">
+              <div className="rounded-xl border border-surface-muted divide-y divide-surface-muted px-3">
                 {NOTIFICATION_KINDS.map((k) => (
-                  <div key={k.value} className="flex items-center justify-between gap-2 px-3 py-2.5">
-                    <span className="text-sm text-foreground-secondary shrink-0">{k.label}</span>
-                    <div className="flex items-center gap-2 flex-wrap justify-end">
-                      <NotificationBadge
-                        label="E-mail"
-                        status={statusFor(appointment?.notifications, k.value, "email")}
-                      />
-                      <NotificationBadge
-                        label="SMS"
-                        status={statusFor(appointment?.notifications, k.value, "sms")}
-                      />
-                      <NotificationBadge
-                        label="WhatsApp"
-                        status={statusFor(appointment?.notifications, k.value, "whatsapp")}
-                      />
-                    </div>
-                  </div>
+                  <NotificationRow
+                    key={k.value}
+                    label={k.label}
+                    kind={k.value}
+                    notifications={appointment?.notifications}
+                  />
                 ))}
               </div>
             </section>
@@ -410,7 +417,13 @@ export function AppointmentDrawer({
                     setForm((f) => ({ ...f, status: e.target.value as AppointmentStatus }))
                   }
                 >
-                  {STATUS_OPTIONS.map((s) => (
+                  {/* Já concluído entra na lista só para o select ter o que
+                      exibir — sem isso ele apareceria em branco. Não é uma
+                      opção nova: quem ainda não concluiu não a vê. */}
+                  {(form.status === "completed"
+                    ? [...STATUS_OPTIONS, "completed" as AppointmentStatus]
+                    : STATUS_OPTIONS
+                  ).map((s) => (
                     <option key={s} value={s}>
                       {STATUS_LABEL[s]}
                     </option>

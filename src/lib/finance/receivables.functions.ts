@@ -462,6 +462,51 @@ export const createReceivable = createServerFn({ method: "POST" })
     return { id: inserted.id, count: 1 };
   });
 
+/**
+ * Recebimento gerado ao confirmar que um atendimento aconteceu.
+ *
+ * Existe porque o interruptor "Gerar cobrança ao concluir" prometia isso desde
+ * sempre e não fazia nada: não havia trigger no banco nem escrita no
+ * financeiro, e o app ainda avisava "Recebimento previsto gerado". Agora que a
+ * confirmação carrega o valor cobrado, dá para cumprir a promessa.
+ *
+ * Não é uma server function de propósito — é chamada de dentro do handler que
+ * conclui o atendimento, reaproveitando o cliente e o dono já autenticados.
+ * A forma da linha é a mesma do caminho sem parcelas de `createReceivable`.
+ *
+ * Cortesia não vira cobrança: valor zero (ou negativo) sai sem inserir nada.
+ */
+export async function createAppointmentReceivable(
+  supabase: any,
+  params: {
+    amount: number;
+    description: string;
+    dueDate: string;
+    patientId: string | null;
+    professionalId: string | null;
+  },
+): Promise<void> {
+  if (!(params.amount > 0)) return;
+  const { error } = await supabase.from("financial_transactions").insert({
+    company_id: "demo",
+    type: "receivable" as const,
+    description: params.description,
+    amount: params.amount,
+    due_date: params.dueDate,
+    paid_date: null,
+    status: "pending" as any,
+    patient_id: params.patientId,
+    professional_id: params.professionalId,
+    category_id: null,
+    account_id: null,
+    payment_method: null,
+    notes: null,
+    is_recurring: false,
+    recurrence_type: null,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export const markReceivableReceived = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string; paid_date?: string; account_id?: string | null; payment_method?: string | null }) => ({
     id: input.id,

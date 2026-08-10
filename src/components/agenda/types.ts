@@ -59,6 +59,12 @@ export interface Appointment {
   status: AppointmentStatus;
   type: AppointmentType;
   expectedRevenue: number;
+  /**
+   * Valor cobrado no dia. `null` = atendimento ainda não confirmado como
+   * realizado; `0` = foi gratuito. É este valor, e não o previsto, que vai
+   * como conversão para a Meta.
+   */
+  actualRevenue?: number | null;
   notes?: string;
   generateFinancial?: boolean;
   notifications?: AppointmentNotification[];

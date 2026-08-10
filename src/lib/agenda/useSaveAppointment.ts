@@ -95,6 +95,7 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
         status: data.status,
         type: data.type,
         expectedRevenue: data.expectedRevenue ?? 0,
+        actualRevenue: data.actualRevenue ?? null,
         notes: data.notes ?? null,
         generateFinancial: data.generateFinancial ?? true,
       };

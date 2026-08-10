@@ -20,14 +20,15 @@ import {
 } from "lucide-react";
 import type { Appointment, AppointmentStatus } from "../types";
 import { statusStyle, STATUS_LABEL, TYPE_LABEL } from "../appointment-utils";
-import { NOTIFICATION_KINDS, NotificationBadge, statusFor } from "../notification-utils";
+import { NOTIFICATION_KINDS, NotificationRow } from "../notification-utils";
+import { ConfirmCompletion } from "../ConfirmCompletion";
 import { formatBRL } from "@/lib/finance/format";
 
 interface Props {
   appointment: Appointment | null;
   open: boolean;
   onClose: () => void;
-  onStatusChange: (id: string, status: AppointmentStatus) => void;
+  onStatusChange: (id: string, status: AppointmentStatus, actualRevenue?: number) => void;
   onEdit: (appt: Appointment) => void;
 }
 
@@ -60,10 +61,11 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
     onClose();
   };
 
+  // "Concluir" saiu daqui: virou o bloco de confirmação no topo, que pede o
+  // valor cobrado junto. Um botão de ação rápida não tem onde pedir isso.
   const actions: { label: string; icon: typeof CheckCircle2; status?: AppointmentStatus; onClick?: () => void; tone: string }[] = [
     { label: "Confirmar", icon: CheckCircle2, status: "confirmed", tone: "var(--success)" },
     { label: "Iniciar", icon: PlayCircle, status: "in_progress", tone: "var(--violet)" },
-    { label: "Concluir", icon: CheckCheck, status: "completed", tone: "var(--success)" },
     { label: "Reagendar", icon: CalendarClock, onClick: () => { onEdit(a); onClose(); }, tone: "var(--pink)" },
     { label: "Marcar falta", icon: UserX, status: "missed", tone: "var(--danger)" },
     { label: "Cancelar", icon: XCircle, status: "cancelled", tone: "var(--muted-foreground)" },
@@ -95,6 +97,15 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
             </span>
           </div>
 
+          <ConfirmCompletion
+            expectedRevenue={a.expectedRevenue}
+            actualRevenue={a.status === "completed" ? (a.actualRevenue ?? 0) : null}
+            onConfirm={(valor) => {
+              onStatusChange(a.id, "completed", valor);
+              onClose();
+            }}
+          />
+
           {/* Info */}
           <div
             className="bg-white rounded-[20px] px-4 divide-y divide-surface-muted"
@@ -114,14 +125,12 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
             style={{ border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
           >
             {NOTIFICATION_KINDS.map((k) => (
-              <div key={k.value} className="flex items-center justify-between gap-2 py-2.5">
-                <span className="text-sm text-foreground-secondary shrink-0">{k.label}</span>
-                <div className="flex items-center gap-2 flex-wrap justify-end">
-                  <NotificationBadge label="E-mail" status={statusFor(a.notifications, k.value, "email")} />
-                  <NotificationBadge label="SMS" status={statusFor(a.notifications, k.value, "sms")} />
-                  <NotificationBadge label="WhatsApp" status={statusFor(a.notifications, k.value, "whatsapp")} />
-                </div>
-              </div>
+              <NotificationRow
+                key={k.value}
+                label={k.label}
+                kind={k.value}
+                notifications={a.notifications}
+              />
             ))}
           </div>
 

@@ -22,6 +22,7 @@ import {
 } from "@/components/agenda/mock-data";
 import { getSettings } from "@/lib/settings/settings.functions";
 import { useSaveAppointment } from "@/lib/agenda/useSaveAppointment";
+import { formatBRL } from "@/lib/finance/format";
 import {
   getAgendaOverview,
   updateAppointmentStatus,
@@ -163,10 +164,21 @@ function AgendaPage() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: AppointmentStatus }) =>
-      updateStatusFn({ data: { id, status } }),
-    onSuccess: (_r, { status }) => {
-      toast.success(`Status alterado para ${STATUS_LABEL[status]}`);
+    mutationFn: ({
+      id,
+      status,
+      actualRevenue,
+    }: {
+      id: string;
+      status: AppointmentStatus;
+      actualRevenue?: number;
+    }) => updateStatusFn({ data: { id, status, actualRevenue } }),
+    onSuccess: (_r, { status, actualRevenue }) => {
+      toast.success(
+        status === "completed" && actualRevenue !== undefined
+          ? `Atendimento confirmado · ${formatBRL(actualRevenue)}`
+          : `Status alterado para ${STATUS_LABEL[status]}`,
+      );
       invalidate();
     },
     onError: (e: any) => toast.error(e?.message ?? "Erro ao alterar status"),
@@ -181,14 +193,12 @@ function AgendaPage() {
     setApptDrawerOpen(true);
   };
 
-  const handleStatusChange = (id: string, status: AppointmentStatus) => {
-    // Concluir atendimento com cobrança gera recebimento previsto
-    const appt = appointments.find((a) => a.id === id);
-    if (appt && status === "completed" && appt.generateFinancial && appt.status !== "completed") {
-      toast.success(`Recebimento previsto gerado: ${appt.patientName}`);
-    }
-    statusMutation.mutate({ id, status });
-  };
+  // Aqui existia um aviso "Recebimento previsto gerado: <paciente>" que era
+  // falso — nada era gerado, nem no banco nem no financeiro. Quem gera o
+  // recebimento agora é o servidor, ao confirmar com valor, e o aviso é o da
+  // própria mutação.
+  const handleStatusChange = (id: string, status: AppointmentStatus, actualRevenue?: number) =>
+    statusMutation.mutate({ id, status, actualRevenue });
 
   const openNewAppointment = () => {
     setSelectedAppt(null);
