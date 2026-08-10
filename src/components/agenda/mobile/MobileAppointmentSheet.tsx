@@ -33,6 +33,7 @@ interface Props {
     status: AppointmentStatus,
     actualRevenue?: number,
     retornoEm?: string | null,
+    generateFinancial?: boolean,
   ) => void;
   onEdit: (appt: Appointment) => void;
 }
@@ -106,8 +107,9 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
             expectedRevenue={a.expectedRevenue}
             actualRevenue={a.status === "completed" ? (a.actualRevenue ?? 0) : null}
             appointmentDate={a.date}
-            onConfirm={({ valor, retornoEm }) => {
-              onStatusChange(a.id, "completed", valor, retornoEm);
+            generateFinancial={a.generateFinancial ?? true}
+            onConfirm={({ valor, retornoEm, gerarCobranca }) => {
+              onStatusChange(a.id, "completed", valor, retornoEm, gerarCobranca);
               onClose();
             }}
           />

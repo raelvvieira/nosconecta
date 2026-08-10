@@ -12,6 +12,7 @@ import {
   STATUS_LABEL,
   TYPE_LABEL,
 } from "./appointment-utils";
+import { useCalendarDrag, type AlvoArraste, type ItemArrastavel } from "./useCalendarDrag";
 
 const DAYS_PT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MONTHS_PT = [
@@ -55,6 +56,8 @@ interface Props {
   onDateChange: (d: Date) => void;
   onAppointmentClick: (appt: Appointment) => void;
   onBlockClick?: (block: BlockedTime) => void;
+  /** Arrastou um bloco para outro horário/dia. Sem isto, o arraste fica off. */
+  onMove?: (item: ItemArrastavel, alvo: AlvoArraste, tipo: "consulta" | "compromisso") => void;
   professionals: { id: string; name: string }[];
   rooms: { id: string; name: string }[];
   onFiltersChange: (f: AgendaFilters) => void;
@@ -129,6 +132,7 @@ export function WeeklyCalendar({
   onDateChange,
   onAppointmentClick,
   onBlockClick,
+  onMove,
   professionals,
   rooms,
   onFiltersChange,
@@ -140,6 +144,18 @@ export function WeeklyCalendar({
   const todayStr = toDateStr(new Date());
 
   const displayDays = view === "day" ? [selectedDate] : weekDays;
+
+  // Duas instâncias porque são duas entidades diferentes no banco, com
+  // gravações diferentes — e assim cada uma tem seu próprio estado de arraste
+  // sem precisar carregar um "tipo" por dentro do hook.
+  const arrasteConsulta = useCalendarDrag({
+    ativo: view !== "month" && Boolean(onMove),
+    onDrop: (item, alvo) => onMove?.(item, alvo, "consulta"),
+  });
+  const arrasteCompromisso = useCalendarDrag({
+    ativo: view !== "month" && Boolean(onMove),
+    onDrop: (item, alvo) => onMove?.(item, alvo, "compromisso"),
+  });
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -299,7 +315,12 @@ export function WeeklyCalendar({
           </div>
 
           {/* Scrollable grid */}
-          <div ref={scrollRef} className="overflow-y-auto" style={{ maxHeight: 560 }}>
+          <div
+            ref={scrollRef}
+            data-agenda-scroll=""
+            className="overflow-y-auto"
+            style={{ maxHeight: 560 }}
+          >
             <div className="flex">
               {/* Hour labels */}
               <div className="w-16 shrink-0 flex flex-col">
@@ -325,6 +346,10 @@ export function WeeklyCalendar({
                   return (
                     <div
                       key={ds}
+                      // Única marca do dia no DOM: o `key` do React não chega
+                      // até aqui, e o arraste precisa saber sobre qual coluna o
+                      // dedo está para descobrir a data de destino.
+                      data-day={ds}
                       className="flex-1 relative min-w-0"
                       style={{ borderLeft: "1px solid var(--surface-muted)" }}
                     >
@@ -369,7 +394,23 @@ export function WeeklyCalendar({
                         <button
                           key={b.id}
                           type="button"
-                          onClick={() => onBlockClick?.(b)}
+                          onClick={() => {
+                            // Arrastou e soltou aqui mesmo? O clique que vem a
+                            // seguir não pode abrir a gaveta.
+                            if (arrasteCompromisso.consumiuClique()) return;
+                            onBlockClick?.(b);
+                          }}
+                          {...(onMove
+                            ? {
+                                ...arrasteCompromisso.handlers,
+                                onPointerDown: arrasteCompromisso.handlers.onPointerDown({
+                                  id: b.id,
+                                  date: b.date,
+                                  startTime: b.startTime,
+                                  endTime: b.endTime,
+                                }),
+                              }
+                            : {})}
                           className="text-left hover:brightness-95"
                           style={{
                             position: "absolute",
@@ -377,6 +418,8 @@ export function WeeklyCalendar({
                             left: 4,
                             right: 4,
                             height: Math.max(apptHeight(b.startTime, b.endTime), 28),
+                            touchAction: onMove ? "none" : undefined,
+                            cursor: onMove ? "grab" : undefined,
                             background: "repeating-linear-gradient(135deg,rgba(148,163,184,0.08),rgba(148,163,184,0.08) 8px,rgba(148,163,184,0.14) 8px,rgba(148,163,184,0.14) 16px)",
                             border: "1px solid rgba(148,163,184,0.20)",
                             borderRadius: 10,
@@ -396,7 +439,21 @@ export function WeeklyCalendar({
                           <button
                             key={appt.id}
                             type="button"
-                            onClick={() => onAppointmentClick(appt)}
+                            onClick={() => {
+                              if (arrasteConsulta.consumiuClique()) return;
+                              onAppointmentClick(appt);
+                            }}
+                            {...(onMove
+                              ? {
+                                  ...arrasteConsulta.handlers,
+                                  onPointerDown: arrasteConsulta.handlers.onPointerDown({
+                                    id: appt.id,
+                                    date: appt.date,
+                                    startTime: appt.startTime,
+                                    endTime: appt.endTime,
+                                  }),
+                                }
+                              : {})}
                             style={{
                               position: "absolute",
                               top: apptTop(appt.startTime),
@@ -408,7 +465,10 @@ export function WeeklyCalendar({
                               borderRadius: 10,
                               padding: "4px 8px",
                               textAlign: "left",
-                              cursor: "pointer",
+                              // `touch-action: none` é o que deixa o dedo
+                              // arrastar o card em vez de rolar a grade.
+                              touchAction: onMove ? "none" : undefined,
+                              cursor: onMove ? "grab" : "pointer",
                               zIndex: 5,
                               transition: "box-shadow 0.15s ease",
                             }}
@@ -418,7 +478,12 @@ export function WeeklyCalendar({
                               <div className="flex flex-col min-w-0">
                                 <span className="flex items-center gap-1 text-3xs font-semibold text-foreground-secondary">
                                   <span className="truncate">
-                                    {appt.startTime} – {appt.endTime}
+                                    {/* Durante o arraste, o rótulo mostra o
+                                        horário de destino — é a confirmação de
+                                        onde o bloco vai cair. */}
+                                    {arrasteConsulta.arrastando?.id === appt.id && arrasteConsulta.alvo
+                                      ? `${arrasteConsulta.alvo.startTime} – ${arrasteConsulta.alvo.endTime}`
+                                      : `${appt.startTime} – ${appt.endTime}`}
                                   </span>
                                   {/* Retorno vinha sem nenhuma marca visual: a cor
                                       do card é só do status, e TYPE_LABEL estava

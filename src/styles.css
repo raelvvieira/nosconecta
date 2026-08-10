@@ -269,7 +269,12 @@
     font-feature-settings: "cv11", "ss01", "ss03";
     -webkit-font-smoothing: antialiased;
     letter-spacing: -0.005em;
+    /* `clip` corta igual ao `hidden`, mas sem criar contêiner de rolagem — e era
+       esse contêiner que fazia o menu lateral (`sticky top-0`) rolar junto com a
+       página e sumir pela metade. O `hidden` fica como reserva para navegador
+       que não conheça `clip`; quem conhece usa a segunda linha. */
     overflow-x: hidden;
+    overflow-x: clip;
     max-width: 100%;
     /* Instalado, o "rubber band" do iOS ao puxar além do fim entrega na hora
        que é uma página web dentro de uma casca. */

@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
 import { Combobox } from "@/components/finance/Combobox";
 import type {
@@ -24,7 +23,6 @@ import {
 import { STATUS_LABEL, TYPE_LABEL } from "./appointment-utils";
 import { NOTIFICATION_KINDS, NotificationRow } from "./notification-utils";
 import { ConfirmCompletion } from "./ConfirmCompletion";
-import { formatBRL } from "@/lib/finance/format";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { durationBetween, endTimeFrom } from "@/lib/date";
 
@@ -261,9 +259,18 @@ export function AppointmentDrawer({
               expectedRevenue={form.expectedRevenue ?? 0}
               actualRevenue={form.status === "completed" ? (form.actualRevenue ?? 0) : null}
               appointmentDate={form.date ?? new Date().toISOString().slice(0, 10)}
+              generateFinancial={form.generateFinancial ?? true}
               isPending={isSaving}
-              onConfirm={({ valor, retornoEm }) =>
-                onSave({ ...form, status: "completed", actualRevenue: valor }, retornoEm)
+              onConfirm={({ valor, retornoEm, gerarCobranca }) =>
+                onSave(
+                  {
+                    ...form,
+                    status: "completed",
+                    actualRevenue: valor,
+                    generateFinancial: gerarCobranca,
+                  },
+                  retornoEm,
+                )
               }
             />
           )}
@@ -341,25 +348,6 @@ export function AppointmentDrawer({
               />
             </div>
           </section>
-
-          {/* Confirmação e lembretes (Brevo) */}
-          {isEdit && (
-            <section className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Confirmação e Lembretes
-              </h3>
-              <div className="rounded-xl border border-surface-muted divide-y divide-surface-muted px-3">
-                {NOTIFICATION_KINDS.map((k) => (
-                  <NotificationRow
-                    key={k.value}
-                    label={k.label}
-                    kind={k.value}
-                    notifications={appointment?.notifications}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
 
           {/* Dados do atendimento */}
           <section className="space-y-3">
@@ -487,48 +475,33 @@ export function AppointmentDrawer({
             </div>
           </section>
 
-          {/* Financeiro */}
-          <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Financeiro
-            </h3>
-            <div className="space-y-2">
-              <Label className="text-sm text-foreground-secondary">Valor previsto</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  R$
-                </span>
-                <Input
-                  type="number"
-                  value={form.expectedRevenue}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, expectedRevenue: Number(e.target.value) }))
-                  }
-                  className="rounded-xl border-surface-muted pl-9"
-                />
+          {/* Confirmação e lembretes (Brevo).
+              Desceu para o fim: é acompanhamento, não preenchimento. Ficava
+              entre o paciente e o atendimento, empurrando para baixo justamente
+              o que se vem editar aqui. */}
+          {isEdit && (
+            <section className="space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Confirmação e Lembretes
+              </h3>
+              <div className="rounded-xl border border-surface-muted divide-y divide-surface-muted px-3">
+                {NOTIFICATION_KINDS.map((k) => (
+                  <NotificationRow
+                    key={k.value}
+                    label={k.label}
+                    kind={k.value}
+                    notifications={appointment?.notifications}
+                  />
+                ))}
               </div>
-              {(form.expectedRevenue ?? 0) > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Valor formatado:{" "}
-                  <span className="font-medium text-foreground">
-                    {formatBRL(form.expectedRevenue ?? 0)}
-                  </span>
-                </p>
-              )}
-            </div>
-            <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-surface">
-              <div>
-                <p className="text-sm font-medium text-foreground">Gerar cobrança ao concluir</p>
-                <p className="text-xs text-muted-foreground">
-                  Cria recebimento automaticamente ao concluir o atendimento
-                </p>
-              </div>
-              <Switch
-                checked={form.generateFinancial ?? true}
-                onCheckedChange={(v) => setForm((f) => ({ ...f, generateFinancial: v }))}
-              />
-            </div>
-          </section>
+            </section>
+          )}
+
+          {/* A seção Financeiro saiu daqui. O valor previsto continua vindo do
+              procedimento escolhido (ver `handleProcedure`) e continua servindo
+              de sugestão na confirmação — só não é mais um campo para preencher
+              semanas antes de existir cobrança. O interruptor de recebimento foi
+              junto, para dentro do ConfirmCompletion, onde a decisão cabe. */}
         </div>
 
         {/* Footer */}

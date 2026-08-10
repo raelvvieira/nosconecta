@@ -6,6 +6,36 @@ import { createPatient, getPatientByCrmContact } from "@/lib/patients/patients.f
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import type { Appointment } from "@/components/agenda/types";
 
+/**
+ * Payload completo de um agendamento, do jeito que o servidor espera.
+ *
+ * Existe separado porque `updateAppointment` grava a linha inteira: quem mandar
+ * só os campos que mudaram apaga o resto (paciente vira "", valor previsto vira
+ * 0, valor cobrado vira null). Quem move um bloco na agenda passa por aqui pelo
+ * mesmo motivo que o formulário passa.
+ */
+export function appointmentPayload(data: Partial<Appointment>, patientId: string | null) {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    patientId: patientId ?? null,
+    patientName: data.patientName ?? "",
+    procedureName: data.procedureName ?? "",
+    professionalId: data.professionalId || null,
+    professionalName: data.professionalName ?? "",
+    roomId: data.roomId || null,
+    roomName: data.roomName ?? "",
+    date: data.date ?? today,
+    startTime: data.startTime ?? "09:00",
+    endTime: data.endTime ?? "10:00",
+    status: data.status,
+    type: data.type,
+    expectedRevenue: data.expectedRevenue ?? 0,
+    actualRevenue: data.actualRevenue ?? null,
+    notes: data.notes ?? null,
+    generateFinancial: data.generateFinancial ?? true,
+  };
+}
+
 /** Contato de WhatsApp que originou o agendamento, quando houver. */
 interface OriginContact {
   phone: string | null;
@@ -77,31 +107,11 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       /** Data do retorno pré-agendado, quando o atendimento foi confirmado. */
       retornoEm?: string | null;
     }) => {
-      const today = new Date().toISOString().slice(0, 10);
-
       // Só ao criar: editar um agendamento existente não deve inventar paciente.
       const patientId =
         !existingId && contact ? await resolvePatientId(data, contact) : (data.patientId ?? null);
 
-      const payload = {
-        id: existingId,
-        patientId: patientId ?? null,
-        patientName: data.patientName ?? "",
-        procedureName: data.procedureName ?? "",
-        professionalId: data.professionalId || null,
-        professionalName: data.professionalName ?? "",
-        roomId: data.roomId || null,
-        roomName: data.roomName ?? "",
-        date: data.date ?? today,
-        startTime: data.startTime ?? "09:00",
-        endTime: data.endTime ?? "10:00",
-        status: data.status,
-        type: data.type,
-        expectedRevenue: data.expectedRevenue ?? 0,
-        actualRevenue: data.actualRevenue ?? null,
-        notes: data.notes ?? null,
-        generateFinancial: data.generateFinancial ?? true,
-      };
+      const payload = { id: existingId, ...appointmentPayload(data, patientId) };
       // O retorno é criado no servidor, dentro da transição de status — é o
       // único ponto por onde passam os dois caminhos que concluem (formulário
       // e botão do celular).

@@ -397,6 +397,8 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
       actualRevenue?: number | null;
       /** Data do retorno pré-agendado, quando houver. */
       retornoEm?: string | null;
+      /** Decidido na confirmação, não no agendamento: gera o recebimento? */
+      generateFinancial?: boolean;
     }) => {
       assertValorAoConcluir(input.status, input.actualRevenue);
       return input;
@@ -414,7 +416,12 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
 
     // O valor só é gravado ao concluir; os outros status não mexem nele.
     const patch: Record<string, unknown> = { status: data.status };
-    if (data.status === "completed") patch.actual_revenue = data.actualRevenue;
+    if (data.status === "completed") {
+      patch.actual_revenue = data.actualRevenue;
+      // Gravado antes do `select`, para que `onStatusTransition` leia a escolha
+      // feita agora na confirmação, e não a que estava salva no agendamento.
+      if (data.generateFinancial !== undefined) patch.generate_financial = data.generateFinancial;
+    }
 
     const { data: updated, error } = await supabase
       .from("appointments")

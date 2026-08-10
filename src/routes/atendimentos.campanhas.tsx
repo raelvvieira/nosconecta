@@ -240,10 +240,12 @@ function CampanhasPage() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{c.title}</p>
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                  <span>
-                    {CAMPAIGN_STATUS_LABEL(c.status)} ·{" "}
-                    {c.sendToAll ? "Todos os contatos" : "Segmento"}
-                  </span>
+                  {/* Aqui dizia "Segmento" quando `sendToAll` vinha falso — e
+                      vinha falso em todas, porque a listagem do CRM não ecoa o
+                      campo. Segmentação nem existe nesta integração (campanhas
+                      e pipeline não se falam no Wavy), então a palavra descrevia
+                      algo que não acontece. O status sozinho é o que sabemos. */}
+                  <span>{CAMPAIGN_STATUS_LABEL(c.status)}</span>
                   <PendingMoveBadge campaignId={c.id} />
                 </p>
               </div>

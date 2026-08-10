@@ -2,8 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Megaphone, Pencil } from "lucide-react";
+import { Megaphone, Pencil, Trash2 } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +22,7 @@ import { PacingSection } from "./PacingSection";
 import { PhonePreview } from "./PhonePreview";
 import { CAMPAIGN_STATUS_LABEL } from "./status";
 import {
+  deleteCampaign,
   getCampaignConfig,
   getCampaignDetail,
   getMessageTemplates,
@@ -57,6 +68,7 @@ export function CampaignDetailSheet({
   const fetchTemplates = useServerFn(getMessageTemplates);
   const doSaveCampaign = useServerFn(saveCampaign);
   const doSaveTemplate = useServerFn(saveMessageTemplate);
+  const doDeleteCampaign = useServerFn(deleteCampaign);
 
   const open = Boolean(campaignId);
 
@@ -154,6 +166,21 @@ export function CampaignDetailSheet({
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
+
+  const excluir = useMutation({
+    mutationFn: () => doDeleteCampaign({ data: { campaignId: campaignId! } }),
+    onSuccess: () => {
+      toast.success("Campanha excluída");
+      setConfirmandoExclusao(false);
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      onOpenChange(false);
+    },
+    // O diálogo fica aberto no erro: a mensagem do CRM aparece ali, junto do
+    // botão, em vez de virar um toast que some antes de ser lido.
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const mensagem = editando ? composer.content : (template?.content ?? "");
 
   return (
@@ -168,7 +195,7 @@ export function CampaignDetailSheet({
               <SheetTitle className="truncate">{detail?.title ?? "Campanha"}</SheetTitle>
               <SheetDescription>
                 {detail ? CAMPAIGN_STATUS_LABEL(detail.status) : "Carregando..."}
-                {detail ? " · Todos os contatos" : ""}
+                {detail ? ` · ~${detail.estimatedRecipients} contatos` : ""}
               </SheetDescription>
             </div>
           </div>
@@ -285,12 +312,53 @@ export function CampaignDetailSheet({
                 </Button>
               </>
             ) : (
-              <Button variant="outline" className="flex-1 gap-2 rounded-xl" onClick={() => setEditando(true)}>
-                <Pencil className="h-4 w-4" /> Editar campanha
-              </Button>
+              <>
+                <Button variant="outline" className="flex-1 gap-2 rounded-xl" onClick={() => setEditando(true)}>
+                  <Pencil className="h-4 w-4" /> Editar campanha
+                </Button>
+                <Button
+                  variant="outline"
+                  className="gap-2 rounded-xl border-danger/30 text-danger hover:bg-danger-soft hover:text-danger"
+                  onClick={() => setConfirmandoExclusao(true)}
+                >
+                  <Trash2 className="h-4 w-4" /> Excluir
+                </Button>
+              </>
             )}
           </div>
         )}
+
+        <AlertDialog open={confirmandoExclusao} onOpenChange={setConfirmandoExclusao}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir "{detail?.title}"?</AlertDialogTitle>
+              <AlertDialogDescription>
+                A campanha sai do CRM e não tem como desfazer. O histórico de
+                disparos já feitos continua contando no limite diário — porque as
+                mensagens já saíram.
+                {excluir.isError && (
+                  <span className="mt-3 block rounded-xl bg-danger-soft px-3 py-2 text-2xs leading-4 text-danger">
+                    {excluir.error.message}
+                  </span>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={excluir.isPending}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-danger text-white hover:bg-danger/90"
+                disabled={excluir.isPending}
+                onClick={(e) => {
+                  // Segura o fechamento: o erro do CRM precisa aparecer aqui.
+                  e.preventDefault();
+                  excluir.mutate();
+                }}
+              >
+                {excluir.isPending ? "Excluindo..." : "Excluir campanha"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   );

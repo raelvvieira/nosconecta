@@ -209,6 +209,39 @@ async function handleLifecycle(ownerId: string, campaignId: string, action: "sch
   return { ok: true, campaign: unwrap(res) };
 }
 
+// Excluir campanha. Mesmo formato do DELETE de message_templates.
+//
+// O manual do Wavy não documenta este endpoint — se o CRM não o expuser, o
+// `authedFetch` lança com o status na mensagem e ela sobe até a tela. Melhor
+// descobrir com um erro claro do que fingir que excluiu.
+//
+// `crm_campaign_sends` NÃO é apagado de propósito: aquelas linhas são o
+// histórico que alimenta o limite diário, somado por dono sem filtrar por
+// campanha. Apagá-las devolveria cota que já foi de fato gasta no WhatsApp.
+async function handleDelete(ownerId: string, campaignId: string) {
+  try {
+    await campaignFetch(supabase, ownerId, `/api/v1/campaigns/${campaignId}`, { method: "DELETE" });
+  } catch (e) {
+    const msg = String(e);
+    if (msg.includes("(404)") || msg.includes("(405)")) {
+      throw new Error(
+        "O CRM não aceitou excluir esta campanha — o endpoint de exclusão não respondeu. " +
+          "Pause ou cancele a campanha, ou exclua direto no painel do Wavy.",
+      );
+    }
+    throw e;
+  }
+
+  // Metadado local (etapa de destino, pacing): sem a campanha, é lixo.
+  await supabase
+    .from("crm_campaign_configs")
+    .delete()
+    .eq("owner_id", ownerId)
+    .eq("campaign_id", campaignId);
+
+  return { ok: true };
+}
+
 async function handleSetLimit(ownerId: string, limit: number) {
   await supabase
     .from("crm_credentials")
@@ -260,6 +293,9 @@ Deno.serve(async (req) => {
         break;
       case "execute":
         result = await handleExecute(ownerId, body.campaignId);
+        break;
+      case "delete":
+        result = await handleDelete(ownerId, body.campaignId);
         break;
       case "schedule":
         result = await handleLifecycle(ownerId, body.campaignId, "schedule", body.scheduleTo);

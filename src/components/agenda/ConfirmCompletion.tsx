@@ -3,6 +3,7 @@ import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { formatBRL, parseBRLInput } from "@/lib/finance/format";
 import { addMonths } from "@/lib/date";
 
@@ -31,12 +32,15 @@ export interface ConfirmacaoAtendimento {
   valor: number;
   /** Data do retorno em "YYYY-MM-DD", ou null quando não haverá retorno. */
   retornoEm: string | null;
+  /** Gerar o recebimento no financeiro com o valor cobrado. */
+  gerarCobranca: boolean;
 }
 
 export function ConfirmCompletion({
   expectedRevenue,
   actualRevenue,
   appointmentDate,
+  generateFinancial = true,
   isPending,
   onConfirm,
 }: {
@@ -45,6 +49,8 @@ export function ConfirmCompletion({
   actualRevenue?: number | null;
   /** Data do atendimento, base para calcular o prazo do retorno. */
   appointmentDate: string;
+  /** Preferência salva no agendamento; o interruptor começa por ela. */
+  generateFinancial?: boolean;
   isPending?: boolean;
   onConfirm: (dados: ConfirmacaoAtendimento) => void;
 }) {
@@ -60,6 +66,11 @@ export function ConfirmCompletion({
   // paciente precisa voltar depois de ter atendido.
   const [valorConfirmado, setValorConfirmado] = useState<number | null>(null);
   const [dataManual, setDataManual] = useState("");
+
+  // O interruptor de cobrança morava no formulário de agendamento, semanas
+  // antes de haver valor nenhum. A decisão é aqui: só depois de atender é que
+  // se sabe se aquilo vira recebimento, e com qual valor.
+  const [gerarCobranca, setGerarCobranca] = useState(generateFinancial);
 
   if (actualRevenue !== null && actualRevenue !== undefined) {
     return (
@@ -88,7 +99,8 @@ export function ConfirmCompletion({
 
   // Passo do retorno: o valor já passou, falta decidir se o paciente volta.
   if (valorConfirmado !== null) {
-    const confirmarCom = (retornoEm: string | null) => onConfirm({ valor: valorConfirmado, retornoEm });
+    const confirmarCom = (retornoEm: string | null) =>
+      onConfirm({ valor: valorConfirmado, retornoEm, gerarCobranca });
     return (
       <div className="space-y-2.5 rounded-xl border border-coral/30 bg-coral-soft px-3 py-3">
         <p className="text-sm font-medium text-foreground">
@@ -181,6 +193,10 @@ export function ConfirmCompletion({
     );
   }
 
+  // Só para o rótulo do interruptor; a validação de verdade é em `confirmar`.
+  const lido = parseBRLInput(valor);
+  const valorDigitado = Number.isNaN(lido) ? null : lido;
+
   return (
     <div className="space-y-2 rounded-xl border border-coral/30 bg-coral-soft px-3 py-3">
       <Label htmlFor={campoId} className="text-sm text-foreground-secondary">
@@ -206,6 +222,16 @@ export function ConfirmCompletion({
           Previsto era {formatBRL(expectedRevenue)}
         </p>
       )}
+
+      {/* Rótulo com o valor dentro: "gerar cobrança" é abstrato, "gerar
+          recebimento de R$ 320,00" é a coisa que vai aparecer no financeiro. */}
+      <label className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5">
+        <span className="text-sm text-foreground-secondary">
+          Gerar recebimento{valorDigitado !== null && ` de ${formatBRL(valorDigitado)}`}
+        </span>
+        <Switch checked={gerarCobranca} onCheckedChange={setGerarCobranca} />
+      </label>
+
       <div className="flex gap-2 pt-0.5">
         <Button
           type="button"

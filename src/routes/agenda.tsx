@@ -21,10 +21,14 @@ import {
   procedures as fallbackProcedures,
 } from "@/components/agenda/mock-data";
 import { getSettings } from "@/lib/settings/settings.functions";
-import { useSaveAppointment } from "@/lib/agenda/useSaveAppointment";
+import { appointmentPayload, useSaveAppointment } from "@/lib/agenda/useSaveAppointment";
+import { acharSobreposicoes, type Sobreposicao } from "@/lib/agenda/conflicts";
+import { OverlapDialog } from "@/components/agenda/OverlapDialog";
+import type { AlvoArraste, ItemArrastavel } from "@/components/agenda/useCalendarDrag";
 import { formatBRL } from "@/lib/finance/format";
 import {
   getAgendaOverview,
+  updateAppointment,
   updateAppointmentStatus,
   createBlockedTime,
   updateBlockedTime,
@@ -102,6 +106,7 @@ function AgendaPage() {
 
   const fetchOverview = useServerFn(getAgendaOverview);
   const updateStatusFn = useServerFn(updateAppointmentStatus);
+  const updateApptFn = useServerFn(updateAppointment);
   const createBlockFn = useServerFn(createBlockedTime);
   const updateBlockFn = useServerFn(updateBlockedTime);
   const deleteBlockFn = useServerFn(deleteBlockedTime);
@@ -208,12 +213,14 @@ function AgendaPage() {
       status,
       actualRevenue,
       retornoEm,
+      generateFinancial,
     }: {
       id: string;
       status: AppointmentStatus;
       actualRevenue?: number;
       retornoEm?: string | null;
-    }) => updateStatusFn({ data: { id, status, actualRevenue, retornoEm } }),
+      generateFinancial?: boolean;
+    }) => updateStatusFn({ data: { id, status, actualRevenue, retornoEm, generateFinancial } }),
     onSuccess: (r, { status, actualRevenue, retornoEm }) => {
       toast.success(
         status === "completed" && actualRevenue !== undefined
@@ -244,7 +251,92 @@ function AgendaPage() {
     status: AppointmentStatus,
     actualRevenue?: number,
     retornoEm?: string | null,
-  ) => statusMutation.mutate({ id, status, actualRevenue, retornoEm });
+    generateFinancial?: boolean,
+  ) => statusMutation.mutate({ id, status, actualRevenue, retornoEm, generateFinancial });
+
+  // ─── Arrastar na agenda ────────────────────────────────────────────────
+  //
+  // O que a gente move fica guardado até a confirmação: havendo sobreposição, o
+  // diálogo abre e a gravação só acontece se a pessoa insistir. O card volta
+  // sozinho para o lugar de origem enquanto isso — o hook limpa o `transform`
+  // ao soltar, e a lista continua sendo a do servidor.
+  const [pendente, setPendente] = useState<{
+    item: ItemArrastavel;
+    alvo: AlvoArraste;
+    tipo: "consulta" | "compromisso";
+    conflitos: Sobreposicao[];
+  } | null>(null);
+
+  const moverMutation = useMutation({
+    mutationFn: async ({
+      item,
+      alvo,
+      tipo,
+    }: {
+      item: ItemArrastavel;
+      alvo: AlvoArraste;
+      tipo: "consulta" | "compromisso";
+    }) => {
+      if (tipo === "compromisso") {
+        const b = blocked.find((x) => x.id === item.id);
+        if (!b) throw new Error("Compromisso não encontrado");
+        await updateBlockFn({
+          data: {
+            id: b.id,
+            professionalId: b.professionalId ?? "",
+            roomId: b.roomId || null,
+            date: alvo.date,
+            startTime: alvo.startTime,
+            endTime: alvo.endTime,
+            reason: b.reason ?? null,
+          },
+        });
+        return;
+      }
+
+      const a = appointments.find((x) => x.id === item.id);
+      if (!a) throw new Error("Agendamento não encontrado");
+      // O agendamento inteiro, não só os campos que mudaram: o servidor grava a
+      // linha toda, e um payload parcial apagaria paciente, valores e notas.
+      await updateApptFn({
+        data: {
+          id: a.id,
+          ...appointmentPayload(
+            { ...a, date: alvo.date, startTime: alvo.startTime, endTime: alvo.endTime },
+            a.patientId ?? null,
+          ),
+        },
+      });
+    },
+    onSuccess: (_r, { alvo }) => {
+      toast.success(
+        `Movido para ${alvo.date.split("-").reverse().join("/")} às ${alvo.startTime}`,
+      );
+      setPendente(null);
+      invalidate();
+    },
+    onError: (e: any) => {
+      toast.error(e?.message ?? "Erro ao mover");
+      setPendente(null);
+    },
+  });
+
+  const handleMove = (
+    item: ItemArrastavel,
+    alvo: AlvoArraste,
+    tipo: "consulta" | "compromisso",
+  ) => {
+    const conflitos = acharSobreposicoes(
+      { ...alvo, ignorarId: item.id },
+      appointments,
+      blocked,
+    );
+    if (conflitos.length) {
+      setPendente({ item, alvo, tipo, conflitos });
+      return;
+    }
+    moverMutation.mutate({ item, alvo, tipo });
+  };
 
   const openNewAppointment = () => {
     setSelectedAppt(null);
@@ -328,10 +420,11 @@ function AgendaPage() {
               selectedDate={selectedDate}
               onDateChange={setSelectedDate}
               onAppointmentClick={handleApptClick}
-        onBlockClick={(b) => {
-          setSelectedBlock(b);
-          setBlockDrawerOpen(true);
-        }}
+              onBlockClick={(b) => {
+                setSelectedBlock(b);
+                setBlockDrawerOpen(true);
+              }}
+              onMove={handleMove}
               professionals={professionals}
               rooms={rooms}
               onFiltersChange={setFilters}
@@ -396,6 +489,14 @@ function AgendaPage() {
           setSelectedBlock(null);
           openNewAppointment();
         }}
+      />
+
+      <OverlapDialog
+        conflitos={pendente?.conflitos ?? null}
+        destino={pendente?.alvo ?? null}
+        isPending={moverMutation.isPending}
+        onCancel={() => setPendente(null)}
+        onConfirm={() => pendente && moverMutation.mutate(pendente)}
       />
     </div>
   );

@@ -72,6 +72,7 @@ interface Props {
     status: AppointmentStatus,
     actualRevenue?: number,
     retornoEm?: string | null,
+    generateFinancial?: boolean,
   ) => void;
 }
 

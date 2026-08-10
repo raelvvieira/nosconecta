@@ -244,6 +244,14 @@ export const executeCampaign = createServerFn({ method: "POST" })
     return { ok: true, recipientsCounted: json.recipientsCounted ?? 0 };
   });
 
+export const deleteCampaign = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { campaignId: string }) => input)
+  .handler(async ({ data, context }) => {
+    await callCampaigns({ ownerId: context.userId, action: "delete", campaignId: data.campaignId });
+    return { ok: true };
+  });
+
 export const campaignLifecycle = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { campaignId: string; action: "schedule" | "pause" | "resume" | "stop"; scheduleTo?: string }) => input)
