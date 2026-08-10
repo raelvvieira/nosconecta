@@ -34,7 +34,7 @@ export const Route = createFileRoute("/configuracoes")({
 // nada — a sub-rota estava registrada mas não tinha onde renderizar.
 function SettingsLayout() {
   return (
-    <div className="min-h-screen app-bg lg:flex">
+    <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
       <main className="mx-auto w-full max-w-[1240px] px-4 pb-28 pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
         <header className="pr-16 lg:pr-0">
@@ -42,7 +42,7 @@ function SettingsLayout() {
             <Settings2 className="h-4 w-4" />
             Base operacional
           </div>
-          <h1 className="text-[30px] font-semibold tracking-[-0.035em] lg:text-4xl">
+          <h1 className="text-[30px] font-semibold tracking-[-0.035em] lg:text-4xl leading-[1.1]">
             Configurações
           </h1>
           <p className="mt-1 text-[15px] text-muted-foreground">

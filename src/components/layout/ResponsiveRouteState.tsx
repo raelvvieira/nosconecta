@@ -12,9 +12,9 @@ type Props = {
 
 export function ResponsiveRouteState({ title, description, notFound = false, onRetry }: Props) {
   return (
-    <div className="min-h-screen app-bg lg:flex">
+    <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
-      <main className="flex min-h-screen flex-1 items-center justify-center px-5 pb-28 pt-20 lg:min-h-0 lg:px-10 lg:pb-10 lg:pt-10">
+      <main className="flex min-h-dvh flex-1 items-center justify-center px-5 pb-28 pt-20 lg:min-h-0 lg:px-10 lg:pb-10 lg:pt-10">
         <section className="surface-card w-full max-w-[520px] px-6 py-8 text-center sm:px-10 sm:py-10">
           <span className="mx-auto grid h-14 w-14 place-items-center rounded-[20px] bg-coral-soft text-coral">
             <AlertCircle className="h-6 w-6" />

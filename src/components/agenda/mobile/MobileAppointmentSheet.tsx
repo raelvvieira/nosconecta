@@ -72,7 +72,7 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <SheetContent
         side="bottom"
-        className="rounded-t-[28px] border-0 p-0 max-h-[88vh] overflow-y-auto"
+        className="rounded-t-[28px] border-0 p-0 max-h-[88dvh] overflow-y-auto"
         style={{ background: "#F8F8FA" }}
       >
         <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-[#E2E8F0]" />

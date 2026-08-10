@@ -45,7 +45,7 @@ function InicioPage() {
   const { data } = useSuspenseQuery(homeOverviewOptions(fetchOverview as any));
 
   return (
-    <div className="app-bg h-screen flex overflow-hidden">
+    <div className="app-bg h-dvh flex overflow-hidden">
       <Sidebar />
 
       <MobileHome />

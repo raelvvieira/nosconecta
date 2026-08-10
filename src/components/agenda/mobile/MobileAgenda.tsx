@@ -414,7 +414,7 @@ export function MobileAgenda({
   ];
 
   return (
-    <div className="lg:hidden flex-1 min-w-0 min-h-screen" style={{ background: "#F8F8FA" }}>
+    <div className="lg:hidden flex-1 min-w-0 min-h-dvh" style={{ background: "#F8F8FA" }}>
       <div className="px-4 pt-6 pb-28 space-y-5">
         {/* Header */}
         <header>

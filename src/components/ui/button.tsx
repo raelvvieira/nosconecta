@@ -4,27 +4,34 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
+// `:active` dispara no pointer-down — é o único jeito de o botão responder
+// ao toque no instante do contato, e não só quando o dedo sai. O `hover:`
+// que existia antes nunca acontece no celular, então até aqui ~209 botões
+// não davam retorno nenhum ao dedo.
+//
+// A entrada é mais rápida (75ms) que a volta (200ms): o dedo chega de
+// repente e sai devagar, e a assimetria é o que faz parecer físico.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[14px] text-sm font-medium cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-[14px] text-sm font-medium cursor-pointer transition-all duration-200 ease-out active:duration-75 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "bg-gradient-primary text-white shadow-soft hover:opacity-95",
+          "bg-gradient-primary text-white shadow-soft hover:opacity-95 active:opacity-90",
         premium:
-          "bg-gradient-primary text-white shadow-soft hover:opacity-95",
+          "bg-gradient-primary text-white shadow-soft hover:opacity-95 active:opacity-90",
         dark:
-          "bg-[#1B1B1F] text-white hover:bg-[#26262B]",
+          "bg-[#1B1B1F] text-white hover:bg-[#26262B] active:bg-[#33333A]",
         destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80",
         outline:
-          "border border-[#ECECEC] bg-white text-foreground hover:bg-[#FAFAFA]",
+          "border border-[#ECECEC] bg-white text-foreground hover:bg-[#FAFAFA] active:bg-[#F0F0F2]",
         secondary:
-          "bg-white border border-[#ECECEC] text-foreground hover:bg-[#FAFAFA]",
+          "bg-white border border-[#ECECEC] text-foreground hover:bg-[#FAFAFA] active:bg-[#F0F0F2]",
         ghost:
-          "text-foreground hover:bg-[#FAFAFA]",
+          "text-foreground hover:bg-[#FAFAFA] active:bg-[#F0F0F2]",
         link:
-          "text-primary underline-offset-4 hover:underline",
+          "text-primary underline-offset-4 hover:underline active:opacity-70",
       },
       size: {
         default: "h-11 px-5",

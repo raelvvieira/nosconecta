@@ -184,10 +184,79 @@
     /* Instalado, o "rubber band" do iOS ao puxar além do fim entrega na hora
        que é uma página web dentro de uma casca. */
     overscroll-behavior-y: none;
+    /* O flash cinza do sistema aparecia por cima do nosso próprio feedback de
+       press, com atraso e recorte quadrado. Nós desenhamos o retorno. */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Tira o atraso de ~300ms que o navegador guarda esperando um duplo toque
+     em qualquer coisa clicável. */
+  button, a, [role="button"], label, summary {
+    touch-action: manipulation;
   }
 
   .tabular-nums {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Reduzir movimento ──────────────────────────────────────────────────
+     Quem liga isso não está pedindo "sem retorno" — está pedindo sem
+     deslocamento. Então o movimento vira aparição: some o slide e a escala,
+     ficam a cor e a opacidade, e tudo continua respondendo ao dedo. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 120ms !important;
+      animation-delay: 0ms !important;
+      transition-duration: 120ms !important;
+    }
+
+    /* Entradas do tw-animate-css deixam de deslizar e de escalar. */
+    [class*="animate-in"],
+    [class*="animate-out"] {
+      --tw-enter-translate-x: 0 !important;
+      --tw-enter-translate-y: 0 !important;
+      --tw-exit-translate-x: 0 !important;
+      --tw-exit-translate-y: 0 !important;
+      --tw-enter-scale: 1 !important;
+      --tw-exit-scale: 1 !important;
+    }
+
+    /* O press continua, mas sem afundar. */
+    :active {
+      scale: 1 !important;
+    }
+    .press:active {
+      transform: none;
+    }
+    .press-fab:active {
+      transform: translateY(-18px);
+    }
+  }
+
+  /* ── Reduzir transparência ──────────────────────────────────────────────
+     Vidro fosco vira superfície sólida; sem isso o texto por cima de fundo
+     borrado é justamente o que a preferência existe para evitar. */
+  @media (prefers-reduced-transparency: reduce) {
+    * {
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+  }
+
+  /* ── Mais contraste ─────────────────────────────────────────────────────
+     Bordas de 1px em #F0F0F2 desaparecem para quem pede contraste. */
+  @media (prefers-contrast: more) {
+    :root {
+      --border: #C9C9CE;
+      --input: #B4B4BA;
+      --muted-foreground: #4A4A50;
+    }
   }
 }
 
@@ -219,6 +288,29 @@
 
 @utility shadow-elev {
   box-shadow: var(--shadow-elev);
+}
+
+/* Retorno de press para cards e linhas clicáveis, que não passam pelo
+   componente Button. Mesma assimetria: entra rápido, volta devagar. */
+@utility press {
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), background-color 200ms ease-out;
+
+  &:active {
+    transform: scale(0.985);
+    transition-duration: 75ms;
+  }
+}
+
+/* O botão flutuante da barra inferior: sobe 18px e ainda precisa afundar no
+   toque, então o translate mora aqui junto com a escala. */
+@utility press-fab {
+  transform: translateY(-18px);
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease-out;
+
+  &:active:not(:disabled) {
+    transform: translateY(-18px) scale(0.92);
+    transition-duration: 75ms;
+  }
 }
 
 /* Aumenta a área tocável para 44px sem mexer no desenho do ícone.

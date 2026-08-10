@@ -113,12 +113,12 @@ function PatientsPage() {
     });
 
   return (
-    <div className="min-h-screen app-bg lg:flex">
+    <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
       <main className="mx-auto w-full max-w-[1180px] px-4 pb-28 pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
         <header className="pr-16 lg:flex lg:items-end lg:justify-between lg:gap-6 lg:pr-0">
           <div>
-            <h1 className="text-[30px] font-semibold tracking-[-0.035em] text-foreground lg:text-4xl">
+            <h1 className="text-[30px] font-semibold tracking-[-0.035em] text-foreground lg:text-4xl leading-[1.1]">
               Pacientes
             </h1>
             <p className="mt-1 text-[15px] text-muted-foreground">
@@ -207,7 +207,7 @@ function PatientsPage() {
                   key={patient.id}
                   to="/pacientes/$patientId"
                   params={{ patientId: patient.id }}
-                  className="group flex min-h-[106px] items-center gap-3 px-4 py-4 transition-colors hover:bg-muted/25 sm:px-6"
+                  className="press group flex min-h-[106px] items-center gap-3 px-4 py-4 hover:bg-muted/25 active:bg-muted/40 sm:px-6"
                 >
                   <span
                     className={cn(

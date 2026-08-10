@@ -179,7 +179,7 @@ function AuthGate({ children }: { children: ReactNode }) {
 
   if (!ready) {
     return (
-      <div className="min-h-screen w-full bg-[#FAFAFA] grid place-items-center">
+      <div className="min-h-dvh w-full bg-[#FAFAFA] grid place-items-center">
         <div className="h-8 w-8 rounded-full border-2 border-coral border-t-transparent animate-spin" />
       </div>
     );

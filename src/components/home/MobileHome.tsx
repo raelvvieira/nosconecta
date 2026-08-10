@@ -38,7 +38,9 @@ function Header() {
   return (
     <div style={{ padding: "calc(env(safe-area-inset-top) + 52px) 24px 0 24px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
       <div style={{ minWidth: 0 }}>
-        <h1 style={{ fontSize: 27, lineHeight: "33px", fontWeight: 700, letterSpacing: "-0.03em", color: "#111827", margin: 0 }}>
+        {/* 31px para 27px de corpo (1,15): título grande pede leading
+            apertado, senão a saudação que quebra em duas linhas se desfaz. */}
+        <h1 style={{ fontSize: 27, lineHeight: "31px", fontWeight: 700, letterSpacing: "-0.03em", color: "#111827", margin: 0 }}>
           {greeting}{firstName ? `, ${firstName}` : ""}
         </h1>
         <p style={{ fontSize: 15, lineHeight: "22px", fontWeight: 400, color: "#6B7280", marginTop: 4 }}>
@@ -272,6 +274,7 @@ function QuickActions() {
           <button
             key={i}
             type="button"
+            className="press"
             onClick={a.onClick}
             style={{ height: 86, minWidth: 0, borderRadius: 22, padding: "0 16px", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", border: "none", ...a.containerStyle }}
           >
@@ -312,6 +315,7 @@ function AttentionSection() {
           <button
             key={i}
             type="button"
+            className="press"
             style={{ width: "100%", height: 58, display: "flex", alignItems: "center", padding: "0 16px", gap: 12, borderBottom: i < attentionItems.length - 1 ? "1px solid #F1F5F9" : "none", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
           >
             <div style={{ width: 36, height: 36, borderRadius: 999, background: item.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>

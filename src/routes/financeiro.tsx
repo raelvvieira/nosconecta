@@ -103,7 +103,7 @@ function FinanceiroVisaoGeral() {
   const { kpis } = data;
 
   return (
-    <div className="app-bg h-screen flex overflow-hidden">
+    <div className="app-bg h-dvh flex overflow-hidden">
       <Sidebar />
 
       <MobileHome />

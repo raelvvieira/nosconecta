@@ -80,7 +80,7 @@ function PatientDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   if (!patient) {
     return (
-      <div className="min-h-screen grid place-items-center text-muted-foreground text-sm">
+      <div className="min-h-dvh grid place-items-center text-muted-foreground text-sm">
         {isLoading ? "Carregando paciente…" : "Paciente não encontrado."}
       </div>
     );
@@ -99,7 +99,7 @@ function PatientDetailPage() {
     });
 
   return (
-    <div className="min-h-screen app-bg lg:flex">
+    <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
       <main className="mx-auto w-full max-w-[1180px] px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8">
         <header className="flex items-center justify-between gap-3">
@@ -111,7 +111,7 @@ function PatientDetailPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-xl font-semibold tracking-tight lg:text-2xl">Paciente</h1>
+          <h1 className="text-xl font-semibold tracking-tight lg:text-2xl leading-[1.1]">Paciente</h1>
           <button
             type="button"
             aria-label="Editar paciente"
@@ -128,7 +128,7 @@ function PatientDetailPage() {
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-3">
-              <h2 className="truncate text-2xl font-semibold tracking-tight lg:text-3xl">
+              <h2 className="truncate text-2xl font-semibold tracking-tight lg:text-3xl leading-[1.1]">
                 {patient.name}
               </h2>
               <span

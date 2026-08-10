@@ -14,9 +14,9 @@ export const Route = createFileRoute("/atendimentos")({
 
 function AtendimentosLayout() {
   return (
-    <div className="min-h-screen app-bg lg:flex">
+    <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
-      <div className="flex min-h-screen flex-1 flex-col lg:h-screen lg:overflow-y-auto">
+      <div className="flex min-h-dvh flex-1 flex-col lg:h-dvh lg:overflow-y-auto">
         <Outlet />
       </div>
     </div>

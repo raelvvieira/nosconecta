@@ -212,7 +212,7 @@ export function Sidebar() {
       <aside
         className={cn(
           "hidden lg:flex shrink-0 flex-col bg-sidebar border-r border-border py-6 gap-6 transition-[width] duration-200",
-          "h-screen sticky top-0",
+          "h-dvh sticky top-0",
           collapsed ? "w-[88px] items-center px-0" : "w-[240px] items-stretch px-4",
         )}
       >
@@ -589,9 +589,12 @@ export function Sidebar() {
                 <span
                   style={{
                     fontFamily: "Inter, sans-serif",
-                    fontSize: 9.5,
+                    // Texto miúdo precisa de tracking POSITIVO para respirar;
+                    // o negativo (herdado do corpo) fechava as letras e é o
+                    // contrário do que o tamanho pede.
+                    fontSize: 10,
                     fontWeight: 500,
-                    letterSpacing: "-0.01em",
+                    letterSpacing: "0.01em",
                     lineHeight: 1,
                     color: active ? "#FF6B57" : "#6B7280",
                     whiteSpace: "nowrap",
@@ -611,7 +614,13 @@ export function Sidebar() {
             };
 
             return isReal ? (
-              <Link key={item.label} to={item.to} aria-label={item.label} style={wrapperStyle}>
+              <Link
+                key={item.label}
+                to={item.to}
+                aria-label={item.label}
+                className="press"
+                style={wrapperStyle}
+              >
                 {inner}
               </Link>
             ) : (
@@ -634,7 +643,10 @@ export function Sidebar() {
               onClick={() => fab?.onClick()}
               disabled={!fabActive}
               aria-label={fab?.label ?? "Adicionar"}
-              className="bg-gradient-primary shadow-soft"
+              // O deslocamento saiu do style inline e virou classe: inline
+              // vence classe, e sem isso o `:active` não conseguiria compor a
+              // escala com o translate.
+              className="press-fab bg-gradient-primary shadow-soft"
               style={{
                 width: 56,
                 height: 56,
@@ -643,11 +655,9 @@ export function Sidebar() {
                 alignItems: "center",
                 justifyContent: "center",
                 color: "white",
-                transform: "translateY(-18px)",
                 flexShrink: 0,
                 border: "4px solid white",
                 opacity: fabActive ? 1 : 0.4,
-                transition: "transform 0.2s ease, opacity 0.2s ease",
               }}
             >
               <Plus style={{ width: 26, height: 26 }} strokeWidth={2.5} />
@@ -874,7 +884,7 @@ export function Sidebar() {
           ficam os módulos e, nos que têm submenu, os itens deles — mesma
           estrutura do menu lateral do desktop. */}
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-        <SheetContent side="bottom" className="max-h-[80vh] overflow-y-auto rounded-t-[24px] pb-8 lg:hidden">
+        <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto rounded-t-[24px] pb-8 lg:hidden">
           <SheetHeader className="text-left">
             <SheetTitle className="text-base">Navegar</SheetTitle>
           </SheetHeader>

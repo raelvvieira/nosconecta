@@ -38,7 +38,7 @@ export function DesktopHome({
     <div className="space-y-6 md:space-y-8">
       <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 min-h-[80px]">
         <div>
-          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
+          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight leading-[1.1]">
             {greeting}
             {firstName ? `, ${firstName}` : ""}
           </h1>

@@ -59,7 +59,7 @@ export function PipelineCard({
         }
       }}
       className={cn(
-        "cursor-pointer rounded-2xl border bg-white p-3 text-left transition-shadow hover:shadow-soft",
+        "press cursor-pointer rounded-2xl border bg-white p-3 text-left hover:shadow-soft",
         status === "won" && "border-success/40 bg-success-soft/40",
         status === "lost" && "border-border opacity-60",
         status === "negotiating" && "border-border",
@@ -77,7 +77,10 @@ export function PipelineCard({
           onPointerMove={onDragMove}
           onPointerUp={onDragEnd}
           onPointerCancel={onDragEnd}
-          className="-ml-1 shrink-0 cursor-grab touch-none rounded-lg p-0.5 text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
+          // Área real em vez de `tap-44`: um alvo de 44px aqui invadiria o
+          // título e o menu, e o dedo abriria a coisa errada. Quem não usa
+          // ponteiro tem o caminho "Mover para" no menu.
+          className="-ml-1 -my-1 grid h-8 w-7 shrink-0 place-items-center cursor-grab touch-none rounded-lg text-muted-foreground/50 hover:text-foreground active:cursor-grabbing"
         >
           <GripVertical className="h-4 w-4" />
         </button>
@@ -89,7 +92,7 @@ export function PipelineCard({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 shrink-0"
+              className="-my-1 -mr-1 h-9 w-9 shrink-0"
               onClick={(event) => event.stopPropagation()}
             >
               <MoreHorizontal className="h-4 w-4" />

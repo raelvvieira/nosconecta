@@ -196,7 +196,7 @@ function AgendaPage() {
   };
 
   return (
-    <div className="min-h-screen flex" style={{ background: "#F8F8FA" }}>
+    <div className="min-h-dvh flex" style={{ background: "#F8F8FA" }}>
       <Sidebar />
 
       {/* Mobile */}
@@ -220,7 +220,7 @@ function AgendaPage() {
         {/* Header */}
         <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#111827]">
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-[#111827] leading-[1.1]">
               Agenda
             </h1>
             <p className="text-sm mt-1" style={{ color: "#6B7280" }}>
