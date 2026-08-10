@@ -2,13 +2,31 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Megaphone, Pause, Play, Plus, RefreshCw, Rocket, Square } from "lucide-react";
+import { AlertTriangle, Megaphone, Pause, Play, Plus, RefreshCw, Rocket, X } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBadge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { CampaignDetailSheet } from "@/components/atendimentos/campaigns/CampaignDetailSheet";
+import { FireCampaignDialog } from "@/components/atendimentos/campaigns/FireCampaignDialog";
+import {
+  CAMPAIGN_STATUS_LABEL,
+  podeCancelar,
+  podePausar,
+  podeRetomar,
+} from "@/components/atendimentos/campaigns/status";
 import { NewCampaignSheet } from "@/components/atendimentos/campaigns/NewCampaignSheet";
 import { cn } from "@/lib/utils";
 import {
@@ -43,15 +61,6 @@ export const Route = createFileRoute("/atendimentos/campanhas")({
   notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound />,
   component: CampanhasPage,
 });
-
-const STATUS_LABEL: Record<string, string> = {
-  draft: "Rascunho",
-  scheduled: "Agendada",
-  running: "Em andamento",
-  paused: "Pausada",
-  completed: "Concluída",
-  stopped: "Parada",
-};
 
 function PendingMoveBadge({ campaignId }: { campaignId: string }) {
   const queryClient = useQueryClient();
@@ -125,14 +134,16 @@ function CampanhasPage() {
     mutationFn: (campaignId: string) => doExecute({ data: { campaignId } }),
     onSuccess: (res) => {
       toast.success(`Campanha disparada — ~${res.recipientsCounted} contatos`);
+      setDispararId(null);
       refresh();
     },
     onError: (error: Error) => toast.error(error.message),
   });
   const lifecycleMutation = useMutation({
     mutationFn: (vars: { campaignId: string; action: "pause" | "resume" | "stop" }) => doLifecycle({ data: vars }),
-    onSuccess: () => {
-      toast.success("Atualizado");
+    onSuccess: (_r, vars) => {
+      toast.success(vars.action === "stop" ? "Campanha cancelada" : "Campanha atualizada");
+      setCancelarId(null);
       refresh();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -150,6 +161,9 @@ function CampanhasPage() {
   });
 
   const [formOpen, setFormOpen] = useState(false);
+  const [detalheId, setDetalheId] = useState<string | null>(null);
+  const [dispararId, setDispararId] = useState<string | null>(null);
+  const [cancelarId, setCancelarId] = useState<string | null>(null);
   const usage = usageQuery.data ?? { limit: 200, usedToday: 0 };
   const usagePct = usage.limit > 0 ? Math.min(100, Math.round((usage.usedToday / usage.limit) * 100)) : 0;
 
@@ -208,54 +222,83 @@ function CampanhasPage() {
             </div>
           )}
           {(campaignsQuery.data ?? []).map((c) => (
-            <div key={c.id} className="flex flex-wrap items-center gap-3 px-4 py-4 sm:px-5">
+            // A linha inteira abre o detalhe. Antes não havia nenhuma forma de
+            // ver do que a campanha tratava — só o título e quatro ícones.
+            <div
+              key={c.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => setDetalheId(c.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setDetalheId(c.id);
+                }
+              }}
+              className="press flex cursor-pointer flex-wrap items-center gap-3 px-4 py-4 text-left hover:bg-surface sm:px-5"
+            >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{c.title}</p>
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                   <span>
-                    {STATUS_LABEL[c.status] ?? c.status} · {c.sendToAll ? "Todos os contatos" : "Segmento"}
+                    {CAMPAIGN_STATUS_LABEL(c.status)} ·{" "}
+                    {c.sendToAll ? "Todos os contatos" : "Segmento"}
                   </span>
                   <PendingMoveBadge campaignId={c.id} />
                 </p>
               </div>
-              <div className="flex shrink-0 items-center gap-1.5">
+
+              {/* Os botões vivem dentro da linha clicável, então cada um para a
+                  propagação — senão disparar também abriria o detalhe. */}
+              <div
+                className="flex shrink-0 flex-wrap items-center gap-1.5"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <Button
                   variant="outline"
                   size="sm"
                   className="gap-1.5"
-                  disabled={executeMutation.isPending}
-                  onClick={() => executeMutation.mutate(c.id)}
+                  // Por campanha, não pela página: a mutation é uma só, então
+                  // `isPending` puro desabilitava o botão de todas as linhas.
+                  disabled={executeMutation.isPending && executeMutation.variables === c.id}
+                  onClick={() => setDispararId(c.id)}
                 >
                   <Rocket className="h-3.5 w-3.5" />
                   Disparar
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => lifecycleMutation.mutate({ campaignId: c.id, action: "pause" })}
-                  aria-label="Pausar"
-                >
-                  <Pause className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => lifecycleMutation.mutate({ campaignId: c.id, action: "resume" })}
-                  aria-label="Retomar"
-                >
-                  <Play className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-danger"
-                  onClick={() => lifecycleMutation.mutate({ campaignId: c.id, action: "stop" })}
-                  aria-label="Parar"
-                >
-                  <Square className="h-4 w-4" />
-                </Button>
+
+                {podePausar(c.status) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => lifecycleMutation.mutate({ campaignId: c.id, action: "pause" })}
+                  >
+                    <Pause className="h-3.5 w-3.5" /> Pausar
+                  </Button>
+                )}
+
+                {podeRetomar(c.status) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => lifecycleMutation.mutate({ campaignId: c.id, action: "resume" })}
+                  >
+                    <Play className="h-3.5 w-3.5" /> Retomar
+                  </Button>
+                )}
+
+                {podeCancelar(c.status) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-danger"
+                    onClick={() => setCancelarId(c.id)}
+                  >
+                    <X className="h-3.5 w-3.5" /> Cancelar
+                  </Button>
+                )}
               </div>
             </div>
           ))}
@@ -263,6 +306,41 @@ function CampanhasPage() {
       </main>
 
       <NewCampaignSheet open={formOpen} onOpenChange={setFormOpen} onCreated={refresh} />
+
+      <CampaignDetailSheet
+        campaignId={detalheId}
+        onOpenChange={(open) => !open && setDetalheId(null)}
+      />
+
+      <FireCampaignDialog
+        campaignId={dispararId}
+        isPending={executeMutation.isPending}
+        onOpenChange={(open) => !open && setDispararId(null)}
+        onConfirm={(id) => executeMutation.mutate(id)}
+      />
+
+      <AlertDialog open={Boolean(cancelarId)} onOpenChange={(o) => !o && setCancelarId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar esta campanha?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O envio para de onde estiver. As mensagens já entregues não voltam atrás, e
+              a cota do dia já debitada não é devolvida.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-danger text-white hover:bg-danger/90"
+              onClick={() =>
+                cancelarId && lifecycleMutation.mutate({ campaignId: cancelarId, action: "stop" })
+              }
+            >
+              Cancelar campanha
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

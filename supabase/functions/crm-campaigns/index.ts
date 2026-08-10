@@ -36,9 +36,34 @@ async function handleList(ownerId: string) {
   return { ok: true, campaigns };
 }
 
+// Detalhe de uma campanha. O handler já existia mas nunca foi chamado por
+// nenhuma tela — agora alimenta o painel de detalhe e a revisão de disparo.
+//
+// Vai junto o que a revisão precisa mostrar antes de mandar: a estimativa de
+// destinatários, o limite do dia e o histórico de disparos desta campanha.
+// Tudo numa resposta só porque são três leituras que sempre aparecem juntas.
 async function handleDetail(ownerId: string, campaignId: string) {
-  const res = await campaignFetch(supabase, ownerId, `/api/v1/campaigns/${campaignId}`);
-  return { ok: true, campaign: unwrap(res) };
+  const [res, recipients, usage] = await Promise.all([
+    campaignFetch(supabase, ownerId, `/api/v1/campaigns/${campaignId}`),
+    estimateRecipients(ownerId),
+    getDailyUsage(ownerId),
+  ]);
+
+  const { data: sends } = await supabase
+    .from("crm_campaign_sends")
+    .select("id, executed_at, recipient_count")
+    .eq("owner_id", ownerId)
+    .eq("campaign_id", campaignId)
+    .order("executed_at", { ascending: false })
+    .limit(20);
+
+  return {
+    ok: true,
+    campaign: unwrap(res),
+    estimatedRecipients: recipients,
+    usage,
+    sends: sends ?? [],
+  };
 }
 
 interface SaveCampaignInput {

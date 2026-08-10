@@ -21,12 +21,63 @@ export interface MessageTemplate {
   content: string;
 }
 
+/** Status conhecidos. `null` = o CRM mandou algo que não sabemos traduzir. */
+export type CampaignStatus =
+  | "draft"
+  | "scheduled"
+  | "running"
+  | "paused"
+  | "completed"
+  | "stopped";
+
+const STATUS_CONHECIDOS: CampaignStatus[] = [
+  "draft",
+  "scheduled",
+  "running",
+  "paused",
+  "completed",
+  "stopped",
+];
+
+/**
+ * Normaliza o status vindo do CRM.
+ *
+ * O Wavy devolve o status como número em algumas respostas, e a tela imprimia
+ * esse número cru — era de onde vinha o "4" que parecia contagem de contatos.
+ * Enquanto o de-para numérico não estiver confirmado com o CRM, um valor
+ * desconhecido vira `null` e a interface mostra "—": não saber é melhor que
+ * mostrar um número que a pessoa vai interpretar como outra coisa.
+ */
+function normalizeStatus(raw: unknown): CampaignStatus | null {
+  if (typeof raw !== "string") return null;
+  const s = raw.trim().toLowerCase();
+  return (STATUS_CONHECIDOS as string[]).includes(s) ? (s as CampaignStatus) : null;
+}
+
 export interface Campaign {
   id: string;
   title: string;
-  status: string;
+  status: CampaignStatus | null;
   sendToAll: boolean;
   messageInterval: MessageInterval | null;
+}
+
+export interface CampaignSend {
+  id: string;
+  executedAt: string;
+  recipientCount: number;
+}
+
+export interface CampaignDetail extends Campaign {
+  /** Id do template no CRM; o conteúdo vem cruzando com getMessageTemplates. */
+  templateId: string | null;
+  pauseAfterCount: number | null;
+  resumeAfterMinutes: number | null;
+  /** Estimativa de destinatários — igual para toda campanha, já que todas são
+   *  "todos os contatos". */
+  estimatedRecipients: number;
+  usage: DailyUsage;
+  sends: CampaignSend[];
 }
 
 export interface CampaignConfig {
@@ -71,9 +122,14 @@ function mapCampaign(row: any): Campaign {
   return {
     id: String(row?.id),
     title: row?.title ?? "Sem título",
-    status: row?.status ?? "draft",
-    sendToAll: !!row?.sendToAll,
-    messageInterval: row?.deliveryDistribution?.message_interval ?? null,
+    status: normalizeStatus(row?.status),
+    // O resto do payload do Wavy é snake_case; ler só camelCase dava sempre
+    // `undefined`, e a tela escrevia "Segmento" para 100% das campanhas —
+    // exatamente o contrário da verdade, já que toda campanha é criada com
+    // sendToAll: true (o CRM não segmenta por etapa).
+    sendToAll: Boolean(row?.sendToAll ?? row?.send_to_all ?? true),
+    messageInterval:
+      row?.deliveryDistribution?.message_interval ?? row?.delivery_distribution?.message_interval ?? null,
   };
 }
 
@@ -107,6 +163,49 @@ export const getCampaigns = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<Campaign[]> => {
     const json = await callCampaigns({ ownerId: context.userId, action: "list" });
     return (json.campaigns ?? []).map(mapCampaign);
+  });
+
+/**
+ * Detalhe de uma campanha, com o que a revisão de disparo precisa mostrar.
+ *
+ * Liga a action `"detail"`, que existia na Edge Function desde sempre e nunca
+ * tinha sido chamada por nenhuma tela — era por isso que não dava para abrir
+ * uma campanha e ver do que ela tratava.
+ *
+ * O formato da resposta de `/api/v1/campaigns/{id}` não está documentado no
+ * repositório e nenhum código a consumia até agora, então a leitura aqui é
+ * defensiva: tenta camelCase e snake_case, e devolve `null` em vez de inventar
+ * valor quando o campo não vier.
+ */
+export const getCampaignDetail = createServerFn({ method: "GET" })
+  .inputValidator((input: { campaignId: string }) => input)
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }): Promise<CampaignDetail> => {
+    const json = await callCampaigns({
+      ownerId: context.userId,
+      action: "detail",
+      campaignId: data.campaignId,
+    });
+    const row = json.campaign ?? {};
+    const base = mapCampaign({ ...row, id: row?.id ?? data.campaignId });
+    const dist = row?.deliveryDistribution ?? row?.delivery_distribution ?? {};
+
+    return {
+      ...base,
+      templateId:
+        row?.templateAllocationConfig?.templateId ??
+        row?.template_allocation_config?.template_id ??
+        null,
+      pauseAfterCount: dist?.pause_after_count ?? null,
+      resumeAfterMinutes: dist?.resume_after_minutes ?? null,
+      estimatedRecipients: Number(json.estimatedRecipients ?? 0),
+      usage: json.usage ?? { limit: 200, usedToday: 0 },
+      sends: (json.sends ?? []).map((s: any) => ({
+        id: String(s.id),
+        executedAt: s.executed_at,
+        recipientCount: Number(s.recipient_count ?? 0),
+      })),
+    };
   });
 
 export const saveCampaign = createServerFn({ method: "POST" })
