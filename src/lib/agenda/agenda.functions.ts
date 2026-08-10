@@ -159,6 +159,18 @@ const appointmentInput = (input: {
   actualRevenue?: number | null;
   notes?: string | null;
   generateFinancial?: boolean;
+  /**
+   * Não mandar a confirmação na criação.
+   *
+   * Existe por causa do retorno pré-agendado. `createAppointment` avisa o
+   * paciente sem olhar a data, então um retorno criado hoje para daqui a seis
+   * meses dispararia e-mail, SMS e WhatsApp **agora**, com o texto já trazendo
+   * a data de daqui a meio ano. Os lembretes automáticos não precisam disso:
+   * o cron varre por data e pega o retorno na véspera, na hora certa.
+   */
+  skipConfirmation?: boolean;
+  /** Data do retorno a pré-agendar quando este save conclui o atendimento. */
+  retornoEm?: string | null;
 }) => {
   if (!input.patientName?.trim()) throw new Error("Informe o nome do paciente");
   if (!input.date) throw new Error("Informe a data");
@@ -188,6 +200,9 @@ const appointmentInput = (input: {
     actual_revenue: input.actualRevenue ?? null,
     notes: input.notes?.trim() || null,
     generate_financial: input.generateFinancial ?? true,
+    // Fora do payload da tabela — só orienta o handler. Removido antes do insert.
+    __skipConfirmation: Boolean(input.skipConfirmation),
+    __retornoEm: input.retornoEm ?? null,
   };
 };
 
@@ -195,7 +210,7 @@ export const createAppointment = createServerFn({ method: "POST" })
   .inputValidator(appointmentInput)
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    const { id: _ignored, ...row } = data;
+    const { id: _ignored, __skipConfirmation: skipConfirmation, __retornoEm: _r, ...row } = data;
     // types.ts é gerado pelo Lovable a partir do banco e só passa a conhecer
     // actual_revenue depois que a migration rodar lá. Mesmo escape que
     // patients.functions.ts já usa, até a regeneração.
@@ -206,8 +221,10 @@ export const createAppointment = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
-    const { triggerAppointmentNotification } = await import("@/lib/agenda/notifications.server");
-    await triggerAppointmentNotification(inserted.id, "confirmation");
+    if (!skipConfirmation) {
+      const { triggerAppointmentNotification } = await import("@/lib/agenda/notifications.server");
+      await triggerAppointmentNotification(inserted.id, "confirmation");
+    }
     const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
     await dispatchMetaCapiEvent(context.userId, "appointment.created", {
       entityId: inserted.id,
@@ -245,9 +262,15 @@ async function onStatusTransition(
     actual_revenue: number | null;
     expected_revenue: number | null;
     generate_financial?: boolean | null;
+    room_id?: string | null;
+    room_name?: string | null;
+    professional_name?: string | null;
+    start_time?: string | null;
+    end_time?: string | null;
   },
-): Promise<void> {
-  if (statusAnterior === row.status) return;
+  retornoEm?: string | null,
+): Promise<{ patientName: string; startTime: string }[]> {
+  if (statusAnterior === row.status) return [];
 
   const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
   await dispatchMetaCapiEvent(ownerId, "appointment.status_changed", {
@@ -276,6 +299,60 @@ async function onStatusTransition(
       console.error("[agenda] recebimento do atendimento concluído", e);
     }
   }
+
+  // Retorno pré-agendado. Mora aqui, e não no cliente, porque são dois
+  // caminhos que concluem um atendimento — o formulário e o botão do celular —
+  // e os dois passam por esta função. Duplicar no cliente sairia do ar.
+  if (row.status === "completed" && retornoEm) {
+    const inicio = String(row.start_time ?? "09:00").slice(0, 5);
+    const fim = String(row.end_time ?? "10:00").slice(0, 5);
+
+    const { overlaps } = await import("@/lib/date");
+    const { data: doDia } = await supabase
+      .from("appointments")
+      .select("patient_name, start_time, end_time")
+      .eq("owner_id", ownerId)
+      .eq("date", retornoEm)
+      .neq("status", "cancelled");
+
+    const conflitos = (doDia ?? [])
+      .filter((r: any) =>
+        overlaps(inicio, fim, String(r.start_time).slice(0, 5), String(r.end_time).slice(0, 5)),
+      )
+      .map((r: any) => ({
+        patientName: r.patient_name,
+        startTime: String(r.start_time).slice(0, 5),
+      }));
+
+    const { error } = await supabase.from("appointments").insert({
+      owner_id: ownerId,
+      patient_id: row.patient_id,
+      patient_name: row.patient_name,
+      procedure_name: row.procedure_name || "Consulta",
+      professional_id: row.professional_id ?? null,
+      professional_name: row.professional_name ?? "",
+      room_id: row.room_id ?? null,
+      room_name: row.room_name ?? null,
+      date: retornoEm,
+      start_time: inicio,
+      end_time: fim,
+      status: "pending",
+      type: "return",
+      expected_revenue: row.expected_revenue ?? 0,
+      actual_revenue: null,
+      notes: `Retorno do atendimento de ${String(row.date ?? "").split("-").reverse().join("/")}.`,
+      generate_financial: true,
+    });
+    if (error) throw new Error(error.message);
+
+    // Nenhuma confirmação é disparada de propósito: o insert é direto, sem
+    // passar por createAppointment. Avisar hoje um paciente sobre uma consulta
+    // daqui a seis meses seria ruído — e os lembretes automáticos, que varrem
+    // por data, pegam este retorno na véspera do jeito certo.
+    return conflitos;
+  }
+
+  return [];
 }
 
 export const updateAppointment = createServerFn({ method: "POST" })
@@ -283,7 +360,8 @@ export const updateAppointment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     if (!data.id) throw new Error("Agendamento inválido");
-    const { id, ...row } = data;
+    // Nenhum dos dois é coluna: orientam o handler e saem do payload.
+    const { id, __skipConfirmation: _ignored, __retornoEm: retornoEm, ...row } = data;
     const supabase: any = context.supabase;
 
     // Lido antes do update: é a única forma de saber que ESTE save foi o que
@@ -301,19 +379,29 @@ export const updateAppointment = createServerFn({ method: "POST" })
       .update(row)
       .eq("id", id)
       .eq("owner_id", context.userId)
-      .select("status, patient_id, patient_name, procedure_name, professional_id, date, actual_revenue, expected_revenue, generate_financial")
+      .select("status, patient_id, patient_name, procedure_name, professional_id, date, actual_revenue, expected_revenue, generate_financial, room_id, room_name, professional_name, start_time, end_time")
       .single();
     if (error) throw new Error(error.message);
 
-    await onStatusTransition(supabase, context.userId, id, antes?.status, updated);
-    return { ok: true };
+    const conflitos = await onStatusTransition(
+      supabase, context.userId, id, antes?.status, updated, retornoEm,
+    );
+    return { ok: true, conflitos };
   });
 
 export const updateAppointmentStatus = createServerFn({ method: "POST" })
-  .inputValidator((input: { id: string; status: AppointmentStatus; actualRevenue?: number | null }) => {
-    assertValorAoConcluir(input.status, input.actualRevenue);
-    return input;
-  })
+  .inputValidator(
+    (input: {
+      id: string;
+      status: AppointmentStatus;
+      actualRevenue?: number | null;
+      /** Data do retorno pré-agendado, quando houver. */
+      retornoEm?: string | null;
+    }) => {
+      assertValorAoConcluir(input.status, input.actualRevenue);
+      return input;
+    },
+  )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
@@ -333,12 +421,14 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
       .update(patch)
       .eq("id", data.id)
       .eq("owner_id", context.userId)
-      .select("status, patient_id, patient_name, procedure_name, professional_id, date, actual_revenue, expected_revenue, generate_financial")
+      .select("status, patient_id, patient_name, procedure_name, professional_id, date, actual_revenue, expected_revenue, generate_financial, room_id, room_name, professional_name, start_time, end_time")
       .single();
     if (error) throw new Error(error.message);
 
-    await onStatusTransition(supabase, context.userId, data.id, antes?.status, updated);
-    return { ok: true };
+    const conflitos = await onStatusTransition(
+      supabase, context.userId, data.id, antes?.status, updated, data.retornoEm,
+    );
+    return { ok: true, conflitos };
   });
 
 export const deleteAppointment = createServerFn({ method: "POST" })
@@ -388,4 +478,80 @@ export const createBlockedTime = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
     return { id: inserted.id };
+  });
+
+// Editar e excluir não existiam: dava para criar um compromisso e nunca mais
+// tirá-lo da agenda. Passa a existir agora que ele deixou de ser um bloco
+// hachurado inerte — compromisso é justamente o que mais muda de horário.
+
+export const updateBlockedTime = createServerFn({ method: "POST" })
+  .inputValidator((input: Parameters<typeof blockedTimeInput>[0] & { id: string }) => ({
+    ...blockedTimeInput(input),
+    id: input.id,
+  }))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const { id, ...row } = data;
+    if (!id) throw new Error("Compromisso inválido");
+    const { error } = await context.supabase
+      .from("blocked_times")
+      .update(row)
+      .eq("id", id)
+      .eq("owner_id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteBlockedTime = createServerFn({ method: "POST" })
+  .inputValidator((input: { id: string }) => input)
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("blocked_times")
+      .delete()
+      .eq("id", data.id)
+      .eq("owner_id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/**
+ * Agendamentos do mesmo profissional que colidem com uma faixa de horário.
+ *
+ * Serve para avisar antes de criar um retorno em cima de outro atendimento. O
+ * calendário posiciona todos os cards com `left: 4, right: 4` e o mesmo
+ * `zIndex`, então uma sobreposição não aparece como conflito — aparece como um
+ * card escondido atrás do outro. Sem este aviso, ninguém notaria.
+ */
+export const findConflicts = createServerFn({ method: "GET" })
+  .inputValidator(
+    (input: { date: string; startTime: string; endTime: string; professionalId?: string | null }) => input,
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }): Promise<{ patientName: string; startTime: string }[]> => {
+    const supabase: any = context.supabase;
+    let query = supabase
+      .from("appointments")
+      .select("patient_name, start_time, end_time")
+      .eq("owner_id", context.userId)
+      .eq("date", data.date)
+      .neq("status", "cancelled");
+    if (data.professionalId) query = query.eq("professional_id", data.professionalId);
+    const { data: rows, error } = await query;
+    if (error) throw new Error(error.message);
+
+    const { overlaps } = await import("@/lib/date");
+    return (rows ?? [])
+      .filter((r: any) =>
+        overlaps(
+          data.startTime,
+          data.endTime,
+          String(r.start_time).slice(0, 5),
+          String(r.end_time).slice(0, 5),
+        ),
+      )
+      .map((r: any) => ({
+        patientName: r.patient_name,
+        startTime: String(r.start_time).slice(0, 5),
+      }));
   });

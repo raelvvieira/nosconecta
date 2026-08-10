@@ -26,6 +26,7 @@ import { NOTIFICATION_KINDS, NotificationRow } from "./notification-utils";
 import { ConfirmCompletion } from "./ConfirmCompletion";
 import { formatBRL } from "@/lib/finance/format";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
+import { durationBetween, endTimeFrom } from "@/lib/date";
 
 interface Props {
   open: boolean;
@@ -45,7 +46,14 @@ interface Props {
    */
   contact?: { name: string | null; phone: string | null; crmContactId: string | null } | null;
   onClose: () => void;
-  onSave: (data: Partial<Appointment>) => void;
+  /** `retornoEm` só vem quando o atendimento foi confirmado com retorno. */
+  onSave: (data: Partial<Appointment>, retornoEm?: string | null) => void;
+  /**
+   * Trocar para o formulário de compromisso. Só a Agenda passa: no chat e no
+   * funil o agendamento é sempre consulta de um contato, e oferecer
+   * "Compromisso" ali seria uma opção sem sentido no contexto.
+   */
+  onTrocarParaCompromisso?: () => void;
 }
 
 // "completed" ficou de fora de propósito: concluir passou a ser uma ação
@@ -58,6 +66,10 @@ const STATUS_OPTIONS: AppointmentStatus[] = [
   "missed",
   "cancelled",
 ];
+// Durações que a clínica usa na prática. Uma fora da lista (vinda do catálogo
+// de procedimentos ou de um agendamento antigo) entra na hora, ordenada.
+const DURACOES = [10, 15, 20, 30, 45, 60, 90, 120];
+
 const TYPE_OPTIONS: AppointmentType[] = [
   "consultation",
   "evaluation",
@@ -77,6 +89,7 @@ export function AppointmentDrawer({
   contact,
   onClose,
   onSave,
+  onTrocarParaCompromisso,
 }: Props) {
   const isEdit = !!appointment;
 
@@ -135,15 +148,28 @@ export function AppointmentDrawer({
     });
   }, [open, appointment, defaultDate, defaultPatient?.id, defaultPatient?.name]);
 
+  // A duração é derivada do que está gravado (início e fim), e o fim volta a
+  // ser derivado dela sempre que qualquer um dos dois muda. Uma direção só.
+  const duracao = durationBetween(form.startTime ?? "09:00", form.endTime ?? "10:00");
+  const opcoesDuracao = DURACOES.includes(duracao)
+    ? DURACOES
+    : [...DURACOES, duracao].sort((a, b) => a - b);
+
+  const mudarDuracao = (min: number) =>
+    setForm((f) => ({ ...f, endTime: endTimeFrom(f.startTime ?? "09:00", min) }));
+
+  const mudarInicio = (inicio: string) =>
+    setForm((f) => ({ ...f, startTime: inicio, endTime: endTimeFrom(inicio, duracao) }));
+
   const handleProcedure = (name: string) => {
     const proc = procedures.find((p) => p.name === name);
     if (proc) {
-      const startMins = form.startTime
-        ? Number(form.startTime.split(":")[0]) * 60 + Number(form.startTime.split(":")[1])
-        : 9 * 60;
-      const endMins = startMins + proc.duration;
-      const endTime = `${String(Math.floor(endMins / 60)).padStart(2, "0")}:${String(endMins % 60).padStart(2, "0")}`;
-      setForm((f) => ({ ...f, procedureName: name, expectedRevenue: proc.price, endTime }));
+      setForm((f) => ({
+        ...f,
+        procedureName: name,
+        expectedRevenue: proc.price,
+        endTime: endTimeFrom(f.startTime ?? "09:00", proc.duration),
+      }));
     } else {
       setForm((f) => ({ ...f, procedureName: name }));
     }
@@ -207,6 +233,23 @@ export function AppointmentDrawer({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+          {/* Consulta ou compromisso — só ao criar pela Agenda. */}
+          {!isEdit && onTrocarParaCompromisso && (
+            <div className="flex gap-2">
+              <Button type="button" variant="premium" className="h-10 flex-1 rounded-full">
+                Consulta
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 flex-1 rounded-full"
+                onClick={onTrocarParaCompromisso}
+              >
+                Compromisso
+              </Button>
+            </div>
+          )}
+
           {origin && (
             <p className="rounded-xl bg-coral-soft px-3 py-2 text-xs leading-5 text-coral">{origin}</p>
           )}
@@ -217,9 +260,10 @@ export function AppointmentDrawer({
             <ConfirmCompletion
               expectedRevenue={form.expectedRevenue ?? 0}
               actualRevenue={form.status === "completed" ? (form.actualRevenue ?? 0) : null}
+              appointmentDate={form.date ?? new Date().toISOString().slice(0, 10)}
               isPending={isSaving}
-              onConfirm={(valor) =>
-                onSave({ ...form, status: "completed", actualRevenue: valor })
+              onConfirm={({ valor, retornoEm }) =>
+                onSave({ ...form, status: "completed", actualRevenue: valor }, retornoEm)
               }
             />
           )}
@@ -395,18 +439,28 @@ export function AppointmentDrawer({
                 <Input
                   type="time"
                   value={form.startTime}
-                  onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
+                  onChange={(e) => mudarInicio(e.target.value)}
                   className="rounded-xl border-surface-muted"
                 />
               </div>
+              {/* Duração no lugar do horário de fim. O fim vira consequência,
+                  não outro campo para preencher — e é isso que conserta o
+                  problema antigo: mudar o início depois de escolher o
+                  procedimento mantinha o fim velho, e a consulta encolhia ou
+                  esticava sem ninguém ver. */}
               <div className="space-y-2">
-                <Label className="text-sm text-foreground-secondary">Fim</Label>
-                <Input
-                  type="time"
-                  value={form.endTime}
-                  onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
-                  className="rounded-xl border-surface-muted"
-                />
+                <Label className="text-sm text-foreground-secondary">Duração (min)</Label>
+                <select
+                  className="w-full text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
+                  value={duracao}
+                  onChange={(e) => mudarDuracao(Number(e.target.value))}
+                >
+                  {opcoesDuracao.map((min) => (
+                    <option key={min} value={min}>
+                      {min}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-2">
                 <Label className="text-sm text-foreground-secondary">Status</Label>

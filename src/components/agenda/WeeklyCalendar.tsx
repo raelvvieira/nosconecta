@@ -54,6 +54,7 @@ interface Props {
   selectedDate: Date;
   onDateChange: (d: Date) => void;
   onAppointmentClick: (appt: Appointment) => void;
+  onBlockClick?: (block: BlockedTime) => void;
   professionals: { id: string; name: string }[];
   rooms: { id: string; name: string }[];
   onFiltersChange: (f: AgendaFilters) => void;
@@ -127,6 +128,7 @@ export function WeeklyCalendar({
   selectedDate,
   onDateChange,
   onAppointmentClick,
+  onBlockClick,
   professionals,
   rooms,
   onFiltersChange,
@@ -362,8 +364,13 @@ export function WeeklyCalendar({
 
                       {/* Blocked times */}
                       {dayBlocked.map((b) => (
-                        <div
+                        // Era uma `div` inerte: dava para criar um compromisso
+                        // e nunca mais abri-lo, editá-lo ou removê-lo.
+                        <button
                           key={b.id}
+                          type="button"
+                          onClick={() => onBlockClick?.(b)}
+                          className="text-left hover:brightness-95"
                           style={{
                             position: "absolute",
                             top: apptTop(b.startTime),
@@ -379,7 +386,7 @@ export function WeeklyCalendar({
                           }}
                         >
                           <span className="text-3xs text-muted-foreground font-medium truncate">{b.reason}</span>
-                        </div>
+                        </button>
                       ))}
 
                       {/* Appointments */}
@@ -409,8 +416,18 @@ export function WeeklyCalendar({
                           >
                             <div className="flex items-start justify-between gap-1">
                               <div className="flex flex-col min-w-0">
-                                <span className="text-3xs font-semibold text-foreground-secondary truncate">
-                                  {appt.startTime} – {appt.endTime}
+                                <span className="flex items-center gap-1 text-3xs font-semibold text-foreground-secondary">
+                                  <span className="truncate">
+                                    {appt.startTime} – {appt.endTime}
+                                  </span>
+                                  {/* Retorno vinha sem nenhuma marca visual: a cor
+                                      do card é só do status, e TYPE_LABEL estava
+                                      importado aqui sem nunca ser usado. */}
+                                  {appt.type === "return" && (
+                                    <span className="shrink-0 rounded-full bg-violet-soft px-1.5 text-3xs font-semibold text-violet">
+                                      {TYPE_LABEL.return}
+                                    </span>
+                                  )}
                                 </span>
                                 <span className="text-2xs font-semibold text-foreground truncate">
                                   {appt.patientName}

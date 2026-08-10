@@ -1,0 +1,43 @@
+// Datas em "YYYY-MM-DD", que é como a agenda e o financeiro guardam tudo.
+//
+// O `T00:00:00` no construtor é o que impede a data de andar um dia: sem ele o
+// JS interpreta "2026-08-10" como UTC e, em fuso negativo como o do Brasil,
+// devolve o dia anterior.
+
+/** Soma meses preservando o dia; 31/01 + 1 mês cai em 03/03 nos anos comuns,
+ *  que é o comportamento nativo do Date e o mesmo já usado no financeiro. */
+export function addMonths(dateStr: string, months: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+/** "09:00" → 540 */
+export function timeToMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+/** 540 → "09:00". Passa da meia-noite? Prende em 23:59 em vez de virar "25:30". */
+export function minutesToTime(total: number): string {
+  const capped = Math.max(0, Math.min(total, 23 * 60 + 59));
+  const h = Math.floor(capped / 60);
+  const m = capped % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Fim de um evento a partir do início e da duração em minutos. */
+export function endTimeFrom(startTime: string, durationMin: number): string {
+  return minutesToTime(timeToMinutes(startTime) + Math.max(1, durationMin));
+}
+
+/** Duração implícita entre dois horários, para telas que ainda guardam fim. */
+export function durationBetween(startTime: string, endTime: string): number {
+  return Math.max(1, timeToMinutes(endTime) - timeToMinutes(startTime));
+}
+
+/** Duas faixas do mesmo dia se sobrepõem? Fim exclusivo: 09:00–10:00 e
+ *  10:00–11:00 não colidem. */
+export function overlaps(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
+  return timeToMinutes(aStart) < timeToMinutes(bEnd) && timeToMinutes(bStart) < timeToMinutes(aEnd);
+}

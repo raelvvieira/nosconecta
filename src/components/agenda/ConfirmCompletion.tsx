@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatBRL, parseBRLInput } from "@/lib/finance/format";
+import { addMonths } from "@/lib/date";
 
 /**
  * Confirmar que o atendimento aconteceu — sempre com o valor cobrado junto.
@@ -17,17 +18,35 @@ import { formatBRL, parseBRLInput } from "@/lib/finance/format";
  * O valor não é opcional de propósito. Zero é aceito (atendimento de cortesia
  * existe); o que não passa é deixar em branco.
  */
+/** Prazos oferecidos para o retorno, em meses. `null` = data escolhida à mão. */
+const PRAZOS: { label: string; meses: number | null }[] = [
+  { label: "1 mês", meses: 1 },
+  { label: "3 meses", meses: 3 },
+  { label: "6 meses", meses: 6 },
+  { label: "12 meses", meses: 12 },
+  { label: "Outra data", meses: null },
+];
+
+export interface ConfirmacaoAtendimento {
+  valor: number;
+  /** Data do retorno em "YYYY-MM-DD", ou null quando não haverá retorno. */
+  retornoEm: string | null;
+}
+
 export function ConfirmCompletion({
   expectedRevenue,
   actualRevenue,
+  appointmentDate,
   isPending,
   onConfirm,
 }: {
   expectedRevenue: number;
   /** Já confirmado: mostra o valor em vez da pergunta. */
   actualRevenue?: number | null;
+  /** Data do atendimento, base para calcular o prazo do retorno. */
+  appointmentDate: string;
   isPending?: boolean;
-  onConfirm: (valor: number) => void;
+  onConfirm: (dados: ConfirmacaoAtendimento) => void;
 }) {
   // id próprio: o mesmo bloco pode aparecer no formulário e na gaveta do
   // celular, e um id fixo faria o rótulo apontar para o campo errado.
@@ -35,6 +54,12 @@ export function ConfirmCompletion({
   const [abrindo, setAbrindo] = useState(false);
   const [valor, setValor] = useState("");
   const [erro, setErro] = useState<string | null>(null);
+
+  // Segundo passo: o retorno. Só aparece depois que o valor está válido, para
+  // não pedir duas decisões de uma vez — e porque o profissional só sabe se o
+  // paciente precisa voltar depois de ter atendido.
+  const [valorConfirmado, setValorConfirmado] = useState<number | null>(null);
+  const [dataManual, setDataManual] = useState("");
 
   if (actualRevenue !== null && actualRevenue !== undefined) {
     return (
@@ -58,8 +83,78 @@ export function ConfirmCompletion({
       return;
     }
     setErro(null);
-    onConfirm(n);
+    setValorConfirmado(n);
   };
+
+  // Passo do retorno: o valor já passou, falta decidir se o paciente volta.
+  if (valorConfirmado !== null) {
+    const confirmarCom = (retornoEm: string | null) => onConfirm({ valor: valorConfirmado, retornoEm });
+    return (
+      <div className="space-y-2.5 rounded-xl border border-coral/30 bg-coral-soft px-3 py-3">
+        <p className="text-sm font-medium text-foreground">
+          Atendimento de {formatBRL(valorConfirmado)} · deixar retorno pré-agendado?
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {PRAZOS.map((p) => (
+            <Button
+              key={p.label}
+              type="button"
+              variant="outline"
+              disabled={isPending}
+              className="h-10 rounded-xl bg-white px-3 text-xs"
+              onClick={() => {
+                if (p.meses === null) {
+                  // "Outra data": revela o campo em vez de confirmar já.
+                  setDataManual(addMonths(appointmentDate, 1));
+                  return;
+                }
+                confirmarCom(addMonths(appointmentDate, p.meses));
+              }}
+            >
+              {p.label}
+            </Button>
+          ))}
+        </div>
+
+        {dataManual && (
+          <Input
+            type="date"
+            value={dataManual}
+            min={appointmentDate}
+            onChange={(e) => setDataManual(e.target.value)}
+            className="rounded-xl border-surface-muted bg-white"
+          />
+        )}
+
+        <div className="flex gap-2 pt-0.5">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isPending}
+            className="h-10 flex-1 rounded-xl bg-white"
+            onClick={() => confirmarCom(null)}
+          >
+            Sem retorno
+          </Button>
+          {dataManual && (
+            <Button
+              type="button"
+              variant="premium"
+              disabled={isPending}
+              className="h-10 flex-1 rounded-xl"
+              onClick={() => confirmarCom(dataManual)}
+            >
+              {isPending ? "Salvando..." : "Agendar retorno"}
+            </Button>
+          )}
+        </div>
+        <p className="text-2xs leading-4 text-muted-foreground">
+          O retorno fica marcado na agenda, mas o paciente não recebe confirmação
+          agora — só os lembretes na véspera.
+        </p>
+      </div>
+    );
+  }
 
   if (!abrindo) {
     return (

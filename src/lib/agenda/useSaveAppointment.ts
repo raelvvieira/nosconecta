@@ -69,10 +69,13 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       data,
       existingId,
       contact,
+      retornoEm,
     }: {
       data: Partial<Appointment>;
       existingId?: string;
       contact?: OriginContact;
+      /** Data do retorno pré-agendado, quando o atendimento foi confirmado. */
+      retornoEm?: string | null;
     }) => {
       const today = new Date().toISOString().slice(0, 10);
 
@@ -99,11 +102,28 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
         notes: data.notes ?? null,
         generateFinancial: data.generateFinancial ?? true,
       };
-      if (existingId) await updateFn({ data: payload });
-      else await createFn({ data: payload });
-      return { existingId };
+      // O retorno é criado no servidor, dentro da transição de status — é o
+      // único ponto por onde passam os dois caminhos que concluem (formulário
+      // e botão do celular).
+      const r: any = existingId
+        ? await updateFn({ data: { ...payload, retornoEm } })
+        : await createFn({ data: payload });
+      return { existingId, retornoEm: retornoEm ?? null, conflitos: r?.conflitos ?? [] };
     },
-    onSuccess: ({ existingId }) => {
+    onSuccess: ({ existingId, retornoEm, conflitos }) => {
+      if (retornoEm) {
+        const quando = retornoEm.split("-").reverse().join("/");
+        if (conflitos.length) {
+          // Aviso, não bloqueio: o retorno é criado do mesmo jeito. O
+          // calendário empilha cards sobrepostos sem sinalizar conflito, então
+          // sem esta mensagem ninguém descobriria.
+          toast.warning(
+            `Retorno criado em ${quando}, mas ${conflitos[0].patientName} já tem atendimento às ${conflitos[0].startTime}.`,
+          );
+        } else {
+          toast.success(`Retorno pré-agendado para ${quando}`);
+        }
+      }
       toast.success(existingId ? "Agendamento atualizado" : "Agendamento criado");
       // Invalida a Agenda mesmo quando salvo de outra tela — é o que garante
       // que um agendamento feito pelo chat apareça lá sem recarregar.

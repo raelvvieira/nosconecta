@@ -10,11 +10,11 @@ import { Sidebar } from "@/components/finance/Sidebar";
 import { AgendaStatsCards } from "@/components/agenda/AgendaStatsCards";
 import { WeeklyCalendar } from "@/components/agenda/WeeklyCalendar";
 import { AppointmentDrawer } from "@/components/agenda/AppointmentDrawer";
-import { BlockedTimeDrawer } from "@/components/agenda/BlockedTimeDrawer";
+import { CommitmentDrawer } from "@/components/agenda/CommitmentDrawer";
 import { RightSidebar } from "@/components/agenda/RightSidebar";
 import { MobileAgenda } from "@/components/agenda/mobile/MobileAgenda";
 import { STATUS_LABEL } from "@/components/agenda/appointment-utils";
-import type { Appointment, AgendaFilters, AppointmentStatus } from "@/components/agenda/types";
+import type { Appointment, AgendaFilters, AppointmentStatus, BlockedTime } from "@/components/agenda/types";
 import {
   professionals as fallbackProfessionals,
   rooms as fallbackRooms,
@@ -27,6 +27,8 @@ import {
   getAgendaOverview,
   updateAppointmentStatus,
   createBlockedTime,
+  updateBlockedTime,
+  deleteBlockedTime,
   type AgendaOverview,
 } from "@/lib/agenda/agenda.functions";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -101,6 +103,8 @@ function AgendaPage() {
   const fetchOverview = useServerFn(getAgendaOverview);
   const updateStatusFn = useServerFn(updateAppointmentStatus);
   const createBlockFn = useServerFn(createBlockedTime);
+  const updateBlockFn = useServerFn(updateBlockedTime);
+  const deleteBlockFn = useServerFn(deleteBlockedTime);
 
   const { data: agenda } = useSuspenseQuery(agendaOverviewOpts(fetchOverview as any));
   const appointments = agenda.appointments;
@@ -120,6 +124,7 @@ function AgendaPage() {
   const [apptDrawerOpen, setApptDrawerOpen] = useState(false);
   const [blockDrawerOpen, setBlockDrawerOpen] = useState(false);
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
+  const [selectedBlock, setSelectedBlock] = useState<BlockedTime | null>(null);
 
   useEffect(() => {
     if (!search.newAppointment) return;
@@ -144,48 +149,85 @@ function AgendaPage() {
   });
 
   const saveBlockMutation = useMutation({
-    mutationFn: (data: Partial<(typeof blocked)[number]>) =>
-      createBlockFn({
-        data: {
-          professionalId: data.professionalId ?? "",
-          roomId: data.roomId || null,
-          date: data.date ?? todayStr,
-          startTime: data.startTime ?? "12:00",
-          endTime: data.endTime ?? "13:00",
-          reason: data.reason ?? null,
-        },
-      }),
-    onSuccess: () => {
-      toast.success("Horário bloqueado");
+    mutationFn: (data: Partial<(typeof blocked)[number]>) => {
+      const payload = {
+        professionalId: data.professionalId ?? "",
+        roomId: data.roomId || null,
+        date: data.date ?? todayStr,
+        startTime: data.startTime ?? "12:00",
+        endTime: data.endTime ?? "13:00",
+        reason: data.reason ?? null,
+      };
+      // Criar devolve { id }, editar devolve { ok } — o retorno não é usado.
+      if (data.id) return updateBlockFn({ data: { ...payload, id: data.id } }).then(() => undefined);
+      return createBlockFn({ data: payload }).then(() => undefined);
+    },
+    onSuccess: (_r, data) => {
+      toast.success(data.id ? "Compromisso atualizado" : "Compromisso criado");
       invalidate();
       setBlockDrawerOpen(false);
+      setSelectedBlock(null);
     },
-    onError: (e: any) => toast.error(e?.message ?? "Erro ao bloquear horário"),
+    onError: (e: any) => toast.error(e?.message ?? "Erro ao salvar compromisso"),
   });
+
+  const deleteBlockMutation = useMutation({
+    mutationFn: (id: string) => deleteBlockFn({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Compromisso excluído");
+      invalidate();
+      setBlockDrawerOpen(false);
+      setSelectedBlock(null);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Erro ao excluir compromisso"),
+  });
+
+  /**
+   * O retorno é criado mesmo havendo choque de horário — o aviso existe porque
+   * o calendário empilha cards sobrepostos com o mesmo z-index, sem sinalizar
+   * conflito nenhum. Sem esta mensagem, o retorno ficaria escondido atrás de
+   * outro atendimento e ninguém saberia.
+   */
+  const avisarRetorno = (
+    retornoEm: string,
+    conflitos: { patientName: string; startTime: string }[],
+  ) => {
+    const quando = retornoEm.split("-").reverse().join("/");
+    if (conflitos.length) {
+      toast.warning(
+        `Retorno criado em ${quando}, mas ${conflitos[0].patientName} já tem atendimento às ${conflitos[0].startTime}.`,
+      );
+    } else {
+      toast.success(`Retorno pré-agendado para ${quando}`);
+    }
+  };
 
   const statusMutation = useMutation({
     mutationFn: ({
       id,
       status,
       actualRevenue,
+      retornoEm,
     }: {
       id: string;
       status: AppointmentStatus;
       actualRevenue?: number;
-    }) => updateStatusFn({ data: { id, status, actualRevenue } }),
-    onSuccess: (_r, { status, actualRevenue }) => {
+      retornoEm?: string | null;
+    }) => updateStatusFn({ data: { id, status, actualRevenue, retornoEm } }),
+    onSuccess: (r, { status, actualRevenue, retornoEm }) => {
       toast.success(
         status === "completed" && actualRevenue !== undefined
           ? `Atendimento confirmado · ${formatBRL(actualRevenue)}`
           : `Status alterado para ${STATUS_LABEL[status]}`,
       );
+      if (retornoEm) avisarRetorno(retornoEm, r?.conflitos ?? []);
       invalidate();
     },
     onError: (e: any) => toast.error(e?.message ?? "Erro ao alterar status"),
   });
 
-  const handleSaveAppt = (data: Partial<Appointment>) =>
-    saveApptMutation.mutate({ data, existingId: selectedAppt?.id });
+  const handleSaveAppt = (data: Partial<Appointment>, retornoEm?: string | null) =>
+    saveApptMutation.mutate({ data, existingId: selectedAppt?.id, retornoEm });
   const handleSaveBlock = (data: Partial<(typeof blocked)[number]>) => saveBlockMutation.mutate(data);
 
   const handleApptClick = (appt: Appointment) => {
@@ -197,8 +239,12 @@ function AgendaPage() {
   // falso — nada era gerado, nem no banco nem no financeiro. Quem gera o
   // recebimento agora é o servidor, ao confirmar com valor, e o aviso é o da
   // própria mutação.
-  const handleStatusChange = (id: string, status: AppointmentStatus, actualRevenue?: number) =>
-    statusMutation.mutate({ id, status, actualRevenue });
+  const handleStatusChange = (
+    id: string,
+    status: AppointmentStatus,
+    actualRevenue?: number,
+    retornoEm?: string | null,
+  ) => statusMutation.mutate({ id, status, actualRevenue, retornoEm });
 
   const openNewAppointment = () => {
     setSelectedAppt(null);
@@ -282,6 +328,10 @@ function AgendaPage() {
               selectedDate={selectedDate}
               onDateChange={setSelectedDate}
               onAppointmentClick={handleApptClick}
+        onBlockClick={(b) => {
+          setSelectedBlock(b);
+          setBlockDrawerOpen(true);
+        }}
               professionals={professionals}
               rooms={rooms}
               onFiltersChange={setFilters}
@@ -321,15 +371,31 @@ function AgendaPage() {
           setSelectedAppt(null);
         }}
         onSave={handleSaveAppt}
+        onTrocarParaCompromisso={() => {
+          setApptDrawerOpen(false);
+          setSelectedAppt(null);
+          setSelectedBlock(null);
+          setBlockDrawerOpen(true);
+        }}
       />
-      <BlockedTimeDrawer
+      <CommitmentDrawer
         open={blockDrawerOpen}
+        commitment={selectedBlock}
         defaultDate={todayStr}
         professionals={professionals}
         rooms={rooms}
-        isSaving={saveBlockMutation.isPending}
-        onClose={() => setBlockDrawerOpen(false)}
+        isSaving={saveBlockMutation.isPending || deleteBlockMutation.isPending}
+        onClose={() => {
+          setBlockDrawerOpen(false);
+          setSelectedBlock(null);
+        }}
         onSave={handleSaveBlock}
+        onDelete={(id) => deleteBlockMutation.mutate(id)}
+        onTrocarParaConsulta={() => {
+          setBlockDrawerOpen(false);
+          setSelectedBlock(null);
+          openNewAppointment();
+        }}
       />
     </div>
   );

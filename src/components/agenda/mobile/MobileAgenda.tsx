@@ -20,7 +20,7 @@ import type {
   Professional,
   Room,
 } from "../types";
-import { statusStyle, STATUS_LABEL } from "../appointment-utils";
+import { statusStyle, STATUS_LABEL, TYPE_LABEL } from "../appointment-utils";
 import { MobileAppointmentSheet } from "./MobileAppointmentSheet";
 import { MobileFilterSheet } from "./MobileFilterSheet";
 import { MobileCalendarSheet } from "./MobileCalendarSheet";
@@ -67,7 +67,12 @@ interface Props {
   onNewAppointment: () => void;
   onNewBlock: () => void;
   onEditAppointment: (a: Appointment) => void;
-  onStatusChange: (id: string, status: AppointmentStatus, actualRevenue?: number) => void;
+  onStatusChange: (
+    id: string,
+    status: AppointmentStatus,
+    actualRevenue?: number,
+    retornoEm?: string | null,
+  ) => void;
 }
 
 // ─── Stats carousel ──────────────────────────────────────────────────────────
@@ -200,7 +205,14 @@ function AppointmentCard({ appt, onClick }: { appt: Appointment; onClick: () => 
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-foreground truncate">{appt.patientName}</p>
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+          <span className="truncate">{appt.patientName}</span>
+          {appt.type === "return" && (
+            <span className="shrink-0 rounded-full bg-violet-soft px-1.5 py-0.5 text-3xs font-semibold text-violet">
+              {TYPE_LABEL.return}
+            </span>
+          )}
+        </p>
         <p className="text-xs text-muted-foreground truncate">{appt.procedureName}</p>
         <p className="text-2xs text-foreground-subtle truncate mt-0.5">
           {appt.professionalName} · {appt.roomName}
@@ -369,7 +381,7 @@ export function MobileAgenda({
 
   useRegisterMobileFab({ label: "Novo Agendamento", onClick: onNewAppointment });
   useRegisterMobileNavActions([
-    { label: "Bloquear", icon: Lock, onClick: onNewBlock },
+    { label: "Compromisso", icon: Lock, onClick: onNewBlock },
     { label: "Calendário", icon: CalendarDays, onClick: () => setCalendarOpen(true) },
   ]);
 

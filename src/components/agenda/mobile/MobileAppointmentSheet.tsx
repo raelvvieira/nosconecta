@@ -28,7 +28,12 @@ interface Props {
   appointment: Appointment | null;
   open: boolean;
   onClose: () => void;
-  onStatusChange: (id: string, status: AppointmentStatus, actualRevenue?: number) => void;
+  onStatusChange: (
+    id: string,
+    status: AppointmentStatus,
+    actualRevenue?: number,
+    retornoEm?: string | null,
+  ) => void;
   onEdit: (appt: Appointment) => void;
 }
 
@@ -100,8 +105,9 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
           <ConfirmCompletion
             expectedRevenue={a.expectedRevenue}
             actualRevenue={a.status === "completed" ? (a.actualRevenue ?? 0) : null}
-            onConfirm={(valor) => {
-              onStatusChange(a.id, "completed", valor);
+            appointmentDate={a.date}
+            onConfirm={({ valor, retornoEm }) => {
+              onStatusChange(a.id, "completed", valor, retornoEm);
               onClose();
             }}
           />
