@@ -86,7 +86,7 @@ export function SmartInsightsCard({
                   type="button"
                   aria-label="Dispensar insight"
                   onClick={() => setDismissed(prev => new Set(prev).add(i.id))}
-                  className="h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0"
+                  className="relative tap-44 h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>

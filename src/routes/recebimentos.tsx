@@ -36,6 +36,7 @@ import { toast } from "sonner";
 
 import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
+import { RouteSkeleton } from "@/components/layout/RouteSkeleton";
 import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
 import { DateRangePicker } from "@/components/finance/DateRangePicker";
 import { KpiCard } from "@/components/finance/KpiCard";
@@ -139,6 +140,11 @@ export const Route = createFileRoute("/recebimentos")({
   loaderDeps: ({ search }) => search,
   loader: ({ context, deps }) =>
     context.queryClient.ensureQueryData(overviewOpts(getReceivablesOverview as any, deps)),
+  pendingComponent: () => <RouteSkeleton shape="list" />,
+  // 150ms evita o piscar em navegação instantânea; 400ms de mínimo
+  // evita que o esqueleto apareça e suma num susto.
+  pendingMs: 150,
+  pendingMinMs: 400,
   errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar os recebimentos" />,
   notFoundComponent: () => <ResponsiveRouteState title="Recebimentos não encontrados" notFound />,
   component: RecebimentosPage,
@@ -470,8 +476,87 @@ function RecebimentosPage() {
                 </TabsList>
               </Tabs>
 
+              {/* Lista em cards no celular. A tabela tem nove colunas: num
+                  telefone de 360px cada uma ficaria com ~35px e o texto
+                  quebraria letra a letra. Mesmo dado, mesmas ações. */}
+              <ul className="divide-y divide-border lg:hidden">
+                {rows.length === 0 && (
+                  <li className="py-12 text-center text-sm text-muted-foreground">
+                    Nenhum recebimento encontrado.
+                  </li>
+                )}
+                {rows.map((r) => {
+                  const method = PAYMENT_METHODS[r.payment_method ?? ""] ?? {
+                    label: r.payment_method ?? "—",
+                    color: "text-foreground",
+                  };
+                  const status = r.effective_status;
+                  return (
+                    <li key={r.id} className="flex items-start gap-3 py-3.5">
+                      <Checkbox
+                        className="mt-1 shrink-0"
+                        checked={selected.has(r.id)}
+                        onCheckedChange={(c) => {
+                          const next = new Set(selected);
+                          if (c) next.add(r.id);
+                          else next.delete(r.id);
+                          setSelected(next);
+                        }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="min-w-0 truncate text-sm font-medium">
+                            {r.patient_name ?? "—"}
+                          </p>
+                          <span className="shrink-0 text-sm font-semibold tabular-nums">
+                            {formatBRL(r.amount)}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                          {r.category_name ?? r.description}
+                          {r.installment_total
+                            ? ` · ${r.installment_number}/${r.installment_total}`
+                            : ""}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-full px-2 py-0.5 font-medium",
+                              STATUS_BADGE[status],
+                            )}
+                          >
+                            {STATUS_LABEL[status]}
+                          </span>
+                          <span
+                            className={cn(
+                              "tabular-nums text-muted-foreground",
+                              status === "overdue" && "font-medium text-danger",
+                            )}
+                          >
+                            {fmtDate(r.due_date)}
+                          </span>
+                          <span className={method.color}>{method.label}</span>
+                          {r.professional_name && (
+                            <span className="truncate text-muted-foreground">
+                              {r.professional_name}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <ReceivableActions
+                        status={status}
+                        onReceipt={() => openReceipt(r.id)}
+                        onMark={() => markMutation.mutate(r.id)}
+                        onCancel={() => cancelMutation.mutate(r.id)}
+                        onDelete={() => deleteMutation.mutate(r.id)}
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+
               {/* Table */}
-              <div className="overflow-x-auto -mx-1">
+              <div className="-mx-1 hidden overflow-x-auto lg:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-muted-foreground border-b">
@@ -571,37 +656,13 @@ function RecebimentosPage() {
                           </td>
                           <td className={cn("py-3 pr-4", method.color)}>{method.label}</td>
                           <td className="py-3 pr-4">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <button className="h-8 w-8 grid place-items-center rounded hover:bg-muted">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                {status !== "paid" && (
-                                  <DropdownMenuItem onClick={() => openReceipt(r.id)}>
-                                    <Check className="h-4 w-4 mr-2" /> Registrar recebimento
-                                  </DropdownMenuItem>
-                                )}
-                                {status !== "paid" && (
-                                  <DropdownMenuItem onClick={() => markMutation.mutate(r.id)}>
-                                    <Check className="h-4 w-4 mr-2" /> Marcar como recebido (hoje)
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuSeparator />
-                                {status !== "cancelled" && (
-                                  <DropdownMenuItem onClick={() => cancelMutation.mutate(r.id)}>
-                                    <Ban className="h-4 w-4 mr-2" /> Cancelar
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem
-                                  className="text-danger"
-                                  onClick={() => deleteMutation.mutate(r.id)}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" /> Excluir
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <ReceivableActions
+                              status={status}
+                              onReceipt={() => openReceipt(r.id)}
+                              onMark={() => markMutation.mutate(r.id)}
+                              onCancel={() => cancelMutation.mutate(r.id)}
+                              onDelete={() => deleteMutation.mutate(r.id)}
+                            />
                           </td>
                         </tr>
                       );
@@ -687,6 +748,57 @@ function RecebimentosPage() {
         onConfirmed={invalidate}
       />
     </div>
+  );
+}
+
+// Compartilhado entre a tabela do desktop e a lista de cards do celular, para
+// que as duas nunca desandem uma da outra.
+function ReceivableActions({
+  status,
+  onReceipt,
+  onMark,
+  onCancel,
+  onDelete,
+}: {
+  status: string;
+  onReceipt: () => void;
+  onMark: () => void;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Ações do recebimento"
+          className="relative tap-44 grid h-8 w-8 shrink-0 place-items-center rounded hover:bg-muted"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {status !== "paid" && (
+          <DropdownMenuItem onClick={onReceipt}>
+            <Check className="h-4 w-4 mr-2" /> Registrar recebimento
+          </DropdownMenuItem>
+        )}
+        {status !== "paid" && (
+          <DropdownMenuItem onClick={onMark}>
+            <Check className="h-4 w-4 mr-2" /> Marcar como recebido (hoje)
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        {status !== "cancelled" && (
+          <DropdownMenuItem onClick={onCancel}>
+            <Ban className="h-4 w-4 mr-2" /> Cancelar
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem className="text-danger" onClick={onDelete}>
+          <Trash2 className="h-4 w-4 mr-2" /> Excluir
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

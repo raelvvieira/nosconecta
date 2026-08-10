@@ -16,6 +16,7 @@ import {
 
 import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
+import { RouteSkeleton } from "@/components/layout/RouteSkeleton";
 import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,11 @@ export const Route = createFileRoute("/planejamento")({
   loaderDeps: ({ search }) => ({ range: search.range }),
   loader: ({ context, deps }) =>
     context.queryClient.ensureQueryData(overviewOpts(getPlanningOverview as any, deps.range)),
+  pendingComponent: () => <RouteSkeleton shape="kpis" />,
+  // 150ms evita o piscar em navegação instantânea; 400ms de mínimo
+  // evita que o esqueleto apareça e suma num susto.
+  pendingMs: 150,
+  pendingMinMs: 400,
   errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar o planejamento" />,
   notFoundComponent: () => <ResponsiveRouteState title="Planejamento não encontrado" notFound />,
   component: PlanningPage,

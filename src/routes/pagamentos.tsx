@@ -23,6 +23,7 @@ import { toast } from "sonner";
 
 import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
+import { RouteSkeleton } from "@/components/layout/RouteSkeleton";
 import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { DateRangePicker } from "@/components/finance/DateRangePicker";
@@ -99,6 +100,11 @@ export const Route = createFileRoute("/pagamentos")({
   loaderDeps: ({ search }) => search,
   loader: ({ context, deps }) =>
     context.queryClient.ensureQueryData(overviewOpts(getPayablesOverview as any, deps)),
+  pendingComponent: () => <RouteSkeleton shape="list" />,
+  // 150ms evita o piscar em navegação instantânea; 400ms de mínimo
+  // evita que o esqueleto apareça e suma num susto.
+  pendingMs: 150,
+  pendingMinMs: 400,
   errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar os pagamentos" />,
   notFoundComponent: () => <ResponsiveRouteState title="Pagamentos não encontrados" notFound />,
   component: PagamentosPage,
@@ -340,8 +346,75 @@ function PagamentosPage() {
               </FilterField>
             </div>
 
+            {/* Lista em cards no celular — a tabela tem nove colunas e num
+                telefone nenhuma delas sobra legível. Mesmo dado, mesmas ações. */}
+            <ul className="divide-y divide-border lg:hidden">
+              {rows.length === 0 && (
+                <li className="py-16 text-center text-sm text-muted-foreground">
+                  Nenhum pagamento encontrado.
+                </li>
+              )}
+              {rows.map((t) => {
+                const status = t.effective_status;
+                const method = METHODS[t.payment_method ?? ""] ?? {
+                  label: t.payment_method ?? "—",
+                  color: "text-foreground",
+                };
+                return (
+                  <li key={t.id} className="flex items-start gap-3 py-3.5">
+                    <Checkbox
+                      className="mt-1 shrink-0"
+                      checked={selected.has(t.id)}
+                      onCheckedChange={(c) => {
+                        const next = new Set(selected);
+                        if (c) next.add(t.id);
+                        else next.delete(t.id);
+                        setSelected(next);
+                      }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="min-w-0 truncate text-sm font-medium">
+                          {t.supplier_name ?? "—"}
+                        </p>
+                        <span className="shrink-0 text-sm font-semibold tabular-nums">
+                          {formatBRL(t.amount)}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        {t.description}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                        <Badge variant={STATUS_BADGE[status]}>{STATUS_LABEL[status]}</Badge>
+                        <span
+                          className={cn(
+                            "tabular-nums text-muted-foreground",
+                            status === "overdue" && "font-medium text-danger",
+                          )}
+                        >
+                          {fmtDate(t.due_date)}
+                        </span>
+                        {t.category_name && (
+                          <span className="truncate text-muted-foreground">{t.category_name}</span>
+                        )}
+                        {t.payment_method && (
+                          <span className={cn("font-medium", method.color)}>{method.label}</span>
+                        )}
+                      </div>
+                    </div>
+                    <PayableActions
+                      status={status}
+                      onMark={() => markMutation.mutate(t.id)}
+                      onEdit={() => setEditing(t)}
+                      onDelete={() => deleteMutation.mutate(t.id)}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+
             {/* Table */}
-            <div className="overflow-x-auto -mx-2">
+            <div className="-mx-2 hidden overflow-x-auto lg:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -435,29 +508,12 @@ function PagamentosPage() {
                           {t.payment_method ? method.label : "—"}
                         </td>
                         <td className="pr-4 text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button className="h-9 w-9 grid place-items-center rounded-full hover:bg-[#F2F2F4] text-muted-foreground">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {status !== "paid" && (
-                                <DropdownMenuItem onClick={() => markMutation.mutate(t.id)}>
-                                  <Check className="h-4 w-4 mr-2" /> Marcar como pago
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem onClick={() => setEditing(t)}>
-                                <Pencil className="h-4 w-4 mr-2" /> Editar
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-danger"
-                                onClick={() => deleteMutation.mutate(t.id)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" /> Excluir
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <PayableActions
+                            status={status}
+                            onMark={() => markMutation.mutate(t.id)}
+                            onEdit={() => setEditing(t)}
+                            onDelete={() => deleteMutation.mutate(t.id)}
+                          />
                         </td>
                       </tr>
                     );
@@ -548,6 +604,47 @@ function PagamentosPage() {
 }
 
 /* ---------------- Filters ---------------- */
+
+// Compartilhado entre a tabela do desktop e a lista de cards do celular, para
+// que as duas nunca desandem uma da outra.
+function PayableActions({
+  status,
+  onMark,
+  onEdit,
+  onDelete,
+}: {
+  status: string;
+  onMark: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Ações do pagamento"
+          className="relative tap-44 grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-[#F2F2F4]"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {status !== "paid" && (
+          <DropdownMenuItem onClick={onMark}>
+            <Check className="h-4 w-4 mr-2" /> Marcar como pago
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={onEdit}>
+          <Pencil className="h-4 w-4 mr-2" /> Editar
+        </DropdownMenuItem>
+        <DropdownMenuItem className="text-danger" onClick={onDelete}>
+          <Trash2 className="h-4 w-4 mr-2" /> Excluir
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
   return (

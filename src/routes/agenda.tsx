@@ -29,6 +29,7 @@ import {
   type AgendaOverview,
 } from "@/lib/agenda/agenda.functions";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
+import { RouteSkeleton } from "@/components/layout/RouteSkeleton";
 
 const agendaSearchSchema = z.object({
   patientId: z.string().optional(),
@@ -54,6 +55,11 @@ export const Route = createFileRoute("/agenda")({
   validateSearch: agendaSearchSchema,
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(agendaOverviewOpts(getAgendaOverview as any)),
+  pendingComponent: () => <RouteSkeleton shape="calendar" />,
+  // 150ms evita o piscar em navegação instantânea; 400ms de mínimo
+  // evita que o esqueleto apareça e suma num susto.
+  pendingMs: 150,
+  pendingMinMs: 400,
   errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar a agenda" />,
   notFoundComponent: () => <ResponsiveRouteState title="Agenda não encontrada" notFound />,
   component: AgendaPage,

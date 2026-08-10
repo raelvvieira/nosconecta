@@ -221,6 +221,20 @@
   box-shadow: var(--shadow-elev);
 }
 
+/* Aumenta a área tocável para 44px sem mexer no desenho do ícone.
+   Precisa de `relative` (ou qualquer position) no próprio elemento. */
+@utility tap-44 {
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+  }
+}
+
 @utility scrollbar-none {
   scrollbar-width: none;
   -ms-overflow-style: none;

@@ -71,7 +71,7 @@ export function ScenarioSimulator({
                   type="button"
                   aria-label="Excluir cenário"
                   onClick={(e) => { e.stopPropagation(); setConfirmId(s.id); }}
-                  className="absolute right-2 top-2 h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger-soft opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                  className="absolute right-2 top-2 tap-44 h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:text-danger hover:bg-danger-soft [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>

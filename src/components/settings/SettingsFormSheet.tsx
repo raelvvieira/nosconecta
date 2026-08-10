@@ -237,7 +237,7 @@ export function SettingsFormSheet({ open, section, item, onOpenChange, onSaved }
                   placeholder="Ex.: Estética"
                 />
               </Field>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
                 <Field label="Duração">
                   <Input
                     type="number"
@@ -297,7 +297,7 @@ export function SettingsFormSheet({ open, section, item, onOpenChange, onSaved }
               </Field>
               <div className="space-y-3">
                 <Label>Áreas permitidas</Label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
                   {PERMISSIONS.map((permission) => {
                     const selected =
                       Array.isArray(form.permissions) &&

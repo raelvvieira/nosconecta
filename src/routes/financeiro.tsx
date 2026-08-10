@@ -17,6 +17,7 @@ import { RevenueByProcedure } from "@/components/finance/RevenueByProcedure";
 import { RevenueByDentist } from "@/components/finance/RevenueByDentist";
 import { CommissionsTable } from "@/components/finance/CommissionsTable";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
+import { RouteSkeleton } from "@/components/layout/RouteSkeleton";
 
 import { z } from "zod";
 import { getFinanceOverview, type Granularity, type Period } from "@/lib/finance/queries.functions";
@@ -66,6 +67,11 @@ export const Route = createFileRoute("/financeiro")({
   }),
   loader: ({ context, deps }) =>
     context.queryClient.ensureQueryData(overviewQueryOptions(getFinanceOverview as any, deps)),
+  pendingComponent: () => <RouteSkeleton shape="kpis" />,
+  // 150ms evita o piscar em navegação instantânea; 400ms de mínimo
+  // evita que o esqueleto apareça e suma num susto.
+  pendingMs: 150,
+  pendingMinMs: 400,
   errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar o dashboard" />,
   notFoundComponent: () => <ResponsiveRouteState title="Dashboard não encontrado" notFound />,
   component: FinanceiroVisaoGeral,
