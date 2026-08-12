@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { gravarTolerandoColunaAusente, semValorCobrado } from "@/lib/agenda/schema-fallback";
 import type {
   Appointment,
   AppointmentNotification,
@@ -122,6 +123,15 @@ export const getAgendaOverview = createServerFn({ method: "GET" })
 
 // ---------- appointments: mutations ----------
 
+/** Colunas lidas depois de gravar, para decidir a transição de status. */
+const COLUNAS_TRANSICAO = [
+  "status", "patient_id", "patient_name", "procedure_name", "professional_id",
+  "date", "actual_revenue", "expected_revenue", "generate_financial",
+  "room_id", "room_name", "professional_name", "start_time", "end_time",
+];
+const SELECT_TRANSICAO = COLUNAS_TRANSICAO.join(", ");
+const SELECT_TRANSICAO_SEM_VALOR = COLUNAS_TRANSICAO.filter((c) => c !== "actual_revenue").join(", ");
+
 /**
  * Um atendimento só é dado como realizado com o valor cobrado junto.
  *
@@ -215,13 +225,23 @@ export const createAppointment = createServerFn({ method: "POST" })
     // actual_revenue depois que a migration rodar lá. Mesmo escape que
     // patients.functions.ts já usa, até a regeneração.
     const supabase: any = context.supabase;
-    const { data: inserted, error } = await supabase
-      .from("appointments")
-      .insert({ ...row, owner_id: context.userId })
-      .select("id")
-      .single();
+    const { data: inserted, error } = await gravarTolerandoColunaAusente(
+      (sem) =>
+        supabase
+          .from("appointments")
+          .insert({ ...(sem ? semValorCobrado(row) : row), owner_id: context.userId })
+          .select("id")
+          .single(),
+      row.status === "completed",
+    );
     if (error) throw new Error(error.message);
-    if (!skipConfirmation) {
+
+    // Data já passada nunca notifica, tenha vindo `skipConfirmation` ou não.
+    // Registrar um atendimento antigo — para ter o histórico no sistema — não
+    // pode disparar "confirme sua consulta" de uma consulta de semana passada.
+    // A regra mora aqui, e não na tela, porque três telas criam agendamento.
+    const jaAconteceu = String(row.date) < new Date().toISOString().slice(0, 10);
+    if (!skipConfirmation && !jaAconteceu) {
       const { triggerAppointmentNotification } = await import("@/lib/agenda/notifications.server");
       await triggerAppointmentNotification(inserted.id, "confirmation");
     }
@@ -232,6 +252,16 @@ export const createAppointment = createServerFn({ method: "POST" })
       contactName: row.patient_name,
       amount: row.expected_revenue,
     });
+
+    // Nascendo já concluído (registro retroativo), a conversão e o recebimento
+    // saem do mesmo lugar que qualquer outra conclusão — `statusAnterior` nulo
+    // conta como transição.
+    if (row.status === "completed") {
+      await onStatusTransition(supabase, context.userId, inserted.id, null, {
+        ...row,
+        actual_revenue: row.actual_revenue ?? null,
+      } as any);
+    }
     return { id: inserted.id };
   });
 
@@ -324,7 +354,7 @@ async function onStatusTransition(
         startTime: String(r.start_time).slice(0, 5),
       }));
 
-    const { error } = await supabase.from("appointments").insert({
+    const retorno = {
       owner_id: ownerId,
       patient_id: row.patient_id,
       patient_name: row.patient_name,
@@ -342,7 +372,12 @@ async function onStatusTransition(
       actual_revenue: null,
       notes: `Retorno do atendimento de ${String(row.date ?? "").split("-").reverse().join("/")}.`,
       generate_financial: true,
-    });
+    };
+    // O retorno nasce pendente, sem valor cobrado — pode ir sem a coluna.
+    const { error } = await gravarTolerandoColunaAusente(
+      (sem) => supabase.from("appointments").insert(sem ? semValorCobrado(retorno) : retorno),
+      false,
+    );
     if (error) throw new Error(error.message);
 
     // Nenhuma confirmação é disparada de propósito: o insert é direto, sem
@@ -374,13 +409,17 @@ export const updateAppointment = createServerFn({ method: "POST" })
       .eq("owner_id", context.userId)
       .maybeSingle();
 
-    const { data: updated, error } = await supabase
-      .from("appointments")
-      .update(row)
-      .eq("id", id)
-      .eq("owner_id", context.userId)
-      .select("status, patient_id, patient_name, procedure_name, professional_id, date, actual_revenue, expected_revenue, generate_financial, room_id, room_name, professional_name, start_time, end_time")
-      .single();
+    const { data: updated, error } = await gravarTolerandoColunaAusente(
+      (sem) =>
+        supabase
+          .from("appointments")
+          .update(sem ? semValorCobrado(row) : row)
+          .eq("id", id)
+          .eq("owner_id", context.userId)
+          .select(sem ? SELECT_TRANSICAO_SEM_VALOR : SELECT_TRANSICAO)
+          .single(),
+      row.status === "completed",
+    );
     if (error) throw new Error(error.message);
 
     const conflitos = await onStatusTransition(
@@ -423,13 +462,17 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
       if (data.generateFinancial !== undefined) patch.generate_financial = data.generateFinancial;
     }
 
-    const { data: updated, error } = await supabase
-      .from("appointments")
-      .update(patch)
-      .eq("id", data.id)
-      .eq("owner_id", context.userId)
-      .select("status, patient_id, patient_name, procedure_name, professional_id, date, actual_revenue, expected_revenue, generate_financial, room_id, room_name, professional_name, start_time, end_time")
-      .single();
+    const { data: updated, error } = await gravarTolerandoColunaAusente(
+      (sem) =>
+        supabase
+          .from("appointments")
+          .update(sem ? semValorCobrado(patch) : patch)
+          .eq("id", data.id)
+          .eq("owner_id", context.userId)
+          .select(sem ? SELECT_TRANSICAO_SEM_VALOR : SELECT_TRANSICAO)
+          .single(),
+      data.status === "completed",
+    );
     if (error) throw new Error(error.message);
 
     const conflitos = await onStatusTransition(

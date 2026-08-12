@@ -183,6 +183,14 @@ export function AppointmentDrawer({
     setForm((f) => ({ ...f, roomId: id, roomName: room?.name ?? "" }));
   };
 
+  // "Hoje" pela data local, não por `toISOString`, que usa UTC e faria a
+  // agenda considerar o dia seguinte já passado depois das 21h no Brasil.
+  const hojeLocal = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+  const dataNoPassado = Boolean(form.date && form.date < hojeLocal);
+
   const handleSave = () => {
     if (!form.patientName?.trim()) {
       toast.error("Informe o nome do paciente");
@@ -252,16 +260,34 @@ export function AppointmentDrawer({
             <p className="rounded-xl bg-coral-soft px-3 py-2 text-xs leading-5 text-coral">{origin}</p>
           )}
 
+          {/* Data já passada num agendamento novo: é registro retroativo, e a
+              tela precisa dizer que ninguém vai ser avisado disso. */}
+          {!isEdit && dataNoPassado && (
+            <p className="rounded-xl bg-surface px-3 py-2 text-xs leading-5 text-foreground-secondary">
+              Esta data já passou. O agendamento entra como registro — o paciente
+              não recebe confirmação nem lembretes.
+            </p>
+          )}
+
           {/* Confirmar que aconteceu é a ação mais importante deste card, então
-              fica no topo — não escondida num select entre outros status. */}
-          {isEdit && (
+              fica no topo — não escondida num select entre outros status.
+              Aparece também ao criar com data passada: é assim que se registra
+              um atendimento antigo, com o valor cobrado, sem ter de salvar,
+              reabrir e confirmar depois. */}
+          {(isEdit || dataNoPassado) && (
             <ConfirmCompletion
               expectedRevenue={form.expectedRevenue ?? 0}
               actualRevenue={form.status === "completed" ? (form.actualRevenue ?? 0) : null}
               appointmentDate={form.date ?? new Date().toISOString().slice(0, 10)}
               generateFinancial={form.generateFinancial ?? true}
               isPending={isSaving}
-              onConfirm={({ valor, retornoEm, gerarCobranca }) =>
+              onConfirm={({ valor, retornoEm, gerarCobranca }) => {
+                // Criando pelo registro retroativo, este é o botão que grava —
+                // então a checagem do nome tem de valer aqui também.
+                if (!form.patientName?.trim()) {
+                  toast.error("Informe o nome do paciente");
+                  return;
+                }
                 onSave(
                   {
                     ...form,
@@ -270,8 +296,8 @@ export function AppointmentDrawer({
                     generateFinancial: gerarCobranca,
                   },
                   retornoEm,
-                )
-              }
+                );
+              }}
             />
           )}
 
