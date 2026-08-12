@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { gravarTolerandoColunaAusente, semValorCobrado } from "@/lib/agenda/schema-fallback";
+import { gravarTolerandoColunaAusente, semColuna } from "@/lib/schema-fallback";
 import type {
   Appointment,
   AppointmentNotification,
@@ -216,53 +216,76 @@ const appointmentInput = (input: {
   };
 };
 
+/**
+ * Criação de agendamento sem a casca de server function.
+ *
+ * Existe separada porque o funil também cria agendamento — um "Ganho" vira um
+ * atendimento já concluído. Duplicar este corpo lá significaria duas
+ * implementações de notificação, conversão e recebimento saindo do ar uma da
+ * outra em silêncio; um handler não pode chamar outro handler diretamente,
+ * então o miolo vira função comum e os dois entram por aqui.
+ */
+export async function criarAgendamento(
+  supabase: any,
+  ownerId: string,
+  row: Record<string, any>,
+  opcoes: { skipConfirmation?: boolean; retornoEm?: string | null } = {},
+): Promise<{ id: string }> {
+  const { data: inserted, error } = await gravarTolerandoColunaAusente({
+    coluna: "actual_revenue",
+    exigida: row.status === "completed",
+    motivo: "O valor cobrado ainda não pode ser gravado.",
+    tentar: (sem) =>
+      supabase
+        .from("appointments")
+        .insert({ ...(sem ? semColuna(row, "actual_revenue") : row), owner_id: ownerId })
+        .select("id")
+        .single(),
+  });
+  if (error) throw new Error(error.message);
+
+  // Data já passada nunca notifica, tenha vindo `skipConfirmation` ou não.
+  // Registrar um atendimento antigo — para ter o histórico no sistema — não
+  // pode disparar "confirme sua consulta" de uma consulta de semana passada.
+  // A regra mora aqui, e não na tela, porque quatro telas criam agendamento.
+  const jaAconteceu = String(row.date) < new Date().toISOString().slice(0, 10);
+  if (!opcoes.skipConfirmation && !jaAconteceu) {
+    const { triggerAppointmentNotification } = await import("@/lib/agenda/notifications.server");
+    await triggerAppointmentNotification(inserted.id, "confirmation");
+  }
+  const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
+  await dispatchMetaCapiEvent(ownerId, "appointment.created", {
+    entityId: inserted.id,
+    patientId: row.patient_id,
+    contactName: row.patient_name,
+    amount: row.expected_revenue,
+  });
+
+  // Nascendo já concluído (registro retroativo pela agenda, ou um Ganho do
+  // funil), a conversão e o recebimento saem do mesmo lugar que qualquer outra
+  // conclusão — `statusAnterior` nulo conta como transição.
+  if (row.status === "completed") {
+    await onStatusTransition(
+      supabase, ownerId, inserted.id, null,
+      { ...row, actual_revenue: row.actual_revenue ?? null } as any,
+      opcoes.retornoEm,
+    );
+  }
+  return { id: inserted.id };
+}
+
 export const createAppointment = createServerFn({ method: "POST" })
   .inputValidator(appointmentInput)
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
-    const { id: _ignored, __skipConfirmation: skipConfirmation, __retornoEm: _r, ...row } = data;
+    const { id: _ignored, __skipConfirmation: skipConfirmation, __retornoEm: retornoEm, ...row } = data;
     // types.ts é gerado pelo Lovable a partir do banco e só passa a conhecer
     // actual_revenue depois que a migration rodar lá. Mesmo escape que
     // patients.functions.ts já usa, até a regeneração.
-    const supabase: any = context.supabase;
-    const { data: inserted, error } = await gravarTolerandoColunaAusente(
-      (sem) =>
-        supabase
-          .from("appointments")
-          .insert({ ...(sem ? semValorCobrado(row) : row), owner_id: context.userId })
-          .select("id")
-          .single(),
-      row.status === "completed",
-    );
-    if (error) throw new Error(error.message);
-
-    // Data já passada nunca notifica, tenha vindo `skipConfirmation` ou não.
-    // Registrar um atendimento antigo — para ter o histórico no sistema — não
-    // pode disparar "confirme sua consulta" de uma consulta de semana passada.
-    // A regra mora aqui, e não na tela, porque três telas criam agendamento.
-    const jaAconteceu = String(row.date) < new Date().toISOString().slice(0, 10);
-    if (!skipConfirmation && !jaAconteceu) {
-      const { triggerAppointmentNotification } = await import("@/lib/agenda/notifications.server");
-      await triggerAppointmentNotification(inserted.id, "confirmation");
-    }
-    const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
-    await dispatchMetaCapiEvent(context.userId, "appointment.created", {
-      entityId: inserted.id,
-      patientId: row.patient_id,
-      contactName: row.patient_name,
-      amount: row.expected_revenue,
+    return criarAgendamento(context.supabase as any, context.userId, row, {
+      skipConfirmation,
+      retornoEm,
     });
-
-    // Nascendo já concluído (registro retroativo), a conversão e o recebimento
-    // saem do mesmo lugar que qualquer outra conclusão — `statusAnterior` nulo
-    // conta como transição.
-    if (row.status === "completed") {
-      await onStatusTransition(supabase, context.userId, inserted.id, null, {
-        ...row,
-        actual_revenue: row.actual_revenue ?? null,
-      } as any);
-    }
-    return { id: inserted.id };
   });
 
 /**
@@ -374,10 +397,13 @@ async function onStatusTransition(
       generate_financial: true,
     };
     // O retorno nasce pendente, sem valor cobrado — pode ir sem a coluna.
-    const { error } = await gravarTolerandoColunaAusente(
-      (sem) => supabase.from("appointments").insert(sem ? semValorCobrado(retorno) : retorno),
-      false,
-    );
+    const { error } = await gravarTolerandoColunaAusente({
+      coluna: "actual_revenue",
+      exigida: false,
+      motivo: "",
+      tentar: (sem) =>
+        supabase.from("appointments").insert(sem ? semColuna(retorno, "actual_revenue") : retorno),
+    });
     if (error) throw new Error(error.message);
 
     // Nenhuma confirmação é disparada de propósito: o insert é direto, sem
@@ -409,17 +435,19 @@ export const updateAppointment = createServerFn({ method: "POST" })
       .eq("owner_id", context.userId)
       .maybeSingle();
 
-    const { data: updated, error } = await gravarTolerandoColunaAusente(
-      (sem) =>
+    const { data: updated, error } = await gravarTolerandoColunaAusente({
+      coluna: "actual_revenue",
+      exigida: row.status === "completed",
+      motivo: "O valor cobrado ainda não pode ser gravado.",
+      tentar: (sem) =>
         supabase
           .from("appointments")
-          .update(sem ? semValorCobrado(row) : row)
+          .update(sem ? semColuna(row, "actual_revenue") : row)
           .eq("id", id)
           .eq("owner_id", context.userId)
           .select(sem ? SELECT_TRANSICAO_SEM_VALOR : SELECT_TRANSICAO)
           .single(),
-      row.status === "completed",
-    );
+    });
     if (error) throw new Error(error.message);
 
     const conflitos = await onStatusTransition(
@@ -462,17 +490,19 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
       if (data.generateFinancial !== undefined) patch.generate_financial = data.generateFinancial;
     }
 
-    const { data: updated, error } = await gravarTolerandoColunaAusente(
-      (sem) =>
+    const { data: updated, error } = await gravarTolerandoColunaAusente({
+      coluna: "actual_revenue",
+      exigida: data.status === "completed",
+      motivo: "O valor cobrado ainda não pode ser gravado.",
+      tentar: (sem) =>
         supabase
           .from("appointments")
-          .update(sem ? semValorCobrado(patch) : patch)
+          .update(sem ? semColuna(patch, "actual_revenue") : patch)
           .eq("id", data.id)
           .eq("owner_id", context.userId)
           .select(sem ? SELECT_TRANSICAO_SEM_VALOR : SELECT_TRANSICAO)
           .single(),
-      data.status === "completed",
-    );
+    });
     if (error) throw new Error(error.message);
 
     const conflitos = await onStatusTransition(

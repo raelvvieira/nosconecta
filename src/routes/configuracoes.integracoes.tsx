@@ -51,7 +51,10 @@ import {
 } from "@/lib/integrations/meta-capi.functions";
 
 export const SYSTEM_EVENT_LABEL: Record<SystemEvent, string> = {
-  "deal.status_changed": "Negociação é marcada como ganha ou perdida",
+  // Só "perdida": o ganho passou a consolidar um atendimento realizado, e a
+  // conversão dele sai por "Agendamento muda de situação". Fossem os dois, a
+  // mesma venda contaria em dobro para quem tivesse ambos configurados.
+  "deal.status_changed": "Negociação é marcada como perdida",
   "pipeline.stage_changed": "Card entra numa etapa do funil",
   "appointment.created": "Agendamento é criado",
   "appointment.status_changed": "Agendamento muda de situação",
@@ -436,6 +439,18 @@ function IntegrationsPage() {
                 <p className="mt-1 truncate text-2xs text-muted-foreground/80">
                   {valueText(trigger)}
                 </p>
+                {/* Um gatilho antigo de "negociação ganha" fica mudo a partir
+                    de agora. Melhor dizer isso na cara do que deixar a clínica
+                    descobrir por conversões que pararam de chegar. */}
+                {trigger.systemEvent === "deal.status_changed" &&
+                  trigger.conditions.dealStatus === "won" && (
+                    <p className="mt-1.5 rounded-xl bg-warning-soft px-2.5 py-1.5 text-2xs leading-4 text-warning">
+                      Este gatilho não dispara mais. Marcar uma negociação como
+                      ganha agora registra um atendimento realizado — aponte-o
+                      para "Agendamento muda de situação", com a situação
+                      "Concluído".
+                    </p>
+                  )}
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

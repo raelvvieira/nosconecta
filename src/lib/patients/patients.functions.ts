@@ -338,6 +338,95 @@ export const getPatientByCrmContact = createServerFn({ method: "GET" })
     return row ? { id: row.id, name: row.name } : null;
   });
 
+/**
+ * Garante um paciente de verdade por trás de um contato de WhatsApp.
+ *
+ * Sem uma linha em `patients`, a Edge Function da Meta não tem de onde tirar
+ * telefone e e-mail: o `resolvePerson` busca **só** nessa tabela, por `id` ou
+ * por `crm_contact_id`. Sem ela, a conversão sai com hash de nome e mais nada,
+ * e o casamento na Meta se perde. Era o que acontecia com todo "Ganho" do
+ * funil.
+ *
+ * É idempotente por `crm_contact_id`: reencontra em vez de duplicar, dos dois
+ * lados — aqui e no `handleUpsert` do crm-contacts, que dá PATCH no contato
+ * existente em vez de criar outro.
+ *
+ * O telefone é gravado no formato do `formatWhatsappNumber`, igual ao caminho
+ * da Agenda. Duas convenções na mesma coluna seria pior que nenhuma; o
+ * `normPhone` da Meta tira a pontuação e valida o E.164 depois.
+ *
+ * Versão de servidor da `resolvePatientId` de `useSaveAppointment.ts`, que
+ * precisa viver no cliente por compor várias server functions numa mutation.
+ */
+export async function resolverPacienteDoContato(
+  supabase: any,
+  ownerId: string,
+  contato: {
+    patientId?: string | null;
+    name?: string | null;
+    phone?: string | null;
+    crmContactId?: string | null;
+  },
+): Promise<{ id: string; name: string; phone: string | null } | null> {
+  const nome = contato.name?.trim();
+
+  const ler = async (coluna: "id" | "crm_contact_id", valor: string) => {
+    const { data } = await supabase
+      .from("patients")
+      .select("id, name, phone")
+      .eq(coluna, valor)
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    return data ?? null;
+  };
+
+  let paciente =
+    (contato.patientId ? await ler("id", contato.patientId) : null) ??
+    (contato.crmContactId ? await ler("crm_contact_id", contato.crmContactId) : null);
+
+  if (paciente) {
+    // Paciente antigo sem telefone: completar é o que faz a conversão passar a
+    // casar. Nunca sobrescreve um número que já existe — quem digitou lá sabia
+    // mais do que o CRM sabe.
+    if (contato.phone && !paciente.phone) {
+      await supabase
+        .from("patients")
+        .update({ phone: contato.phone, updated_at: new Date().toISOString() })
+        .eq("id", paciente.id)
+        .eq("owner_id", ownerId);
+      paciente = { ...paciente, phone: contato.phone };
+    }
+    return { id: paciente.id, name: paciente.name, phone: paciente.phone ?? null };
+  }
+
+  // Sem nome não se inventa paciente — ficaria uma linha órfã sem serventia.
+  if (!nome) return null;
+
+  const { data: criado, error } = await supabase
+    .from("patients")
+    .insert({
+      owner_id: ownerId,
+      name: nome,
+      phone: contato.phone || null,
+      crm_contact_id: contato.crmContactId || null,
+      status: "active",
+    })
+    .select("id, name, phone")
+    .single();
+  if (error) throw new Error(error.message);
+
+  // Mesmos efeitos do createPatient, pelos mesmos motivos (ver comentários lá).
+  await pushContactToCrm(ownerId, criado.id, criado.name, criado.phone ?? null);
+  const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
+  await dispatchMetaCapiEvent(ownerId, "patient.created", {
+    entityId: criado.id,
+    patientId: criado.id,
+    contactName: criado.name,
+  });
+
+  return { id: criado.id, name: criado.name, phone: criado.phone ?? null };
+}
+
 export const createPatient = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(patientInput)

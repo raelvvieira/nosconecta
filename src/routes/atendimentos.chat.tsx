@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CheckCheck, ChevronDown, Search, StickyNote } from "lucide-react";
+import { ArrowLeft, Check, CheckCheck, ChevronDown, Search, StickyNote, X } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -33,6 +33,18 @@ import {
   getPipelineStages,
   movePipelineItem,
 } from "@/lib/atendimentos/pipeline.functions";
+import {
+  confirmarGanho,
+  getDeals,
+  saveDealStatus,
+  DEAL_STATUS_LABEL,
+  LOSS_REASONS,
+  type DealStatus,
+} from "@/lib/atendimentos/deals.functions";
+import { ConfirmarGanho, type DadosGanho } from "@/components/atendimentos/pipeline/ConfirmarGanho";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { haptic } from "@/lib/haptics";
 
 const searchSchema = z.object({
   conversationId: z.string().optional(),
@@ -119,6 +131,9 @@ function ChatPage() {
   const fetchPipelineItems = useServerFn(getPipelineItems);
   const doAddPipelineItem = useServerFn(addPipelineItem);
   const doMovePipelineItem = useServerFn(movePipelineItem);
+  const fetchDeals = useServerFn(getDeals);
+  const doConfirmarGanho = useServerFn(confirmarGanho);
+  const doSaveStatus = useServerFn(saveDealStatus);
 
   const pipelineStagesQuery = useQuery({
     queryKey: ["pipeline-stages"],
@@ -135,10 +150,83 @@ function ChatPage() {
     enabled: !!selected && pipelineConfigured,
     staleTime: 8_000,
   });
+  // Casa pelos dois lados, como o funil já faz: um card criado a partir do
+  // contato (`type: "contact"`) ficava invisível aqui, mostrando "Sem etapa" —
+  // e escolher uma etapa criaria um SEGUNDO card para a mesma pessoa.
   const currentPipelineItem = pipelineItemsQuery.data?.items.find(
-    (i) => i.type === "conversation" && i.itemId === selected?.id,
+    (i) =>
+      (i.type === "conversation" && i.itemId === selected?.id) ||
+      (i.type === "contact" && selected?.contactId && i.itemId === selected.contactId),
   );
   const currentStage = pipelineStages.find((s) => s.id === currentPipelineItem?.stageId);
+
+  const dealsQuery = useQuery({
+    queryKey: ["deals"],
+    queryFn: () => fetchDeals(),
+    enabled: !!selected && pipelineConfigured,
+    staleTime: 8_000,
+  });
+  const currentDeal = dealsQuery.data?.find((d) => d.itemId === currentPipelineItem?.id) ?? null;
+  const dealStatus: DealStatus = currentDeal?.status ?? "negotiating";
+
+  const [confirmandoGanho, setConfirmandoGanho] = useState(false);
+  const [askingLoss, setAskingLoss] = useState(false);
+  const [lossReason, setLossReason] = useState("");
+
+  const invalidarNegocio = () => {
+    queryClient.invalidateQueries({ queryKey: ["deals"] });
+    queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
+  };
+
+  const ganhoMutation = useMutation({
+    mutationFn: (dados: DadosGanho) =>
+      doConfirmarGanho({
+        data: {
+          itemId: currentPipelineItem!.id,
+          contactName: selected?.contactName ?? selected?.phone ?? "",
+          crmContactId: selected?.contactId ?? null,
+          phone: dados.phone,
+          valor: dados.valor,
+          realizadoEm: dados.realizadoEm,
+          gerarCobranca: dados.gerarCobranca,
+        },
+      }),
+    onSuccess: (r) => {
+      haptic("commit");
+      setConfirmandoGanho(false);
+      if (r.jaConsolidado) {
+        toast.warning(
+          "Ganho registrado. Esta pessoa já tinha atendimento realizado nesta data, então a conversão não foi enviada outra vez.",
+          { duration: 8000 },
+        );
+      } else {
+        toast.success("Atendimento realizado registrado e conversão enviada.");
+      }
+      invalidarNegocio();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: (vars: { status: DealStatus; reason?: string }) =>
+      doSaveStatus({
+        data: {
+          itemId: currentPipelineItem!.id,
+          status: vars.status,
+          lossReason: vars.reason,
+          contactName: selected?.contactName ?? undefined,
+          crmContactId: selected?.contactId ?? null,
+        },
+      }),
+    onSuccess: (_r, vars) => {
+      haptic(vars.status === "lost" ? "warn" : "commit");
+      toast.success(`Marcado como ${DEAL_STATUS_LABEL[vars.status]}`);
+      setAskingLoss(false);
+      setLossReason("");
+      invalidarNegocio();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const moveStageMutation = useMutation({
     mutationFn: (stageId: string) =>
@@ -320,30 +408,115 @@ function ChatPage() {
                 )}
               </div>
               {pipelineConfigured && pipelineStages.length > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold"
-                    >
-                      <span
-                        className="h-2 w-2 shrink-0 rounded-full"
-                        style={{ backgroundColor: currentStage?.color ?? "var(--foreground-subtle)" }}
-                      />
-                      {currentStage?.name ?? "Sem etapa"}
-                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {pipelineStages.map((s) => (
-                      <DropdownMenuItem key={s.id} onClick={() => moveStageMutation.mutate(s.id)}>
-                        {s.name}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold"
+                      >
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: currentStage?.color ?? "var(--foreground-subtle)" }}
+                        />
+                        {currentStage?.name ?? "Sem etapa"}
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {pipelineStages.map((s) => (
+                        <DropdownMenuItem key={s.id} onClick={() => moveStageMutation.mutate(s.id)}>
+                          {s.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* Etapa e desfecho são coisas diferentes: a etapa diz onde a
+                      pessoa está, o desfecho diz como terminou. Só aparece
+                      quando já existe card no funil — sem ele não há o que
+                      marcar como ganho ou perdido. */}
+                  {currentPipelineItem && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          data-desfecho=""
+                          className={cn(
+                            "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold",
+                            dealStatus === "won" && "border-success/30 bg-success-soft text-success",
+                            dealStatus === "lost" && "border-danger/30 bg-danger-soft text-danger",
+                            dealStatus === "negotiating" && "border-border bg-white",
+                          )}
+                        >
+                          {dealStatus === "won" && <Check className="h-3.5 w-3.5" />}
+                          {dealStatus === "lost" && <X className="h-3.5 w-3.5" />}
+                          {DEAL_STATUS_LABEL[dealStatus]}
+                          <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => statusMutation.mutate({ status: "negotiating" })}
+                        >
+                          Em negociação
+                        </DropdownMenuItem>
+                        {/* Ganho não grava daqui: abre a confirmação, que pede
+                            valor e data antes de mandar qualquer conversão. */}
+                        <DropdownMenuItem onClick={() => setConfirmandoGanho(true)}>
+                          Ganho
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setAskingLoss(true)}>
+                          Perdido
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
               )}
             </header>
+
+            {/* Sem motivo, "perdido" não ensina nada depois — mesma exigência
+                do funil, e o servidor recusa sem ele de qualquer jeito. */}
+            {askingLoss && (
+              <div className="space-y-2 border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-8">
+                <p className="text-xs font-semibold text-foreground">Motivo da perda</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {LOSS_REASONS.map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setLossReason(r)}
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-2xs",
+                        lossReason === r ? "border-danger bg-danger-soft text-danger" : "border-border bg-white",
+                      )}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+                <Textarea
+                  value={lossReason}
+                  onChange={(e) => setLossReason(e.target.value)}
+                  placeholder="Ou escreva o motivo"
+                  className="min-h-14 bg-white"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="premium"
+                    disabled={!lossReason.trim() || statusMutation.isPending}
+                    onClick={() => statusMutation.mutate({ status: "lost", reason: lossReason })}
+                  >
+                    Marcar como perdido
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setAskingLoss(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
               {/* Sem `mx-auto`: centralizada, a coluna flutuava no meio da
@@ -435,6 +608,16 @@ function ChatPage() {
           }
         />
       )}
+
+      <ConfirmarGanho
+        open={confirmandoGanho}
+        contactName={selected?.contactName ?? selected?.phone ?? "Contato"}
+        phone={selected?.phone ?? null}
+        valorSugerido={currentDeal?.value ?? null}
+        isPending={ganhoMutation.isPending}
+        onOpenChange={(o) => !o && setConfirmandoGanho(false)}
+        onConfirm={(dados) => ganhoMutation.mutate(dados)}
+      />
     </main>
   );
 }

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppointmentDrawer } from "@/components/agenda/AppointmentDrawer";
+import { ConfirmarGanho, type DadosGanho } from "./ConfirmarGanho";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ import { haptic } from "@/lib/haptics";
 import type { PipelineItem, PipelineStage } from "@/lib/atendimentos/pipeline.functions";
 import {
   addDealNote,
+  confirmarGanho,
   getDealTimeline,
   logDealAppointment,
   saveDealStatus,
@@ -77,6 +79,7 @@ export function DealDetailSheet({
   const fetchTimeline = useServerFn(getDealTimeline);
   const fetchPatient = useServerFn(getPatientByCrmContact);
   const doSaveStatus = useServerFn(saveDealStatus);
+  const doConfirmarGanho = useServerFn(confirmarGanho);
   const doSaveValue = useServerFn(saveDealValue);
   const doAddNote = useServerFn(addDealNote);
   const doLogAppointment = useServerFn(logDealAppointment);
@@ -140,6 +143,7 @@ export function DealDetailSheet({
           status: vars.status,
           lossReason: vars.reason,
           contactName: item?.title ?? undefined,
+          crmContactId: contactId,
         },
       }),
     onSuccess: (_result, vars) => {
@@ -147,6 +151,43 @@ export function DealDetailSheet({
       haptic(vars.status === "lost" ? "warn" : "commit");
       toast.success(`Marcado como ${DEAL_STATUS_LABEL[vars.status]}`);
       setAskingLoss(false);
+      refreshTimeline();
+      onChanged();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  // "Ganho" não grava mais direto: abre a confirmação, que pede valor e data.
+  // Era o clique que mandava conversão sem telefone, sem valor e sem dia.
+  const [confirmandoGanho, setConfirmandoGanho] = useState(false);
+
+  const ganhoMutation = useMutation({
+    mutationFn: (dados: DadosGanho) =>
+      doConfirmarGanho({
+        data: {
+          itemId,
+          contactName: item?.title ?? "",
+          crmContactId: contactId,
+          phone: dados.phone,
+          patientId: patient.data?.id ?? null,
+          valor: dados.valor,
+          realizadoEm: dados.realizadoEm,
+          gerarCobranca: dados.gerarCobranca,
+        },
+      }),
+    onSuccess: (r) => {
+      haptic("commit");
+      setConfirmandoGanho(false);
+      if (r.jaConsolidado) {
+        // Não é erro nem sucesso silencioso: o ganho ficou registrado, mas o
+        // atendimento já existia e a conversão não saiu de novo.
+        toast.warning(
+          "Ganho registrado. Esta pessoa já tinha atendimento realizado nesta data, então a conversão não foi enviada outra vez.",
+          { duration: 8000 },
+        );
+      } else {
+        toast.success("Atendimento realizado registrado e conversão enviada.");
+      }
       refreshTimeline();
       onChanged();
     },
@@ -278,7 +319,7 @@ export function DealDetailSheet({
                   active={status === "won"}
                   tone="win"
                   icon={<Check className="h-3.5 w-3.5" />}
-                  onClick={() => statusMutation.mutate({ status: "won" })}
+                  onClick={() => setConfirmandoGanho(true)}
                 >
                   Ganho
                 </StatusButton>
@@ -338,6 +379,14 @@ export function DealDetailSheet({
               {status === "lost" && deal?.lossReason && !askingLoss && (
                 <p className="mt-2 text-2xs text-muted-foreground">
                   Motivo: {deal.lossReason}
+                </p>
+              )}
+              {/* Ganho é afirmação; a data e o valor são a prova. Sem isto o
+                  painel diria "Ganho" sem dizer de quando. */}
+              {status === "won" && deal?.realizedOn && (
+                <p className="mt-2 text-2xs text-muted-foreground">
+                  Atendimento realizado em {deal.realizedOn.split("-").reverse().join("/")}
+                  {deal.value !== null ? ` · ${formatBRL(deal.value)}` : ""}
                 </p>
               )}
             </section>
@@ -469,6 +518,16 @@ export function DealDetailSheet({
           onSave={(data) => saveAppointment.mutate({ data, contact: { phone, crmContactId: contactId } })}
         />
       )}
+
+      <ConfirmarGanho
+        open={confirmandoGanho}
+        contactName={item?.title ?? "Contato"}
+        phone={phone}
+        valorSugerido={deal?.value ?? null}
+        isPending={ganhoMutation.isPending}
+        onOpenChange={(o) => !o && setConfirmandoGanho(false)}
+        onConfirm={(dados) => ganhoMutation.mutate(dados)}
+      />
     </>
   );
 }
