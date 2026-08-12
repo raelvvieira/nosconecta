@@ -208,8 +208,11 @@ export function CommitmentDrawer({
             />
           </div>
 
+          {/* `min-w-0` pelo mesmo motivo da consulta: o Safari dá largura
+              mínima própria ao `input[type=time]` e, sem isto, ele transborda
+              por cima do campo ao lado em telas estreitas. */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label className="text-sm text-foreground-secondary">Início</Label>
               <Input
                 type="time"
@@ -221,11 +224,11 @@ export function CommitmentDrawer({
                     endTime: endTimeFrom(e.target.value, duracao),
                   }))
                 }
-                className="rounded-xl border-surface-muted"
+                className="w-full min-w-0 rounded-xl border-surface-muted"
               />
             </div>
             {/* Mesma troca da consulta: duração no lugar do horário de fim. */}
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label className="text-sm text-foreground-secondary">Duração (min)</Label>
               <select
                 className="w-full text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"

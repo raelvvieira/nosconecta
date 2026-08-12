@@ -438,23 +438,31 @@ export function AppointmentDrawer({
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Data e Horário
             </h3>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-3 space-y-2">
+            {/* Duas colunas no celular, três a partir do tablet.
+                Três lado a lado num telefone dá ~95px por campo, e aí duas
+                coisas quebram: o Safari reserva uma largura mínima própria
+                para `input[type=time]`, que então transborda por cima do
+                campo vizinho (a coluna é `minmax(0,1fr)`, então ela não cede),
+                e "Confirmado" aparece cortado como "Confirma". O `min-w-0`
+                nas células e nos controles é o que autoriza encolher — sem
+                ele, item de grade não vai abaixo do próprio conteúdo. */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="col-span-2 space-y-2 sm:col-span-3">
                 <Label className="text-sm text-foreground-secondary">Data</Label>
                 <Input
                   type="date"
                   value={form.date}
                   onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                  className="rounded-xl border-surface-muted"
+                  className="w-full min-w-0 rounded-xl border-surface-muted"
                 />
               </div>
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2">
                 <Label className="text-sm text-foreground-secondary">Início</Label>
                 <Input
                   type="time"
                   value={form.startTime}
                   onChange={(e) => mudarInicio(e.target.value)}
-                  className="rounded-xl border-surface-muted"
+                  className="w-full min-w-0 rounded-xl border-surface-muted"
                 />
               </div>
               {/* Duração no lugar do horário de fim. O fim vira consequência,
@@ -462,10 +470,10 @@ export function AppointmentDrawer({
                   problema antigo: mudar o início depois de escolher o
                   procedimento mantinha o fim velho, e a consulta encolhia ou
                   esticava sem ninguém ver. */}
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2">
                 <Label className="text-sm text-foreground-secondary">Duração (min)</Label>
                 <select
-                  className="w-full text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
+                  className="w-full min-w-0 text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
                   value={duracao}
                   onChange={(e) => mudarDuracao(Number(e.target.value))}
                 >
@@ -476,10 +484,12 @@ export function AppointmentDrawer({
                   ))}
                 </select>
               </div>
-              <div className="space-y-2">
+              {/* No celular o Status ocupa a linha inteira: é o rótulo mais
+                  longo dos três e o único que perde sentido cortado. */}
+              <div className="col-span-2 min-w-0 space-y-2 sm:col-span-1">
                 <Label className="text-sm text-foreground-secondary">Status</Label>
                 <select
-                  className="w-full text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
+                  className="w-full min-w-0 text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
                   value={form.status}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, status: e.target.value as AppointmentStatus }))
