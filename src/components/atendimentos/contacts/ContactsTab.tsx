@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { AlertTriangle, MessageCircle, Search, Users } from "lucide-react";
+import { AlertTriangle, Loader2, MessageCircle, Search, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
-import { getCrmContacts, type CrmContact } from "@/lib/atendimentos/contacts.functions";
+import type { CrmContact } from "@/lib/atendimentos/contacts.functions";
+import { useContatosIncremental } from "@/lib/atendimentos/useContatosIncremental";
 import {
   alternarSelecaoDoRecorte,
   contarPorDdd,
@@ -19,7 +20,6 @@ import { contatosDaCaixa, daParaSepararPorNumero } from "@/lib/atendimentos/inbo
 /** Constante, não `[]` na hora: array novo a cada render invalida todo
  *  `useMemo` que dependa dele — foi assim que a página de campanhas ganhou um
  *  laço infinito (ver FunnelSection.tsx). */
-const SEM_CONTATOS: CrmContact[] = [];
 const SEM_CONVERSAS: never[] = [];
 
 export interface ContatoSelecionado extends CrmContact {
@@ -59,17 +59,15 @@ export function ContactsTab({
    *  e a barra precisa acompanhar a rolagem do próprio conteúdo. */
   barraFixa?: boolean;
 }) {
-  const fetchContacts = useServerFn(getCrmContacts);
   const fetchConversations = useServerFn(getConversations);
   const fetchInboxes = useServerFn(getWhatsappInboxes);
 
-  const contactsQuery = useQuery({
-    queryKey: ["crm-contacts"],
-    queryFn: () => fetchContacts(),
-    enabled: ativo,
-    staleTime: 5 * 60_000,
-    retry: 1,
-  });
+  // Chega aos pedaços: a primeira página já aparece, e o resto entra por trás
+  // — ver useContatosIncremental.ts. Não é `useQuery` porque o progresso
+  // parcial precisa ser um estado que muda várias vezes por carregamento, e
+  // não um valor único que só existe quando tudo termina.
+  const contatosEstado = useContatosIncremental(ativo);
+
   const conversationsQuery = useQuery({
     queryKey: ["atendimentos-conversations"],
     queryFn: () => fetchConversations(),
@@ -91,7 +89,7 @@ export function ContactsTab({
   // essa gente é mandar mensagem de uma clínica que ela não reconhece.
   const [soDoNumeroAtual, setSoDoNumeroAtual] = useState(true);
 
-  const contatos = contactsQuery.data?.contacts ?? SEM_CONTATOS;
+  const contatos = contatosEstado.contatos;
 
   // Contato → conversa. É o que decide, no disparo, por qual caminho a mensagem
   // sai; e o que a linha mostra como "com conversa".
@@ -157,21 +155,27 @@ export function ContactsTab({
       .filter((c) => selecionados.has(c.id))
       .map((c) => ({ ...c, conversationId: conversaPorContato.get(c.id) ?? null }));
 
-  if (contactsQuery.isPending) {
+  // Só a tela cheia de "carregando" enquanto NADA chegou ainda — a partir da
+  // primeira página, o carregamento vira uma faixa discreta acima da lista,
+  // porque a partir daí já dá para buscar e selecionar.
+  if (contatos.length === 0 && contatosEstado.carregando) {
     return (
-      <div className="surface-card mt-5 grid min-h-40 place-items-center px-6 text-center">
+      <div className="surface-card mt-5 grid min-h-40 place-items-center gap-2 px-6 text-center">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" strokeWidth={2} />
         <p className="text-sm text-muted-foreground">
-          Carregando a base de contatos do CRM… numa base grande isso leva alguns segundos.
+          Carregando a base de contatos do CRM…
+          {contatosEstado.progresso &&
+            ` página ${contatosEstado.progresso.feitas} de ${contatosEstado.progresso.totalPaginas}.`}
         </p>
       </div>
     );
   }
 
-  if (contactsQuery.isError) {
+  if (contatos.length === 0 && contatosEstado.erro) {
     return (
       <div className="surface-card mt-5 grid min-h-40 place-items-center px-6 text-center">
         <p className="text-sm text-danger">
-          Não foi possível ler os contatos do CRM: {(contactsQuery.error as Error).message}
+          Não foi possível ler os contatos do CRM: {contatosEstado.erro}
         </p>
       </div>
     );
@@ -179,6 +183,26 @@ export function ContactsTab({
 
   return (
     <>
+      {contatosEstado.carregando && (
+        <p
+          data-carregando-mais=""
+          className="mt-5 flex items-center gap-2 rounded-xl bg-surface px-3 py-2 text-2xs leading-4 text-muted-foreground"
+        >
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" strokeWidth={2} />
+          Ainda carregando mais contatos
+          {contatosEstado.progresso && ` — página ${contatosEstado.progresso.feitas} de ${contatosEstado.progresso.totalPaginas}`}
+          . Os {contatos.length} já carregados já podem ser buscados e selecionados.
+        </p>
+      )}
+
+      {!contatosEstado.carregando && contatosEstado.erro && (
+        <p className="mt-5 flex gap-2 rounded-xl bg-warning-soft px-3 py-2 text-2xs leading-4 text-warning">
+          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+          Parou de carregar mais páginas: {contatosEstado.erro}. Os {contatos.length} já
+          carregados continuam disponíveis.
+        </p>
+      )}
+
       <div className="relative mt-5">
         <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -237,10 +261,10 @@ export function ContactsTab({
         </div>
       )}
 
-      {contactsQuery.data?.truncado && (
+      {!contatosEstado.carregando && contatosEstado.truncado && (
         <p className="mt-3 flex gap-2 rounded-xl bg-warning-soft px-3 py-2 text-2xs leading-4 text-warning">
           <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-          A base tem {contactsQuery.data.total} contatos e só os primeiros{" "}
+          A base tem {contatosEstado.total} contatos e só os primeiros{" "}
           {contatos.length} foram carregados. O filtro e a seleção valem apenas
           sobre esses.
         </p>

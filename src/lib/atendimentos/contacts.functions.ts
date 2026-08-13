@@ -62,6 +62,10 @@ async function callContacts(body: unknown) {
  * inteira para saber quais DDDs existem e quantos são cada um. Filtrar no
  * servidor exigiria um parâmetro de busca que o CRM nunca foi testado para
  * aceitar — só `page` e `pageSize` estão confirmados.
+ *
+ * Mantida por compatibilidade, mas a tela usa `getCrmContactsPage` (abaixo)
+ * para poder mostrar o que já chegou em vez de esperar a base inteira — ver
+ * `useContatosIncremental.ts`.
  */
 export const getCrmContacts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -79,4 +83,31 @@ export const getCrmContacts = createServerFn({ method: "GET" })
       total: Number(json.total ?? contacts.length),
       truncado: Boolean(json.truncado),
     };
+  });
+
+export interface CrmContactPage {
+  contacts: CrmContact[];
+  /** Total que o CRM diz ter — o mesmo em toda página, usado para calcular
+   *  quantas páginas ainda faltam pedir. */
+  total: number;
+}
+
+/**
+ * Uma página só da base — sem laço nenhum do lado do servidor. É o que deixa
+ * o front pedir várias ao mesmo tempo e mostrar contato assim que ele chega,
+ * em vez de ficar com a tela presa em "carregando" até a base inteira voltar.
+ */
+export const getCrmContactsPage = createServerFn({ method: "GET" })
+  .inputValidator((input: { page: number }) => input)
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data, context }): Promise<CrmContactPage> => {
+    const json = await callContacts({ ownerId: context.userId, action: "list", page: data.page });
+    const contacts: CrmContact[] = (json.contacts ?? [])
+      .filter((c: any) => c?.id)
+      .map((c: any) => ({
+        id: String(c.id),
+        name: (c.name ?? "").trim() || "Sem nome",
+        phone: c.phone ?? null,
+      }));
+    return { contacts, total: Number(json.total ?? 0) };
   });

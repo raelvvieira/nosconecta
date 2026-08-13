@@ -78,10 +78,43 @@ interface CrmContact {
   inboxId: string | null;
 }
 
-async function buscarPagina(ownerId: string, page: number) {
+async function buscarPagina(ownerId: string, page: number, pageSize = PAGE_SIZE) {
   // Sem `unwrap` na resposta crua: ele devolve `data` e descarta o `meta`,
   // que é onde a paginação vive.
-  return crmFetch(supabase, ownerId, `/api/v1/contacts?page=${page}&pageSize=${PAGE_SIZE}`);
+  return crmFetch(supabase, ownerId, `/api/v1/contacts?page=${page}&pageSize=${pageSize}`);
+}
+
+function contatosDaResposta(res: any): { contatos: CrmContact[]; total: number; camposDisponiveis: string[] } {
+  const total = Number(res?.meta?.pagination?.total ?? 0);
+  const lote = unwrap(res);
+  const contatos: CrmContact[] = [];
+  let camposDisponiveis: string[] = [];
+  if (Array.isArray(lote)) {
+    for (const row of lote) {
+      if (!camposDisponiveis.length && row && typeof row === "object") {
+        camposDisponiveis = Object.keys(row);
+      }
+      const inbox = row?.inbox_id ?? row?.inboxId ?? row?.inbox?.id ?? null;
+      contatos.push({
+        id: String(row?.id ?? ""),
+        name: row?.name ?? null,
+        phone: row?.phone_number ?? row?.phone ?? null,
+        inboxId: inbox ? String(inbox) : null,
+      });
+    }
+  }
+  return { contatos, total, camposDisponiveis };
+}
+
+/**
+ * Uma página só, sem laço nenhum — para o cliente puxar a base aos pedaços e
+ * mostrar o que já chegou em vez de esperar tudo. É o que faz a tela deixar
+ * de ficar presa em "carregando": a primeira página aparece em 1-2s, e o
+ * resto entra por trás enquanto a pessoa já está vendo e filtrando.
+ */
+async function handlePage(ownerId: string, page: number, pageSize: number) {
+  const res = await buscarPagina(ownerId, page, pageSize);
+  return { ok: true, page, pageSize, ...contatosDaResposta(res) };
 }
 
 async function handleList(ownerId: string) {
@@ -158,16 +191,22 @@ async function handleList(ownerId: string) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
   try {
-    const { ownerId, action, patient } = (await req.json()) as {
+    const { ownerId, action, patient, page, pageSize } = (await req.json()) as {
       ownerId?: string;
       action?: string;
       patient?: { patientId: string; name: string; phone?: string | null };
+      /** Presente = uma página só (handlePage). Ausente = varredura completa
+       *  no servidor (handleList), mantida por compatibilidade. */
+      page?: number;
+      pageSize?: number;
     };
     if (!ownerId || !action) {
       return new Response(JSON.stringify({ error: "ownerId e action são obrigatórios" }), { status: 400 });
     }
     let result: unknown;
-    if (action === "list") {
+    if (action === "list" && typeof page === "number") {
+      result = await handlePage(ownerId, page, pageSize || PAGE_SIZE);
+    } else if (action === "list") {
       result = await handleList(ownerId);
     } else if (action === "upsert" && patient) {
       result = await handleUpsert(ownerId, patient);
