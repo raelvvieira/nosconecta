@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Rocket } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import {
   saveCampaign,
   saveMessageTemplate,
   executeCampaign,
+  getEstimatedRecipients,
   updatePendingMove,
   type MessageInterval,
 } from "@/lib/atendimentos/campaigns.functions";
@@ -52,6 +53,16 @@ export function NewCampaignSheet({
   const doExecuteCampaign = useServerFn(executeCampaign);
   const doMovePipelineItem = useServerFn(movePipelineItem);
   const doUpdatePendingMove = useServerFn(updatePendingMove);
+  const fetchEstimate = useServerFn(getEstimatedRecipients);
+
+  // Carregado só com a gaveta aberta: é uma ida ao CRM, e a tela precisa dele
+  // apenas na hora de confirmar.
+  const estimateQuery = useQuery({
+    queryKey: ["campaign-estimate"],
+    queryFn: () => fetchEstimate(),
+    enabled: open,
+    staleTime: 5 * 60_000,
+  });
 
   const [targetStageId, setTargetStageId] = useState<string | null>(null);
   const [audience, setAudience] = useState<ResolvedAudience>(EMPTY_AUDIENCE);
@@ -78,7 +89,7 @@ export function NewCampaignSheet({
   const canProceed = isComposerReady(composer);
 
   const confirmMutation = useMutation({
-    mutationFn: async ({ title }: { title: string }) => {
+    mutationFn: async ({ title, disparar }: { title: string; disparar: boolean }) => {
       let templateId = composer.templateId;
       if (composer.isNewTemplate) {
         const name =
@@ -110,8 +121,14 @@ export function NewCampaignSheet({
       const campaignId = campaignResult.campaign?.id;
       if (!campaignId) throw new Error("O CRM não retornou a campanha criada.");
 
+      // Salvar sem disparar para aqui: a campanha fica na lista e o envio passa
+      // pelo botão Disparar, que mostra contagem, cota e preview antes.
+      if (!disparar) return { disparou: false as const, recipientsCounted: 0 };
+
       const executeResult = await doExecuteCampaign({ data: { campaignId } });
 
+      // Só depois de disparar: mover contato de etapa sem ter enviado nada
+      // registraria um avanço no funil que não aconteceu.
       if (targetStageId && audience.moveCandidateItemIds.length > 0) {
         setMoveProgress({ done: 0, total: audience.moveCandidateItemIds.length });
         const { failedIds } = await moveContactsToStage(
@@ -127,10 +144,15 @@ export function NewCampaignSheet({
         }
       }
 
-      return executeResult;
+      return { disparou: true as const, recipientsCounted: executeResult.recipientsCounted };
     },
     onSuccess: (res) => {
-      toast.success(`Campanha disparada — ~${res.recipientsCounted} contato(s)`);
+      toast.success(
+        res.disparou
+          ? `Campanha disparada — ~${res.recipientsCounted} contato(s)`
+          : "Campanha salva. Dispare pela lista quando quiser — lá a revisão mostra para quantos vai.",
+        { duration: res.disparou ? 4000 : 8000 },
+      );
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
       queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
@@ -205,7 +227,8 @@ export function NewCampaignSheet({
         defaultTitle=""
         isPending={confirmMutation.isPending}
         moveProgress={moveProgress}
-        onConfirm={(title) => confirmMutation.mutate({ title })}
+        totalContatos={estimateQuery.data ?? null}
+        onConfirm={(title, disparar) => confirmMutation.mutate({ title, disparar })}
       />
     </>
   );

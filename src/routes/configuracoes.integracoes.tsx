@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
+import { InboxSnapshot } from "@/components/atendimentos/InboxSnapshot";
 import { MetaTriggerSheet } from "@/components/settings/MetaTriggerSheet";
 import {
   AlertDialog,
@@ -246,6 +247,8 @@ function IntegrationsPage() {
           paciente.
         </p>
       </header>
+
+      <InboxSnapshot />
 
       {/* Conexão */}
       <div className="surface-card mt-6 p-5 sm:p-6">

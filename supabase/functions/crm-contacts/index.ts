@@ -64,12 +64,18 @@ interface CrmContact {
   id: string;
   name: string | null;
   phone: string | null;
+  /** Caixa do contato, quando o CRM informar. Nome do campo não confirmado. */
+  inboxId: string | null;
 }
 
 async function handleList(ownerId: string) {
   const contatos: CrmContact[] = [];
   let total = 0;
   let truncado = false;
+  // Só os NOMES dos campos do primeiro contato, nunca os valores: serve para a
+  // tela dizer o que o CRM devolve quando não achamos caixa nenhuma, sem
+  // trafegar dado pessoal para diagnóstico.
+  let camposDisponiveis: string[] = [];
 
   for (let page = 1; page <= MAX_PAGES; page++) {
     // Sem `unwrap` na resposta crua: ele devolve `data` e descarta o `meta`,
@@ -84,12 +90,17 @@ async function handleList(ownerId: string) {
     if (!Array.isArray(lote) || lote.length === 0) break;
 
     for (const row of lote) {
+      if (!camposDisponiveis.length && row && typeof row === "object") {
+        camposDisponiveis = Object.keys(row);
+      }
+      const inbox = row?.inbox_id ?? row?.inboxId ?? row?.inbox?.id ?? null;
       contatos.push({
         id: String(row?.id ?? ""),
         name: row?.name ?? null,
         // O CRM guarda o telefone em `phone_number` — mesmo campo que o
         // handleUpsert escreve e que vem embutido em cada conversa.
         phone: row?.phone_number ?? row?.phone ?? null,
+        inboxId: inbox ? String(inbox) : null,
       });
     }
 
@@ -97,7 +108,7 @@ async function handleList(ownerId: string) {
     if (page === MAX_PAGES) truncado = true;
   }
 
-  return { ok: true, contacts: contatos, total, truncado };
+  return { ok: true, contacts: contatos, total, truncado, camposDisponiveis };
 }
 
 Deno.serve(async (req) => {

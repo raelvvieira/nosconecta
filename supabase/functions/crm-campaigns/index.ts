@@ -22,7 +22,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { campaignFetch, crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
-import { findWhatsappInboxId } from "../_shared/crm-inbox.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -89,21 +88,20 @@ async function handleSave(ownerId: string, campaign: SaveCampaignInput) {
     .eq("owner_id", ownerId)
     .maybeSingle();
 
-  let inboxId: string | null = cred?.inbox_id ?? null;
-  if (!inboxId && cred?.whatsapp_status === "open") {
-    // WhatsApp já pareado, só falta o inbox de Campanhas ainda não ter sido
-    // vinculado — tenta resolver agora antes de desistir.
-    inboxId = await findWhatsappInboxId(supabase, ownerId);
-    if (inboxId) {
-      await supabase.from("crm_credentials").update({ inbox_id: inboxId, updated_at: new Date().toISOString() }).eq("owner_id", ownerId);
-    }
-  }
+  // A caixa vem SÓ da credencial, gravada pelo `connect` — que é quem recebe do
+  // CRM a caixa daquele número. Aqui existia um fallback que listava as inboxes
+  // e pegava a primeira de WhatsApp; `crm-whatsapp/index.ts:208-213` já o
+  // removeu de lá por estar errado, e pelo mesmo motivo sai daqui: com um
+  // número = uma caixa, trocar de número deixa mais de uma caixa na conta, e "a
+  // primeira" pode ser a do número antigo. Uma campanha presa à caixa errada
+  // sairia pelo número que a clínica nem usa mais.
+  const inboxId: string | null = cred?.inbox_id ?? null;
   if (!inboxId) {
     if (cred?.whatsapp_status === "open") {
       throw new Error(
-        "O WhatsApp desta clínica está conectado, mas ainda não conseguimos vincular automaticamente a caixa de " +
-          "entrada de campanhas no CRM. Peça a um administrador do Wavy pra confirmar/criar essa inbox, ou informe " +
-          "o Inbox ID em Atendimentos → Conectar.",
+        "O WhatsApp está conectado, mas a caixa de campanhas não ficou gravada. " +
+          "Reconecte o número em Atendimentos → Conectar, ou informe o Inbox ID por lá — " +
+          "adivinhar a caixa poderia mandar a campanha pelo número antigo.",
       );
     }
     throw new Error("Conecte o WhatsApp desta clínica antes de criar campanhas.");
@@ -114,7 +112,9 @@ async function handleSave(ownerId: string, campaign: SaveCampaignInput) {
     title: campaign.title,
     type: "simple",
     channelType: "Channel::Whatsapp",
-    inboxId: cred.inbox_id,
+    // `inboxId`, não `cred.inbox_id`: eram a mesma coisa por acidente, e no
+    // caminho do fallback antigo a campanha ia para o CRM com inbox nula.
+    inboxId,
     sendToAll: campaign.sendToAll,
     templateAllocationConfig: campaign.templateId ? { templateId: campaign.templateId } : undefined,
     deliveryDistribution: {
@@ -308,6 +308,11 @@ Deno.serve(async (req) => {
         break;
       case "stop":
         result = await handleLifecycle(ownerId, body.campaignId, "stop");
+        break;
+      // Quantos contatos uma campanha alcançaria. Existe para a tela poder
+      // dizer isso ANTES de criar, e não só no toast depois de disparar.
+      case "estimate":
+        result = { ok: true, estimated: await estimateRecipients(ownerId) };
         break;
       case "get-usage":
         result = { ok: true, usage: await getDailyUsage(ownerId) };

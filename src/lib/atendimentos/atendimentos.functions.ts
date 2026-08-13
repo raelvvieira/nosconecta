@@ -14,6 +14,14 @@ export interface ConversationRow {
   // Id do contato no CRM — exigido por /scheduled_actions (agendamento) e
   // pelas consultas por contato. Vinha na resposta e era descartado.
   contactId: string | null;
+  /**
+   * Caixa a que a conversa pertence — ou seja, por qual NÚMERO ela entrou.
+   *
+   * `null` quando o CRM não informa. É o dado que decide se um contato é do
+   * número conectado hoje ou de um número anterior, e ele vinha sendo
+   * descartado no mapeamento junto com todo o resto da resposta.
+   */
+  inboxId: string | null;
   contactName: string | null;
   phone: string | null;
   lastMessagePreview: string | null;
@@ -73,9 +81,13 @@ function mapInstance(row: any): WhatsappInstance {
 // não dá pra mostrar preview real por enquanto.
 function mapConversation(row: any): ConversationRow {
   const contact = row?.contact ?? {};
+  // O nome do campo não está confirmado com o Wavy: tentamos as três formas
+  // plausíveis e ficamos com nulo em vez de inventar uma caixa.
+  const inbox = row?.inbox_id ?? row?.inboxId ?? row?.inbox?.id ?? null;
   return {
     id: String(row?.id),
     contactId: contact?.id ? String(contact.id) : null,
+    inboxId: inbox ? String(inbox) : null,
     contactName: contact?.name ?? null,
     phone: contact?.phone_number ?? null,
     lastMessagePreview: null,
@@ -115,6 +127,42 @@ export const getWhatsappInstance = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<WhatsappInstance | null> => {
     const json = await callEdgeFunction("crm-whatsapp", { ownerId: context.userId, action: "status" });
     return json.instance ? mapInstance(json.instance) : null;
+  });
+
+export interface CrmInbox {
+  id: string;
+  name: string | null;
+  phoneNumber: string | null;
+  isWhatsapp: boolean;
+}
+
+export interface InboxSnapshot {
+  inboxes: CrmInbox[];
+  /** Caixa do número conectado agora, gravada pelo `connect`. */
+  conectadaId: string | null;
+  conectadaPhone: string | null;
+}
+
+/**
+ * As caixas de WhatsApp da conta do CRM.
+ *
+ * O modelo do Wavy é um número = uma caixa, e trocar de número **não apaga** a
+ * anterior: as conversas dela continuam na conta. Como nem `/contacts` nem
+ * `/conversations` aceitam filtro de caixa, esta lista é a única forma de
+ * separar quem é do número de hoje de quem veio de um número antigo.
+ */
+export const getWhatsappInboxes = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<InboxSnapshot> => {
+    const json = await callEdgeFunction("crm-whatsapp", {
+      ownerId: context.userId,
+      action: "inboxes",
+    });
+    return {
+      inboxes: json.inboxes ?? [],
+      conectadaId: json.conectadaId ?? null,
+      conectadaPhone: json.conectadaPhone ?? null,
+    };
   });
 
 export const connectWhatsapp = createServerFn({ method: "POST" })

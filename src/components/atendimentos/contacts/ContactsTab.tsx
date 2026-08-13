@@ -13,12 +13,14 @@ import {
   contarPorDdd,
   filtrarContatos,
 } from "@/lib/atendimentos/contactFilters";
-import { getConversations } from "@/lib/atendimentos/atendimentos.functions";
+import { getConversations, getWhatsappInboxes } from "@/lib/atendimentos/atendimentos.functions";
+import { contatosDaCaixa, daParaSepararPorNumero } from "@/lib/atendimentos/inboxSnapshot";
 
 /** Constante, não `[]` na hora: array novo a cada render invalida todo
  *  `useMemo` que dependa dele — foi assim que a página de campanhas ganhou um
  *  laço infinito (ver FunnelSection.tsx). */
 const SEM_CONTATOS: CrmContact[] = [];
+const SEM_CONVERSAS: never[] = [];
 
 export interface ContatoSelecionado extends CrmContact {
   /** Conversa aberta no WhatsApp, quando existe. */
@@ -46,6 +48,7 @@ export function ContactsTab({
 }) {
   const fetchContacts = useServerFn(getCrmContacts);
   const fetchConversations = useServerFn(getConversations);
+  const fetchInboxes = useServerFn(getWhatsappInboxes);
 
   const contactsQuery = useQuery({
     queryKey: ["crm-contacts"],
@@ -58,8 +61,18 @@ export function ContactsTab({
     staleTime: 60_000,
   });
 
+  const inboxesQuery = useQuery({
+    queryKey: ["crm-inboxes"],
+    queryFn: () => fetchInboxes(),
+    staleTime: 5 * 60_000,
+  });
+
   const [busca, setBusca] = useState("");
   const [ddds, setDdds] = useState<Set<string>>(new Set());
+  // Só quem é do número conectado, por padrão. Trocar de número no WhatsApp
+  // deixa a caixa antiga na conta com todas as conversas dela, e disparar para
+  // essa gente é mandar mensagem de uma clínica que ela não reconhece.
+  const [soDoNumeroAtual, setSoDoNumeroAtual] = useState(true);
 
   const contatos = contactsQuery.data?.contacts ?? SEM_CONTATOS;
 
@@ -67,17 +80,40 @@ export function ContactsTab({
   // sai; e o que a linha mostra como "com conversa".
   const conversaPorContato = useMemo(() => {
     const m = new Map<string, string>();
-    for (const c of conversationsQuery.data ?? []) {
+    for (const c of conversationsQuery.data ?? SEM_CONVERSAS) {
       if (c.contactId) m.set(c.contactId, c.id);
     }
     return m;
   }, [conversationsQuery.data]);
 
+  const conversas = conversationsQuery.data ?? SEM_CONVERSAS;
+  const conectadaId = inboxesQuery.data?.conectadaId ?? null;
+
+  // Sem caixa em nenhuma conversa, o recorte por número seria invenção — o
+  // filtro some em vez de fingir que separa.
+  const separavel = useMemo(
+    () => Boolean(conectadaId) && daParaSepararPorNumero(conversas),
+    [conversas, conectadaId],
+  );
+
+  const daCaixaAtual = useMemo(
+    () => (separavel && conectadaId ? contatosDaCaixa(conversas, conectadaId) : null),
+    [separavel, conectadaId, conversas],
+  );
+
+  const noEscopo = useMemo(
+    () => (separavel && soDoNumeroAtual && daCaixaAtual
+      ? contatos.filter((c) => daCaixaAtual.has(c.id))
+      : contatos),
+    [contatos, separavel, soDoNumeroAtual, daCaixaAtual],
+  );
+  const omitidos = contatos.length - noEscopo.length;
+
   /** DDDs presentes na base, do mais numeroso para o menos. */
-  const fichasDdd = useMemo(() => contarPorDdd(contatos), [contatos]);
+  const fichasDdd = useMemo(() => contarPorDdd(noEscopo), [noEscopo]);
   const filtrados = useMemo(
-    () => filtrarContatos(contatos, { busca, ddds }),
-    [contatos, busca, ddds],
+    () => filtrarContatos(noEscopo, { busca, ddds }),
+    [noEscopo, busca, ddds],
   );
 
   const todosFiltradosSelecionados =
@@ -136,6 +172,33 @@ export function ContactsTab({
           className="h-12 rounded-[18px] bg-white pl-11 shadow-soft"
         />
       </div>
+
+      {/* O recorte por número vem antes do recorte por DDD: primeiro "de quem
+          é essa base", depois "de onde eles são". */}
+      {separavel && (
+        <label
+          data-so-numero-atual=""
+          className="mt-3 flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-white px-3 py-2.5"
+        >
+          <Checkbox
+            checked={soDoNumeroAtual}
+            onCheckedChange={(v) => {
+              setSoDoNumeroAtual(Boolean(v));
+              // Sair do recorte não pode deixar selecionado alguém que estava
+              // escondido; voltar ao recorte não pode carregar quem sumiu.
+              onSelecionadosChange(new Set());
+            }}
+          />
+          <span className="min-w-0 flex-1 text-sm">
+            Só contatos do número conectado
+            {omitidos > 0 && soDoNumeroAtual && (
+              <span className="ml-1 text-muted-foreground">
+                · {omitidos} de outro número ou sem conversa ficaram de fora
+              </span>
+            )}
+          </span>
+        </label>
+      )}
 
       {fichasDdd.length > 0 && (
         <div className="scrollbar-none -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">

@@ -1,17 +1,29 @@
 import { useEffect, useState } from "react";
-import { Loader2, Rocket } from "lucide-react";
+import { AlertTriangle, Loader2, Rocket, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
+/**
+ * Último passo da criação de campanha.
+ *
+ * Aqui havia um botão só, "Criar e iniciar transmissão", que criava **e
+ * disparava** na mesma ação — e a tela nunca dizia para quantas pessoas. Quem
+ * clicava achando que estava salvando um rascunho mandava mensagem para a base
+ * inteira, e o número só aparecia no toast, depois de sair.
+ *
+ * Agora são duas ações separadas, e a que dispara passa pela revisão de sempre:
+ * contagem, cota do dia e preview, no `FireCampaignDialog` da lista.
+ */
 export function CreateTransmissionDialog({
   open,
   onOpenChange,
   defaultTitle,
   isPending,
   moveProgress,
+  totalContatos,
   onConfirm,
 }: {
   open: boolean;
@@ -19,7 +31,10 @@ export function CreateTransmissionDialog({
   defaultTitle: string;
   isPending: boolean;
   moveProgress: { done: number; total: number } | null;
-  onConfirm: (title: string) => void;
+  /** Quantos contatos a campanha alcançaria. `null` enquanto carrega. */
+  totalContatos: number | null;
+  /** `disparar` decide se a campanha sai agora ou fica salva na lista. */
+  onConfirm: (title: string, disparar: boolean) => void;
 }) {
   const [title, setTitle] = useState(defaultTitle);
   const [confirmedNoSpam, setConfirmedNoSpam] = useState(false);
@@ -65,19 +80,51 @@ export function CreateTransmissionDialog({
               />
             </div>
 
+            {/* O que o motor do Wavy faz, dito antes e não depois: campanha
+                não recorta audiência, vai para todo mundo da conta do CRM. */}
+            <p
+              data-aviso-audiencia=""
+              className="flex gap-2 rounded-xl bg-warning-soft px-3 py-2.5 text-2xs leading-4 text-warning"
+            >
+              <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+              <span>
+                Campanha vai para <strong>todos os {totalContatos ?? "…"} contatos</strong> da
+                conta do CRM — não dá para escolher quem recebe por aqui, e pode
+                alcançar contatos de um número anterior. Para escolher pessoa por
+                pessoa, use a aba <strong>Contatos</strong>.
+              </span>
+            </p>
+
             <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-border bg-white p-3 text-sm">
               <Checkbox checked={confirmedNoSpam} onCheckedChange={(v) => setConfirmedNoSpam(!!v)} className="mt-0.5" />
               Não irei fazer SPAM
             </label>
 
-            <Button
-              className="w-full gap-2 bg-gradient-primary text-white"
-              disabled={!title.trim() || !confirmedNoSpam || busy}
-              onClick={() => onConfirm(title.trim())}
-            >
-              {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
-              Criar e iniciar transmissão
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                data-salvar-sem-disparar=""
+                variant="outline"
+                className="flex-1 gap-2"
+                disabled={!title.trim() || busy}
+                onClick={() => onConfirm(title.trim(), false)}
+              >
+                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Salvar sem disparar
+              </Button>
+              <Button
+                data-criar-e-disparar=""
+                className="flex-1 gap-2 bg-gradient-primary text-white"
+                disabled={!title.trim() || !confirmedNoSpam || busy}
+                onClick={() => onConfirm(title.trim(), true)}
+              >
+                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
+                Criar e disparar agora
+              </Button>
+            </div>
+            <p className="text-2xs leading-4 text-muted-foreground">
+              Salvar deixa a campanha pronta na lista; o disparo continua disponível
+              lá, com a revisão completa.
+            </p>
           </div>
         )}
       </DialogContent>

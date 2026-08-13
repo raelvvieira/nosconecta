@@ -265,6 +265,14 @@ export const campaignLifecycle = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Quantos contatos uma campanha alcançaria hoje — a conta inteira do CRM. */
+export const getEstimatedRecipients = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<number> => {
+    const json = await callCampaigns({ ownerId: context.userId, action: "estimate" });
+    return Number(json.estimated ?? 0);
+  });
+
 export const getDailySendUsage = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<DailyUsage> => {

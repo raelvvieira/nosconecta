@@ -28,6 +28,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
+import { listInboxes } from "../_shared/crm-inbox.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -298,6 +299,26 @@ async function handleDisconnect(ownerId: string) {
   return { ok: true };
 }
 
+/**
+ * As caixas de WhatsApp da conta, e qual delas é a conectada agora.
+ *
+ * Existe porque o modelo é um número = uma caixa: trocar de número deixa a
+ * caixa antiga na conta, com as conversas dela. Sem esta lista não há como
+ * saber se um contato veio do número de hoje ou de um anterior — e era essa a
+ * pergunta sem resposta.
+ */
+async function handleInboxes(ownerId: string) {
+  const row = await getCredentialsRow(ownerId);
+  const inboxes = await listInboxes(supabase, ownerId);
+  return {
+    ok: true,
+    inboxes,
+    // A caixa gravada pelo `connect`: esta sim é a do número conectado.
+    conectadaId: row?.inbox_id ?? null,
+    conectadaPhone: row?.phone_number ?? null,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
   try {
@@ -316,6 +337,7 @@ Deno.serve(async (req) => {
     else if (action === "status") result = await handleStatus(ownerId);
     else if (action === "disconnect") result = await handleDisconnect(ownerId);
     else if (action === "set-inbox-id") result = await handleSetInboxId(ownerId, inboxId ?? "");
+    else if (action === "inboxes") result = await handleInboxes(ownerId);
     else return new Response(JSON.stringify({ error: `action desconhecida: ${action}` }), { status: 400 });
 
     return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
