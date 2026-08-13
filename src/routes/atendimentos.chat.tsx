@@ -59,8 +59,8 @@ export const Route = createFileRoute("/atendimentos/chat")({
       { name: "description", content: "Chat com os contatos da clínica via WhatsApp." },
     ],
   }),
-  errorComponent: () => (
-    <ResponsiveRouteState
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error}
       title="Não foi possível carregar os atendimentos"
       description="Houve uma falha ao buscar as conversas. Tente novamente em instantes."
     />

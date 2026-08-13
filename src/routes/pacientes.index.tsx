@@ -43,8 +43,8 @@ export const Route = createFileRoute("/pacientes/")({
     ],
   }),
   validateSearch: searchSchema,
-  errorComponent: () => (
-    <ResponsiveRouteState
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error}
       title="Não foi possível carregar os pacientes"
       description="Houve uma falha ao buscar a lista de pacientes. Tente novamente em instantes."
     />

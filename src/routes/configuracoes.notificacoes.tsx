@@ -34,8 +34,8 @@ export const Route = createFileRoute("/configuracoes/notificacoes")({
       { name: "description", content: "Confirmação e lembretes automáticos por e-mail, SMS e WhatsApp." },
     ],
   }),
-  errorComponent: () => (
-    <ResponsiveRouteState
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error}
       title="Não foi possível carregar as notificações"
       description="Houve uma falha ao buscar os dados. Tente novamente em instantes."
     />

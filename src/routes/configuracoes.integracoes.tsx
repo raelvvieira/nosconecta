@@ -89,8 +89,8 @@ export const Route = createFileRoute("/configuracoes/integracoes")({
       },
     ],
   }),
-  errorComponent: () => (
-    <ResponsiveRouteState
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error}
       title="Não foi possível carregar as integrações"
       description="Houve uma falha ao buscar a configuração. Tente novamente em instantes."
     />

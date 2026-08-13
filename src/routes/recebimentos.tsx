@@ -146,7 +146,7 @@ export const Route = createFileRoute("/recebimentos")({
   // evita que o esqueleto apareça e suma num susto.
   pendingMs: 150,
   pendingMinMs: 400,
-  errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar os recebimentos" />,
+  errorComponent: ({ error }) => <ResponsiveRouteState error={error} title="Não foi possível carregar os recebimentos" />,
   notFoundComponent: () => <ResponsiveRouteState title="Recebimentos não encontrados" notFound />,
   component: RecebimentosPage,
 });

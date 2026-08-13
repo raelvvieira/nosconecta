@@ -41,8 +41,8 @@ export const Route = createFileRoute("/atendimentos/pipeline")({
       { name: "description", content: "Funil de atendimento — etapas, negociações e valores." },
     ],
   }),
-  errorComponent: () => (
-    <ResponsiveRouteState
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error}
       title="Não foi possível carregar o pipeline"
       description="Houve uma falha ao buscar as etapas. Tente novamente em instantes."
     />

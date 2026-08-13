@@ -52,8 +52,8 @@ export const Route = createFileRoute("/configuracoes/")({
   ssr: false,
   validateSearch: searchSchema,
   // No SSR loader: getSettings requires auth which isn't available during prerender.
-  errorComponent: () => (
-    <ResponsiveRouteState
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error}
       title="Não foi possível carregar os cadastros"
       description="Houve uma falha ao buscar os dados da clínica. Tente novamente em instantes."
     />

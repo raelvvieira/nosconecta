@@ -35,7 +35,7 @@ export const Route = createFileRoute("/inicio")({
   // evita que o esqueleto apareça e suma num susto.
   pendingMs: 150,
   pendingMinMs: 400,
-  errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar o início" />,
+  errorComponent: ({ error }) => <ResponsiveRouteState error={error} title="Não foi possível carregar o início" />,
   notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound />,
   component: InicioPage,
 });

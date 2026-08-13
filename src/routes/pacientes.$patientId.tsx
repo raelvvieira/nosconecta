@@ -50,8 +50,8 @@ export const Route = createFileRoute("/pacientes/$patientId")({
     ],
   }),
   // No SSR loader: getPatientDetail requires auth not available during prerender.
-  errorComponent: () => (
-    <ResponsiveRouteState
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error}
       title="Não foi possível carregar este paciente"
       description="Houve uma falha ao buscar os dados do paciente. Tente novamente em instantes."
     />

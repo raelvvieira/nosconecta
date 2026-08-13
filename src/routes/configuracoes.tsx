@@ -12,8 +12,8 @@ export const Route = createFileRoute("/configuracoes")({
       { name: "description", content: "Cadastros que mantêm a operação da clínica conectada." },
     ],
   }),
-  errorComponent: () => (
-    <ResponsiveRouteState
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error}
       title="Não foi possível carregar as configurações"
       description="Houve uma falha ao buscar os dados da clínica. Tente novamente em instantes."
     />

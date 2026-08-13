@@ -22,8 +22,8 @@ export const Route = createFileRoute("/atendimentos/")({
       { name: "description", content: "Visão geral de conversas, funil e campanhas do WhatsApp." },
     ],
   }),
-  errorComponent: () => (
-    <ResponsiveRouteState
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error}
       title="Não foi possível carregar o dashboard"
       description="Houve uma falha ao buscar as métricas de atendimento. Tente novamente em instantes."
     />

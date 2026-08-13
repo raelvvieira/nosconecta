@@ -74,7 +74,7 @@ export const Route = createFileRoute("/planejamento")({
   // evita que o esqueleto apareça e suma num susto.
   pendingMs: 150,
   pendingMinMs: 400,
-  errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar o planejamento" />,
+  errorComponent: ({ error }) => <ResponsiveRouteState error={error} title="Não foi possível carregar o planejamento" />,
   notFoundComponent: () => <ResponsiveRouteState title="Planejamento não encontrado" notFound />,
   component: PlanningPage,
 });

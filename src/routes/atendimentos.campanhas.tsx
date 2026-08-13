@@ -74,8 +74,8 @@ export const Route = createFileRoute("/atendimentos/campanhas")({
       { name: "description", content: "Disparo de mensagens em massa pelo WhatsApp." },
     ],
   }),
-  errorComponent: () => (
-    <ResponsiveRouteState
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error}
       title="Não foi possível carregar as campanhas"
       description="Houve uma falha ao buscar as campanhas. Tente novamente em instantes."
     />

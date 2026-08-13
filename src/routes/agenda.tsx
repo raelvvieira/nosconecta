@@ -67,7 +67,7 @@ export const Route = createFileRoute("/agenda")({
   // evita que o esqueleto apareça e suma num susto.
   pendingMs: 150,
   pendingMinMs: 400,
-  errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar a agenda" />,
+  errorComponent: ({ error }) => <ResponsiveRouteState error={error} title="Não foi possível carregar a agenda" />,
   notFoundComponent: () => <ResponsiveRouteState title="Agenda não encontrada" notFound />,
   component: AgendaPage,
 });

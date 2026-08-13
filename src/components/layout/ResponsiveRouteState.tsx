@@ -8,9 +8,25 @@ type Props = {
   description?: string;
   notFound?: boolean;
   onRetry?: () => void;
+  /**
+   * O erro que derrubou a tela.
+   *
+   * Aparece porque "Houve uma falha, tente novamente" não ajuda ninguém: nem
+   * quem está usando, que não sabe se é internet, sessão ou defeito, nem quem
+   * vai consertar, que precisa pedir print de console num celular. A mensagem
+   * técnica fica recolhida, longe de quem só quer recarregar.
+   */
+  error?: unknown;
 };
 
-export function ResponsiveRouteState({ title, description, notFound = false, onRetry }: Props) {
+export function ResponsiveRouteState({ title, description, notFound = false, onRetry, error }: Props) {
+  const detalhe =
+    error instanceof Error
+      ? error.message
+      : error
+        ? String(error)
+        : null;
+
   return (
     <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
@@ -44,6 +60,17 @@ export function ResponsiveRouteState({ title, description, notFound = false, onR
               </Link>
             </Button>
           </div>
+
+          {detalhe && (
+            <details className="mt-6 text-left" data-detalhe-erro="">
+              <summary className="cursor-pointer text-2xs text-muted-foreground">
+                Detalhes técnicos
+              </summary>
+              <p className="mt-2 max-h-40 overflow-auto rounded-xl bg-surface px-3 py-2 font-mono text-2xs leading-4 text-foreground-secondary">
+                {detalhe}
+              </p>
+            </details>
+          )}
         </section>
       </main>
     </div>

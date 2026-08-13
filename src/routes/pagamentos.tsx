@@ -105,7 +105,7 @@ export const Route = createFileRoute("/pagamentos")({
   // evita que o esqueleto apareça e suma num susto.
   pendingMs: 150,
   pendingMinMs: 400,
-  errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar os pagamentos" />,
+  errorComponent: ({ error }) => <ResponsiveRouteState error={error} title="Não foi possível carregar os pagamentos" />,
   notFoundComponent: () => <ResponsiveRouteState title="Pagamentos não encontrados" notFound />,
   component: PagamentosPage,
 });

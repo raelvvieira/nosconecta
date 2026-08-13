@@ -72,7 +72,7 @@ export const Route = createFileRoute("/financeiro")({
   // evita que o esqueleto apareça e suma num susto.
   pendingMs: 150,
   pendingMinMs: 400,
-  errorComponent: () => <ResponsiveRouteState title="Não foi possível carregar o dashboard" />,
+  errorComponent: ({ error }) => <ResponsiveRouteState error={error} title="Não foi possível carregar o dashboard" />,
   notFoundComponent: () => <ResponsiveRouteState title="Dashboard não encontrado" notFound />,
   component: FinanceiroVisaoGeral,
 });
