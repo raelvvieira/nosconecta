@@ -13,6 +13,8 @@ export interface ResolvedAudience {
 }
 
 const EMPTY_AUDIENCE: ResolvedAudience = { moveCandidateItemIds: [] };
+/** Constante, e não `[]` na hora: identidade estável evita render em cascata. */
+const EMPTY_ITEMS: never[] = [];
 
 function StageDot({ color }: { color: string | null }) {
   return <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color ?? "var(--foreground-subtle)" }} />;
@@ -75,15 +77,31 @@ export function FunnelSection({
     enabled: configured,
     staleTime: 15_000,
   });
-  const items = itemsQuery.data?.items ?? [];
+  const items = itemsQuery.data?.items ?? EMPTY_ITEMS;
 
-  const audience = useMemo(() => {
+  // Depende de `itemsQuery.data`, e NÃO do array derivado.
+  //
+  // Aqui morava um laço infinito que derrubava a página inteira de campanhas
+  // com "Maximum update depth exceeded". A conta era esta: enquanto os itens
+  // não chegavam, `itemsQuery.data?.items ?? []` devolvia um array NOVO a cada
+  // render; o `useMemo` via a dependência mudar e devolvia um objeto novo; o
+  // efeito abaixo disparava e chamava `onAudienceResolved`, que é o
+  // `setAudience` do NewCampaignSheet; o pai renderizava de novo — e recomeçava.
+  //
+  // Só acontecia com o funil configurado: sem configuração o memo devolve a
+  // constante `EMPTY_AUDIENCE`, cuja identidade não muda. Por isso passou tanto
+  // tempo despercebido.
+  const audience = useMemo<ResolvedAudience>(() => {
     if (!configured) return EMPTY_AUDIENCE;
+    const carregados = itemsQuery.data?.items;
+    // Sem nada carregado, devolve a MESMA constante — é o que segura o efeito.
+    if (!carregados?.length) return EMPTY_AUDIENCE;
     // Toda campanha manda pra todos os contatos (ver comentário abaixo) —
     // "mover pra etapa" pega todo contato que já tem card no funil.
-    const moveCandidateItemIds = items.filter((i) => i.type === "contact").map((i) => i.id);
-    return { moveCandidateItemIds };
-  }, [configured, items]);
+    return {
+      moveCandidateItemIds: carregados.filter((i) => i.type === "contact").map((i) => i.id),
+    };
+  }, [configured, itemsQuery.data]);
 
   useEffect(() => {
     onAudienceResolved(audience);

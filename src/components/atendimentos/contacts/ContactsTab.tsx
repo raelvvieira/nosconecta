@@ -15,6 +15,11 @@ import {
 } from "@/lib/atendimentos/contactFilters";
 import { getConversations } from "@/lib/atendimentos/atendimentos.functions";
 
+/** Constante, não `[]` na hora: array novo a cada render invalida todo
+ *  `useMemo` que dependa dele — foi assim que a página de campanhas ganhou um
+ *  laço infinito (ver FunnelSection.tsx). */
+const SEM_CONTATOS: CrmContact[] = [];
+
 export interface ContatoSelecionado extends CrmContact {
   /** Conversa aberta no WhatsApp, quando existe. */
   conversationId: string | null;
@@ -56,7 +61,7 @@ export function ContactsTab({
   const [busca, setBusca] = useState("");
   const [ddds, setDdds] = useState<Set<string>>(new Set());
 
-  const contatos = contactsQuery.data?.contacts ?? [];
+  const contatos = contactsQuery.data?.contacts ?? SEM_CONTATOS;
 
   // Contato → conversa. É o que decide, no disparo, por qual caminho a mensagem
   // sai; e o que a linha mostra como "com conversa".

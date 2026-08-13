@@ -54,13 +54,10 @@ const INTERVAL_LABEL: Record<MessageInterval, string> = {
 export function CampaignDetailSheet({
   campaignId,
   onOpenChange,
-  onDetailLoaded,
 }: {
   /** `null` = fechado. */
   campaignId: string | null;
   onOpenChange: (open: boolean) => void;
-  /** Devolve o detalhe carregado, para a revisão de disparo reaproveitar. */
-  onDetailLoaded?: (detail: CampaignDetail, message: string, mediaUrl: string | null) => void;
 }) {
   const queryClient = useQueryClient();
   const fetchDetail = useServerFn(getCampaignDetail);
@@ -122,10 +119,6 @@ export function CampaignDetailSheet({
     setResumeAfterMinutes(detail.resumeAfterMinutes);
     setComposer((c) => ({ ...c, content: template?.content ?? "", templateId: detail.templateId }));
   }, [open, detail, template?.content]);
-
-  useEffect(() => {
-    if (detail) onDetailLoaded?.(detail, template?.content ?? "", null);
-  }, [detail, template?.content, onDetailLoaded]);
 
   const salvar = useMutation({
     mutationFn: async () => {
