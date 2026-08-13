@@ -45,6 +45,10 @@ async function callContacts(body: unknown) {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
     body: JSON.stringify(body ?? {}),
+    // A função pagina o CRM inteiro do lado de dentro; sem um teto aqui, uma
+    // execução travada deixava a tela em "carregando" para sempre em vez de
+    // virar um erro que a interface já sabe mostrar.
+    signal: AbortSignal.timeout(55_000),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json?.error ?? `Falha ao chamar crm-contacts (${res.status})`);

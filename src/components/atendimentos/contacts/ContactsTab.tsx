@@ -28,7 +28,9 @@ export interface ContatoSelecionado extends CrmContact {
 }
 
 /**
- * A base de contatos sincronizada, com busca, recorte por DDD e seleção.
+ * A base de contatos sincronizada, com busca, recorte por DDD e seleção — o
+ * passo de "para quem" dentro da criação de campanha, quando a audiência
+ * escolhida é "Selecionar contatos" em vez de "Todos os contatos".
  *
  * Não existia nenhuma tela mostrando quem está sincronizado — a única leitura de
  * contatos no sistema inteiro pedia uma página de tamanho 1 só para ler o total.
@@ -41,10 +43,21 @@ export function ContactsTab({
   selecionados,
   onSelecionadosChange,
   onDisparar,
+  ativo = true,
+  barraFixa = true,
 }: {
   selecionados: Set<string>;
   onSelecionadosChange: (ids: Set<string>) => void;
   onDisparar: (contatos: ContatoSelecionado[]) => void;
+  /** A base inteira só é lida quando este passo está de fato em uso — abrir a
+   *  criação de campanha no modo "Todos os contatos" não deve puxar a conta
+   *  inteira do CRM à toa. */
+  ativo?: boolean;
+  /** `false` quando embutido numa gaveta (Sheet): a barra de ação flutuante
+   *  usa `position: fixed` pensando na navegação de página inteira, com o
+   *  respiro da barra inferior do app — dentro de uma gaveta isso não existe,
+   *  e a barra precisa acompanhar a rolagem do próprio conteúdo. */
+  barraFixa?: boolean;
 }) {
   const fetchContacts = useServerFn(getCrmContacts);
   const fetchConversations = useServerFn(getConversations);
@@ -53,17 +66,21 @@ export function ContactsTab({
   const contactsQuery = useQuery({
     queryKey: ["crm-contacts"],
     queryFn: () => fetchContacts(),
+    enabled: ativo,
     staleTime: 5 * 60_000,
+    retry: 1,
   });
   const conversationsQuery = useQuery({
     queryKey: ["atendimentos-conversations"],
     queryFn: () => fetchConversations(),
+    enabled: ativo,
     staleTime: 60_000,
   });
 
   const inboxesQuery = useQuery({
     queryKey: ["crm-inboxes"],
     queryFn: () => fetchInboxes(),
+    enabled: ativo,
     staleTime: 5 * 60_000,
   });
 
@@ -295,12 +312,16 @@ export function ContactsTab({
         )}
       </div>
 
-      {/* Barra de ação só aparece com seleção — e fica acima da barra de
-          navegação do celular, que é uma ilha flutuante de 76px + safe-area. */}
+      {/* Barra de ação só aparece com seleção. Em página cheia, fica acima da
+          barra de navegação do celular (ilha flutuante de 76px + safe-area);
+          embutida numa gaveta, `barraFixa=false` a mantém no fluxo normal. */}
       {selecionados.size > 0 && (
         <div
-          className="material-bar fixed inset-x-4 z-40 flex items-center gap-3 rounded-3xl px-4 py-3 lg:static lg:mt-4 lg:rounded-2xl"
-          style={{ bottom: "calc(92px + env(safe-area-inset-bottom))" }}
+          className={cn(
+            "material-bar flex items-center gap-3 rounded-3xl px-4 py-3 lg:static lg:mt-4 lg:rounded-2xl",
+            barraFixa ? "fixed inset-x-4 z-40" : "sticky bottom-0 z-10 mt-4",
+          )}
+          style={barraFixa ? { bottom: "calc(92px + env(safe-area-inset-bottom))" } : undefined}
         >
           <span className="text-sm font-semibold">
             {selecionados.size} contato{selecionados.size === 1 ? "" : "s"}

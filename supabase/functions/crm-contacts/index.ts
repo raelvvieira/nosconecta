@@ -59,6 +59,16 @@ async function handleUpsert(
 // termina: 50 × 100 = 5000 contatos, acima disso a tela avisa que truncou.
 const PAGE_SIZE = 100;
 const MAX_PAGES = 50;
+// Buscar uma página de cada vez, esperando cada resposta antes de pedir a
+// próxima, fazia uma base de ~4.500 contatos (45 páginas) levar dezenas de
+// idas e vindas sequenciais ao CRM — a tela ficava presa em "carregando" por
+// tempo suficiente para parecer travada. Pedir várias páginas ao mesmo tempo
+// é o que torna isso rápido de verdade.
+const CONCORRENCIA = 6;
+// Teto de tempo total: melhor devolver o que já tem, marcado como truncado,
+// do que deixar a função rodando até o Supabase matar a execução — aí a tela
+// nunca saberia por quê.
+const PRAZO_MS = 45_000;
 
 interface CrmContact {
   id: string;
@@ -68,7 +78,14 @@ interface CrmContact {
   inboxId: string | null;
 }
 
+async function buscarPagina(ownerId: string, page: number) {
+  // Sem `unwrap` na resposta crua: ele devolve `data` e descarta o `meta`,
+  // que é onde a paginação vive.
+  return crmFetch(supabase, ownerId, `/api/v1/contacts?page=${page}&pageSize=${PAGE_SIZE}`);
+}
+
 async function handleList(ownerId: string) {
+  const inicio = Date.now();
   const contatos: CrmContact[] = [];
   let total = 0;
   let truncado = false;
@@ -77,18 +94,10 @@ async function handleList(ownerId: string) {
   // trafegar dado pessoal para diagnóstico.
   let camposDisponiveis: string[] = [];
 
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    // Sem `unwrap` na resposta crua: ele devolve `data` e descarta o `meta`,
-    // que é onde a paginação vive.
-    const res = await crmFetch(
-      supabase,
-      ownerId,
-      `/api/v1/contacts?page=${page}&pageSize=${PAGE_SIZE}`,
-    );
+  const registrar = (res: any): number => {
     total = Number(res?.meta?.pagination?.total ?? total);
     const lote = unwrap(res);
-    if (!Array.isArray(lote) || lote.length === 0) break;
-
+    if (!Array.isArray(lote)) return 0;
     for (const row of lote) {
       if (!camposDisponiveis.length && row && typeof row === "object") {
         camposDisponiveis = Object.keys(row);
@@ -103,9 +112,44 @@ async function handleList(ownerId: string) {
         inboxId: inbox ? String(inbox) : null,
       });
     }
+    return lote.length;
+  };
 
-    if (lote.length < PAGE_SIZE) break;
-    if (page === MAX_PAGES) truncado = true;
+  // A primeira página sozinha: é dela que sai o total, que decide quantas
+  // páginas ainda faltam pedir.
+  const primeiraQtd = registrar(await buscarPagina(ownerId, 1));
+  if (primeiraQtd === 0) {
+    return { ok: true, contacts: contatos, total, truncado, camposDisponiveis };
+  }
+  if (primeiraQtd < PAGE_SIZE) {
+    return { ok: true, contacts: contatos, total, truncado, camposDisponiveis };
+  }
+
+  let totalPaginas = Math.min(Math.ceil((total || 0) / PAGE_SIZE), MAX_PAGES);
+  // O total do `meta` já foi tratado como confiável em outro lugar do sistema
+  // (a estimativa de campanha lê só ele). Mas se vier ausente ou menor que uma
+  // página já cheia, não dá pra confiar nele pra decidir quando parar —
+  // melhor paginar até achar o fim (ou o teto) do que truncar por engano.
+  if (totalPaginas <= 1) totalPaginas = MAX_PAGES;
+  if (totalPaginas === MAX_PAGES) truncado = true;
+
+  const pendentes: number[] = [];
+  for (let p = 2; p <= totalPaginas; p++) pendentes.push(p);
+
+  while (pendentes.length > 0) {
+    if (Date.now() - inicio > PRAZO_MS) {
+      truncado = true;
+      break;
+    }
+    const lote = pendentes.splice(0, CONCORRENCIA);
+    const respostas = await Promise.all(lote.map((p) => buscarPagina(ownerId, p)));
+    let algumaVazia = false;
+    for (const r of respostas) {
+      if (registrar(r) < PAGE_SIZE) algumaVazia = true;
+    }
+    // Uma página que voltou incompleta é o fim real da base — mesmo que o
+    // `meta.total` tivesse sugerido mais páginas.
+    if (algumaVazia) break;
   }
 
   return { ok: true, contacts: contatos, total, truncado, camposDisponiveis };

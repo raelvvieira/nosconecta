@@ -12,6 +12,7 @@ import {
   Plus,
   RefreshCw,
   Rocket,
+  Send,
   Trash2,
   X,
 } from "lucide-react";
@@ -46,9 +47,6 @@ import {
   podeRetomar,
 } from "@/components/atendimentos/campaigns/status";
 import { NewCampaignSheet } from "@/components/atendimentos/campaigns/NewCampaignSheet";
-import { ContactsTab, type ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
-import { BroadcastDialog } from "@/components/atendimentos/contacts/BroadcastDialog";
-import { criarDisparo } from "@/lib/atendimentos/broadcast.functions";
 import { cn } from "@/lib/utils";
 import {
   campaignLifecycle,
@@ -60,6 +58,7 @@ import {
   setDailySendLimit,
   updatePendingMove,
 } from "@/lib/atendimentos/campaigns.functions";
+import { cancelarDisparo, listarDisparos } from "@/lib/atendimentos/broadcast.functions";
 import { movePipelineItem } from "@/lib/atendimentos/pipeline.functions";
 import { moveContactsToStage } from "@/lib/atendimentos/campaignMoveLoop";
 
@@ -83,6 +82,12 @@ export const Route = createFileRoute("/atendimentos/campanhas")({
   notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound />,
   component: CampanhasPage,
 });
+
+const DISPARO_STATUS_LABEL: Record<string, string> = {
+  running: "Em andamento",
+  done: "Concluído",
+  cancelled: "Cancelado",
+};
 
 function PendingMoveBadge({ campaignId }: { campaignId: string }) {
   const queryClient = useQueryClient();
@@ -144,14 +149,19 @@ function CampanhasPage() {
   const doExecute = useServerFn(executeCampaign);
   const doLifecycle = useServerFn(campaignLifecycle);
   const doDelete = useServerFn(deleteCampaign);
-  const doDisparar = useServerFn(criarDisparo);
+  const fetchDisparos = useServerFn(listarDisparos);
+  const doCancelarDisparo = useServerFn(cancelarDisparo);
 
   const campaignsQuery = useQuery({ queryKey: ["campaigns"], queryFn: () => fetchCampaigns(), staleTime: 10_000 });
   const usageQuery = useQuery({ queryKey: ["campaigns-usage"], queryFn: () => fetchUsage(), staleTime: 15_000 });
+  // Os disparos segmentados (via "Selecionar contatos") não são campanha do
+  // Wavy — vivem nas nossas próprias tabelas, lidos direto por RLS.
+  const disparosQuery = useQuery({ queryKey: ["disparos"], queryFn: () => fetchDisparos(), staleTime: 10_000 });
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
+    queryClient.invalidateQueries({ queryKey: ["disparos"] });
   };
 
   const executeMutation = useMutation({
@@ -189,37 +199,14 @@ function CampanhasPage() {
   const [dispararId, setDispararId] = useState<string | null>(null);
   const [cancelarId, setCancelarId] = useState<string | null>(null);
   const [excluirId, setExcluirId] = useState<string | null>(null);
+  const [cancelarDisparoId, setCancelarDisparoId] = useState<string | null>(null);
 
-  // Contatos vive aqui, e não numa rota própria, porque é a mesma tarefa: ver
-  // a base e disparar para um recorte dela.
-  const [aba, setAba] = useState<"campanhas" | "contatos">("campanhas");
-  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
-  const [disparoSelecao, setDisparoSelecao] = useState<ContatoSelecionado[] | null>(null);
-
-  const disparoMutation = useMutation({
-    mutationFn: (dados: { message: string; intervalSeconds: number }) =>
-      doDisparar({
-        data: {
-          ...dados,
-          targets: (disparoSelecao ?? []).map((c) => ({
-            contactId: c.id,
-            conversationId: c.conversationId,
-            name: c.name,
-            phone: c.phone,
-          })),
-        },
-      }),
-    onSuccess: (r) => {
-      const fim = r.terminaEm ? new Date(r.terminaEm) : null;
-      toast.success(
-        fim
-          ? `Fila criada com ${r.total} contatos — termina por volta das ${fim.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.`
-          : `Fila criada com ${r.total} contatos.`,
-        { duration: 8000 },
-      );
-      setDisparoSelecao(null);
-      setSelecionados(new Set());
-      queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
+  const cancelarDisparoMutation = useMutation({
+    mutationFn: (broadcastId: string) => doCancelarDisparo({ data: { broadcastId } }),
+    onSuccess: () => {
+      toast.success("Disparo cancelado — o que já saiu não volta.");
+      setCancelarDisparoId(null);
+      queryClient.invalidateQueries({ queryKey: ["disparos"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -255,31 +242,6 @@ function CampanhasPage() {
           </div>
         </header>
 
-        <div className="mt-5 flex gap-1 rounded-full border border-border bg-white p-1">
-          {(["campanhas", "contatos"] as const).map((id) => (
-            <button
-              key={id}
-              type="button"
-              data-aba={id}
-              onClick={() => setAba(id)}
-              className={cn(
-                "h-10 flex-1 rounded-full text-sm font-semibold capitalize transition-colors",
-                aba === id ? "bg-foreground text-white" : "text-foreground-secondary",
-              )}
-            >
-              {id}
-            </button>
-          ))}
-        </div>
-
-        {aba === "contatos" ? (
-          <ContactsTab
-            selecionados={selecionados}
-            onSelecionadosChange={setSelecionados}
-            onDisparar={setDisparoSelecao}
-          />
-        ) : (
-        <>
         <section className="surface-card mt-5 p-4 sm:p-5">
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium">Limite diário de disparo</span>
@@ -311,7 +273,11 @@ function CampanhasPage() {
           </div>
         </section>
 
-        <section className="surface-card mt-5 divide-y divide-border overflow-hidden">
+        <h2 className="mt-6 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <Megaphone className="h-3.5 w-3.5" />
+          Campanhas — todos os contatos
+        </h2>
+        <section className="surface-card mt-2.5 divide-y divide-border overflow-hidden">
           {(campaignsQuery.data ?? []).length === 0 && (
             <div className="grid min-h-40 place-items-center px-6 text-center">
               <p className="text-sm text-muted-foreground">Nenhuma campanha criada ainda.</p>
@@ -426,8 +392,48 @@ function CampanhasPage() {
             </div>
           ))}
         </section>
-        </>
-        )}
+
+        {/* Disparos para uma seleção de contatos — caminho próprio, porque o
+            motor do Wavy (acima) não recorta audiência. Vivem numa seção à
+            parte, não numa aba: dá pra ver os dois numa rolagem só. */}
+        <h2 className="mt-6 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <Send className="h-3.5 w-3.5" />
+          Disparos — contatos selecionados
+        </h2>
+        <section className="surface-card mt-2.5 divide-y divide-border overflow-hidden">
+          {(disparosQuery.data ?? []).length === 0 && (
+            <div className="grid min-h-32 place-items-center px-6 py-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Nenhum disparo para uma seleção de contatos ainda. Em "Nova campanha",
+                escolha "Selecionar contatos" para filtrar por nome, número ou DDD.
+              </p>
+            </div>
+          )}
+          {(disparosQuery.data ?? []).map((d) => (
+            <div key={d.id} className="flex flex-wrap items-center gap-3 px-4 py-4 sm:px-5">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{d.message}</p>
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  <span>{DISPARO_STATUS_LABEL[d.status] ?? d.status}</span>
+                  <span>
+                    · {d.enviados}/{d.total} enviados
+                    {d.falhas > 0 ? `, ${d.falhas} falharam` : ""}
+                  </span>
+                </p>
+              </div>
+              {d.status === "running" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-danger"
+                  onClick={() => setCancelarDisparoId(d.id)}
+                >
+                  <X className="h-3.5 w-3.5" /> Cancelar
+                </Button>
+              )}
+            </div>
+          ))}
+        </section>
       </main>
 
       <NewCampaignSheet open={formOpen} onOpenChange={setFormOpen} onCreated={refresh} />
@@ -467,13 +473,27 @@ function CampanhasPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <BroadcastDialog
-        contatos={disparoSelecao}
-        usage={usage}
-        isPending={disparoMutation.isPending}
-        onOpenChange={(o) => !o && setDisparoSelecao(null)}
-        onConfirm={(dados) => disparoMutation.mutate(dados)}
-      />
+      <AlertDialog open={Boolean(cancelarDisparoId)} onOpenChange={(o) => !o && setCancelarDisparoId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar este disparo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O que já foi enviado não volta. Os contatos ainda pendentes na fila
+              deixam de receber a mensagem.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelarDisparoMutation.isPending}>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-danger text-white hover:bg-danger/90"
+              disabled={cancelarDisparoMutation.isPending}
+              onClick={() => cancelarDisparoId && cancelarDisparoMutation.mutate(cancelarDisparoId)}
+            >
+              Cancelar disparo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={Boolean(excluirId)} onOpenChange={(o) => !o && setExcluirId(null)}>
         <AlertDialogContent data-excluir-campanha="">

@@ -1,18 +1,21 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Rocket } from "lucide-react";
+import { ListFilter, Rocket, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 import {
   saveCampaign,
   saveMessageTemplate,
   executeCampaign,
   getEstimatedRecipients,
+  getDailySendUsage,
   updatePendingMove,
   type MessageInterval,
 } from "@/lib/atendimentos/campaigns.functions";
+import { criarDisparo } from "@/lib/atendimentos/broadcast.functions";
 import { movePipelineItem } from "@/lib/atendimentos/pipeline.functions";
 import { moveContactsToStage } from "@/lib/atendimentos/campaignMoveLoop";
 import { FunnelSection, type ResolvedAudience } from "./FunnelSection";
@@ -20,6 +23,8 @@ import { PacingSection } from "./PacingSection";
 import { MessageComposer, HIDDEN_TEMPLATE_PREFIX, type ComposerState } from "./MessageComposer";
 import { PhonePreview } from "./PhonePreview";
 import { CreateTransmissionDialog } from "./CreateTransmissionDialog";
+import { ContactsTab, type ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
+import { BroadcastDialog } from "@/components/atendimentos/contacts/BroadcastDialog";
 
 const EMPTY_AUDIENCE: ResolvedAudience = { moveCandidateItemIds: [] };
 
@@ -38,6 +43,16 @@ function isComposerReady(state: ComposerState): boolean {
   return !!state.templateId;
 }
 
+/**
+ * Uma única página de campanhas, uma única criação. Existiam dois caminhos
+ * separados — esta gaveta (sempre "todos os contatos", motor do Wavy) e a
+ * aba Contatos (seleção filtrada, fila própria) — e quem queria mandar só
+ * para o DDD 48 precisava sair daqui, ir pra outra aba, montar tudo de novo
+ * lá. Agora a audiência é o primeiro passo desta própria gaveta: "Todos os
+ * contatos" segue pelo motor do Wavy (não recorta — ver comentário abaixo);
+ * "Selecionar contatos" reaproveita a busca/filtro por DDD da antiga aba
+ * Contatos e dispara pela fila própria, que é a única capaz de recortar.
+ */
 export function NewCampaignSheet({
   open,
   onOpenChange,
@@ -54,14 +69,25 @@ export function NewCampaignSheet({
   const doMovePipelineItem = useServerFn(movePipelineItem);
   const doUpdatePendingMove = useServerFn(updatePendingMove);
   const fetchEstimate = useServerFn(getEstimatedRecipients);
+  const fetchUsage = useServerFn(getDailySendUsage);
+  const doDisparar = useServerFn(criarDisparo);
+
+  const [audiencia, setAudiencia] = useState<"todos" | "selecionar">("todos");
 
   // Carregado só com a gaveta aberta: é uma ida ao CRM, e a tela precisa dele
-  // apenas na hora de confirmar.
+  // apenas na hora de confirmar (e agora também para mostrar antes de programar).
   const estimateQuery = useQuery({
     queryKey: ["campaign-estimate"],
     queryFn: () => fetchEstimate(),
-    enabled: open,
+    enabled: open && audiencia === "todos",
     staleTime: 5 * 60_000,
+  });
+  // Mesma chave da página de campanhas: reaproveita o cache em vez de pedir de novo.
+  const usageQuery = useQuery({
+    queryKey: ["campaigns-usage"],
+    queryFn: () => fetchUsage(),
+    enabled: open,
+    staleTime: 15_000,
   });
 
   const [targetStageId, setTargetStageId] = useState<string | null>(null);
@@ -76,7 +102,13 @@ export function NewCampaignSheet({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [moveProgress, setMoveProgress] = useState<{ done: number; total: number } | null>(null);
 
+  // Estado do caminho "Selecionar contatos" — mesma seleção e diálogo de
+  // revisão que a antiga aba Contatos usava, agora vivendo aqui.
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [disparoSelecao, setDisparoSelecao] = useState<ContatoSelecionado[] | null>(null);
+
   const reset = () => {
+    setAudiencia("todos");
     setTargetStageId(null);
     setAudience(EMPTY_AUDIENCE);
     setInterval("5_10");
@@ -84,6 +116,15 @@ export function NewCampaignSheet({
     setResumeAfterMinutes(null);
     setComposer(INITIAL_COMPOSER);
     setMoveProgress(null);
+    setSelecionados(new Set());
+    setDisparoSelecao(null);
+  };
+
+  const refreshAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+    queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
+    queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
+    queryClient.invalidateQueries({ queryKey: ["disparos"] });
   };
 
   const canProceed = isComposerReady(composer);
@@ -153,9 +194,7 @@ export function NewCampaignSheet({
           : "Campanha salva. Dispare pela lista quando quiser — lá a revisão mostra para quantos vai.",
         { duration: res.disparou ? 4000 : 8000 },
       );
-      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
-      queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
-      queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
+      refreshAll();
       setDialogOpen(false);
       onOpenChange(false);
       reset();
@@ -166,6 +205,38 @@ export function NewCampaignSheet({
       toast.error(error.message);
     },
   });
+
+  const disparoMutation = useMutation({
+    mutationFn: (dados: { message: string; intervalSeconds: number }) =>
+      doDisparar({
+        data: {
+          ...dados,
+          targets: (disparoSelecao ?? []).map((c) => ({
+            contactId: c.id,
+            conversationId: c.conversationId,
+            name: c.name,
+            phone: c.phone,
+          })),
+        },
+      }),
+    onSuccess: (r) => {
+      const fim = r.terminaEm ? new Date(r.terminaEm) : null;
+      toast.success(
+        fim
+          ? `Fila criada com ${r.total} contatos — termina por volta das ${fim.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.`
+          : `Fila criada com ${r.total} contatos.`,
+        { duration: 8000 },
+      );
+      refreshAll();
+      setDisparoSelecao(null);
+      onOpenChange(false);
+      reset();
+      onCreated();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const usage = usageQuery.data ?? { limit: 200, usedToday: 0 };
 
   return (
     <>
@@ -178,45 +249,101 @@ export function NewCampaignSheet({
               </span>
               <div>
                 <SheetTitle>Nova campanha</SheetTitle>
-                <SheetDescription>Configure o ritmo, o funil e a mensagem antes de disparar.</SheetDescription>
+                <SheetDescription>Escolha quem recebe, depois o ritmo e a mensagem.</SheetDescription>
               </div>
             </div>
           </SheetHeader>
 
           <div className="space-y-7 px-6 py-6">
-            <PacingSection
-              interval={interval}
-              pauseAfterCount={pauseAfterCount}
-              resumeAfterMinutes={resumeAfterMinutes}
-              onIntervalChange={setInterval}
-              onPauseAfterChange={setPauseAfterCount}
-              onResumeAfterChange={setResumeAfterMinutes}
-            />
+            {/* Audiência vem primeiro: "quem recebe" decide o resto do fluxo,
+                e precisa ser visto antes de programar o disparo, não depois. */}
+            <section className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Quem recebe
+              </p>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                <button
+                  type="button"
+                  data-audiencia="todos"
+                  onClick={() => setAudiencia("todos")}
+                  className={cn(
+                    "flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-colors",
+                    audiencia === "todos" ? "border-coral bg-coral-soft" : "border-border bg-white",
+                  )}
+                >
+                  <Users className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
+                  <span>
+                    <span className="block text-sm font-semibold">Todos os contatos</span>
+                    <span className="mt-0.5 block text-2xs text-muted-foreground">
+                      Vai para {estimateQuery.data ?? "…"} contatos da conta do CRM — sem recorte.
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  data-audiencia="selecionar"
+                  onClick={() => setAudiencia("selecionar")}
+                  className={cn(
+                    "flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-colors",
+                    audiencia === "selecionar" ? "border-coral bg-coral-soft" : "border-border bg-white",
+                  )}
+                >
+                  <ListFilter className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
+                  <span>
+                    <span className="block text-sm font-semibold">Selecionar contatos</span>
+                    <span className="mt-0.5 block text-2xs text-muted-foreground">
+                      Busque por nome/número, filtre por DDD e escolha só quem deve receber.
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </section>
 
-            <FunnelSection
-              targetStageId={targetStageId}
-              onTargetStageChange={setTargetStageId}
-              onAudienceResolved={setAudience}
-            />
+            {audiencia === "selecionar" ? (
+              <ContactsTab
+                ativo={open && audiencia === "selecionar"}
+                barraFixa={false}
+                selecionados={selecionados}
+                onSelecionadosChange={setSelecionados}
+                onDisparar={setDisparoSelecao}
+              />
+            ) : (
+              <>
+                <PacingSection
+                  interval={interval}
+                  pauseAfterCount={pauseAfterCount}
+                  resumeAfterMinutes={resumeAfterMinutes}
+                  onIntervalChange={setInterval}
+                  onPauseAfterChange={setPauseAfterCount}
+                  onResumeAfterChange={setResumeAfterMinutes}
+                />
 
-            <div className="grid gap-6 lg:grid-cols-[1fr_220px]">
-              <MessageComposer state={composer} onChange={setComposer} />
-              <PhonePreview content={composer.content} mediaUrl={composer.mediaUrl} />
-            </div>
+                <FunnelSection
+                  targetStageId={targetStageId}
+                  onTargetStageChange={setTargetStageId}
+                  onAudienceResolved={setAudience}
+                />
 
-            <div className="flex gap-3 border-t border-border pt-5">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
-                Cancelar
-              </Button>
-              <Button
-                type="button"
-                className="flex-1 gap-2 bg-gradient-primary text-white"
-                disabled={!canProceed}
-                onClick={() => setDialogOpen(true)}
-              >
-                Prosseguir
-              </Button>
-            </div>
+                <div className="grid gap-6 lg:grid-cols-[1fr_220px]">
+                  <MessageComposer state={composer} onChange={setComposer} />
+                  <PhonePreview content={composer.content} mediaUrl={composer.mediaUrl} />
+                </div>
+
+                <div className="flex gap-3 border-t border-border pt-5">
+                  <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    className="flex-1 gap-2 bg-gradient-primary text-white"
+                    disabled={!canProceed}
+                    onClick={() => setDialogOpen(true)}
+                  >
+                    Prosseguir
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </SheetContent>
       </Sheet>
@@ -229,6 +356,14 @@ export function NewCampaignSheet({
         moveProgress={moveProgress}
         totalContatos={estimateQuery.data ?? null}
         onConfirm={(title, disparar) => confirmMutation.mutate({ title, disparar })}
+      />
+
+      <BroadcastDialog
+        contatos={disparoSelecao}
+        usage={usage}
+        isPending={disparoMutation.isPending}
+        onOpenChange={(o) => !o && setDisparoSelecao(null)}
+        onConfirm={(dados) => disparoMutation.mutate(dados)}
       />
     </>
   );

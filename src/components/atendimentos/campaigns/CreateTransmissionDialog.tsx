@@ -89,9 +89,9 @@ export function CreateTransmissionDialog({
               <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
               <span>
                 Campanha vai para <strong>todos os {totalContatos ?? "…"} contatos</strong> da
-                conta do CRM — não dá para escolher quem recebe por aqui, e pode
+                conta do CRM — não dá para escolher quem recebe por este caminho, e pode
                 alcançar contatos de um número anterior. Para escolher pessoa por
-                pessoa, use a aba <strong>Contatos</strong>.
+                pessoa, volte e escolha <strong>Selecionar contatos</strong> em "Quem recebe".
               </span>
             </p>
 
