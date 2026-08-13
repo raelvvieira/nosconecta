@@ -111,6 +111,7 @@ export type Database = {
       }
       appointments: {
         Row: {
+          actual_revenue: number | null
           created_at: string
           date: string
           end_time: string
@@ -133,6 +134,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          actual_revenue?: number | null
           created_at?: string
           date: string
           end_time: string
@@ -155,6 +157,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          actual_revenue?: number | null
           created_at?: string
           date?: string
           end_time?: string
@@ -1075,34 +1078,40 @@ export type Database = {
       }
       pipeline_deals: {
         Row: {
+          appointment_id: string | null
           created_at: string
           currency: string
           id: string
           item_id: string
           loss_reason: string | null
           owner_id: string
+          realized_on: string | null
           status: string
           updated_at: string
           value: number | null
         }
         Insert: {
+          appointment_id?: string | null
           created_at?: string
           currency?: string
           id?: string
           item_id: string
           loss_reason?: string | null
           owner_id: string
+          realized_on?: string | null
           status?: string
           updated_at?: string
           value?: number | null
         }
         Update: {
+          appointment_id?: string | null
           created_at?: string
           currency?: string
           id?: string
           item_id?: string
           loss_reason?: string | null
           owner_id?: string
+          realized_on?: string | null
           status?: string
           updated_at?: string
           value?: number | null
@@ -1320,6 +1329,92 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      whatsapp_broadcast_targets: {
+        Row: {
+          broadcast_id: string
+          contact_id: string
+          contact_name: string | null
+          conversation_id: string | null
+          error: string | null
+          id: string
+          owner_id: string
+          phone: string | null
+          scheduled_for: string
+          sent_at: string | null
+          sent_via: string | null
+          status: string
+        }
+        Insert: {
+          broadcast_id: string
+          contact_id: string
+          contact_name?: string | null
+          conversation_id?: string | null
+          error?: string | null
+          id?: string
+          owner_id: string
+          phone?: string | null
+          scheduled_for: string
+          sent_at?: string | null
+          sent_via?: string | null
+          status?: string
+        }
+        Update: {
+          broadcast_id?: string
+          contact_id?: string
+          contact_name?: string | null
+          conversation_id?: string | null
+          error?: string | null
+          id?: string
+          owner_id?: string
+          phone?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          sent_via?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_broadcast_targets_broadcast_id_fkey"
+            columns: ["broadcast_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_broadcasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_broadcasts: {
+        Row: {
+          created_at: string
+          id: string
+          interval_seconds: number
+          message: string
+          owner_id: string
+          status: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          interval_seconds?: number
+          message: string
+          owner_id: string
+          status?: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          interval_seconds?: number
+          message?: string
+          owner_id?: string
+          status?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
