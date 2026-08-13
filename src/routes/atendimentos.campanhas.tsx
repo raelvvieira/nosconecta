@@ -2,7 +2,19 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Megaphone, Pause, Play, Plus, RefreshCw, Rocket, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Eye,
+  Megaphone,
+  MoreVertical,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
+  Rocket,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -19,6 +31,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { CampaignDetailSheet } from "@/components/atendimentos/campaigns/CampaignDetailSheet";
 import { FireCampaignDialog } from "@/components/atendimentos/campaigns/FireCampaignDialog";
 import {
@@ -28,9 +46,13 @@ import {
   podeRetomar,
 } from "@/components/atendimentos/campaigns/status";
 import { NewCampaignSheet } from "@/components/atendimentos/campaigns/NewCampaignSheet";
+import { ContactsTab, type ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
+import { BroadcastDialog } from "@/components/atendimentos/contacts/BroadcastDialog";
+import { criarDisparo } from "@/lib/atendimentos/broadcast.functions";
 import { cn } from "@/lib/utils";
 import {
   campaignLifecycle,
+  deleteCampaign,
   executeCampaign,
   getCampaignConfig,
   getCampaigns,
@@ -121,6 +143,8 @@ function CampanhasPage() {
   const doSetLimit = useServerFn(setDailySendLimit);
   const doExecute = useServerFn(executeCampaign);
   const doLifecycle = useServerFn(campaignLifecycle);
+  const doDelete = useServerFn(deleteCampaign);
+  const doDisparar = useServerFn(criarDisparo);
 
   const campaignsQuery = useQuery({ queryKey: ["campaigns"], queryFn: () => fetchCampaigns(), staleTime: 10_000 });
   const usageQuery = useQuery({ queryKey: ["campaigns-usage"], queryFn: () => fetchUsage(), staleTime: 15_000 });
@@ -164,6 +188,53 @@ function CampanhasPage() {
   const [detalheId, setDetalheId] = useState<string | null>(null);
   const [dispararId, setDispararId] = useState<string | null>(null);
   const [cancelarId, setCancelarId] = useState<string | null>(null);
+  const [excluirId, setExcluirId] = useState<string | null>(null);
+
+  // Contatos vive aqui, e não numa rota própria, porque é a mesma tarefa: ver
+  // a base e disparar para um recorte dela.
+  const [aba, setAba] = useState<"campanhas" | "contatos">("campanhas");
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [disparoSelecao, setDisparoSelecao] = useState<ContatoSelecionado[] | null>(null);
+
+  const disparoMutation = useMutation({
+    mutationFn: (dados: { message: string; intervalSeconds: number }) =>
+      doDisparar({
+        data: {
+          ...dados,
+          targets: (disparoSelecao ?? []).map((c) => ({
+            contactId: c.id,
+            conversationId: c.conversationId,
+            name: c.name,
+            phone: c.phone,
+          })),
+        },
+      }),
+    onSuccess: (r) => {
+      const fim = r.terminaEm ? new Date(r.terminaEm) : null;
+      toast.success(
+        fim
+          ? `Fila criada com ${r.total} contatos — termina por volta das ${fim.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.`
+          : `Fila criada com ${r.total} contatos.`,
+        { duration: 8000 },
+      );
+      setDisparoSelecao(null);
+      setSelecionados(new Set());
+      queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (campaignId: string) => doDelete({ data: { campaignId } }),
+    onSuccess: () => {
+      toast.success("Campanha excluída");
+      setExcluirId(null);
+      setDetalheId(null);
+      refresh();
+    },
+    // O diálogo fica aberto: a recusa do CRM aparece ali, junto do botão.
+    onError: (error: Error) => toast.error(error.message),
+  });
   const usage = usageQuery.data ?? { limit: 200, usedToday: 0 };
   const usagePct = usage.limit > 0 ? Math.min(100, Math.round((usage.usedToday / usage.limit) * 100)) : 0;
 
@@ -184,6 +255,31 @@ function CampanhasPage() {
           </div>
         </header>
 
+        <div className="mt-5 flex gap-1 rounded-full border border-border bg-white p-1">
+          {(["campanhas", "contatos"] as const).map((id) => (
+            <button
+              key={id}
+              type="button"
+              data-aba={id}
+              onClick={() => setAba(id)}
+              className={cn(
+                "h-10 flex-1 rounded-full text-sm font-semibold capitalize transition-colors",
+                aba === id ? "bg-foreground text-white" : "text-foreground-secondary",
+              )}
+            >
+              {id}
+            </button>
+          ))}
+        </div>
+
+        {aba === "contatos" ? (
+          <ContactsTab
+            selecionados={selecionados}
+            onSelecionadosChange={setSelecionados}
+            onDisparar={setDisparoSelecao}
+          />
+        ) : (
+        <>
         <section className="surface-card mt-5 p-4 sm:p-5">
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium">Limite diário de disparo</span>
@@ -301,10 +397,37 @@ function CampanhasPage() {
                     <X className="h-3.5 w-3.5" /> Cancelar
                   </Button>
                 )}
+
+                {/* Excluir também mora aqui, e não só no rodapé do painel de
+                    detalhe: no celular aquele rodapé fica no fim de uma tela
+                    inteira de rolagem, e quem procura "apagar a campanha" não
+                    abre o detalhe para achar. */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      aria-label={`Mais ações de ${c.title}`}
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setDetalheId(c.id)}>
+                      <Eye className="mr-2 h-4 w-4" /> Ver detalhes
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-danger" onClick={() => setExcluirId(c.id)}>
+                      <Trash2 className="mr-2 h-4 w-4" /> Excluir campanha
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           ))}
         </section>
+        </>
+        )}
       </main>
 
       <NewCampaignSheet open={formOpen} onOpenChange={setFormOpen} onCreated={refresh} />
@@ -339,6 +462,46 @@ function CampanhasPage() {
               }
             >
               Cancelar campanha
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <BroadcastDialog
+        contatos={disparoSelecao}
+        usage={usage}
+        isPending={disparoMutation.isPending}
+        onOpenChange={(o) => !o && setDisparoSelecao(null)}
+        onConfirm={(dados) => disparoMutation.mutate(dados)}
+      />
+
+      <AlertDialog open={Boolean(excluirId)} onOpenChange={(o) => !o && setExcluirId(null)}>
+        <AlertDialogContent data-excluir-campanha="">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir esta campanha?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A campanha sai do CRM e não tem como desfazer. O histórico de disparos
+              já feitos continua contando no limite diário — porque as mensagens já
+              saíram.
+              {deleteMutation.isError && (
+                <span className="mt-3 block rounded-xl bg-danger-soft px-3 py-2 text-2xs leading-4 text-danger">
+                  {deleteMutation.error.message}
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-danger text-white hover:bg-danger/90"
+              disabled={deleteMutation.isPending}
+              onClick={(e) => {
+                // Segura o fechamento: a recusa do CRM precisa aparecer aqui.
+                e.preventDefault();
+                if (excluirId) deleteMutation.mutate(excluirId);
+              }}
+            >
+              {deleteMutation.isPending ? "Excluindo..." : "Excluir campanha"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

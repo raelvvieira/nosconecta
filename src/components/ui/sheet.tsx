@@ -41,9 +41,13 @@ const sheetVariants = cva(
         // iPhone nunca cobre o conteúdo.
         bottom:
           "inset-x-0 bottom-0 max-h-[92dvh] pb-[env(safe-area-inset-bottom)] border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
-        left: "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
+        // As laterais também precisam da barra de gestos: no celular elas viram
+        // tela cheia (`w-full` do consumidor vence o `w-3/4`), e aí o rodapé
+        // grudado embaixo — onde moram os botões de salvar e excluir — ficava
+        // por baixo do indicador de home do iPhone.
+        left: "inset-y-0 left-0 h-full w-3/4 pb-[env(safe-area-inset-bottom)] border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm sm:pb-0",
         right:
-          "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
+          "inset-y-0 right-0 h-full w-3/4 pb-[env(safe-area-inset-bottom)] border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm sm:pb-0",
       },
     },
     defaultVariants: {
