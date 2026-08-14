@@ -17,6 +17,25 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+/**
+ * Acha, na paginação já usada por `handleList`, o contato cujo telefone bate
+ * com o pedido — usada só quando criar um contato novo falha porque o
+ * telefone já existe (ver `handleUpsert`). Não existe endpoint de busca por
+ * telefone confirmado com o CRM; isto reaproveita o único jeito já testado
+ * de enxergar a base (a mesma listagem paginada da tela de contatos), com o
+ * mesmo teto de páginas.
+ */
+async function buscarContatoPorTelefone(ownerId: string, phone: string): Promise<string | null> {
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const lote = unwrap(await buscarPagina(ownerId, page));
+    if (!Array.isArray(lote) || lote.length === 0) return null;
+    const achado = lote.find((row: any) => (row?.phone_number ?? row?.phone) === phone);
+    if (achado?.id) return String(achado.id);
+    if (lote.length < PAGE_SIZE) return null; // última página, sem mais o que buscar
+  }
+  return null;
+}
+
 async function handleUpsert(
   ownerId: string,
   patient: { patientId: string; name: string; phone?: string | null },
@@ -39,15 +58,31 @@ async function handleUpsert(
     return { ok: true, contactId: row.crm_contact_id };
   }
 
-  const res = await crmFetch(supabase, ownerId, "/api/v1/contacts", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-  const contactId = unwrap(res)?.id ?? null;
+  let contactId: string | null = null;
+  try {
+    const res = await crmFetch(supabase, ownerId, "/api/v1/contacts", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    contactId = unwrap(res)?.id ? String(unwrap(res).id) : null;
+  } catch (e) {
+    // O CRM não deixa dois contatos com o mesmo telefone. Esse número já
+    // existir como contato (por exemplo, alguém que mandou mensagem por
+    // WhatsApp antes de virar paciente, sem nunca ter sido linkado a este
+    // paciente aqui) não é motivo pra falhar o disparo — reusa o contato que
+    // já existe em vez de tentar criar outro.
+    const mensagem = e instanceof Error ? e.message : String(e);
+    const jaExiste = /\(422\)/.test(mensagem) && /already been taken/i.test(mensagem);
+    if (jaExiste && patient.phone) {
+      contactId = await buscarContatoPorTelefone(ownerId, patient.phone);
+    }
+    if (!contactId) throw e;
+  }
+
   if (contactId) {
     await supabase
       .from("patients")
-      .update({ crm_contact_id: String(contactId) })
+      .update({ crm_contact_id: contactId })
       .eq("id", patient.patientId)
       .eq("owner_id", ownerId);
   }
