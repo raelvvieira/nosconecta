@@ -240,6 +240,16 @@ export function ContactsTab({
         </p>
       )}
 
+      {/* Falha aqui é silenciosa por padrão: sem isto, "faltam pacientes na
+          lista" viraria um mistério em vez de um erro visível. */}
+      {patientsQuery.isError && (
+        <p className="mt-3 flex gap-2 rounded-xl bg-warning-soft px-3 py-2 text-2xs leading-4 text-warning">
+          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+          Não foi possível ler os pacientes sem conversa: {(patientsQuery.error as Error).message}. A
+          lista abaixo tem só os contatos do CRM.
+        </p>
+      )}
+
       <div className="relative mt-5">
         <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
