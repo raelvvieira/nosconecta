@@ -4,7 +4,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, Loader2, MessageCircle, Search, UserRound, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { useContatosIncremental } from "@/lib/atendimentos/useContatosIncremental";
@@ -14,6 +16,7 @@ import {
   filtrarContatos,
 } from "@/lib/atendimentos/contactFilters";
 import { getConversations, getWhatsappInboxes } from "@/lib/atendimentos/atendimentos.functions";
+import { getRecentRecipients } from "@/lib/atendimentos/broadcast.functions";
 import { getPatientContacts } from "@/lib/patients/patients.functions";
 import { contatosDaCaixa, daParaSepararPorNumero } from "@/lib/atendimentos/inboxSnapshot";
 
@@ -22,6 +25,22 @@ import { contatosDaCaixa, daParaSepararPorNumero } from "@/lib/atendimentos/inbo
  *  laço infinito (ver FunnelSection.tsx). */
 const SEM_CONVERSAS: never[] = [];
 const SEM_PACIENTES: never[] = [];
+const SEM_RECENTES: never[] = [];
+
+const normFone = (phone: string | null) => (phone ?? "").replace(/\D/g, "");
+
+/** Dias corridos entre um ISO e agora, arredondado pra baixo — "recebeu hoje"
+ *  cobre até 24h atrás, não só "depois da meia-noite". */
+function diasAtras(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / (24 * 60 * 60 * 1000));
+}
+
+function rotuloRecente(iso: string): string {
+  const dias = diasAtras(iso);
+  if (dias <= 0) return "recebeu hoje";
+  if (dias === 1) return "recebeu ontem";
+  return `recebeu há ${dias} dias`;
+}
 
 export interface ContatoUnificado {
   id: string;
@@ -79,6 +98,7 @@ export function ContactsTab({
   const fetchConversations = useServerFn(getConversations);
   const fetchInboxes = useServerFn(getWhatsappInboxes);
   const fetchPatientContacts = useServerFn(getPatientContacts);
+  const fetchRecentRecipients = useServerFn(getRecentRecipients);
 
   // Chega aos pedaços: a primeira página já aparece, e o resto entra por trás
   // — ver useContatosIncremental.ts. Não é `useQuery` porque o progresso
@@ -109,6 +129,15 @@ export function ContactsTab({
     staleTime: 60_000,
   });
 
+  // Quem recebeu disparo nos últimos 7 dias — a janela de quantos desses dias
+  // contam como "recente" é escolhida na tela (janelaDias), não aqui.
+  const recentesQuery = useQuery({
+    queryKey: ["broadcast-recent-recipients"],
+    queryFn: () => fetchRecentRecipients(),
+    enabled: ativo,
+    staleTime: 60_000,
+  });
+
   const [busca, setBusca] = useState("");
   const [ddds, setDdds] = useState<Set<string>>(new Set());
   // Só quem é do número conectado, por padrão. Trocar de número no WhatsApp
@@ -117,6 +146,12 @@ export function ContactsTab({
   // aplica a paciente sem CRM: não veio de sincronização nenhuma, é dado
   // nosso, não tem como estar "contaminado" por número antigo.
   const [soDoNumeroAtual, setSoDoNumeroAtual] = useState(true);
+
+  // Quem recebeu disparo recente some da lista por padrão — mesmo espírito do
+  // filtro de número acima: começa escondendo quem provavelmente não deveria
+  // receber de novo, quem quiser incluir mesmo assim desliga.
+  const [ocultarRecentes, setOcultarRecentes] = useState(true);
+  const [janelaDias, setJanelaDias] = useState(1);
 
   const contatos = useMemo<ContatoUnificado[]>(
     () => [
@@ -161,11 +196,44 @@ export function ContactsTab({
   );
   const omitidos = contatos.length - noEscopo.length;
 
+  // Contato → último envio, casado por duas chaves: contact_id bate direto
+  // pra quem já veio do CRM (`ContatoUnificado.id` de origem "crm" É o
+  // contact_id); paciente sem CRM só ganha um contact_id na hora do disparo
+  // (garantirContatoCrm), então esse caso só casa por telefone.
+  const { porContato, porTelefone } = useMemo(() => {
+    const porContato = new Map<string, string>();
+    const porTelefone = new Map<string, string>();
+    for (const r of recentesQuery.data ?? SEM_RECENTES) {
+      porContato.set(r.contactId, r.sentAt);
+      const fone = normFone(r.phone);
+      if (fone) {
+        const atual = porTelefone.get(fone);
+        if (!atual || r.sentAt > atual) porTelefone.set(fone, r.sentAt);
+      }
+    }
+    return { porContato, porTelefone };
+  }, [recentesQuery.data]);
+
+  const ultimoEnvio = (c: ContatoUnificado): string | null =>
+    porContato.get(c.id) ?? porTelefone.get(normFone(c.phone)) ?? null;
+
+  const semRecentes = useMemo(
+    () =>
+      ocultarRecentes
+        ? noEscopo.filter((c) => {
+            const via = ultimoEnvio(c);
+            return !via || diasAtras(via) >= janelaDias;
+          })
+        : noEscopo,
+    [noEscopo, ocultarRecentes, janelaDias, porContato, porTelefone],
+  );
+  const omitidosRecentes = noEscopo.length - semRecentes.length;
+
   /** DDDs presentes na base, do mais numeroso para o menos. */
-  const fichasDdd = useMemo(() => contarPorDdd(noEscopo), [noEscopo]);
+  const fichasDdd = useMemo(() => contarPorDdd(semRecentes), [semRecentes]);
   const filtrados = useMemo(
-    () => filtrarContatos(noEscopo, { busca, ddds }),
-    [noEscopo, busca, ddds],
+    () => filtrarContatos(semRecentes, { busca, ddds }),
+    [semRecentes, busca, ddds],
   );
 
   const todosFiltradosSelecionados =
@@ -288,6 +356,46 @@ export function ContactsTab({
         </label>
       )}
 
+      {/* Só aparece quando existe alguma coisa pra mostrar — clínica nova, sem
+          disparo nenhum ainda, não ganha um controle vazio na tela. */}
+      {(recentesQuery.data?.length ?? 0) > 0 && (
+        <div
+          data-ocultar-recentes=""
+          className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-white px-3 py-2.5"
+        >
+          <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+            <Checkbox
+              checked={ocultarRecentes}
+              onCheckedChange={(v) => {
+                setOcultarRecentes(Boolean(v));
+                // Mesmo motivo do recorte por número: sair não pode deixar
+                // selecionado quem estava escondido, voltar não pode carregar
+                // quem sumiu da lista.
+                onSelecionadosChange(new Set());
+              }}
+            />
+            <span className="min-w-0 text-sm">
+              Ocultar quem recebeu disparo nos últimos {janelaDias === 1 ? "1 dia" : `${janelaDias} dias`}
+              {omitidosRecentes > 0 && ocultarRecentes && (
+                <span className="ml-1 text-muted-foreground">
+                  · {omitidosRecentes} ficaram de fora
+                </span>
+              )}
+            </span>
+          </label>
+          <Select value={String(janelaDias)} onValueChange={(v) => setJanelaDias(Number(v))}>
+            <SelectTrigger className="h-9 w-28 shrink-0 text-sm" data-janela-recentes="">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">1 dia</SelectItem>
+              <SelectItem value="3">3 dias</SelectItem>
+              <SelectItem value="7">7 dias</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {fichasDdd.length > 0 && (
         <div className="scrollbar-none -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">
           <FichaDdd
@@ -354,6 +462,10 @@ export function ContactsTab({
           <ul className="divide-y divide-border">
             {filtrados.map((c) => {
               const temConversa = conversaPorContato.has(c.id);
+              // Só chega a existir uma linha pra badgear quando o toggle de
+              // ocultar está desligado — com ele ligado, quem recebeu recente
+              // já nem está em `filtrados`.
+              const ultimoEnvioDele = ultimoEnvio(c);
               return (
                 <li key={c.id}>
                   <label
@@ -379,6 +491,11 @@ export function ContactsTab({
                         ) : null}
                       </p>
                     </div>
+                    {ultimoEnvioDele && (
+                      <Badge variant="warning" className="shrink-0" data-recente="">
+                        {rotuloRecente(ultimoEnvioDele)}
+                      </Badge>
+                    )}
                   </label>
                 </li>
               );

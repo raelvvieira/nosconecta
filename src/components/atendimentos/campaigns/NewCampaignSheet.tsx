@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ListFilter, Rocket, Users } from "lucide-react";
+import { AlertTriangle, ListFilter, Rocket, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -320,6 +320,16 @@ export function NewCampaignSheet({
               />
             ) : (
               <>
+                {/* "Todos os contatos" é o CRM mandando pra base inteira — não
+                    existe registro de quem recebeu cada disparo por aqui, então
+                    não tem como avisar ou excluir quem já recebeu recentemente
+                    (isso só existe em "Selecionar contatos", ver ContactsTab). */}
+                <p className="mt-4 flex gap-2 rounded-xl bg-warning-soft px-3 py-2 text-2xs leading-4 text-warning">
+                  <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                  Este modo manda para a base inteira sem exceção — para evitar repetir quem já
+                  recebeu recentemente, use "Selecionar contatos".
+                </p>
+
                 <PacingSection
                   interval={interval}
                   pauseAfterCount={pauseAfterCount}
