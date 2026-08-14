@@ -131,6 +131,7 @@ export type Database = {
           start_time: string
           status: string
           type: string
+          unit_id: string
           updated_at: string
         }
         Insert: {
@@ -154,6 +155,7 @@ export type Database = {
           start_time: string
           status?: string
           type?: string
+          unit_id: string
           updated_at?: string
         }
         Update: {
@@ -177,6 +179,7 @@ export type Database = {
           start_time?: string
           status?: string
           type?: string
+          unit_id?: string
           updated_at?: string
         }
         Relationships: [
@@ -208,6 +211,13 @@ export type Database = {
             referencedRelation: "clinic_chairs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "appointments_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
         ]
       }
       blocked_times: {
@@ -221,6 +231,7 @@ export type Database = {
           reason: string | null
           room_id: string | null
           start_time: string
+          unit_id: string
         }
         Insert: {
           created_at?: string
@@ -232,6 +243,7 @@ export type Database = {
           reason?: string | null
           room_id?: string | null
           start_time: string
+          unit_id: string
         }
         Update: {
           created_at?: string
@@ -243,6 +255,7 @@ export type Database = {
           reason?: string | null
           room_id?: string | null
           start_time?: string
+          unit_id?: string
         }
         Relationships: [
           {
@@ -259,6 +272,13 @@ export type Database = {
             referencedRelation: "clinic_chairs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "blocked_times_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
         ]
       }
       clinic_chairs: {
@@ -271,6 +291,7 @@ export type Database = {
           notes: string | null
           owner_id: string
           room_name: string | null
+          unit_id: string
           updated_at: string
         }
         Insert: {
@@ -282,6 +303,7 @@ export type Database = {
           notes?: string | null
           owner_id: string
           room_name?: string | null
+          unit_id: string
           updated_at?: string
         }
         Update: {
@@ -293,45 +315,86 @@ export type Database = {
           notes?: string | null
           owner_id?: string
           room_name?: string | null
+          unit_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "clinic_chairs_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       clinic_members: {
         Row: {
           active: boolean
+          approved_at: string | null
+          approved_by: string | null
           created_at: string
           email: string
           id: string
           name: string
           owner_id: string
           permissions: Json
-          role: string
+          phone: string | null
+          rejected_reason: string | null
+          requested_at: string
+          role: string | null
+          status: string
+          unit_id: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           active?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           email: string
           id?: string
           name: string
           owner_id: string
           permissions?: Json
-          role?: string
+          phone?: string | null
+          rejected_reason?: string | null
+          requested_at?: string
+          role?: string | null
+          status?: string
+          unit_id?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           active?: boolean
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           email?: string
           id?: string
           name?: string
           owner_id?: string
           permissions?: Json
-          role?: string
+          phone?: string | null
+          rejected_reason?: string | null
+          requested_at?: string
+          role?: string | null
+          status?: string
+          unit_id?: string | null
           updated_at?: string
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "clinic_members_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       clinic_procedures: {
         Row: {
@@ -374,6 +437,39 @@ export type Database = {
           price?: number
           tuss_code?: string | null
           tuss_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      clinic_units: {
+        Row: {
+          active: boolean
+          address: string | null
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          address?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          address?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          owner_id?: string
           updated_at?: string
         }
         Relationships: []
@@ -470,7 +566,7 @@ export type Database = {
       }
       financial_accounts: {
         Row: {
-          company_id: string
+          company_id: string | null
           created_at: string
           current_balance: number
           id: string
@@ -478,10 +574,11 @@ export type Database = {
           name: string
           owner_id: string | null
           type: Database["public"]["Enums"]["account_type"]
+          unit_id: string
           updated_at: string
         }
         Insert: {
-          company_id: string
+          company_id?: string | null
           created_at?: string
           current_balance?: number
           id?: string
@@ -489,10 +586,11 @@ export type Database = {
           name: string
           owner_id?: string | null
           type: Database["public"]["Enums"]["account_type"]
+          unit_id: string
           updated_at?: string
         }
         Update: {
-          company_id?: string
+          company_id?: string | null
           created_at?: string
           current_balance?: number
           id?: string
@@ -500,13 +598,22 @@ export type Database = {
           name?: string
           owner_id?: string | null
           type?: Database["public"]["Enums"]["account_type"]
+          unit_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "financial_accounts_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       financial_categories: {
         Row: {
-          company_id: string
+          company_id: string | null
           created_at: string
           id: string
           name: string
@@ -514,7 +621,7 @@ export type Database = {
           type: Database["public"]["Enums"]["category_type"]
         }
         Insert: {
-          company_id: string
+          company_id?: string | null
           created_at?: string
           id?: string
           name: string
@@ -522,7 +629,7 @@ export type Database = {
           type: Database["public"]["Enums"]["category_type"]
         }
         Update: {
-          company_id?: string
+          company_id?: string | null
           created_at?: string
           id?: string
           name?: string
@@ -533,7 +640,7 @@ export type Database = {
       }
       financial_goals: {
         Row: {
-          company_id: string
+          company_id: string | null
           created_at: string
           end_date: string | null
           goal_type: Database["public"]["Enums"]["goal_type"]
@@ -546,7 +653,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          company_id: string
+          company_id?: string | null
           created_at?: string
           end_date?: string | null
           goal_type: Database["public"]["Enums"]["goal_type"]
@@ -559,7 +666,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          company_id?: string
+          company_id?: string | null
           created_at?: string
           end_date?: string | null
           goal_type?: Database["public"]["Enums"]["goal_type"]
@@ -575,7 +682,7 @@ export type Database = {
       }
       financial_scenarios: {
         Row: {
-          company_id: string
+          company_id: string | null
           created_at: string
           description: string | null
           end_date: string | null
@@ -590,7 +697,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          company_id: string
+          company_id?: string | null
           created_at?: string
           description?: string | null
           end_date?: string | null
@@ -605,7 +712,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          company_id?: string
+          company_id?: string | null
           created_at?: string
           description?: string | null
           end_date?: string | null
@@ -626,7 +733,7 @@ export type Database = {
           account_id: string | null
           amount: number
           category_id: string | null
-          company_id: string
+          company_id: string | null
           created_at: string
           description: string
           due_date: string
@@ -647,13 +754,14 @@ export type Database = {
           status: Database["public"]["Enums"]["transaction_status"]
           supplier_name: string | null
           type: Database["public"]["Enums"]["transaction_type"]
+          unit_id: string
           updated_at: string
         }
         Insert: {
           account_id?: string | null
           amount: number
           category_id?: string | null
-          company_id: string
+          company_id?: string | null
           created_at?: string
           description: string
           due_date: string
@@ -674,13 +782,14 @@ export type Database = {
           status: Database["public"]["Enums"]["transaction_status"]
           supplier_name?: string | null
           type: Database["public"]["Enums"]["transaction_type"]
+          unit_id: string
           updated_at?: string
         }
         Update: {
           account_id?: string | null
           amount?: number
           category_id?: string | null
-          company_id?: string
+          company_id?: string | null
           created_at?: string
           description?: string
           due_date?: string
@@ -701,6 +810,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["transaction_status"]
           supplier_name?: string | null
           type?: Database["public"]["Enums"]["transaction_type"]
+          unit_id?: string
           updated_at?: string
         }
         Relationships: [
@@ -737,6 +847,13 @@ export type Database = {
             columns: ["professional_id"]
             isOneToOne: false
             referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_transactions_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
             referencedColumns: ["id"]
           },
         ]
@@ -987,6 +1104,7 @@ export type Database = {
           responsible_professional_id: string | null
           state: string | null
           status: string
+          unit_id: string
           updated_at: string
           zip_code: string | null
         }
@@ -1014,6 +1132,7 @@ export type Database = {
           responsible_professional_id?: string | null
           state?: string | null
           status?: string
+          unit_id: string
           updated_at?: string
           zip_code?: string | null
         }
@@ -1041,10 +1160,19 @@ export type Database = {
           responsible_professional_id?: string | null
           state?: string | null
           status?: string
+          unit_id?: string
           updated_at?: string
           zip_code?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "patients_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pipeline_deal_events: {
         Row: {
@@ -1132,6 +1260,7 @@ export type Database = {
           phone: string | null
           registration_number: string | null
           specialty: string | null
+          unit_id: string
           updated_at: string
         }
         Insert: {
@@ -1147,6 +1276,7 @@ export type Database = {
           phone?: string | null
           registration_number?: string | null
           specialty?: string | null
+          unit_id: string
           updated_at?: string
         }
         Update: {
@@ -1162,9 +1292,18 @@ export type Database = {
           phone?: string | null
           registration_number?: string | null
           specialty?: string | null
+          unit_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "professionals_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -1303,6 +1442,7 @@ export type Database = {
           patient_id: string | null
           patient_name: string
           procedure_name: string
+          unit_id: string
         }
         Insert: {
           created_at?: string
@@ -1311,6 +1451,7 @@ export type Database = {
           patient_id?: string | null
           patient_name: string
           procedure_name: string
+          unit_id: string
         }
         Update: {
           created_at?: string
@@ -1319,6 +1460,7 @@ export type Database = {
           patient_id?: string | null
           patient_name?: string
           procedure_name?: string
+          unit_id?: string
         }
         Relationships: [
           {
@@ -1326,6 +1468,13 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waiting_list_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
             referencedColumns: ["id"]
           },
         ]
@@ -1422,12 +1571,18 @@ export type Database = {
     }
     Functions: {
       accept_invitation: { Args: { _token: string }; Returns: boolean }
+      can_access_row:
+        | { Args: { _owner_id: string }; Returns: boolean }
+        | { Args: { _owner_id: string; _unit_id: string }; Returns: boolean }
+      current_owner_id: { Args: never; Returns: string }
+      current_unit_id: { Args: never; Returns: string }
       finance_cash_flow_series: {
         Args: {
-          p_company_id: string
           p_from: string
           p_granularity: string
+          p_owner_id: string
           p_to: string
+          p_unit_id: string
         }
         Returns: {
           bucket: string
@@ -1437,7 +1592,12 @@ export type Database = {
         }[]
       }
       finance_revenue_by_category: {
-        Args: { p_company_id: string; p_from: string; p_to: string }
+        Args: {
+          p_from: string
+          p_owner_id: string
+          p_to: string
+          p_unit_id: string
+        }
         Returns: {
           category_id: string
           name: string
@@ -1445,7 +1605,12 @@ export type Database = {
         }[]
       }
       finance_revenue_by_professional: {
-        Args: { p_company_id: string; p_from: string; p_to: string }
+        Args: {
+          p_from: string
+          p_owner_id: string
+          p_to: string
+          p_unit_id: string
+        }
         Returns: {
           commission_pct: number
           name: string
@@ -1470,6 +1635,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_clinic_admin: { Args: never; Returns: boolean }
+      primary_clinic_owner: { Args: never; Returns: string }
     }
     Enums: {
       account_type: "bank" | "cash" | "pix" | "credit"
