@@ -21,6 +21,7 @@ import {
   procedures as fallbackProcedures,
 } from "@/components/agenda/mock-data";
 import { getSettings } from "@/lib/settings/settings.functions";
+import { useUnitSelection } from "@/lib/settings/unit-context";
 import { appointmentPayload, useSaveAppointment } from "@/lib/agenda/useSaveAppointment";
 import { acharSobreposicoes, type Sobreposicao } from "@/lib/agenda/conflicts";
 import { OverlapDialog } from "@/components/agenda/OverlapDialog";
@@ -108,6 +109,7 @@ function AgendaPage() {
   const updateStatusFn = useServerFn(updateAppointmentStatus);
   const updateApptFn = useServerFn(updateAppointment);
   const createBlockFn = useServerFn(createBlockedTime);
+  const { selectedUnitId } = useUnitSelection();
   const updateBlockFn = useServerFn(updateBlockedTime);
   const deleteBlockFn = useServerFn(deleteBlockedTime);
 
@@ -165,7 +167,7 @@ function AgendaPage() {
       };
       // Criar devolve { id }, editar devolve { ok } — o retorno não é usado.
       if (data.id) return updateBlockFn({ data: { ...payload, id: data.id } }).then(() => undefined);
-      return createBlockFn({ data: payload }).then(() => undefined);
+      return createBlockFn({ data: { ...payload, unitId: selectedUnitId ?? undefined } }).then(() => undefined);
     },
     onSuccess: (_r, data) => {
       toast.success(data.id ? "Compromisso atualizado" : "Compromisso criado");

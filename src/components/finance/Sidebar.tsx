@@ -30,6 +30,8 @@ import { cn } from "@/lib/utils";
 import { useMobileFab } from "@/components/finance/mobile-fab-context";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import { UnitSwitcher } from "@/components/settings/UnitSwitcher";
+import { useUnitSelection } from "@/lib/settings/unit-context";
 import { supabase } from "@/integrations/supabase/client";
 
 type FinanceItem = {
@@ -114,6 +116,7 @@ export function Sidebar() {
   const fabCtx = useMobileFab();
   const fab = fabCtx?.fab ?? null;
   const navActions = fabCtx?.navActions ?? [];
+  const { isAdmin, units } = useUnitSelection();
 
   const inFinance = useMemo(
     () =>
@@ -498,6 +501,8 @@ export function Sidebar() {
             </button>,
             `${userName} · Administrador`,
           )}
+
+          {isAdmin && units.length > 1 && maybeTooltip(<UnitSwitcher collapsed={collapsed} />, "Unidade")}
 
           {maybeTooltip(
             <button

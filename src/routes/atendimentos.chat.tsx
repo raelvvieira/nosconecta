@@ -45,6 +45,7 @@ import { ConfirmarGanho, type DadosGanho } from "@/components/atendimentos/pipel
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { haptic } from "@/lib/haptics";
+import { useUnitSelection } from "@/lib/settings/unit-context";
 
 const searchSchema = z.object({
   conversationId: z.string().optional(),
@@ -133,6 +134,7 @@ function ChatPage() {
   const doMovePipelineItem = useServerFn(movePipelineItem);
   const fetchDeals = useServerFn(getDeals);
   const doConfirmarGanho = useServerFn(confirmarGanho);
+  const { selectedUnitId } = useUnitSelection();
   const doSaveStatus = useServerFn(saveDealStatus);
 
   const pipelineStagesQuery = useQuery({
@@ -189,6 +191,7 @@ function ChatPage() {
           valor: dados.valor,
           realizadoEm: dados.realizadoEm,
           gerarCobranca: dados.gerarCobranca,
+          unitId: selectedUnitId ?? undefined,
         },
       }),
     onSuccess: (r) => {

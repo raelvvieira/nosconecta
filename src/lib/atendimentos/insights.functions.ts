@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
 export interface FunnelStageStat {
   etapa: string;
@@ -100,15 +100,15 @@ function mapSalesPlaybook(row: any): SalesPlaybook {
 }
 
 export const getSalesAssistant = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<SalesAssistant> => {
-    const json = await callEdgeFunction({ ownerId: context.userId, action: "get-sales-assistant" });
+    const json = await callEdgeFunction({ ownerId: context.ownerId, action: "get-sales-assistant" });
     return mapSalesAssistant(json.assistant ?? {});
   });
 
 export const getSalesPlaybook = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<SalesPlaybook> => {
-    const json = await callEdgeFunction({ ownerId: context.userId, action: "get-sales-playbook" });
+    const json = await callEdgeFunction({ ownerId: context.ownerId, action: "get-sales-playbook" });
     return mapSalesPlaybook(json.playbook ?? {});
   });

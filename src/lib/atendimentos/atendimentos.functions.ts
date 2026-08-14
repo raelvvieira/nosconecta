@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
 export interface WhatsappInstance {
   status: "disconnected" | "connecting" | "open" | "error";
@@ -123,9 +123,9 @@ function toIso(value: unknown): string {
 }
 
 export const getWhatsappInstance = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<WhatsappInstance | null> => {
-    const json = await callEdgeFunction("crm-whatsapp", { ownerId: context.userId, action: "status" });
+    const json = await callEdgeFunction("crm-whatsapp", { ownerId: context.ownerId, action: "status" });
     return json.instance ? mapInstance(json.instance) : null;
   });
 
@@ -152,10 +152,10 @@ export interface InboxSnapshot {
  * separar quem é do número de hoje de quem veio de um número antigo.
  */
 export const getWhatsappInboxes = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<InboxSnapshot> => {
     const json = await callEdgeFunction("crm-whatsapp", {
-      ownerId: context.userId,
+      ownerId: context.ownerId,
       action: "inboxes",
     });
     return {
@@ -166,11 +166,11 @@ export const getWhatsappInboxes = createServerFn({ method: "GET" })
   });
 
 export const connectWhatsapp = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { phoneNumber?: string }) => input)
   .handler(async ({ data, context }): Promise<WhatsappInstance> => {
     const json = await callEdgeFunction("crm-whatsapp", {
-      ownerId: context.userId,
+      ownerId: context.ownerId,
       action: "connect",
       phoneNumber: data.phoneNumber,
     });
@@ -187,9 +187,9 @@ export const connectWhatsapp = createServerFn({ method: "POST" })
   });
 
 export const disconnectWhatsapp = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }) => {
-    await callEdgeFunction("crm-whatsapp", { ownerId: context.userId, action: "disconnect" });
+    await callEdgeFunction("crm-whatsapp", { ownerId: context.ownerId, action: "disconnect" });
     return { ok: true };
   });
 
@@ -197,26 +197,26 @@ export const disconnectWhatsapp = createServerFn({ method: "POST" })
 // listar) a inbox de WhatsApp, um admin cria pelo painel do CRM e cola o ID
 // aqui.
 export const setWhatsappInboxId = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { inboxId: string }) => input)
   .handler(async ({ data, context }) => {
-    await callEdgeFunction("crm-whatsapp", { ownerId: context.userId, action: "set-inbox-id", inboxId: data.inboxId });
+    await callEdgeFunction("crm-whatsapp", { ownerId: context.ownerId, action: "set-inbox-id", inboxId: data.inboxId });
     return { ok: true };
   });
 
 export const getConversations = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<ConversationRow[]> => {
-    const json = await callEdgeFunction("crm-conversations", { ownerId: context.userId, action: "list" });
+    const json = await callEdgeFunction("crm-conversations", { ownerId: context.ownerId, action: "list" });
     return (json.conversations ?? []).map(mapConversation);
   });
 
 export const getMessages = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { conversationId: string }) => input)
   .handler(async ({ data, context }): Promise<MessageRow[]> => {
     const json = await callEdgeFunction("crm-conversations", {
-      ownerId: context.userId,
+      ownerId: context.ownerId,
       action: "messages",
       conversationId: data.conversationId,
     });
@@ -224,7 +224,7 @@ export const getMessages = createServerFn({ method: "GET" })
   });
 
 export const sendWhatsappMessage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   // isPrivate = nota interna: registra na conversa dentro do CRM sem enviar
   // nada pro contato no WhatsApp.
   //
@@ -241,7 +241,7 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const json = await callEdgeFunction("crm-conversations", {
-      ownerId: context.userId,
+      ownerId: context.ownerId,
       action: "send",
       conversationId: data.conversationId,
       content: data.text,
@@ -269,13 +269,13 @@ function mapScheduled(row: any): ScheduledMessage {
 }
 
 export const scheduleWhatsappMessage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator(
     (input: { conversationId: string; contactId?: string | null; text: string; scheduledFor: string }) => input,
   )
   .handler(async ({ data, context }) => {
     await callEdgeFunction("crm-conversations", {
-      ownerId: context.userId,
+      ownerId: context.ownerId,
       action: "schedule",
       conversationId: data.conversationId,
       contactId: data.contactId ?? null,
@@ -286,11 +286,11 @@ export const scheduleWhatsappMessage = createServerFn({ method: "POST" })
   });
 
 export const getScheduledMessages = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { contactId: string }) => input)
   .handler(async ({ data, context }): Promise<ScheduledMessage[]> => {
     const json = await callEdgeFunction("crm-conversations", {
-      ownerId: context.userId,
+      ownerId: context.ownerId,
       action: "list-scheduled",
       contactId: data.contactId,
     });
@@ -298,11 +298,11 @@ export const getScheduledMessages = createServerFn({ method: "GET" })
   });
 
 export const cancelScheduledMessage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { scheduledId: string }) => input)
   .handler(async ({ data, context }) => {
     await callEdgeFunction("crm-conversations", {
-      ownerId: context.userId,
+      ownerId: context.ownerId,
       action: "cancel-scheduled",
       scheduledId: data.scheduledId,
     });

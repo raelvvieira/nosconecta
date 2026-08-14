@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import type { NotificationChannel, NotificationKind } from "@/components/agenda/types";
 
 export interface NotificationsHealth {
@@ -24,7 +24,7 @@ async function callEdgeFunction(name: string, body: unknown) {
 }
 
 export const getNotificationsHealth = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async (): Promise<NotificationsHealth> => {
     const json = await callEdgeFunction("notifications-health", {});
     return {
@@ -36,7 +36,7 @@ export const getNotificationsHealth = createServerFn({ method: "GET" })
   });
 
 export const sendTestNotification = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { channel: NotificationChannel; kind: NotificationKind; destination: string }) => input)
   .handler(async ({ data }) => {
     await callEdgeFunction("send-test-notification", data);
@@ -57,13 +57,13 @@ export interface NotificationLogRow {
 }
 
 export const getNotificationsLog = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<NotificationLogRow[]> => {
     const supabase: any = context.supabase;
     const { data, error } = await supabase
       .from("appointment_notifications")
       .select("id, appointment_id, kind, channel, status, error, sent_at, created_at, appointments(patient_name, date, start_time)")
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) throw new Error(error.message);
@@ -91,13 +91,13 @@ export interface NotificationReplyRow {
 }
 
 export const getNotificationReplies = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<NotificationReplyRow[]> => {
     const supabase: any = context.supabase;
     const { data, error } = await supabase
       .from("appointment_notification_replies")
       .select("id, from_phone, message_text, action, created_at, patients(name)")
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) throw new Error(error.message);
@@ -112,7 +112,7 @@ export const getNotificationReplies = createServerFn({ method: "GET" })
   });
 
 export const resendNotification = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { appointmentId: string; kind: NotificationKind }) => input)
   .handler(async ({ data }) => {
     const json = await callEdgeFunction("send-appointment-notification", {

@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AtendimentosRouteImport } from './routes/atendimentos'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as CadastroEquipeRouteImport } from './routes/cadastro-equipe'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as FinanceiroRouteImport } from './routes/financeiro'
 import { Route as InicioRouteImport } from './routes/inicio'
@@ -48,6 +49,11 @@ const AtendimentosRoute = AtendimentosRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CadastroEquipeRoute = CadastroEquipeRouteImport.update({
+  id: '/cadastro-equipe',
+  path: '/cadastro-equipe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
@@ -138,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/agenda': typeof AgendaRoute
   '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
+  '/cadastro-equipe': typeof CadastroEquipeRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
+  '/cadastro-equipe': typeof CadastroEquipeRoute
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
   '/pagamentos': typeof PagamentosRoute
@@ -180,6 +188,7 @@ export interface FileRoutesById {
   '/agenda': typeof AgendaRoute
   '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
+  '/cadastro-equipe': typeof CadastroEquipeRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
@@ -204,6 +213,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/atendimentos'
     | '/auth'
+    | '/cadastro-equipe'
     | '/configuracoes'
     | '/financeiro'
     | '/inicio'
@@ -225,6 +235,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/auth'
+    | '/cadastro-equipe'
     | '/financeiro'
     | '/inicio'
     | '/pagamentos'
@@ -245,6 +256,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/atendimentos'
     | '/auth'
+    | '/cadastro-equipe'
     | '/configuracoes'
     | '/financeiro'
     | '/inicio'
@@ -268,6 +280,7 @@ export interface RootRouteChildren {
   AgendaRoute: typeof AgendaRoute
   AtendimentosRoute: typeof AtendimentosRouteWithChildren
   AuthRoute: typeof AuthRoute
+  CadastroEquipeRoute: typeof CadastroEquipeRoute
   ConfiguracoesRoute: typeof ConfiguracoesRouteWithChildren
   FinanceiroRoute: typeof FinanceiroRoute
   InicioRoute: typeof InicioRoute
@@ -305,6 +318,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cadastro-equipe': {
+      id: '/cadastro-equipe'
+      path: '/cadastro-equipe'
+      fullPath: '/cadastro-equipe'
+      preLoaderRoute: typeof CadastroEquipeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/configuracoes': {
@@ -475,6 +495,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgendaRoute: AgendaRoute,
   AtendimentosRoute: AtendimentosRouteWithChildren,
   AuthRoute: AuthRoute,
+  CadastroEquipeRoute: CadastroEquipeRoute,
   ConfiguracoesRoute: ConfiguracoesRouteWithChildren,
   FinanceiroRoute: FinanceiroRoute,
   InicioRoute: InicioRoute,

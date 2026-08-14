@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { resolveUnitId } from "@/lib/auth/resolve-unit";
 
 export type PayableStatus = "all" | "paid" | "pending" | "overdue";
 
@@ -96,6 +97,7 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
   .inputValidator(
     (input: {
       companyId?: string;
+      unitId?: string;
       from?: string;
       to?: string;
       category?: string;
@@ -105,7 +107,7 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
       method?: string;
       q?: string;
     }) => ({
-      companyId: input.companyId ?? "demo",
+      unitId: input.unitId,
       from: input.from,
       to: input.to,
       category: input.category,
@@ -116,25 +118,32 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
       q: input.q?.trim() || undefined,
     }),
   )
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<PayablesOverview> => {
-    const supabase = context.supabase;
+    // types.ts ainda não conhece unit_id/company_id opcional.
+    const supabase: any = context.supabase;
     const range = resolveRange(data.from, data.to);
     const prev = previousRange(range.from, range.to);
     const today = todayStr();
+    // Conta e transação são por unidade; categoria não é (ver migration).
+    // Não-admin nunca escolhe: sempre a própria; admin sem escolha vê todas.
+    const unitFilter = context.isAdmin ? data.unitId : context.unitId;
+    const cu = (q: any): any => (unitFilter ? q.eq("unit_id", unitFilter) : q);
 
     // Base query for the list. When the user picked an explicit period, filter
     // and sort by due_date within it; otherwise show everything, most recently
     // added first (created_at desc), unconstrained by the KPI date range.
     const hasExplicitRange = !!(data.from && data.to);
-    let listQuery = supabase
-      .from("financial_transactions")
-      .select(
-        "id, description, amount, due_date, paid_date, status, payment_method, supplier_name, category_id, account_id, installment_number, installment_total, is_recurring, recurrence_type, notes, financial_categories(name), financial_accounts(name,type,last_digits)",
-        { count: "exact" },
-      )
-      .eq("company_id", data.companyId)
-      .eq("type", "payable");
+    let listQuery = cu(
+      supabase
+        .from("financial_transactions")
+        .select(
+          "id, description, amount, due_date, paid_date, status, payment_method, supplier_name, category_id, account_id, installment_number, installment_total, is_recurring, recurrence_type, notes, financial_categories(name), financial_accounts(name,type,last_digits)",
+          { count: "exact" },
+        )
+        .eq("owner_id", context.ownerId)
+        .eq("type", "payable"),
+    );
 
     listQuery = hasExplicitRange
       ? listQuery.gte("due_date", range.from).lte("due_date", range.to).order("due_date", { ascending: false })
@@ -160,48 +169,49 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
       suppliersRes,
     ] = await Promise.all([
       listQuery.limit(1000),
-      supabase.from("financial_transactions").select("amount")
-        .eq("company_id", data.companyId).eq("type", "payable").eq("status", "paid")
-        .gte("paid_date", range.from).lte("paid_date", range.to),
-      supabase.from("financial_transactions").select("amount")
-        .eq("company_id", data.companyId).eq("type", "payable").eq("status", "paid")
-        .gte("paid_date", prev.from).lte("paid_date", prev.to),
-      supabase.from("financial_transactions").select("amount,due_date,status")
-        .eq("company_id", data.companyId).eq("type", "payable").in("status", ["pending", "overdue"])
-        .gte("due_date", range.from).lte("due_date", range.to),
-      supabase.from("financial_transactions").select("amount,due_date,status")
-        .eq("company_id", data.companyId).eq("type", "payable").in("status", ["pending", "overdue"]),
-      supabase.from("financial_transactions")
+      cu(supabase.from("financial_transactions").select("amount")
+        .eq("owner_id", context.ownerId).eq("type", "payable").eq("status", "paid")
+        .gte("paid_date", range.from).lte("paid_date", range.to)),
+      cu(supabase.from("financial_transactions").select("amount")
+        .eq("owner_id", context.ownerId).eq("type", "payable").eq("status", "paid")
+        .gte("paid_date", prev.from).lte("paid_date", prev.to)),
+      cu(supabase.from("financial_transactions").select("amount,due_date,status")
+        .eq("owner_id", context.ownerId).eq("type", "payable").in("status", ["pending", "overdue"])
+        .gte("due_date", range.from).lte("due_date", range.to)),
+      cu(supabase.from("financial_transactions").select("amount,due_date,status")
+        .eq("owner_id", context.ownerId).eq("type", "payable").in("status", ["pending", "overdue"])),
+      cu(supabase.from("financial_transactions")
         .select("amount, category_id, financial_categories(name)")
-        .eq("company_id", data.companyId).eq("type", "payable").neq("status", "cancelled")
-        .gte("due_date", range.from).lte("due_date", range.to),
-      supabase.from("financial_transactions")
+        .eq("owner_id", context.ownerId).eq("type", "payable").neq("status", "cancelled")
+        .gte("due_date", range.from).lte("due_date", range.to)),
+      cu(supabase.from("financial_transactions")
         .select("id, description, amount, due_date")
-        .eq("company_id", data.companyId).eq("type", "payable").eq("status", "pending")
-        .gte("due_date", today).order("due_date", { ascending: true }).limit(5),
-      supabase.from("financial_transactions")
+        .eq("owner_id", context.ownerId).eq("type", "payable").eq("status", "pending")
+        .gte("due_date", today).order("due_date", { ascending: true }).limit(5)),
+      cu(supabase.from("financial_transactions")
         .select("id, description, amount, recurrence_type, due_date")
-        .eq("company_id", data.companyId).eq("type", "payable").eq("is_recurring", true)
-        .order("due_date", { ascending: true }).limit(8),
-      supabase.from("financial_accounts").select("id,name,type,last_digits")
-        .eq("company_id", data.companyId).order("name"),
+        .eq("owner_id", context.ownerId).eq("type", "payable").eq("is_recurring", true)
+        .order("due_date", { ascending: true }).limit(8)),
+      cu(supabase.from("financial_accounts").select("id,name,type,last_digits")
+        .eq("owner_id", context.ownerId).order("name")),
+      // Categoria é clínica inteira — sem filtro de unidade.
       supabase.from("financial_categories").select("id,name")
-        .eq("company_id", data.companyId).eq("type", "expense").order("name"),
-      supabase.from("financial_transactions").select("supplier_name")
-        .eq("company_id", data.companyId).eq("type", "payable").not("supplier_name", "is", null),
+        .eq("owner_id", context.ownerId).eq("type", "expense").order("name"),
+      cu(supabase.from("financial_transactions").select("supplier_name")
+        .eq("owner_id", context.ownerId).eq("type", "payable").not("supplier_name", "is", null)),
     ]);
 
     const errs = [listRes, paidCurRes, paidPrevRes, pendingInRangeRes, overdueAllRes, catAggRes, upcomingRes, recurringRes, accountsRes, categoriesRes, suppliersRes];
     for (const r of errs) if ((r as any).error) throw (r as any).error;
 
-    const paidCurrent = (paidCurRes.data ?? []).reduce((a, r) => a + Number(r.amount), 0);
-    const paidPrevious = (paidPrevRes.data ?? []).reduce((a, r) => a + Number(r.amount), 0);
+    const paidCurrent = ((paidCurRes.data ?? []) as any[]).reduce((a, r) => a + Number(r.amount), 0);
+    const paidPrevious = ((paidPrevRes.data ?? []) as any[]).reduce((a, r) => a + Number(r.amount), 0);
 
-    const pendingRows = pendingInRangeRes.data ?? [];
+    const pendingRows = (pendingInRangeRes.data ?? []) as any[];
     const toPayTotal = pendingRows.filter(r => r.status === "pending" && r.due_date >= today).reduce((a, r) => a + Number(r.amount), 0);
     const toPayCount = pendingRows.filter(r => r.status === "pending" && r.due_date >= today).length;
 
-    const allUnpaid = overdueAllRes.data ?? [];
+    const allUnpaid = (overdueAllRes.data ?? []) as any[];
     const overdueCurrent = allUnpaid
       .filter(r => r.status === "overdue" || (r.status === "pending" && r.due_date < today))
       .reduce((a, r) => a + Number(r.amount), 0);
@@ -226,7 +236,7 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
       .sort((a, b) => b.total - a.total)
       .map(c => ({ ...c, pct: (c.total / catTotal) * 100 }));
 
-    const upcomingDueDates = (upcomingRes.data ?? []).map(t => {
+    const upcomingDueDates = ((upcomingRes.data ?? []) as any[]).map(t => {
       const d = new Date(t.due_date + "T00:00:00").getTime();
       const now = new Date(today + "T00:00:00").getTime();
       return {
@@ -238,7 +248,7 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
       };
     });
 
-    const recurringPayments = (recurringRes.data ?? []).map(t => ({
+    const recurringPayments = ((recurringRes.data ?? []) as any[]).map(t => ({
       id: t.id,
       description: t.description,
       amount: Number(t.amount),
@@ -309,7 +319,7 @@ function addMonths(dateStr: string, months: number): string {
 export const createPayable = createServerFn({ method: "POST" })
   .inputValidator(
     (input: {
-      companyId?: string;
+      unitId?: string;
       description: string;
       amount: number;
       due_date: string;
@@ -331,7 +341,7 @@ export const createPayable = createServerFn({ method: "POST" })
       const downPayment = Math.max(0, input.downPayment ?? 0);
       if (downPayment >= input.amount) throw new Error("A entrada deve ser menor que o valor total");
       return {
-        companyId: input.companyId ?? "demo",
+        unitId: input.unitId,
         description: input.description.trim(),
         amount: input.amount,
         due_date: input.due_date,
@@ -349,11 +359,13 @@ export const createPayable = createServerFn({ method: "POST" })
       };
     },
   )
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    // types.ts ainda não conhece unit_id/company_id opcional.
+    const supabase: any = context.supabase;
     const today = todayStr();
     const n = data.installments;
+    const unitId = await resolveUnitId(context, data.unitId);
 
     // Considera pago se o toggle foi marcado ou se uma data de pagamento foi informada.
     const isPaid = data.markPaidNow || !!data.paid_date;
@@ -365,7 +377,8 @@ export const createPayable = createServerFn({ method: "POST" })
     const installmentPaid = (dueDate: string) => isPaid && dueDate <= today;
 
     const common = {
-      company_id: data.companyId,
+      owner_id: context.ownerId,
+      unit_id: unitId,
       type: "payable" as const,
       category_id: data.category_id,
       account_id: data.account_id,
@@ -424,7 +437,8 @@ export const createPayable = createServerFn({ method: "POST" })
       const lastAmount = Math.round((data.amount - perAmount * (n - 1)) * 100) / 100;
       const firstPaid = installmentPaid(data.due_date);
       const baseRow = {
-        company_id: data.companyId,
+        owner_id: context.ownerId,
+        unit_id: unitId,
         type: "payable" as const,
         description: `${data.description} (1/${n})`,
         amount: perAmount,
@@ -449,7 +463,8 @@ export const createPayable = createServerFn({ method: "POST" })
         const dueDate = addMonths(data.due_date, idx - 1);
         const paid = installmentPaid(dueDate);
         return {
-          company_id: data.companyId,
+          owner_id: context.ownerId,
+        unit_id: unitId,
           type: "payable" as const,
           description: `${data.description} (${idx}/${n})`,
           amount: isLast ? lastAmount : perAmount,
@@ -471,7 +486,8 @@ export const createPayable = createServerFn({ method: "POST" })
     }
 
     const row = {
-      company_id: data.companyId,
+      owner_id: context.ownerId,
+      unit_id: unitId,
       type: "payable" as const,
       description: data.description,
       amount: data.amount,
@@ -526,9 +542,10 @@ export const updatePayable = createServerFn({ method: "POST" })
       };
     },
   )
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    // types.ts ainda não conhece unit_id/company_id opcional.
+    const supabase: any = context.supabase;
     const { error } = await supabase
       .from("financial_transactions")
       .update({
@@ -544,6 +561,7 @@ export const updatePayable = createServerFn({ method: "POST" })
         paid_date: data.paid_date,
       })
       .eq("id", data.id)
+      .eq("owner_id", context.ownerId)
       .eq("type", "payable");
     if (error) throw error;
     return { ok: true };
@@ -554,23 +572,30 @@ export const markPayablePaid = createServerFn({ method: "POST" })
     id: input.id,
     paid_date: input.paid_date ?? todayStr(),
   }))
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    // types.ts ainda não conhece unit_id/company_id opcional.
+    const supabase: any = context.supabase;
     const { error } = await supabase
       .from("financial_transactions")
       .update({ status: "paid", paid_date: data.paid_date })
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .eq("owner_id", context.ownerId);
     if (error) throw error;
     return { ok: true };
   });
 
 export const deletePayable = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
-    const { error } = await supabase.from("financial_transactions").delete().eq("id", data.id);
+    // types.ts ainda não conhece unit_id/company_id opcional.
+    const supabase: any = context.supabase;
+    const { error } = await supabase
+      .from("financial_transactions")
+      .delete()
+      .eq("id", data.id)
+      .eq("owner_id", context.ownerId);
     if (error) throw error;
     return { ok: true };
   });

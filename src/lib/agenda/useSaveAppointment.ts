@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { createAppointment, updateAppointment } from "@/lib/agenda/agenda.functions";
 import { createPatient, getPatientByCrmContact } from "@/lib/patients/patients.functions";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
+import { useUnitSelection } from "@/lib/settings/unit-context";
 import type { Appointment } from "@/components/agenda/types";
 
 /**
@@ -53,6 +54,7 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
   const updateFn = useServerFn(updateAppointment);
   const createPatientFn = useServerFn(createPatient);
   const findByContactFn = useServerFn(getPatientByCrmContact);
+  const { selectedUnitId } = useUnitSelection();
 
   /**
    * Garante um paciente de verdade por trás de um agendamento que nasceu de uma
@@ -89,6 +91,7 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
         name,
         phone: contact.phone ? formatWhatsappNumber(contact.phone) : undefined,
         crmContactId: contact.crmContactId ?? undefined,
+        unitId: selectedUnitId ?? undefined,
       },
     });
     return criado.id;
@@ -117,7 +120,7 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       // e botão do celular).
       const r: any = existingId
         ? await updateFn({ data: { ...payload, retornoEm } })
-        : await createFn({ data: payload });
+        : await createFn({ data: { ...payload, unitId: selectedUnitId ?? undefined } });
       return { existingId, retornoEm: retornoEm ?? null, conflitos: r?.conflitos ?? [] };
     },
     onSuccess: ({ existingId, retornoEm, conflitos }) => {

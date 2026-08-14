@@ -16,6 +16,8 @@ import { MobileFabProvider } from "@/components/finance/mobile-fab-context";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { supabase } from "@/integrations/supabase/client";
 import { registerServiceWorker } from "@/lib/pwa/service-worker";
+import { MembershipGate } from "@/components/auth/MembershipGate";
+import { UnitProvider } from "@/lib/settings/unit-context";
 
 function NotFoundComponent() {
   return <ResponsiveRouteState title="Página não encontrada" notFound />;
@@ -128,9 +130,13 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthGate>
-        <MobileFabProvider>
-          <Outlet />
-        </MobileFabProvider>
+        <MembershipGate>
+          <UnitProvider>
+            <MobileFabProvider>
+              <Outlet />
+            </MobileFabProvider>
+          </UnitProvider>
+        </MembershipGate>
       </AuthGate>
       <Toaster richColors position="top-right" />
     </QueryClientProvider>
@@ -162,7 +168,11 @@ function AuthGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!ready) return;
     const isAuthRoute = pathname.startsWith("/auth");
-    if (!authed && !isAuthRoute) {
+    // /cadastro-equipe é pública como /auth (autocadastro, sem sessão ainda),
+    // mas não redireciona para /inicio quando já autenticado — a própria
+    // página lida com os dois casos (ver cadastro-equipe.tsx).
+    const isPublicRoute = isAuthRoute || pathname.startsWith("/cadastro-equipe");
+    if (!authed && !isPublicRoute) {
       router.navigate({
         to: "/auth",
         search: { redirect: pathname === "/" ? "/inicio" : pathname },
@@ -184,7 +194,7 @@ function AuthGate({ children }: { children: ReactNode }) {
       </div>
     );
   }
-  const isAuthRoute = pathname.startsWith("/auth");
-  if (!authed && !isAuthRoute) return null;
+  const isPublicRoute = pathname.startsWith("/auth") || pathname.startsWith("/cadastro-equipe");
+  if (!authed && !isPublicRoute) return null;
   return <>{children}</>;
 }

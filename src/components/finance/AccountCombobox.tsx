@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { Combobox } from "@/components/finance/Combobox";
 import { createAccount, deleteAccount, listAccounts } from "@/lib/finance/accounts.functions";
+import { useUnitSelection } from "@/lib/settings/unit-context";
 
 type Account = { id: string; name: string; type?: string };
 const ACCOUNTS_KEY = ["finance", "accounts"];
@@ -30,6 +31,7 @@ export function AccountCombobox({
   const deleteFn = useServerFn(deleteAccount);
   const listFn = useServerFn(listAccounts);
   const qc = useQueryClient();
+  const { selectedUnitId } = useUnitSelection();
 
   // Leitura autenticada da lista salva (consistente com a escrita).
   // Cai para os `accounts` recebidos por prop enquanto carrega.
@@ -54,7 +56,7 @@ export function AccountCombobox({
   }, [base, extra, removed]);
 
   const create = useMutation({
-    mutationFn: (name: string) => createFn({ data: { name } }),
+    mutationFn: (name: string) => createFn({ data: { name, unitId: selectedUnitId ?? undefined } }),
     onSuccess: (row) => {
       toast.success("Conta criada");
       if (row?.id) {

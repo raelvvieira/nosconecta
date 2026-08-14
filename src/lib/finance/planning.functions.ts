@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
 /* ---------- Types ---------- */
 
@@ -91,7 +91,10 @@ export interface PlanningOverview {
 
 /* ---------- Helpers ---------- */
 
-type Supabase = SupabaseClient<Database>;
+// types.ts ainda não conhece unit_id/company_id opcional (Lovable regenera
+// depois da migration) — mesmo escape de patients.functions.ts, só que
+// centralizado aqui porque o módulo inteiro passa `supabase` como parâmetro.
+type Supabase = any;
 
 const MONTHS_PT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -129,30 +132,39 @@ function scenarioBaseValue(s: { monthly_cost: number; monthly_revenue: number; o
   return parts.join(" · ") || "—";
 }
 
-async function fetchCompanyData(supabase: Supabase, companyId: string) {
+/** `unitId` nulo = admin sem escolha, olhando todas as unidades. */
+async function fetchCompanyData(supabase: Supabase, ownerId: string, unitId: string | null) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const horizonEnd = addDays(today, 180);
   const past90 = addDays(today, -90);
+  const cu = (q: any): any => (unitId ? q.eq("unit_id", unitId) : q);
 
   const [accountsRes, pendingRes, paidPast90Res] = await Promise.all([
-    supabase.from("financial_accounts").select("current_balance").eq("company_id", companyId),
-    supabase.from("financial_transactions")
-      .select("id, type, amount, due_date, description, status, financial_categories(name)")
-      .eq("company_id", companyId)
-      .in("status", ["pending", "overdue"])
-      .gte("due_date", iso(today))
-      .lte("due_date", iso(horizonEnd))
-      .order("due_date", { ascending: true }),
-    supabase.from("financial_transactions")
-      .select("type, amount, paid_date, category_id, professional_id, financial_categories(name), professionals(name)")
-      .eq("company_id", companyId)
-      .eq("status", "paid")
-      .gte("paid_date", iso(past90))
-      .lte("paid_date", iso(today)),
+    cu(supabase.from("financial_accounts").select("current_balance").eq("owner_id", ownerId)),
+    cu(
+      supabase.from("financial_transactions")
+        .select("id, type, amount, due_date, description, status, financial_categories(name)")
+        .eq("owner_id", ownerId)
+        .in("status", ["pending", "overdue"])
+        .gte("due_date", iso(today))
+        .lte("due_date", iso(horizonEnd))
+        .order("due_date", { ascending: true }),
+    ),
+    cu(
+      supabase.from("financial_transactions")
+        .select("type, amount, paid_date, category_id, professional_id, financial_categories(name), professionals(name)")
+        .eq("owner_id", ownerId)
+        .eq("status", "paid")
+        .gte("paid_date", iso(past90))
+        .lte("paid_date", iso(today)),
+    ),
   ]);
 
-  const currentBalance = (accountsRes.data ?? []).reduce((s, a) => s + Number(a.current_balance), 0);
-  const pending = (pendingRes.data ?? []).map(r => ({
+  // `as any[]`: chamar método num valor `any` puro (não um array) não dá
+  // contexto nenhum pro parâmetro do callback, e o `noImplicitAny` acusa —
+  // isso aqui é o que devolve um array de verdade pra tipar o `.reduce`/`.map`.
+  const currentBalance = ((accountsRes.data ?? []) as any[]).reduce((s, a) => s + Number(a.current_balance), 0);
+  const pending = ((pendingRes.data ?? []) as any[]).map(r => ({
     id: r.id,
     type: r.type as "receivable" | "payable",
     amount: Number(r.amount),
@@ -160,7 +172,7 @@ async function fetchCompanyData(supabase: Supabase, companyId: string) {
     description: r.description,
     category: (r as any).financial_categories?.name ?? null,
   }));
-  const paid = (paidPast90Res.data ?? []).map(r => ({
+  const paid = ((paidPast90Res.data ?? []) as any[]).map(r => ({
     type: r.type as "receivable" | "payable",
     amount: Number(r.amount),
     paid_date: r.paid_date as string,
@@ -173,13 +185,14 @@ async function fetchCompanyData(supabase: Supabase, companyId: string) {
 
 /* ---------- Server functions ---------- */
 
-const inputCompany = (input: { companyId?: string }) => ({ companyId: input?.companyId ?? "demo" });
+const inputUnit = (input: { unitId?: string } | undefined) => ({ unitId: input?.unitId });
 
 export const getPlanningSummary = createServerFn({ method: "GET" })
-  .inputValidator(inputCompany)
-  .middleware([requireSupabaseAuth])
+  .inputValidator(inputUnit)
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<PlanningSummary> => {
-    const { today, currentBalance, pending, paid } = await fetchCompanyData(context.supabase, data.companyId);
+    const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
+    const { today, currentBalance, pending, paid } = await fetchCompanyData(context.supabase, context.ownerId, unitFilter);
     const horizon30 = addDays(today, 30);
     const horizon90 = addDays(today, 90);
 
@@ -207,24 +220,27 @@ export const getPlanningSummary = createServerFn({ method: "GET" })
   });
 
 export const getCashProjection = createServerFn({ method: "GET" })
-  .inputValidator((input: { companyId?: string; period?: RangeDays }) => ({
-    companyId: input?.companyId ?? "demo",
+  .inputValidator((input: { unitId?: string; period?: RangeDays }) => ({
+    unitId: input?.unitId,
     period: (input?.period ?? 90) as RangeDays,
   }))
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<ProjectionPoint[]> => {
-    const supabase = context.supabase;
-    const { today, currentBalance, pending } = await fetchCompanyData(supabase, data.companyId);
+    const supabase: any = context.supabase;
+    const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
+    const { today, currentBalance, pending } = await fetchCompanyData(supabase, context.ownerId, unitFilter);
     const back = 14;
 
     // history: paid transactions over last 14 days for actual line
     const histStart = addDays(today, -back);
-    const { data: paidHist } = await supabase.from("financial_transactions")
+    let histQuery = supabase.from("financial_transactions")
       .select("type, amount, paid_date")
-      .eq("company_id", data.companyId)
+      .eq("owner_id", context.ownerId)
       .eq("status", "paid")
       .gte("paid_date", iso(histStart))
       .lte("paid_date", iso(today));
+    if (unitFilter) histQuery = histQuery.eq("unit_id", unitFilter);
+    const { data: paidHist } = await histQuery;
 
     // Compute daily net for history walking backwards from current balance
     const netByDay = new Map<string, number>();
@@ -234,9 +250,9 @@ export const getCashProjection = createServerFn({ method: "GET" })
       netByDay.set(k, (netByDay.get(k) ?? 0) + sign * Number(p.amount));
     }
 
-    // Goal value (active cash goal)
+    // Goal value (active cash goal) — clínica inteira, sem unidade.
     const { data: cashGoal } = await supabase.from("financial_goals")
-      .select("target_amount").eq("company_id", data.companyId).eq("goal_type", "cash").limit(1).maybeSingle();
+      .select("target_amount").eq("owner_id", context.ownerId).eq("goal_type", "cash").limit(1).maybeSingle();
     const goal = Number(cashGoal?.target_amount ?? 50_000);
 
     // Build per-day map of future pending
@@ -302,10 +318,11 @@ export const getCashProjection = createServerFn({ method: "GET" })
   });
 
 export const getForecastSummary = createServerFn({ method: "GET" })
-  .inputValidator(inputCompany)
-  .middleware([requireSupabaseAuth])
+  .inputValidator(inputUnit)
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<ForecastSummary> => {
-    const { today, pending } = await fetchCompanyData(context.supabase, data.companyId);
+    const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
+    const { today, pending } = await fetchCompanyData(context.supabase, context.ownerId, unitFilter);
     const horizon = addDays(today, 90);
     const expectedReceivables = pending.filter(p => p.type === "receivable" && new Date(p.due_date) <= horizon).reduce((s, p) => s + p.amount, 0);
     const expectedPayables = pending.filter(p => p.type === "payable" && new Date(p.due_date) <= horizon).reduce((s, p) => s + p.amount, 0);
@@ -313,13 +330,14 @@ export const getForecastSummary = createServerFn({ method: "GET" })
   });
 
 export const getFinancialTimeline = createServerFn({ method: "GET" })
-  .inputValidator((input: { companyId?: string; limit?: number }) => ({
-    companyId: input?.companyId ?? "demo",
+  .inputValidator((input: { unitId?: string; limit?: number }) => ({
+    unitId: input?.unitId,
     limit: input?.limit ?? 7,
   }))
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<TimelineEvent[]> => {
-    const { currentBalance, pending } = await fetchCompanyData(context.supabase, data.companyId);
+    const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
+    const { currentBalance, pending } = await fetchCompanyData(context.supabase, context.ownerId, unitFilter);
     const sorted = [...pending].sort((a, b) => a.due_date.localeCompare(b.due_date));
     let bal = currentBalance;
     const events: TimelineEvent[] = sorted.slice(0, data.limit).map(p => {
@@ -339,11 +357,14 @@ export const getFinancialTimeline = createServerFn({ method: "GET" })
   });
 
 export const listGoals = createServerFn({ method: "GET" })
-  .inputValidator(inputCompany)
-  .middleware([requireSupabaseAuth])
+  .inputValidator(inputUnit)
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<FinancialGoal[]> => {
-    const supabase = context.supabase;
-    const { data: rows } = await supabase.from("financial_goals").select("*").eq("company_id", data.companyId).order("created_at", { ascending: false });
+    const supabase: any = context.supabase;
+    const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
+    const cu = (q: any): any => (unitFilter ? q.eq("unit_id", unitFilter) : q);
+    // Meta é clínica inteira — sem unidade.
+    const { data: rows } = await supabase.from("financial_goals").select("*").eq("owner_id", context.ownerId).order("created_at", { ascending: false });
 
     // Current month range
     const now = new Date();
@@ -351,16 +372,18 @@ export const listGoals = createServerFn({ method: "GET" })
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
     const [paidThisMonth, pendingThisMonth] = await Promise.all([
-      supabase.from("financial_transactions").select("type, amount").eq("company_id", data.companyId).eq("status", "paid").gte("paid_date", iso(monthStart)).lte("paid_date", iso(monthEnd)),
-      supabase.from("financial_transactions").select("type, amount").eq("company_id", data.companyId).in("status", ["pending", "overdue"]).gte("due_date", iso(monthStart)).lte("due_date", iso(monthEnd)),
+      cu(supabase.from("financial_transactions").select("type, amount").eq("owner_id", context.ownerId).eq("status", "paid").gte("paid_date", iso(monthStart)).lte("paid_date", iso(monthEnd))),
+      cu(supabase.from("financial_transactions").select("type, amount").eq("owner_id", context.ownerId).in("status", ["pending", "overdue"]).gte("due_date", iso(monthStart)).lte("due_date", iso(monthEnd))),
     ]);
 
-    const revenuePaid = (paidThisMonth.data ?? []).filter(r => r.type === "receivable").reduce((s, r) => s + Number(r.amount), 0);
-    const expensePaid = (paidThisMonth.data ?? []).filter(r => r.type === "payable").reduce((s, r) => s + Number(r.amount), 0);
-    const revenuePending = (pendingThisMonth.data ?? []).filter(r => r.type === "receivable").reduce((s, r) => s + Number(r.amount), 0);
-    const expensePending = (pendingThisMonth.data ?? []).filter(r => r.type === "payable").reduce((s, r) => s + Number(r.amount), 0);
+    const paidRows = (paidThisMonth.data ?? []) as any[];
+    const pendingRows = (pendingThisMonth.data ?? []) as any[];
+    const revenuePaid = paidRows.filter(r => r.type === "receivable").reduce((s, r) => s + Number(r.amount), 0);
+    const expensePaid = paidRows.filter(r => r.type === "payable").reduce((s, r) => s + Number(r.amount), 0);
+    const revenuePending = pendingRows.filter(r => r.type === "receivable").reduce((s, r) => s + Number(r.amount), 0);
+    const expensePending = pendingRows.filter(r => r.type === "payable").reduce((s, r) => s + Number(r.amount), 0);
 
-    return (rows ?? []).map(g => {
+    return ((rows ?? []) as any[]).map(g => {
       let realized = 0, projection = 0;
       switch (g.goal_type) {
         case "revenue":
@@ -384,12 +407,12 @@ export const listGoals = createServerFn({ method: "GET" })
   });
 
 export const listScenarios = createServerFn({ method: "GET" })
-  .inputValidator(inputCompany)
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data, context }): Promise<ScenarioRow[]> => {
-    const supabase = context.supabase;
-    const { data: rows } = await supabase.from("financial_scenarios").select("*").eq("company_id", data.companyId).order("created_at", { ascending: false });
-    return (rows ?? []).map(r => {
+  .inputValidator((_: unknown) => ({}))
+  .middleware([requireClinicMembership])
+  .handler(async ({ context }): Promise<ScenarioRow[]> => {
+    const supabase: any = context.supabase;
+    const { data: rows } = await supabase.from("financial_scenarios").select("*").eq("owner_id", context.ownerId).order("created_at", { ascending: false });
+    return ((rows ?? []) as any[]).map(r => {
       const monthly_cost = Number(r.monthly_cost);
       const monthly_revenue = Number(r.monthly_revenue);
       const one_time_cost = Number(r.one_time_cost);
@@ -409,10 +432,9 @@ export const listScenarios = createServerFn({ method: "GET" })
 
 export const createScenario = createServerFn({ method: "POST" })
   .inputValidator((input: {
-    companyId?: string; name: string; scenario_type: ScenarioKind; description?: string;
+    name: string; scenario_type: ScenarioKind; description?: string;
     monthly_cost?: number; monthly_revenue?: number; one_time_cost?: number;
   }) => ({
-    companyId: input.companyId ?? "demo",
     name: input.name,
     scenario_type: input.scenario_type,
     description: input.description ?? null,
@@ -420,10 +442,11 @@ export const createScenario = createServerFn({ method: "POST" })
     monthly_revenue: input.monthly_revenue ?? 0,
     one_time_cost: input.one_time_cost ?? 0,
   }))
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("financial_scenarios").insert({
-      company_id: data.companyId,
+    const supabase: any = context.supabase;
+    const { error } = await supabase.from("financial_scenarios").insert({
+      owner_id: context.ownerId,
       name: data.name,
       scenario_type: data.scenario_type,
       description: data.description,
@@ -437,28 +460,33 @@ export const createScenario = createServerFn({ method: "POST" })
 
 export const deleteScenario = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("financial_scenarios").delete().eq("id", data.id);
+    const { error } = await context.supabase
+      .from("financial_scenarios")
+      .delete()
+      .eq("id", data.id)
+      .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
 
 export const simulateScenario = createServerFn({ method: "POST" })
   .inputValidator((input: {
-    companyId?: string; scenario_type: ScenarioKind;
+    unitId?: string; scenario_type: ScenarioKind;
     monthly_cost?: number; monthly_revenue?: number; one_time_cost?: number; period?: RangeDays;
   }) => ({
-    companyId: input.companyId ?? "demo",
+    unitId: input.unitId,
     scenario_type: input.scenario_type,
     monthly_cost: input.monthly_cost ?? 0,
     monthly_revenue: input.monthly_revenue ?? 0,
     one_time_cost: input.one_time_cost ?? 0,
     period: (input.period ?? 90) as RangeDays,
   }))
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const { today, currentBalance, pending } = await fetchCompanyData(context.supabase, data.companyId);
+    const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
+    const { today, currentBalance, pending } = await fetchCompanyData(context.supabase, context.ownerId, unitFilter);
     const horizon = addDays(today, data.period);
     const inAmt = pending.filter(p => p.type === "receivable" && new Date(p.due_date) <= horizon).reduce((s, p) => s + p.amount, 0);
     const outAmt = pending.filter(p => p.type === "payable" && new Date(p.due_date) <= horizon).reduce((s, p) => s + p.amount, 0);
@@ -481,21 +509,22 @@ const INSIGHT_POOL: Insight[] = [
   { id: "p8", tone: "warning", icon: "alert", text: "Custos fixos representam grande parte da despesa mensal." },
 ];
 
-async function computeInsights(supabase: Supabase, companyId: string): Promise<Insight[]> {
+async function computeInsights(supabase: Supabase, ownerId: string, unitId: string | null): Promise<Insight[]> {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
   const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
   const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+  const cu = (q: any): any => (unitId ? q.eq("unit_id", unitId) : q);
 
   const [{ data: paidThis }, { data: paidPrev }, { data: pendingAll }, { data: catRevenue }] = await Promise.all([
-    supabase.from("financial_transactions").select("type, amount").eq("company_id", companyId).eq("status", "paid").eq("type", "receivable").gte("paid_date", iso(monthStart)).lte("paid_date", iso(today)),
-    supabase.from("financial_transactions").select("amount").eq("company_id", companyId).eq("status", "paid").eq("type", "receivable").gte("paid_date", iso(prevMonthStart)).lte("paid_date", iso(prevMonthEnd)),
-    supabase.from("financial_transactions").select("type, amount, due_date").eq("company_id", companyId).in("status", ["pending", "overdue"]).gte("due_date", iso(today)),
-    supabase.from("financial_transactions").select("amount, financial_categories(name)").eq("company_id", companyId).eq("status", "paid").eq("type", "receivable").gte("paid_date", iso(monthStart)).lte("paid_date", iso(today)),
+    cu(supabase.from("financial_transactions").select("type, amount").eq("owner_id", ownerId).eq("status", "paid").eq("type", "receivable").gte("paid_date", iso(monthStart)).lte("paid_date", iso(today))),
+    cu(supabase.from("financial_transactions").select("amount").eq("owner_id", ownerId).eq("status", "paid").eq("type", "receivable").gte("paid_date", iso(prevMonthStart)).lte("paid_date", iso(prevMonthEnd))),
+    cu(supabase.from("financial_transactions").select("type, amount, due_date").eq("owner_id", ownerId).in("status", ["pending", "overdue"]).gte("due_date", iso(today))),
+    cu(supabase.from("financial_transactions").select("amount, financial_categories(name)").eq("owner_id", ownerId).eq("status", "paid").eq("type", "receivable").gte("paid_date", iso(monthStart)).lte("paid_date", iso(today))),
   ]);
 
-  const thisRev = (paidThis ?? []).reduce((s, r) => s + Number(r.amount), 0);
-  const prevRev = (paidPrev ?? []).reduce((s, r) => s + Number(r.amount), 0);
+  const thisRev = ((paidThis ?? []) as any[]).reduce((s, r) => s + Number(r.amount), 0);
+  const prevRev = ((paidPrev ?? []) as any[]).reduce((s, r) => s + Number(r.amount), 0);
   const insights: Insight[] = [];
 
   if (prevRev > 0) {
@@ -505,9 +534,9 @@ async function computeInsights(supabase: Supabase, companyId: string): Promise<I
   }
 
   // Risk: running balance negative in next 90 days
-  const { data: accounts } = await supabase.from("financial_accounts").select("current_balance").eq("company_id", companyId);
-  let bal = (accounts ?? []).reduce((s, a) => s + Number(a.current_balance), 0);
-  const sorted = [...(pendingAll ?? [])].sort((a, b) => a.due_date.localeCompare(b.due_date));
+  const { data: accounts } = await cu(supabase.from("financial_accounts").select("current_balance").eq("owner_id", ownerId));
+  let bal = ((accounts ?? []) as any[]).reduce((s, a) => s + Number(a.current_balance), 0);
+  const sorted = [...((pendingAll ?? []) as any[])].sort((a, b) => a.due_date.localeCompare(b.due_date));
   for (const t of sorted) {
     bal += (t.type === "receivable" ? 1 : -1) * Number(t.amount);
     if (bal < 0) {
@@ -534,9 +563,12 @@ async function computeInsights(supabase: Supabase, companyId: string): Promise<I
 }
 
 export const getInsights = createServerFn({ method: "GET" })
-  .inputValidator(inputCompany)
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data, context }) => computeInsights(context.supabase, data.companyId));
+  .inputValidator(inputUnit)
+  .middleware([requireClinicMembership])
+  .handler(async ({ data, context }) => {
+    const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
+    return computeInsights(context.supabase, context.ownerId, unitFilter);
+  });
 
 export const generateMoreInsights = createServerFn({ method: "POST" })
   .inputValidator((input: { excludeIds?: string[] }) => ({ excludeIds: input?.excludeIds ?? [] }))
@@ -550,20 +582,24 @@ export const generateMoreInsights = createServerFn({ method: "POST" })
   });
 
 export const getPlanningOverview = createServerFn({ method: "GET" })
-  .inputValidator((input: { companyId?: string; period?: RangeDays }) => ({
-    companyId: input?.companyId ?? "demo",
+  .inputValidator((input: { unitId?: string; period?: RangeDays }) => ({
+    unitId: input?.unitId,
     period: (input?.period ?? 90) as RangeDays,
   }))
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data }): Promise<PlanningOverview> => {
+    // Cada chamada abaixo roda de novo `requireClinicMembership` sozinha
+    // (mesma requisição HTTP ambiente, mesmo padrão de composição já usado
+    // no resto do módulo financeiro) — só precisa repassar `unitId`, que é
+    // escolha de tela, não algo que o contexto resolveria sozinho.
     const [summary, projection, forecast, timeline, goals, scenarios, insights] = await Promise.all([
-      getPlanningSummary({ data: { companyId: data.companyId } }),
-      getCashProjection({ data: { companyId: data.companyId, period: data.period } }),
-      getForecastSummary({ data: { companyId: data.companyId } }),
-      getFinancialTimeline({ data: { companyId: data.companyId, limit: 7 } }),
-      listGoals({ data: { companyId: data.companyId } }),
-      listScenarios({ data: { companyId: data.companyId } }),
-      getInsights({ data: { companyId: data.companyId } }),
+      getPlanningSummary({ data: { unitId: data.unitId } }),
+      getCashProjection({ data: { unitId: data.unitId, period: data.period } }),
+      getForecastSummary({ data: { unitId: data.unitId } }),
+      getFinancialTimeline({ data: { unitId: data.unitId, limit: 7 } }),
+      listGoals({ data: { unitId: data.unitId } }),
+      listScenarios({ data: {} }),
+      getInsights({ data: { unitId: data.unitId } }),
     ]);
     return { summary, projection, forecast, timeline, goals, scenarios, insights };
   });

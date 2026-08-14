@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
 export interface BroadcastAlvo {
   contactId: string;
@@ -34,7 +34,7 @@ async function callBroadcast(body: unknown) {
 }
 
 export const criarDisparo = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator(
     (input: { message: string; intervalSeconds: number; targets: BroadcastAlvo[] }) => {
       if (!input.message?.trim()) throw new Error("Escreva a mensagem antes de disparar.");
@@ -44,7 +44,7 @@ export const criarDisparo = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const json = await callBroadcast({
-      ownerId: context.userId,
+      ownerId: context.ownerId,
       action: "create",
       message: data.message,
       intervalSeconds: data.intervalSeconds,
@@ -58,10 +58,10 @@ export const criarDisparo = createServerFn({ method: "POST" })
   });
 
 export const cancelarDisparo = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { broadcastId: string }) => input)
   .handler(async ({ data, context }) => {
-    await callBroadcast({ ownerId: context.userId, action: "cancel", broadcastId: data.broadcastId });
+    await callBroadcast({ ownerId: context.ownerId, action: "cancel", broadcastId: data.broadcastId });
     return { ok: true };
   });
 
@@ -72,13 +72,13 @@ export const cancelarDisparo = createServerFn({ method: "POST" })
  * tabelas nossas, e o `select` já é permitido só para quem é dono.
  */
 export const listarDisparos = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<BroadcastResumo[]> => {
     const supabase: any = context.supabase;
     const { data: lotes, error } = await supabase
       .from("whatsapp_broadcasts")
       .select("id, message, status, total, created_at")
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .order("created_at", { ascending: false })
       .limit(20);
     if (error) throw new Error(error.message);
@@ -87,7 +87,7 @@ export const listarDisparos = createServerFn({ method: "GET" })
     const { data: alvos } = await supabase
       .from("whatsapp_broadcast_targets")
       .select("broadcast_id, status")
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .in("broadcast_id", lotes.map((l: any) => l.id));
 
     const contar = (id: string, status: string) =>

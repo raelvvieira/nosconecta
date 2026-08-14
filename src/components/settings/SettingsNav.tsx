@@ -5,6 +5,7 @@ import {
   Armchair,
   Bell,
   BriefcaseMedical,
+  Building2,
   MessageCircle,
   Share2,
   ShieldCheck,
@@ -18,8 +19,9 @@ type SettingsFetcher = () => Promise<SettingsData>;
 export const settingsQuery = (fetcher: SettingsFetcher) =>
   queryOptions({ queryKey: ["settings"], queryFn: () => fetcher(), staleTime: 15_000 });
 
+type PageSection = SettingsSection | "members";
 type NavItem =
-  | { kind: "section"; value: SettingsSection; label: string; description: string; icon: LucideIcon }
+  | { kind: "section"; value: PageSection; label: string; description: string; icon: LucideIcon; adminOnly?: boolean }
   | { kind: "link"; to: string; label: string; description: string; icon: LucideIcon };
 
 // Fonte única da navegação de Configurações. Antes existiam duas listas
@@ -59,10 +61,19 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       {
         kind: "section",
+        value: "units",
+        label: "Unidades",
+        description: "Filiais e endereços",
+        icon: Building2,
+        adminOnly: true,
+      },
+      {
+        kind: "section",
         value: "members",
         label: "Usuários e permissões",
         description: "Acessos da equipe",
         icon: ShieldCheck,
+        adminOnly: true,
       },
     ],
   },
@@ -98,19 +109,22 @@ const ALL_ITEMS = GROUPS.flatMap((group) => group.items);
 
 export function SettingsNav() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const search = useSearch({ strict: false }) as { section?: SettingsSection };
+  const search = useSearch({ strict: false }) as { section?: PageSection };
   const fetchSettings = useServerFn(getSettings);
   const settingsResult = useQuery(settingsQuery(fetchSettings as unknown as SettingsFetcher));
   const counts = settingsResult.data;
+  // Unidades e Usuários e permissões só administram — enquanto ainda não se
+  // sabe (`counts` carregando), fica escondido por padrão em vez de piscar.
+  const visible = (item: NavItem) => item.kind !== "section" || !item.adminOnly || !!counts?.isAdmin;
 
-  const activeSection: SettingsSection = search.section ?? "professionals";
+  const activeSection: PageSection = search.section ?? "professionals";
   const isActive = (item: NavItem) =>
     item.kind === "section"
       ? pathname === "/configuracoes" && activeSection === item.value
       : pathname === item.to;
 
   const detail = (item: NavItem) => {
-    if (item.kind !== "section" || !counts) return item.description;
+    if (item.kind !== "section" || !counts || item.value === "members") return item.description;
     const total = counts[item.value].length;
     return total ? `${total} cadastrados` : item.description;
   };
@@ -121,7 +135,7 @@ export function SettingsNav() {
           cards do topo eram a única navegação no celular — sem eles, o menu
           precisa aparecer aqui. */}
       <nav className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {ALL_ITEMS.map((item) => {
+        {ALL_ITEMS.filter(visible).map((item) => {
           const Icon = item.icon;
           const active = isActive(item);
           return (
@@ -149,7 +163,7 @@ export function SettingsNav() {
             <p className="px-3 pb-1 pt-3 text-2xs font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
               {group.label}
             </p>
-            {group.items.map((item) => {
+            {group.items.filter(visible).map((item) => {
               const Icon = item.icon;
               const active = isActive(item);
               return (

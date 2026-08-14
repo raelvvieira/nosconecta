@@ -1,11 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
 type CategoryType = "income" | "expense";
-const COMPANY_ID = "demo";
 
 export const listCategories = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { type: CategoryType }) => {
     if (input.type !== "income" && input.type !== "expense")
       throw new Error("Tipo de categoria inválido");
@@ -15,7 +14,7 @@ export const listCategories = createServerFn({ method: "GET" })
     const { data: rows, error } = await context.supabase
       .from("financial_categories")
       .select("id, name")
-      .eq("company_id", COMPANY_ID)
+      .eq("owner_id", context.ownerId)
       .eq("type", data.type)
       .order("name");
     if (error) throw error;
@@ -23,7 +22,7 @@ export const listCategories = createServerFn({ method: "GET" })
   });
 
 export const createCategory = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { name: string; type: CategoryType }) => {
     const name = input.name?.trim();
     if (!name) throw new Error("Informe o nome da categoria");
@@ -33,11 +32,13 @@ export const createCategory = createServerFn({ method: "POST" })
     return { name, type: input.type };
   })
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    // types.ts ainda exige company_id (Lovable regenera depois da migration
+    // que a torna opcional) — mesmo escape já usado em patients.functions.ts.
+    const supabase: any = context.supabase;
     const { data: existing } = await supabase
       .from("financial_categories")
       .select("id")
-      .eq("company_id", COMPANY_ID)
+      .eq("owner_id", context.ownerId)
       .eq("type", data.type)
       .ilike("name", data.name)
       .maybeSingle();
@@ -45,7 +46,7 @@ export const createCategory = createServerFn({ method: "POST" })
 
     const { data: row, error } = await supabase
       .from("financial_categories")
-      .insert({ company_id: COMPANY_ID, name: data.name, type: data.type })
+      .insert({ owner_id: context.ownerId, name: data.name, type: data.type })
       .select("id, name")
       .single();
     if (error) throw error;
@@ -53,7 +54,7 @@ export const createCategory = createServerFn({ method: "POST" })
   });
 
 export const updateCategory = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { id: string; name: string }) => {
     const name = input.name?.trim();
     if (!input.id) throw new Error("Categoria inválida");
@@ -66,13 +67,13 @@ export const updateCategory = createServerFn({ method: "POST" })
       .from("financial_categories")
       .update({ name: data.name })
       .eq("id", data.id)
-      .eq("company_id", COMPANY_ID);
+      .eq("owner_id", context.ownerId);
     if (error) throw error;
     return { id: data.id, name: data.name };
   });
 
 export const deleteCategory = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { id: string }) => {
     if (!input.id) throw new Error("Categoria inválida");
     return { id: input.id };
@@ -82,14 +83,14 @@ export const deleteCategory = createServerFn({ method: "POST" })
     await supabase
       .from("financial_transactions")
       .update({ category_id: null })
-      .eq("company_id", COMPANY_ID)
+      .eq("owner_id", context.ownerId)
       .eq("category_id", data.id);
 
     const { error } = await supabase
       .from("financial_categories")
       .delete()
       .eq("id", data.id)
-      .eq("company_id", COMPANY_ID);
+      .eq("owner_id", context.ownerId);
     if (error) throw error;
     return { ok: true };
   });

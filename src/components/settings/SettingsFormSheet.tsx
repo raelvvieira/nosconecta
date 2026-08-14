@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Armchair, BriefcaseMedical, ShieldCheck, Stethoscope } from "lucide-react";
+import { Armchair, Building2, BriefcaseMedical, Stethoscope } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -25,15 +24,20 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   saveSetting,
-  type MemberRole,
   type SettingsRecord,
   type SettingsSection,
+  type UnitSetting,
 } from "@/lib/settings/settings.functions";
 
 type Props = {
   open: boolean;
   section: SettingsSection;
   item?: SettingsRecord | null;
+  /** Só preenchido (e o seletor só aparece) para profissionais/cadeiras — e
+   *  mesmo assim só quando `isAdmin`; quem não administra nunca escolhe
+   *  unidade, o servidor carimba a dele sozinho. */
+  units?: UnitSetting[];
+  isAdmin?: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 };
@@ -54,10 +58,10 @@ const META = {
     icon: BriefcaseMedical,
     description: "Defina duração, preço e custo usados no agendamento e no financeiro.",
   },
-  members: {
-    title: "usuário",
-    icon: ShieldCheck,
-    description: "Controle quem acessa cada área da clínica.",
+  units: {
+    title: "unidade",
+    icon: Building2,
+    description: "Cada unidade separa pacientes, agenda e financeiro entre si.",
   },
 } as const;
 
@@ -71,41 +75,36 @@ const EMPTY = {
     commissionPct: 0,
     color: "#8B5CF6",
     active: true,
+    unitId: null as string | null,
   },
-  chairs: { name: "", roomName: "", color: "#FF6B57", active: true, notes: "" },
+  chairs: { name: "", roomName: "", color: "#FF6B57", active: true, notes: "", unitId: null as string | null },
   procedures: { name: "", category: "", durationMinutes: 60, price: 0, cost: 0, active: true },
-  members: {
-    name: "",
-    email: "",
-    role: "reception" as MemberRole,
-    permissions: ["agenda", "patients"],
-    active: true,
-  },
+  units: { name: "", address: "", active: true },
 };
 
-const PERMISSIONS = [
-  { value: "agenda", label: "Agenda" },
-  { value: "patients", label: "Pacientes" },
-  { value: "finance", label: "Financeiro" },
-  { value: "settings", label: "Configurações" },
-];
-
-export function SettingsFormSheet({ open, section, item, onOpenChange, onSaved }: Props) {
+export function SettingsFormSheet({ open, section, item, units, isAdmin, onOpenChange, onSaved }: Props) {
   const save = useServerFn(saveSetting);
   const [form, setForm] = useState<Record<string, unknown>>({ ...EMPTY[section] });
   const meta = META[section];
   const Icon = meta.icon;
+  const showUnitSelect = isAdmin && (section === "professionals" || section === "chairs");
 
   useEffect(() => {
     if (!open) return;
-    setForm(item ? { ...item } : { ...EMPTY[section] });
-  }, [item, open, section]);
+    const base = { ...EMPTY[section] };
+    // Unidade padrão pré-selecionada pra não travar o admin num formulário
+    // vazio quando só existe uma unidade (o caso comum logo após a migração).
+    if (!item && (section === "professionals" || section === "chairs") && units?.length) {
+      (base as any).unitId = units.find((u) => u.isDefault)?.id ?? units[0].id;
+    }
+    setForm(item ? { ...item } : base);
+  }, [item, open, section, units]);
 
   const mutation = useMutation({
     mutationFn: async () => {
       if (!String(form.name ?? "").trim()) throw new Error("Informe um nome.");
-      if (section === "members" && !String(form.email ?? "").includes("@")) {
-        throw new Error("Informe um e-mail válido.");
+      if (showUnitSelect && !form.unitId) {
+        throw new Error("Selecione a unidade.");
       }
       return save({ data: { section, item: form } });
     },
@@ -201,6 +200,9 @@ export function SettingsFormSheet({ open, section, item, onOpenChange, onSaved }
                   onChange={(value) => set("color", value)}
                 />
               </div>
+              {showUnitSelect && (
+                <UnitField value={form.unitId as string | null} units={units ?? []} onChange={(v) => set("unitId", v)} />
+              )}
             </>
           )}
 
@@ -225,6 +227,9 @@ export function SettingsFormSheet({ open, section, item, onOpenChange, onSaved }
                   placeholder="Procedimentos indicados ou restrições"
                 />
               </Field>
+              {showUnitSelect && (
+                <UnitField value={form.unitId as string | null} units={units ?? []} onChange={(v) => set("unitId", v)} />
+              )}
             </>
           )}
 
@@ -269,65 +274,15 @@ export function SettingsFormSheet({ open, section, item, onOpenChange, onSaved }
             </>
           )}
 
-          {section === "members" && (
-            <>
-              <Field label="E-mail *">
-                <Input
-                  type="email"
-                  value={String(form.email ?? "")}
-                  onChange={(event) => set("email", event.target.value)}
-                  placeholder="nome@clinica.com"
-                />
-              </Field>
-              <Field label="Função">
-                <Select
-                  value={String(form.role ?? "reception")}
-                  onValueChange={(value) => set("role", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Administrador</SelectItem>
-                    <SelectItem value="reception">Recepção</SelectItem>
-                    <SelectItem value="dentist">Dentista</SelectItem>
-                    <SelectItem value="finance">Financeiro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <div className="space-y-3">
-                <Label>Áreas permitidas</Label>
-                <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
-                  {PERMISSIONS.map((permission) => {
-                    const selected =
-                      Array.isArray(form.permissions) &&
-                      form.permissions.includes(permission.value);
-                    return (
-                      <label
-                        key={permission.value}
-                        className="flex cursor-pointer items-center gap-3 rounded-2xl border border-border bg-white p-3 text-sm"
-                      >
-                        <Checkbox
-                          checked={selected}
-                          onCheckedChange={(checked) => {
-                            const current = Array.isArray(form.permissions)
-                              ? (form.permissions as string[])
-                              : [];
-                            set(
-                              "permissions",
-                              checked
-                                ? [...current, permission.value]
-                                : current.filter((item) => item !== permission.value),
-                            );
-                          }}
-                        />
-                        {permission.label}
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
+          {section === "units" && (
+            <Field label="Endereço">
+              <Textarea
+                rows={2}
+                value={String(form.address ?? "")}
+                onChange={(event) => set("address", event.target.value)}
+                placeholder="Rua, número, bairro, cidade"
+              />
+            </Field>
           )}
 
           <label className="flex items-center justify-between rounded-[20px] border border-border bg-muted/30 px-4 py-3">
@@ -391,12 +346,39 @@ function ColorField({ value, onChange }: { value: string; onChange: (value: stri
   );
 }
 
+function UnitField({
+  value,
+  units,
+  onChange,
+}: {
+  value: string | null;
+  units: { id: string; name: string }[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Field label="Unidade *">
+      <Select value={value ?? undefined} onValueChange={onChange}>
+        <SelectTrigger>
+          <SelectValue placeholder="Selecione a unidade" />
+        </SelectTrigger>
+        <SelectContent>
+          {units.map((unit) => (
+            <SelectItem key={unit.id} value={unit.id}>
+              {unit.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+}
+
 function namePlaceholder(section: SettingsSection) {
   return {
     professionals: "Ex.: Dra. Ana Rocha",
     chairs: "Ex.: Cadeira 01",
     procedures: "Ex.: Clareamento",
-    members: "Nome completo",
+    units: "Ex.: Unidade Centro",
   }[section];
 }
 

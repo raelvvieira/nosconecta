@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { resolveUnitId } from "@/lib/auth/resolve-unit";
 
 // Empurra o paciente pro CRM (fonte da verdade é sempre o paciente, nunca o
 // contrário). Best-effort: se o CRM estiver fora do ar ou a clínica ainda
@@ -188,9 +189,18 @@ function buildSummary(row: any, transactions: any[]): PatientSummary {
   };
 }
 
-async function fetchBase(supabase: any, userId: string) {
+/**
+ * `unitId` explícito: RLS já garante que ninguém enxerga fora da própria
+ * unidade (nem que este filtro fosse esquecido), mas é ele quem decide o que
+ * pedir de fato. `null` = sem filtro — admin vendo "todas as unidades" — só
+ * possível pra quem é admin, RLS bloqueia o mesmo pedido pra qualquer outro
+ * papel de qualquer forma.
+ */
+async function fetchBase(supabase: any, ownerId: string, unitId: string | null) {
+  let patientsQuery = supabase.from("patients").select("*").eq("owner_id", ownerId).order("name").limit(10000);
+  if (unitId) patientsQuery = patientsQuery.eq("unit_id", unitId);
   const [patientsRes, transactionsRes] = await Promise.all([
-    supabase.from("patients").select("*").eq("owner_id", userId).order("name").limit(10000),
+    patientsQuery,
     supabase
       .from("financial_transactions")
       .select("id,patient_id,description,amount,due_date,paid_date,status")
@@ -201,13 +211,17 @@ async function fetchBase(supabase: any, userId: string) {
 }
 
 export const getPatientsOverview = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: { q?: string; status?: PatientFilter } | undefined) => ({
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { q?: string; status?: PatientFilter; unitId?: string } | undefined) => ({
     q: input?.q?.trim().toLocaleLowerCase("pt-BR") ?? "",
     status: input?.status ?? "all",
+    unitId: input?.unitId ?? null,
   }))
   .handler(async ({ data, context }): Promise<PatientsOverview> => {
-    const base = await fetchBase(context.supabase, context.userId);
+    // Não-admin nunca escolhe: sempre a própria unidade, ignorando qualquer
+    // coisa que viesse no payload.
+    const unitFilter = context.isAdmin ? data.unitId : context.unitId;
+    const base = await fetchBase(context.supabase, context.ownerId, unitFilter);
     const all = base.rows.map((row: any) => buildSummary(row, base.transactions));
     const patients = all.filter((patient: PatientSummary) => {
       const matchesQuery =
@@ -229,11 +243,13 @@ export const getPatientsOverview = createServerFn({ method: "GET" })
   });
 
 export const getPatientDetail = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { patientId: string }) => ({ patientId: input.patientId }))
   .handler(async ({ data, context }): Promise<PatientDetail> => {
     const supabase: any = context.supabase;
-    const base = await fetchBase(supabase, context.userId);
+    // Sem filtro de unidade aqui: um paciente específico já foi pedido pelo
+    // id, e a RLS decide sozinha se essa linha existe pra quem está pedindo.
+    const base = await fetchBase(supabase, context.ownerId, null);
     const row = base.rows.find((item: any) => item.id === data.patientId);
     if (!row) throw new Error("Paciente não encontrado.");
     const summary = buildSummary(row, base.transactions);
@@ -297,10 +313,14 @@ const patientInput = (input: {
    * patientId.
    */
   crmContactId?: string;
+  /** Só é lido de fato pra admin — quem não é admin sempre cai na própria
+   *  unidade, carimbada pelo servidor. */
+  unitId?: string;
 }) => ({
   id: input.id,
   name: input.name.trim(),
   crmContactId: input.crmContactId?.trim() || null,
+  unitId: input.unitId?.trim() || null,
   phone: input.phone?.trim() || null,
   email: input.email?.trim().toLowerCase() || null,
   cpf: input.cpf?.trim() || null,
@@ -323,7 +343,7 @@ const patientInput = (input: {
 // paciente local correspondente. Até agora esse lookup só existia dentro da
 // Edge Function da Meta CAPI, que roda com service role.
 export const getPatientByCrmContact = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { crmContactId: string }) => input)
   .handler(async ({ data, context }): Promise<{ id: string; name: string } | null> => {
     if (!data.crmContactId) return null;
@@ -332,7 +352,7 @@ export const getPatientByCrmContact = createServerFn({ method: "GET" })
       .from("patients")
       .select("id, name")
       .eq("crm_contact_id", data.crmContactId)
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .maybeSingle();
     if (error) throw new Error(error.message);
     return row ? { id: row.id, name: row.name } : null;
@@ -367,6 +387,9 @@ export async function resolverPacienteDoContato(
     phone?: string | null;
     crmContactId?: string | null;
   },
+  // Obrigatório pra CRIAR paciente novo (unit_id é NOT NULL); pra reencontro
+  // por id/crm_contact_id não é usado — a linha já tem a unidade dela.
+  unitId: string,
 ): Promise<{ id: string; name: string; phone: string | null } | null> {
   const nome = contato.name?.trim();
 
@@ -406,6 +429,7 @@ export async function resolverPacienteDoContato(
     .from("patients")
     .insert({
       owner_id: ownerId,
+      unit_id: unitId,
       name: nome,
       phone: contato.phone || null,
       crm_contact_id: contato.crmContactId || null,
@@ -428,15 +452,18 @@ export async function resolverPacienteDoContato(
 }
 
 export const createPatient = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator(patientInput)
   .handler(async ({ data, context }) => {
     if (!data.name) throw new Error("Informe o nome do paciente.");
+    // Não-admin: sempre a própria unidade, ignora qualquer unitId do payload.
+    const unitId = await resolveUnitId(context, data.unitId);
     const supabase: any = context.supabase;
     const { data: created, error } = await supabase
       .from("patients")
       .insert({
-        owner_id: context.userId,
+        owner_id: context.ownerId,
+        unit_id: unitId,
         name: data.name,
         phone: data.phone,
         email: data.email,
@@ -463,9 +490,9 @@ export const createPatient = createServerFn({ method: "POST" })
     // Workers) uma promise não aguardada pode ser cancelada assim que a
     // resposta é enviada, então "fire-and-forget" de verdade não é seguro
     // aqui.
-    await pushContactToCrm(context.userId, created.id, data.name, data.phone);
+    await pushContactToCrm(context.ownerId, created.id, data.name, data.phone);
     const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
-    await dispatchMetaCapiEvent(context.userId, "patient.created", {
+    await dispatchMetaCapiEvent(context.ownerId, "patient.created", {
       entityId: created.id,
       patientId: created.id,
     });
@@ -473,7 +500,7 @@ export const createPatient = createServerFn({ method: "POST" })
   });
 
 export const updatePatient = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator(patientInput)
   .handler(async ({ data, context }) => {
     if (!data.id) throw new Error("Paciente inválido.");
@@ -500,9 +527,9 @@ export const updatePatient = createServerFn({ method: "POST" })
         guardian_cpf: data.guardianCpf,
       })
       .eq("id", data.id)
-      .eq("owner_id", context.userId);
+      .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
-    await pushContactToCrm(context.userId, data.id, data.name, data.phone);
+    await pushContactToCrm(context.ownerId, data.id, data.name, data.phone);
     return { ok: true };
   });
 
@@ -513,7 +540,7 @@ export interface PatientSearchResult {
 }
 
 export const searchPatients = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { q?: string } | undefined) => ({
     q: input?.q?.trim().toLocaleLowerCase("pt-BR") ?? "",
   }))
@@ -522,7 +549,7 @@ export const searchPatients = createServerFn({ method: "GET" })
     let query = supabase
       .from("patients")
       .select("id,name,phone")
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .order("name")
       .limit(20);
     if (data.q) query = query.ilike("name", `%${data.q}%`);
@@ -536,7 +563,7 @@ export const searchPatients = createServerFn({ method: "GET" })
   });
 
 export const deletePatient = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { id: string }) => input)
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
@@ -544,7 +571,7 @@ export const deletePatient = createServerFn({ method: "POST" })
       .from("patients")
       .delete()
       .eq("id", data.id)
-      .eq("owner_id", context.userId);
+      .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -570,13 +597,13 @@ export interface PatientContact {
  * pessoas eram invisíveis pra qualquer disparo filtrado.
  */
 export const getPatientContacts = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<PatientContact[]> => {
     const supabase: any = context.supabase;
     const { data, error } = await supabase
       .from("patients")
       .select("id, name, phone")
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .is("crm_contact_id", null)
       .not("phone", "is", null);
     if (error) throw new Error(error.message);
@@ -596,7 +623,7 @@ export const getPatientContacts = createServerFn({ method: "GET" })
  * pra vincular precisa impedir o envio, não ser engolido.
  */
 export const garantirContatoCrm = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { patientId: string; name: string; phone: string }) => input)
   .handler(async ({ data, context }): Promise<{ contactId: string | null }> => {
     const url = process.env.SUPABASE_URL;
@@ -606,7 +633,7 @@ export const garantirContatoCrm = createServerFn({ method: "POST" })
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
       body: JSON.stringify({
-        ownerId: context.userId,
+        ownerId: context.ownerId,
         action: "upsert",
         patient: { patientId: data.patientId, name: data.name, phone: data.phone },
       }),

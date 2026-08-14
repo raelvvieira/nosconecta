@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { resolveUnitId } from "@/lib/auth/resolve-unit";
 import { gravarTolerandoColunaAusente, semColuna } from "@/lib/schema-fallback";
 
 // Status da negociação de cada card do funil. O CRM externo não tem esse
@@ -81,26 +82,26 @@ function mapEvent(row: any): DealEvent {
 // Uma chamada só para o board inteiro: os cards vêm do CRM e só os que
 // tiverem negociação registrada aparecem aqui. A tela cruza por itemId.
 export const getDeals = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<Deal[]> => {
     const supabase: any = context.supabase;
     const { data, error } = await supabase
       .from("pipeline_deals")
       .select("*")
-      .eq("owner_id", context.userId);
+      .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
     return (data ?? []).map(mapDeal);
   });
 
 export const getDealTimeline = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { itemId: string }) => input)
   .handler(async ({ data, context }): Promise<DealEvent[]> => {
     const supabase: any = context.supabase;
     const { data: rows, error } = await supabase
       .from("pipeline_deal_events")
       .select("*")
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .eq("item_id", data.itemId)
       .order("created_at", { ascending: false })
       .limit(50);
@@ -176,7 +177,7 @@ async function logEvent(
 }
 
 export const saveDealStatus = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator(
     (input: {
       itemId: string;
@@ -202,13 +203,13 @@ export const saveDealStatus = createServerFn({ method: "POST" })
     const supabase: any = context.supabase;
     const lossReason = data.status === "lost" ? data.lossReason!.trim() : null;
 
-    await upsertDeal(supabase, context.userId, data.itemId, {
+    await upsertDeal(supabase, context.ownerId, data.itemId, {
       status: data.status,
       loss_reason: lossReason,
     });
     await logEvent(
       supabase,
-      context.userId,
+      context.ownerId,
       data.itemId,
       "status",
       lossReason,
@@ -220,12 +221,12 @@ export const saveDealStatus = createServerFn({ method: "POST" })
     const { data: deal } = await supabase
       .from("pipeline_deals")
       .select("value")
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .eq("item_id", data.itemId)
       .maybeSingle();
 
     const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
-    await dispatchMetaCapiEvent(context.userId, "deal.status_changed", {
+    await dispatchMetaCapiEvent(context.ownerId, "deal.status_changed", {
       entityId: `${data.itemId}:${data.status}`,
       dealStatus: data.status,
       // Sem isto o `resolvePerson` da Edge Function não tem por onde procurar o
@@ -271,7 +272,7 @@ export interface ResultadoGanho {
  * status. Um só lugar decide o que é um atendimento realizado.
  */
 export const confirmarGanho = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator(
     (input: {
       itemId: string;
@@ -284,6 +285,8 @@ export const confirmarGanho = createServerFn({ method: "POST" })
       realizadoEm: string;
       procedureName?: string | null;
       gerarCobranca?: boolean;
+      /** Só lido de fato pra admin — quem não é admin sempre cai na própria unidade. */
+      unitId?: string;
     }) => {
       if (!input.contactName?.trim()) throw new Error("Informe o nome do cliente.");
       if (!input.realizadoEm) throw new Error("Informe a data em que o atendimento foi realizado.");
@@ -298,14 +301,20 @@ export const confirmarGanho = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<ResultadoGanho> => {
     const supabase: any = context.supabase;
+    const unitId = await resolveUnitId(context, data.unitId);
 
     const { resolverPacienteDoContato } = await import("@/lib/patients/patients.functions");
-    const paciente = await resolverPacienteDoContato(supabase, context.userId, {
-      patientId: data.patientId,
-      name: data.contactName,
-      phone: data.phone,
-      crmContactId: data.crmContactId,
-    });
+    const paciente = await resolverPacienteDoContato(
+      supabase,
+      context.ownerId,
+      {
+        patientId: data.patientId,
+        name: data.contactName,
+        phone: data.phone,
+        crmContactId: data.crmContactId,
+      },
+      unitId,
+    );
 
     // A verificação de duplicidade é contra o fato — existe atendimento
     // concluído para esta pessoa neste dia? — e não contra o log de envios à
@@ -321,7 +330,7 @@ export const confirmarGanho = createServerFn({ method: "POST" })
       const { data: existente } = await supabase
         .from("appointments")
         .select("id")
-        .eq("owner_id", context.userId)
+        .eq("owner_id", context.ownerId)
         .eq("patient_id", paciente.id)
         .eq("date", data.realizadoEm)
         .eq("status", "completed")
@@ -334,7 +343,8 @@ export const confirmarGanho = createServerFn({ method: "POST" })
 
     if (!jaConsolidado) {
       const { criarAgendamento } = await import("@/lib/agenda/agenda.functions");
-      const criado = await criarAgendamento(supabase, context.userId, {
+      const criado = await criarAgendamento(supabase, context.ownerId, {
+        unit_id: unitId,
         patient_id: paciente?.id ?? null,
         patient_name: paciente?.name ?? data.contactName.trim(),
         procedure_name: data.procedureName?.trim() || "Atendimento",
@@ -357,14 +367,14 @@ export const confirmarGanho = createServerFn({ method: "POST" })
       appointmentId = criado.id;
     }
 
-    await upsertDeal(supabase, context.userId, data.itemId, {
+    await upsertDeal(supabase, context.ownerId, data.itemId, {
       status: "won",
       loss_reason: null,
       value: data.valor,
       realized_on: data.realizadoEm,
       appointment_id: appointmentId,
     });
-    await logEvent(supabase, context.userId, data.itemId, "status", null, { status: "won" });
+    await logEvent(supabase, context.ownerId, data.itemId, "status", null, { status: "won" });
 
     // Nenhum `deal.status_changed` aqui, de propósito: a conversão deste ganho
     // já saiu como `appointment.status_changed`, dentro do `criarAgendamento`.
@@ -372,7 +382,7 @@ export const confirmarGanho = createServerFn({ method: "POST" })
     // tivesse ambos os gatilhos configurados. O `deal.status_changed` continua
     // existindo para "Perdido", em `saveDealStatus`.
     const { sendPushToOwner } = await import("@/lib/notifications/push.server");
-    await sendPushToOwner(context.userId, "deal_result", {
+    await sendPushToOwner(context.ownerId, "deal_result", {
       title: "Negociação ganha 🎉",
       body: `${paciente?.name ?? data.contactName} fechou.`,
       url: "/atendimentos/pipeline",
@@ -387,16 +397,16 @@ export const confirmarGanho = createServerFn({ method: "POST" })
   });
 
 export const saveDealValue = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { itemId: string; value: number | null }) => input)
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
-    await upsertDeal(supabase, context.userId, data.itemId, { value: data.value });
+    await upsertDeal(supabase, context.ownerId, data.itemId, { value: data.value });
     return { ok: true };
   });
 
 export const addDealNote = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { itemId: string; body: string }) => {
     if (!input.body?.trim()) throw new Error("Escreva a observação.");
     return input;
@@ -405,18 +415,18 @@ export const addDealNote = createServerFn({ method: "POST" })
     const supabase: any = context.supabase;
     // Garante o registro da negociação mesmo que a primeira interação com o
     // card tenha sido uma observação, e não a mudança de status.
-    await upsertDeal(supabase, context.userId, data.itemId, {});
-    await logEvent(supabase, context.userId, data.itemId, "note", data.body.trim());
+    await upsertDeal(supabase, context.ownerId, data.itemId, {});
+    await logEvent(supabase, context.ownerId, data.itemId, "note", data.body.trim());
     return { ok: true };
   });
 
 // Registrada quando um agendamento é criado a partir do card, para a linha do
 // tempo contar a história completa da negociação.
 export const logDealAppointment = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { itemId: string; body: string }) => input)
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
-    await logEvent(supabase, context.userId, data.itemId, "appointment", data.body);
+    await logEvent(supabase, context.ownerId, data.itemId, "appointment", data.body);
     return { ok: true };
   });

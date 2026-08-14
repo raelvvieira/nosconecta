@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { resolveUnitId } from "@/lib/auth/resolve-unit";
 import { gravarTolerandoColunaAusente, semColuna } from "@/lib/schema-fallback";
 import type {
   Appointment,
@@ -66,33 +67,49 @@ function mapWaitingListItem(row: any): WaitingListItem {
 }
 
 export const getAgendaOverview = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<AgendaOverview> => {
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { unitId?: string } | undefined) => ({ unitId: input?.unitId ?? null }))
+  .handler(async ({ data, context }): Promise<AgendaOverview> => {
     const supabase = context.supabase;
+    // Não-admin nunca escolhe: sempre a própria unidade. Admin sem escolha
+    // nenhuma vê todas — `null` não filtra.
+    const unitFilter = context.isAdmin ? data.unitId : context.unitId;
+    const comUnidade = (q: any) => (unitFilter ? q.eq("unit_id", unitFilter) : q);
+
     const [apptRes, blockRes, waitRes, notifRes] = await Promise.all([
-      supabase
-        .from("appointments")
-        .select("*")
-        .eq("owner_id", context.userId)
-        .order("date", { ascending: true })
-        .order("start_time", { ascending: true })
-        .limit(2000),
-      supabase
-        .from("blocked_times")
-        .select("*")
-        .eq("owner_id", context.userId)
-        .order("date", { ascending: true })
-        .limit(1000),
-      supabase
-        .from("waiting_list")
-        .select("*")
-        .eq("owner_id", context.userId)
-        .order("created_at", { ascending: true })
-        .limit(200),
+      comUnidade(
+        supabase
+          .from("appointments")
+          .select("*")
+          .eq("owner_id", context.ownerId)
+          .order("date", { ascending: true })
+          .order("start_time", { ascending: true })
+          .limit(2000),
+      ),
+      comUnidade(
+        supabase
+          .from("blocked_times")
+          .select("*")
+          .eq("owner_id", context.ownerId)
+          .order("date", { ascending: true })
+          .limit(1000),
+      ),
+      comUnidade(
+        supabase
+          .from("waiting_list")
+          .select("*")
+          .eq("owner_id", context.ownerId)
+          .order("created_at", { ascending: true })
+          .limit(200),
+      ),
+      // Sem filtro de unidade aqui de propósito: a tabela não tem unit_id
+      // próprio (é escopada via join com appointments na RLS — ver migration).
+      // Notificação de agendamento fora do recorte simplesmente não casa com
+      // nenhum id do `apptRes` já filtrado, e o mapa abaixo a ignora.
       supabase
         .from("appointment_notifications")
         .select("appointment_id, kind, channel, status, sent_at")
-        .eq("owner_id", context.userId)
+        .eq("owner_id", context.ownerId)
         .limit(5000),
     ]);
     if (apptRes.error) throw new Error(apptRes.error.message);
@@ -128,6 +145,7 @@ const COLUNAS_TRANSICAO = [
   "status", "patient_id", "patient_name", "procedure_name", "professional_id",
   "date", "actual_revenue", "expected_revenue", "generate_financial",
   "room_id", "room_name", "professional_name", "start_time", "end_time",
+  "unit_id",
 ];
 const SELECT_TRANSICAO = COLUNAS_TRANSICAO.join(", ");
 const SELECT_TRANSICAO_SEM_VALOR = COLUNAS_TRANSICAO.filter((c) => c !== "actual_revenue").join(", ");
@@ -275,14 +293,21 @@ export async function criarAgendamento(
 }
 
 export const createAppointment = createServerFn({ method: "POST" })
-  .inputValidator(appointmentInput)
-  .middleware([requireSupabaseAuth])
+  .inputValidator((input: Parameters<typeof appointmentInput>[0] & { unitId?: string }) => ({
+    ...appointmentInput(input),
+    // Fora do payload de colunas do `appointmentInput` de propósito: unidade
+    // não é editável em update (agendamento não troca de local sozinho), só
+    // resolvida na criação — por isso fica de fora do mapeamento compartilhado.
+    unitId: input.unitId,
+  }))
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const { id: _ignored, __skipConfirmation: skipConfirmation, __retornoEm: retornoEm, ...row } = data;
+    const { id: _ignored, __skipConfirmation: skipConfirmation, __retornoEm: retornoEm, unitId: rawUnitId, ...row } = data;
+    const unitId = await resolveUnitId(context, rawUnitId);
     // types.ts é gerado pelo Lovable a partir do banco e só passa a conhecer
     // actual_revenue depois que a migration rodar lá. Mesmo escape que
     // patients.functions.ts já usa, até a regeneração.
-    return criarAgendamento(context.supabase as any, context.userId, row, {
+    return criarAgendamento(context.supabase as any, context.ownerId, { ...row, unit_id: unitId }, {
       skipConfirmation,
       retornoEm,
     });
@@ -320,6 +345,7 @@ async function onStatusTransition(
     professional_name?: string | null;
     start_time?: string | null;
     end_time?: string | null;
+    unit_id?: string | null;
   },
   retornoEm?: string | null,
 ): Promise<{ patientName: string; startTime: string }[]> {
@@ -340,8 +366,9 @@ async function onStatusTransition(
   // desfazer a conclusão do atendimento, que já aconteceu no mundo real.
   if (row.status === "completed" && row.generate_financial) {
     try {
+      if (!row.unit_id) throw new Error("Agendamento sem unidade — não é possível gerar o recebimento.");
       const { createAppointmentReceivable } = await import("@/lib/finance/receivables.functions");
-      await createAppointmentReceivable(supabase, {
+      await createAppointmentReceivable(supabase, ownerId, row.unit_id, {
         amount: row.actual_revenue ?? 0,
         description: `${row.procedure_name || "Atendimento"} · ${row.patient_name}`,
         dueDate: row.date ?? new Date().toISOString().slice(0, 10),
@@ -379,6 +406,8 @@ async function onStatusTransition(
 
     const retorno = {
       owner_id: ownerId,
+      // Mesma unidade do atendimento original — um retorno nunca troca de local sozinho.
+      unit_id: row.unit_id ?? null,
       patient_id: row.patient_id,
       patient_name: row.patient_name,
       procedure_name: row.procedure_name || "Consulta",
@@ -418,7 +447,7 @@ async function onStatusTransition(
 
 export const updateAppointment = createServerFn({ method: "POST" })
   .inputValidator(appointmentInput)
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
     if (!data.id) throw new Error("Agendamento inválido");
     // Nenhum dos dois é coluna: orientam o handler e saem do payload.
@@ -432,7 +461,7 @@ export const updateAppointment = createServerFn({ method: "POST" })
       .from("appointments")
       .select("status")
       .eq("id", id)
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .maybeSingle();
 
     const { data: updated, error } = await gravarTolerandoColunaAusente({
@@ -444,14 +473,14 @@ export const updateAppointment = createServerFn({ method: "POST" })
           .from("appointments")
           .update(sem ? semColuna(row, "actual_revenue") : row)
           .eq("id", id)
-          .eq("owner_id", context.userId)
+          .eq("owner_id", context.ownerId)
           .select(sem ? SELECT_TRANSICAO_SEM_VALOR : SELECT_TRANSICAO)
           .single(),
     });
     if (error) throw new Error(error.message);
 
     const conflitos = await onStatusTransition(
-      supabase, context.userId, id, antes?.status, updated, retornoEm,
+      supabase, context.ownerId, id, antes?.status, updated, retornoEm,
     );
     return { ok: true, conflitos };
   });
@@ -471,14 +500,14 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
       return input;
     },
   )
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
     const { data: antes } = await supabase
       .from("appointments")
       .select("status")
       .eq("id", data.id)
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .maybeSingle();
 
     // O valor só é gravado ao concluir; os outros status não mexem nele.
@@ -499,27 +528,27 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
           .from("appointments")
           .update(sem ? semColuna(patch, "actual_revenue") : patch)
           .eq("id", data.id)
-          .eq("owner_id", context.userId)
+          .eq("owner_id", context.ownerId)
           .select(sem ? SELECT_TRANSICAO_SEM_VALOR : SELECT_TRANSICAO)
           .single(),
     });
     if (error) throw new Error(error.message);
 
     const conflitos = await onStatusTransition(
-      supabase, context.userId, data.id, antes?.status, updated, data.retornoEm,
+      supabase, context.ownerId, data.id, antes?.status, updated, data.retornoEm,
     );
     return { ok: true, conflitos };
   });
 
 export const deleteAppointment = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("appointments")
       .delete()
       .eq("id", data.id)
-      .eq("owner_id", context.userId);
+      .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -548,12 +577,19 @@ const blockedTimeInput = (input: {
 };
 
 export const createBlockedTime = createServerFn({ method: "POST" })
-  .inputValidator(blockedTimeInput)
-  .middleware([requireSupabaseAuth])
+  .inputValidator((input: Parameters<typeof blockedTimeInput>[0] & { unitId?: string }) => ({
+    ...blockedTimeInput(input),
+    unitId: input.unitId,
+  }))
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const { data: inserted, error } = await context.supabase
+    const { unitId: rawUnitId, ...row } = data;
+    const unitId = await resolveUnitId(context, rawUnitId);
+    // types.ts ainda não conhece unit_id (Lovable regenera depois da migration).
+    const supabase: any = context.supabase;
+    const { data: inserted, error } = await supabase
       .from("blocked_times")
-      .insert({ ...data, owner_id: context.userId })
+      .insert({ ...row, owner_id: context.ownerId, unit_id: unitId })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
@@ -569,7 +605,7 @@ export const updateBlockedTime = createServerFn({ method: "POST" })
     ...blockedTimeInput(input),
     id: input.id,
   }))
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
     const { id, ...row } = data;
     if (!id) throw new Error("Compromisso inválido");
@@ -577,20 +613,20 @@ export const updateBlockedTime = createServerFn({ method: "POST" })
       .from("blocked_times")
       .update(row)
       .eq("id", id)
-      .eq("owner_id", context.userId);
+      .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
 
 export const deleteBlockedTime = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("blocked_times")
       .delete()
       .eq("id", data.id)
-      .eq("owner_id", context.userId);
+      .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -607,13 +643,13 @@ export const findConflicts = createServerFn({ method: "GET" })
   .inputValidator(
     (input: { date: string; startTime: string; endTime: string; professionalId?: string | null }) => input,
   )
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<{ patientName: string; startTime: string }[]> => {
     const supabase: any = context.supabase;
     let query = supabase
       .from("appointments")
       .select("patient_name, start_time, end_time")
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .eq("date", data.date)
       .neq("status", "cancelled");
     if (data.professionalId) query = query.eq("professional_id", data.professionalId);

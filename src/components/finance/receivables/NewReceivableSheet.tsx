@@ -17,6 +17,7 @@ import { CategoryManager } from "@/components/finance/CategoryManager";
 import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { createReceivable } from "@/lib/finance/receivables.functions";
 import { formatBRL, parseBRLInput } from "@/lib/finance/format";
+import { useUnitSelection } from "@/lib/settings/unit-context";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -37,6 +38,7 @@ export function NewReceivableSheet({
   onAccountsChanged?: () => void;
 }) {
   const create = useServerFn(createReceivable);
+  const { selectedUnitId } = useUnitSelection();
 
   const [patientId, setPatientId] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -83,6 +85,7 @@ export function NewReceivableSheet({
         installments: installmentsOn ? installments : 1,
         isRecurring: recurring,
         recurrenceType,
+        unitId: selectedUnitId ?? undefined,
       },
     }),
     onSuccess: () => {

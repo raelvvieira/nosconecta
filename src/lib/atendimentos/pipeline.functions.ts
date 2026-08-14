@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
 export interface PipelineStage {
   id: string;
@@ -52,72 +52,72 @@ function mapItem(row: any): PipelineItem {
 }
 
 export const getPipelineStages = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<{ configured: boolean; stages: PipelineStage[] }> => {
-    const json = await callEdgeFunction({ ownerId: context.userId, action: "list-stages" });
+    const json = await callEdgeFunction({ ownerId: context.ownerId, action: "list-stages" });
     return { configured: !!json.configured, stages: (json.stages ?? []).map(mapStage) };
   });
 
 export const getPipelineItems = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<{ configured: boolean; items: PipelineItem[] }> => {
-    const json = await callEdgeFunction({ ownerId: context.userId, action: "list-items" });
+    const json = await callEdgeFunction({ ownerId: context.ownerId, action: "list-items" });
     return { configured: !!json.configured, items: (json.items ?? []).map(mapItem) };
   });
 
 export const setPipelineId = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { pipelineId: string }) => input)
   .handler(async ({ data, context }) => {
-    await callEdgeFunction({ ownerId: context.userId, action: "set-pipeline-id", pipelineId: data.pipelineId });
+    await callEdgeFunction({ ownerId: context.ownerId, action: "set-pipeline-id", pipelineId: data.pipelineId });
     return { ok: true };
   });
 
 export const createPipeline = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { name: string }) => input)
   .handler(async ({ data, context }) => {
-    const json = await callEdgeFunction({ ownerId: context.userId, action: "create-pipeline", name: data.name });
+    const json = await callEdgeFunction({ ownerId: context.ownerId, action: "create-pipeline", name: data.name });
     return { ok: true, pipelineId: json.pipelineId as string };
   });
 
 export const savePipelineStage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { id?: string; name: string; position?: number; color?: string }) => input)
   .handler(async ({ data, context }) => {
-    await callEdgeFunction({ ownerId: context.userId, action: "save-stage", stage: data });
+    await callEdgeFunction({ ownerId: context.ownerId, action: "save-stage", stage: data });
     return { ok: true };
   });
 
 export const deletePipelineStage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { id: string }) => input)
   .handler(async ({ data, context }) => {
-    await callEdgeFunction({ ownerId: context.userId, action: "delete-stage", stageId: data.id });
+    await callEdgeFunction({ ownerId: context.ownerId, action: "delete-stage", stageId: data.id });
     return { ok: true };
   });
 
 export const reorderPipelineStages = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { orderedIds: string[] }) => input)
   .handler(async ({ data, context }) => {
-    await callEdgeFunction({ ownerId: context.userId, action: "reorder-stages", orderedIds: data.orderedIds });
+    await callEdgeFunction({ ownerId: context.ownerId, action: "reorder-stages", orderedIds: data.orderedIds });
     return { ok: true };
   });
 
 export const addPipelineItem = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { type: "conversation" | "contact"; itemId: string; stageId: string }) => input)
   .handler(async ({ data, context }) => {
-    await callEdgeFunction({ ownerId: context.userId, action: "add-item", item: data });
+    await callEdgeFunction({ ownerId: context.ownerId, action: "add-item", item: data });
     return { ok: true };
   });
 
 export const movePipelineItem = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { itemId: string; newStageId: string; notes?: string }) => input)
   .handler(async ({ data, context }) => {
-    const json = await callEdgeFunction({ ownerId: context.userId, action: "move-item", move: data });
+    const json = await callEdgeFunction({ ownerId: context.ownerId, action: "move-item", move: data });
 
     // Mudança de etapa é o evento que representa "Ganho"/"Perdido" para a
     // Meta — qual etapa significa o quê é escolha da clínica, configurada em
@@ -128,7 +128,7 @@ export const movePipelineItem = createServerFn({ method: "POST" })
     // de status, para o histórico do card contar a história inteira.
     const supabase: any = context.supabase;
     await supabase.from("pipeline_deal_events").insert({
-      owner_id: context.userId,
+      owner_id: context.ownerId,
       item_id: data.itemId,
       kind: "stage",
       body: data.notes?.trim() || null,
@@ -136,7 +136,7 @@ export const movePipelineItem = createServerFn({ method: "POST" })
     });
 
     const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
-    await dispatchMetaCapiEvent(context.userId, "pipeline.stage_changed", {
+    await dispatchMetaCapiEvent(context.ownerId, "pipeline.stage_changed", {
       entityId: `${data.itemId}:${data.newStageId}`,
       stageId: data.newStageId,
       crmContactId: moved?.type === "contact" ? moved.itemId : null,

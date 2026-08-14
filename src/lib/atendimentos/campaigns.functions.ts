@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
 export type MessageInterval = "1_5" | "5_10" | "10_15" | "15_20";
 
@@ -144,24 +144,24 @@ function mapCampaignConfig(row: any, campaignId: string): CampaignConfig {
 }
 
 export const getMessageTemplates = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<MessageTemplate[]> => {
-    const json = await callTemplates({ ownerId: context.userId, action: "list" });
+    const json = await callTemplates({ ownerId: context.ownerId, action: "list" });
     return (json.templates ?? []).map(mapTemplate);
   });
 
 export const saveMessageTemplate = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { id?: string; name: string; content: string; mediaUrl?: string }) => input)
   .handler(async ({ data, context }) => {
-    const json = await callTemplates({ ownerId: context.userId, action: "save", template: data });
+    const json = await callTemplates({ ownerId: context.ownerId, action: "save", template: data });
     return { ok: true, template: json.template ? mapTemplate(json.template) : null };
   });
 
 export const getCampaigns = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<Campaign[]> => {
-    const json = await callCampaigns({ ownerId: context.userId, action: "list" });
+    const json = await callCampaigns({ ownerId: context.ownerId, action: "list" });
     return (json.campaigns ?? []).map(mapCampaign);
   });
 
@@ -179,10 +179,10 @@ export const getCampaigns = createServerFn({ method: "GET" })
  */
 export const getCampaignDetail = createServerFn({ method: "GET" })
   .inputValidator((input: { campaignId: string }) => input)
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<CampaignDetail> => {
     const json = await callCampaigns({
-      ownerId: context.userId,
+      ownerId: context.ownerId,
       action: "detail",
       campaignId: data.campaignId,
     });
@@ -209,7 +209,7 @@ export const getCampaignDetail = createServerFn({ method: "GET" })
   });
 
 export const saveCampaign = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator(
     (input: {
       id?: string;
@@ -232,32 +232,32 @@ export const saveCampaign = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data, context }) => {
-    const json = await callCampaigns({ ownerId: context.userId, action: "save", campaign: data });
+    const json = await callCampaigns({ ownerId: context.ownerId, action: "save", campaign: data });
     return { ok: true, campaign: json.campaign ? mapCampaign(json.campaign) : null };
   });
 
 export const executeCampaign = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { campaignId: string }) => input)
   .handler(async ({ data, context }) => {
-    const json = await callCampaigns({ ownerId: context.userId, action: "execute", campaignId: data.campaignId });
+    const json = await callCampaigns({ ownerId: context.ownerId, action: "execute", campaignId: data.campaignId });
     return { ok: true, recipientsCounted: json.recipientsCounted ?? 0 };
   });
 
 export const deleteCampaign = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { campaignId: string }) => input)
   .handler(async ({ data, context }) => {
-    await callCampaigns({ ownerId: context.userId, action: "delete", campaignId: data.campaignId });
+    await callCampaigns({ ownerId: context.ownerId, action: "delete", campaignId: data.campaignId });
     return { ok: true };
   });
 
 export const campaignLifecycle = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { campaignId: string; action: "schedule" | "pause" | "resume" | "stop"; scheduleTo?: string }) => input)
   .handler(async ({ data, context }) => {
     await callCampaigns({
-      ownerId: context.userId,
+      ownerId: context.ownerId,
       action: data.action,
       campaignId: data.campaignId,
       scheduleTo: data.scheduleTo,
@@ -267,32 +267,32 @@ export const campaignLifecycle = createServerFn({ method: "POST" })
 
 /** Quantos contatos uma campanha alcançaria hoje — a conta inteira do CRM. */
 export const getEstimatedRecipients = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<number> => {
-    const json = await callCampaigns({ ownerId: context.userId, action: "estimate" });
+    const json = await callCampaigns({ ownerId: context.ownerId, action: "estimate" });
     return Number(json.estimated ?? 0);
   });
 
 export const getDailySendUsage = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<DailyUsage> => {
-    const json = await callCampaigns({ ownerId: context.userId, action: "get-usage" });
+    const json = await callCampaigns({ ownerId: context.ownerId, action: "get-usage" });
     return json.usage ?? { limit: 200, usedToday: 0 };
   });
 
 export const setDailySendLimit = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { limit: number }) => input)
   .handler(async ({ data, context }) => {
-    await callCampaigns({ ownerId: context.userId, action: "set-limit", limit: data.limit });
+    await callCampaigns({ ownerId: context.ownerId, action: "set-limit", limit: data.limit });
     return { ok: true };
   });
 
 export const getCampaignConfig = createServerFn({ method: "GET" })
   .inputValidator((input: { campaignId: string }) => input)
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<CampaignConfig | null> => {
-    const json = await callCampaigns({ ownerId: context.userId, action: "get-config", campaignId: data.campaignId });
+    const json = await callCampaigns({ ownerId: context.ownerId, action: "get-config", campaignId: data.campaignId });
     return json.config ? mapCampaignConfig(json.config, data.campaignId) : null;
   });
 
@@ -300,11 +300,11 @@ export const getCampaignConfig = createServerFn({ method: "GET" })
 // frontend — ver CreateTransmissionDialog): grava só os ids que ainda
 // falharam, permitindo retomar depois; passar [] quando tudo deu certo.
 export const updatePendingMove = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { campaignId: string; remainingIds: string[] }) => input)
   .handler(async ({ data, context }) => {
     await callCampaigns({
-      ownerId: context.userId,
+      ownerId: context.ownerId,
       action: "clear-pending-move",
       campaignId: data.campaignId,
       remainingIds: data.remainingIds,

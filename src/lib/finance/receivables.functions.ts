@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { resolveUnitId } from "@/lib/auth/resolve-unit";
 
 export type ReceivableStatus = "all" | "received" | "pending" | "overdue" | "installments" | "recurring";
 
@@ -90,7 +91,7 @@ const initialsOf = (name: string) =>
 export const getReceivablesOverview = createServerFn({ method: "GET" })
   .inputValidator(
     (input: {
-      companyId?: string;
+      unitId?: string;
       from?: string;
       to?: string;
       patient?: string;
@@ -101,7 +102,7 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
       status?: ReceivableStatus;
       q?: string;
     }) => ({
-      companyId: input.companyId ?? "demo",
+      unitId: input.unitId,
       from: input.from,
       to: input.to,
       patient: input.patient,
@@ -113,9 +114,14 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
       q: input.q?.trim() || undefined,
     }),
   )
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<ReceivablesOverview> => {
-    const supabase = context.supabase;
+    // types.ts ainda não conhece unit_id/company_id opcional.
+    const supabase: any = context.supabase;
+    const ownerId = context.ownerId;
+    // Conta/transação/paciente/profissional são por unidade; categoria não é.
+    const unitId = context.isAdmin ? data.unitId ?? null : context.unitId;
+    const cu = (q: any): any => (unitId ? q.eq("unit_id", unitId) : q);
     const range = resolveRange(data.from, data.to);
     const prev = previousRange(range.from, range.to);
     const today = todayStr();
@@ -126,17 +132,19 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
     const evoStartStr = evoStart.toISOString().slice(0, 10);
     const evoEnd = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0).toISOString().slice(0, 10);
 
-    let listQuery = supabase
-      .from("financial_transactions")
-      .select(
-        "id, description, amount, due_date, paid_date, status, payment_method, category_id, account_id, patient_id, professional_id, installment_number, installment_total, is_recurring, recurrence_type, financial_categories(name), financial_accounts(name,type,last_digits), patients(name), professionals(name)",
-        { count: "exact" },
-      )
-      .eq("company_id", data.companyId)
-      .eq("type", "receivable")
-      .gte("due_date", range.from)
-      .lte("due_date", range.to)
-      .order("due_date", { ascending: false });
+    let listQuery = cu(
+      supabase
+        .from("financial_transactions")
+        .select(
+          "id, description, amount, due_date, paid_date, status, payment_method, category_id, account_id, patient_id, professional_id, installment_number, installment_total, is_recurring, recurrence_type, financial_categories(name), financial_accounts(name,type,last_digits), patients(name), professionals(name)",
+          { count: "exact" },
+        )
+        .eq("owner_id", ownerId)
+        .eq("type", "receivable")
+        .gte("due_date", range.from)
+        .lte("due_date", range.to)
+        .order("due_date", { ascending: false }),
+    );
 
     if (data.patient) listQuery = listQuery.eq("patient_id", data.patient);
     if (data.professional) listQuery = listQuery.eq("professional_id", data.professional);
@@ -151,57 +159,58 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
       accountsRes, categoriesRes, patientsRes, professionalsRes,
     ] = await Promise.all([
       listQuery.limit(500),
-      supabase.from("financial_transactions").select("amount")
-        .eq("company_id", data.companyId).eq("type", "receivable").eq("status", "paid")
-        .gte("paid_date", range.from).lte("paid_date", range.to),
-      supabase.from("financial_transactions").select("amount")
-        .eq("company_id", data.companyId).eq("type", "receivable").eq("status", "paid")
-        .gte("paid_date", prev.from).lte("paid_date", prev.to),
-      supabase.from("financial_transactions").select("amount,due_date,status")
-        .eq("company_id", data.companyId).eq("type", "receivable").in("status", ["pending", "overdue"])
-        .gte("due_date", range.from).lte("due_date", range.to),
-      supabase.from("financial_transactions").select("amount,patient_id,patients(name)")
-        .eq("company_id", data.companyId).eq("type", "receivable").eq("status", "overdue"),
+      cu(supabase.from("financial_transactions").select("amount")
+        .eq("owner_id", ownerId).eq("type", "receivable").eq("status", "paid")
+        .gte("paid_date", range.from).lte("paid_date", range.to)),
+      cu(supabase.from("financial_transactions").select("amount")
+        .eq("owner_id", ownerId).eq("type", "receivable").eq("status", "paid")
+        .gte("paid_date", prev.from).lte("paid_date", prev.to)),
+      cu(supabase.from("financial_transactions").select("amount,due_date,status")
+        .eq("owner_id", ownerId).eq("type", "receivable").in("status", ["pending", "overdue"])
+        .gte("due_date", range.from).lte("due_date", range.to)),
+      cu(supabase.from("financial_transactions").select("amount,patient_id,patients(name)")
+        .eq("owner_id", ownerId).eq("type", "receivable").eq("status", "overdue")),
       // evolution 12 months: pull paid+pending+overdue with due_date OR paid_date in window
-      supabase.from("financial_transactions").select("amount,due_date,paid_date,status")
-        .eq("company_id", data.companyId).eq("type", "receivable")
-        .or(`and(status.eq.paid,paid_date.gte.${evoStartStr},paid_date.lte.${evoEnd}),and(status.in.(pending,overdue),due_date.gte.${evoStartStr},due_date.lte.${evoEnd})`),
+      cu(supabase.from("financial_transactions").select("amount,due_date,paid_date,status")
+        .eq("owner_id", ownerId).eq("type", "receivable")
+        .or(`and(status.eq.paid,paid_date.gte.${evoStartStr},paid_date.lte.${evoEnd}),and(status.in.(pending,overdue),due_date.gte.${evoStartStr},due_date.lte.${evoEnd})`)),
       supabase.rpc("finance_revenue_by_category", {
-        p_company_id: data.companyId, p_from: range.from, p_to: range.to,
+        p_owner_id: ownerId, p_unit_id: unitId, p_from: range.from, p_to: range.to,
       }),
       supabase.rpc("finance_revenue_by_professional", {
-        p_company_id: data.companyId, p_from: range.from, p_to: range.to,
+        p_owner_id: ownerId, p_unit_id: unitId, p_from: range.from, p_to: range.to,
       }),
-      supabase.from("financial_transactions")
+      cu(supabase.from("financial_transactions")
         .select("amount, patient_id, patients(name)")
-        .eq("company_id", data.companyId).eq("type", "receivable").eq("status", "overdue"),
-      supabase.from("financial_transactions")
+        .eq("owner_id", ownerId).eq("type", "receivable").eq("status", "overdue")),
+      cu(supabase.from("financial_transactions")
         .select("id, description, amount, recurrence_type, due_date")
-        .eq("company_id", data.companyId).eq("type", "receivable").eq("is_recurring", true)
-        .order("due_date", { ascending: true }).limit(8),
-      supabase.from("financial_accounts").select("id,name,type,last_digits")
-        .eq("company_id", data.companyId).order("name"),
+        .eq("owner_id", ownerId).eq("type", "receivable").eq("is_recurring", true)
+        .order("due_date", { ascending: true }).limit(8)),
+      cu(supabase.from("financial_accounts").select("id,name,type,last_digits")
+        .eq("owner_id", ownerId).order("name")),
+      // Categoria é clínica inteira — sem filtro de unidade.
       supabase.from("financial_categories").select("id,name")
-        .eq("company_id", data.companyId).eq("type", "income").order("name"),
-      supabase.from("patients").select("id,name").eq("company_id", data.companyId).order("name"),
-      supabase.from("professionals").select("id,name").eq("company_id", data.companyId).order("name"),
+        .eq("owner_id", ownerId).eq("type", "income").order("name"),
+      cu(supabase.from("patients").select("id,name").eq("owner_id", ownerId).order("name")),
+      cu(supabase.from("professionals").select("id,name").eq("owner_id", ownerId).order("name")),
     ]);
 
     for (const r of [listRes, paidCurRes, paidPrevRes, pendingInRangeRes, overdueAllRes, evoRes, topProcRes, topProfRes, defaultersRes, recurringRes, accountsRes, categoriesRes, patientsRes, professionalsRes]) {
       if ((r as any).error) throw (r as any).error;
     }
 
-    const paidCurrent = (paidCurRes.data ?? []).reduce((a, r) => a + Number(r.amount), 0);
-    const paidPrevious = (paidPrevRes.data ?? []).reduce((a, r) => a + Number(r.amount), 0);
+    const paidCurrent = ((paidCurRes.data ?? []) as any[]).reduce((a, r) => a + Number(r.amount), 0);
+    const paidPrevious = ((paidPrevRes.data ?? []) as any[]).reduce((a, r) => a + Number(r.amount), 0);
     const paidCount = (paidCurRes.data ?? []).length;
 
-    const pendingRows = pendingInRangeRes.data ?? [];
+    const pendingRows = (pendingInRangeRes.data ?? []) as any[];
     const toReceiveTotal = pendingRows
       .filter((r) => r.status === "pending" && r.due_date >= today)
       .reduce((a, r) => a + Number(r.amount), 0);
     const toReceiveCount = pendingRows.filter((r) => r.status === "pending" && r.due_date >= today).length;
 
-    const allOverdue = overdueAllRes.data ?? [];
+    const allOverdue = (overdueAllRes.data ?? []) as any[];
     const overdueTotal = allOverdue.reduce((a, r) => a + Number(r.amount), 0);
     const overduePatients = new Set(allOverdue.map((r) => r.patient_id).filter(Boolean)).size;
 
@@ -259,7 +268,7 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
     }
     const defaulters = Array.from(defMap.values()).sort((a, b) => b.value - a.value).slice(0, 5);
 
-    const recurringReceivables = (recurringRes.data ?? []).map((t) => ({
+    const recurringReceivables = ((recurringRes.data ?? []) as any[]).map((t) => ({
       id: t.id,
       description: t.description,
       amount: Number(t.amount),
@@ -339,7 +348,7 @@ function addMonths(dateStr: string, months: number): string {
 export const createReceivable = createServerFn({ method: "POST" })
   .inputValidator(
     (input: {
-      companyId?: string;
+      unitId?: string;
       description: string;
       amount: number;
       due_date: string;
@@ -358,7 +367,7 @@ export const createReceivable = createServerFn({ method: "POST" })
       if (!(input.amount > 0)) throw new Error("Valor deve ser maior que zero");
       if (!input.due_date) throw new Error("Vencimento obrigatório");
       return {
-        companyId: input.companyId ?? "demo",
+        unitId: input.unitId,
         description: input.description.trim(),
         amount: input.amount,
         due_date: input.due_date,
@@ -375,11 +384,13 @@ export const createReceivable = createServerFn({ method: "POST" })
       };
     },
   )
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    // types.ts ainda não conhece unit_id/company_id opcional.
+    const supabase: any = context.supabase;
     const today = todayStr();
     const n = data.installments;
+    const unitId = await resolveUnitId(context, data.unitId);
 
     // Se marcado como recebido, cada parcela cujo vencimento já passou (ou é
     // hoje) é registrada como recebida na própria data de vencimento; as
@@ -391,7 +402,8 @@ export const createReceivable = createServerFn({ method: "POST" })
       const lastAmount = Math.round((data.amount - perAmount * (n - 1)) * 100) / 100;
       const firstPaid = installmentReceived(data.due_date);
       const baseRow = {
-        company_id: data.companyId,
+        owner_id: context.ownerId,
+        unit_id: unitId,
         type: "receivable" as const,
         description: `${data.description} (1/${n})`,
         amount: perAmount,
@@ -417,7 +429,8 @@ export const createReceivable = createServerFn({ method: "POST" })
         const dueDate = addMonths(data.due_date, idx - 1);
         const paid = installmentReceived(dueDate);
         return {
-          company_id: data.companyId,
+          owner_id: context.ownerId,
+          unit_id: unitId,
           type: "receivable" as const,
           description: `${data.description} (${idx}/${n})`,
           amount: isLast ? lastAmount : perAmount,
@@ -440,7 +453,8 @@ export const createReceivable = createServerFn({ method: "POST" })
     }
 
     const row = {
-      company_id: data.companyId,
+      owner_id: context.ownerId,
+      unit_id: unitId,
       type: "receivable" as const,
       description: data.description,
       amount: data.amount,
@@ -478,6 +492,8 @@ export const createReceivable = createServerFn({ method: "POST" })
  */
 export async function createAppointmentReceivable(
   supabase: any,
+  ownerId: string,
+  unitId: string,
   params: {
     amount: number;
     description: string;
@@ -488,7 +504,8 @@ export async function createAppointmentReceivable(
 ): Promise<void> {
   if (!(params.amount > 0)) return;
   const { error } = await supabase.from("financial_transactions").insert({
-    company_id: "demo",
+    owner_id: ownerId,
+    unit_id: unitId,
     type: "receivable" as const,
     description: params.description,
     amount: params.amount,
@@ -514,9 +531,10 @@ export const markReceivableReceived = createServerFn({ method: "POST" })
     account_id: input.account_id ?? undefined,
     payment_method: input.payment_method ?? undefined,
   }))
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    // types.ts ainda não conhece unit_id/company_id opcional.
+    const supabase: any = context.supabase;
     const update: any = { status: "paid", paid_date: data.paid_date };
     if (data.account_id) update.account_id = data.account_id;
     if (data.payment_method) update.payment_method = data.payment_method;
@@ -526,18 +544,18 @@ export const markReceivableReceived = createServerFn({ method: "POST" })
       .from("financial_transactions")
       .update(update)
       .eq("id", data.id)
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .select("patient_id, amount")
       .single();
     if (error) throw error;
     const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
-    await dispatchMetaCapiEvent(context.userId, "receivable.paid", {
+    await dispatchMetaCapiEvent(context.ownerId, "receivable.paid", {
       entityId: data.id,
       patientId: updated?.patient_id ?? null,
       amount: updated?.amount === null || updated?.amount === undefined ? null : Number(updated.amount),
     });
     const { sendPushToOwner } = await import("@/lib/notifications/push.server");
-    await sendPushToOwner(context.userId, "deal_result", {
+    await sendPushToOwner(context.ownerId, "deal_result", {
       title: "Pagamento recebido",
       body: updated?.amount
         ? `Entrou ${Number(updated.amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}.`
@@ -549,28 +567,30 @@ export const markReceivableReceived = createServerFn({ method: "POST" })
 
 export const cancelReceivable = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    // types.ts ainda não conhece unit_id/company_id opcional.
+    const supabase: any = context.supabase;
     const { error } = await supabase
       .from("financial_transactions")
       .update({ status: "cancelled" })
       .eq("id", data.id)
-      .eq("owner_id", context.userId);
+      .eq("owner_id", context.ownerId);
     if (error) throw error;
     return { ok: true };
   });
 
 export const deleteReceivable = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase;
+    // types.ts ainda não conhece unit_id/company_id opcional.
+    const supabase: any = context.supabase;
     const { error } = await supabase
       .from("financial_transactions")
       .delete()
       .eq("id", data.id)
-      .eq("owner_id", context.userId);
+      .eq("owner_id", context.ownerId);
     if (error) throw error;
     return { ok: true };
   });

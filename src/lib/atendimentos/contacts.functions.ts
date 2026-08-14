@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
 export interface CrmContact {
   id: string;
@@ -68,9 +68,9 @@ async function callContacts(body: unknown) {
  * `useContatosIncremental.ts`.
  */
 export const getCrmContacts = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<CrmContactList> => {
-    const json = await callContacts({ ownerId: context.userId, action: "list" });
+    const json = await callContacts({ ownerId: context.ownerId, action: "list" });
     const contacts: CrmContact[] = (json.contacts ?? [])
       .filter((c: any) => c?.id)
       .map((c: any) => ({
@@ -99,9 +99,9 @@ export interface CrmContactPage {
  */
 export const getCrmContactsPage = createServerFn({ method: "GET" })
   .inputValidator((input: { page: number }) => input)
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<CrmContactPage> => {
-    const json = await callContacts({ ownerId: context.userId, action: "list", page: data.page });
+    const json = await callContacts({ ownerId: context.ownerId, action: "list", page: data.page });
     const contacts: CrmContact[] = (json.contacts ?? [])
       .filter((c: any) => c?.id)
       .map((c: any) => ({

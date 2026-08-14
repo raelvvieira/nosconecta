@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
 export type Period = "today" | "7d" | "30d" | "90d";
 export type Granularity = "daily" | "weekly" | "monthly";
@@ -123,40 +123,47 @@ function bucketLabel(key: string, g: Granularity): string {
 }
 
 async function sumAmount(
-  supabase: ReturnType<typeof getServerSupabase>,
-  companyId: string,
+  // types.ts ainda não conhece unit_id (Lovable regenera depois da migration).
+  supabase: any,
+  ownerId: string,
+  unitId: string | null,
   type: "receivable" | "payable",
   status: "paid",
   fromCol: "paid_date",
   from: string,
   to: string,
 ): Promise<number> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("financial_transactions")
     .select("amount")
-    .eq("company_id", companyId)
+    .eq("owner_id", ownerId)
     .eq("type", type)
     .eq("status", status)
     .gte(fromCol, from)
     .lte(fromCol, to);
+  if (unitId) query = query.eq("unit_id", unitId);
+  const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []).reduce((acc, r) => acc + Number(r.amount), 0);
+  return ((data ?? []) as any[]).reduce((acc, r) => acc + Number(r.amount), 0);
 }
 
 export const getFinanceOverview = createServerFn({ method: "GET" })
   .inputValidator(
-    (input: { companyId?: string; period?: Period; granularity?: Granularity; from?: string; to?: string }) => ({
-      companyId: input.companyId ?? "demo",
+    (input: { unitId?: string; period?: Period; granularity?: Granularity; from?: string; to?: string }) => ({
+      unitId: input.unitId,
       period: input.period ?? "30d",
       granularity: input.granularity ?? "daily",
       from: input.from,
       to: input.to,
     }),
   )
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<OverviewData> => {
-    const supabase = context.supabase;
-    const { companyId, period, granularity, from, to } = data;
+    const supabase: any = context.supabase;
+    const ownerId = context.ownerId;
+    // Conta/transação e profissional são por unidade; categoria não é.
+    const unitId = context.isAdmin ? data.unitId ?? null : context.unitId;
+    const { period, granularity, from, to } = data;
     const range = periodToRange(period, from, to);
     const prev = previousRange(range);
     const fromStr = toDateStr(range.from);
@@ -164,63 +171,65 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
     const prevFromStr = toDateStr(prev.from);
     const prevToStr = toDateStr(prev.to);
 
+    const cu = (q: any): any => (unitId ? q.eq("unit_id", unitId) : q);
+
     // --- KPIs (parallel) ---
     const [
       revCur, revPrev, expCur, expPrev,
       overdueRes, accountsRes, procRes, profRes,
       upRecRes, upPayRes, cashRes, paidByDayRes,
     ] = await Promise.all([
-      sumAmount(supabase, companyId, "receivable", "paid", "paid_date", fromStr, toStr),
-      sumAmount(supabase, companyId, "receivable", "paid", "paid_date", prevFromStr, prevToStr),
-      sumAmount(supabase, companyId, "payable", "paid", "paid_date", fromStr, toStr),
-      sumAmount(supabase, companyId, "payable", "paid", "paid_date", prevFromStr, prevToStr),
-      supabase
+      sumAmount(supabase, ownerId, unitId, "receivable", "paid", "paid_date", fromStr, toStr),
+      sumAmount(supabase, ownerId, unitId, "receivable", "paid", "paid_date", prevFromStr, prevToStr),
+      sumAmount(supabase, ownerId, unitId, "payable", "paid", "paid_date", fromStr, toStr),
+      sumAmount(supabase, ownerId, unitId, "payable", "paid", "paid_date", prevFromStr, prevToStr),
+      cu(supabase
         .from("financial_transactions")
         .select("amount, patient_id")
-        .eq("company_id", companyId)
+        .eq("owner_id", ownerId)
         .eq("type", "receivable")
-        .eq("status", "overdue"),
-      supabase
+        .eq("status", "overdue")),
+      cu(supabase
         .from("financial_accounts")
         .select("id,name,type,last_digits,current_balance")
-        .eq("company_id", companyId)
-        .order("name"),
+        .eq("owner_id", ownerId)
+        .order("name")),
       supabase.rpc("finance_revenue_by_category", {
-        p_company_id: companyId, p_from: fromStr, p_to: toStr,
+        p_owner_id: ownerId, p_unit_id: unitId, p_from: fromStr, p_to: toStr,
       }),
       supabase.rpc("finance_revenue_by_professional", {
-        p_company_id: companyId, p_from: fromStr, p_to: toStr,
+        p_owner_id: ownerId, p_unit_id: unitId, p_from: fromStr, p_to: toStr,
       }),
-      supabase
+      cu(supabase
         .from("financial_transactions")
         .select("id, description, amount, due_date, patient_id, patients(name)")
-        .eq("company_id", companyId)
+        .eq("owner_id", ownerId)
         .eq("type", "receivable")
         .eq("status", "pending")
         .gte("due_date", toDateStr(new Date()))
         .order("due_date", { ascending: true })
-        .limit(5),
-      supabase
+        .limit(5)),
+      cu(supabase
         .from("financial_transactions")
         .select("id, description, amount, due_date, category_id, financial_categories(name)")
-        .eq("company_id", companyId)
+        .eq("owner_id", ownerId)
         .eq("type", "payable")
         .eq("status", "pending")
         .gte("due_date", toDateStr(new Date()))
         .order("due_date", { ascending: true })
-        .limit(5),
+        .limit(5)),
       supabase.rpc("finance_cash_flow_series", {
-        p_company_id: companyId, p_from: fromStr, p_to: toStr, p_granularity: granularity,
+        p_owner_id: ownerId, p_unit_id: unitId, p_from: fromStr, p_to: toStr, p_granularity: granularity,
       }),
       // Day-of-week revenue for insight
-      supabase
+      cu(supabase
         .from("financial_transactions")
         .select("amount, paid_date")
-        .eq("company_id", companyId)
+        .eq("owner_id", ownerId)
         .eq("type", "receivable")
         .eq("status", "paid")
         .gte("paid_date", fromStr)
-        .lte("paid_date", toStr),
+        .lte("paid_date", toStr)),
     ]);
 
     if (overdueRes.error) throw overdueRes.error;
@@ -237,11 +246,11 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
     const profit = variation(revCur - expCur, revPrev - expPrev);
     const margin = revCur === 0 ? 0 : (profit.current / revCur) * 100;
 
-    const overdueRows = overdueRes.data ?? [];
+    const overdueRows = (overdueRes.data ?? []) as any[];
     const overdueTotal = overdueRows.reduce((a, r) => a + Number(r.amount), 0);
     const overduePatients = new Set(overdueRows.map((r) => r.patient_id).filter(Boolean)).size;
 
-    const accounts = (accountsRes.data ?? []).map((a) => ({
+    const accounts = ((accountsRes.data ?? []) as any[]).map((a) => ({
       id: a.id,
       name: a.name,
       type: a.type,

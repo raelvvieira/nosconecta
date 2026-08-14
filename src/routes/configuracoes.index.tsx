@@ -3,9 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
-import { MoreHorizontal, Plus, Search } from "lucide-react";
+import { MoreHorizontal, Plus, Search, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
+import { MembersApprovalSection } from "@/components/settings/MembersApprovalSection";
 import { SettingsFormSheet } from "@/components/settings/SettingsFormSheet";
 import { settingsQuery } from "@/components/settings/SettingsNav";
 import {
@@ -34,18 +35,21 @@ import {
   getSettings,
   saveSetting,
   type ChairSetting,
-  type MemberRole,
-  type MemberSetting,
   type ProcedureSetting,
   type ProfessionalSetting,
   type SettingsData,
   type SettingsRecord,
   type SettingsSection,
+  type UnitSetting,
 } from "@/lib/settings/settings.functions";
 
+// "members" navega pela mesma URL de sempre (?section=members), mas não é
+// um SettingsSection de verdade — não tem CRUD genérico, é a tela de
+// aprovação (ver branch no componente abaixo).
 const searchSchema = z.object({
-  section: z.enum(["professionals", "chairs", "procedures", "members"]).default("professionals"),
+  section: z.enum(["professionals", "chairs", "procedures", "units", "members"]).default("professionals"),
 });
+type PageSection = SettingsSection | "members";
 type SettingsFetcher = () => Promise<SettingsData>;
 
 export const Route = createFileRoute("/configuracoes/")({
@@ -62,18 +66,12 @@ export const Route = createFileRoute("/configuracoes/")({
   component: SettingsRegistryPage,
 });
 
-const SECTION_LABEL: Record<SettingsSection, string> = {
+const SECTION_LABEL: Record<PageSection, string> = {
   professionals: "Profissionais",
   chairs: "Cadeiras",
   procedures: "Procedimentos",
+  units: "Unidades",
   members: "Usuários e permissões",
-};
-
-const ROLE_LABEL: Record<MemberRole, string> = {
-  admin: "Administrador",
-  reception: "Recepção",
-  dentist: "Dentista",
-  finance: "Financeiro",
 };
 
 function SettingsRegistryPage() {
@@ -84,24 +82,29 @@ function SettingsRegistryPage() {
   const remove = useServerFn(deleteSetting);
   const settingsResult = useQuery(settingsQuery(fetchSettings as unknown as SettingsFetcher));
   const data: SettingsData =
-    settingsResult.data ?? { professionals: [], chairs: [], procedures: [], members: [] };
+    settingsResult.data ?? { professionals: [], chairs: [], procedures: [], units: [], isAdmin: false };
   const [query, setQuery] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<SettingsRecord | null>(null);
   const [pendingDelete, setPendingDelete] = useState<SettingsRecord | null>(null);
 
-  const items = (data as unknown as Record<string, SettingsRecord[]>)[section] ?? [];
+  // As seções genéricas (professionals/chairs/procedures/units) são as únicas
+  // que passam por essa lista/CRUD; "members" tem sua própria tela mais
+  // abaixo. Os hooks abaixo têm que rodar sempre, na mesma ordem, então o
+  // desvio para "members"/acesso negado só acontece no retorno JSX no fim.
+  const isGenericSection = section !== "members";
+  const items = isGenericSection ? ((data as unknown as Record<string, SettingsRecord[]>)[section] ?? []) : [];
   const filtered = useMemo(
     () => items.filter((item: SettingsRecord) => searchable(item).includes(query.toLocaleLowerCase("pt-BR"))),
     [items, query],
   );
   const activeCount = items.filter((item: SettingsRecord) => item.active).length;
-  const label = SECTION_LABEL[section as SettingsSection];
+  const label = SECTION_LABEL[section];
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["settings"] });
   const toggle = useMutation({
     mutationFn: (item: SettingsRecord) =>
-      save({ data: { section, item: { ...item, active: !item.active } } }),
+      save({ data: { section: section as SettingsSection, item: { ...item, active: !item.active } } }),
     onSuccess: () => {
       toast.success("Situação atualizada");
       refresh();
@@ -109,7 +112,7 @@ function SettingsRegistryPage() {
     onError: (error: Error) => toast.error(error.message),
   });
   const deletion = useMutation({
-    mutationFn: (item: SettingsRecord) => remove({ data: { section, id: item.id } }),
+    mutationFn: (item: SettingsRecord) => remove({ data: { section: section as SettingsSection, id: item.id } }),
     onSuccess: () => {
       toast.success("Cadastro excluído");
       setPendingDelete(null);
@@ -128,6 +131,24 @@ function SettingsRegistryPage() {
   // Profissionais continuaria filtrando (e escondendo) a lista de Cadeiras.
   useEffect(() => setQuery(""), [section]);
 
+  const restrictedSection = section === "members" || section === "units";
+  if (restrictedSection && settingsResult.isSuccess && !data.isAdmin) {
+    return (
+      <div className="surface-card grid min-h-72 place-items-center px-6 py-10 text-center">
+        <div>
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-muted text-muted-foreground">
+            <ShieldAlert className="h-5 w-5" />
+          </span>
+          <h3 className="mt-4 font-semibold">Apenas administradores acessam esta área</h3>
+        </div>
+      </div>
+    );
+  }
+
+  if (section === "members") {
+    return <MembersApprovalSection units={data.units} />;
+  }
+
   return (
     <>
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -139,7 +160,7 @@ function SettingsRegistryPage() {
         </div>
         <Button className="gap-2 bg-gradient-primary text-white" onClick={openCreate}>
           <Plus className="h-4 w-4" />
-          Adicionar {singular(section)}
+          Adicionar {singular(section as SettingsSection)}
         </Button>
       </div>
 
@@ -157,7 +178,7 @@ function SettingsRegistryPage() {
         {filtered.map((item: SettingsRecord, index: number) => (
           <SettingsRow
             key={item.id}
-            section={section}
+            section={section as SettingsSection}
             item={item}
             index={index}
             onEdit={() => {
@@ -175,7 +196,7 @@ function SettingsRegistryPage() {
                 <Search className="h-5 w-5" />
               </span>
               <h3 className="mt-4 font-semibold">
-                {query ? "Nenhum cadastro encontrado" : `Nenhum ${singular(section)} cadastrado`}
+                {query ? "Nenhum cadastro encontrado" : `Nenhum ${singular(section as SettingsSection)} cadastrado`}
               </h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 {query
@@ -187,7 +208,7 @@ function SettingsRegistryPage() {
               {!query && (
                 <Button className="mt-5 gap-2 bg-gradient-primary text-white" onClick={openCreate}>
                   <Plus className="h-4 w-4" />
-                  Adicionar {singular(section)}
+                  Adicionar {singular(section as SettingsSection)}
                 </Button>
               )}
             </div>
@@ -197,8 +218,10 @@ function SettingsRegistryPage() {
 
       <SettingsFormSheet
         open={formOpen}
-        section={section}
+        section={section as SettingsSection}
         item={editing}
+        units={data.units}
+        isAdmin={data.isAdmin}
         onOpenChange={setFormOpen}
         onSaved={refresh}
       />
@@ -301,23 +324,21 @@ function rowSubtitle(section: SettingsSection, item: SettingsRecord) {
     const row = item as ChairSetting;
     return row.roomName || "Sala não informada";
   }
-  if (section === "procedures") {
-    const row = item as ProcedureSetting;
-    return `${row.category || "Sem categoria"} · ${row.durationMinutes} min`;
+  if (section === "units") {
+    const row = item as UnitSetting;
+    return row.address || "Endereço não informado";
   }
-  const row = item as MemberSetting;
-  return `${ROLE_LABEL[row.role]} · ${row.email}`;
+  const row = item as ProcedureSetting;
+  return `${row.category || "Sem categoria"} · ${row.durationMinutes} min`;
 }
 
 function rowDetail(section: SettingsSection, item: SettingsRecord) {
   if (section === "professionals")
     return `${(item as ProfessionalSetting).commissionPct}% de comissão`;
   if (section === "chairs") return (item as ChairSetting).notes;
-  if (section === "procedures") {
-    const row = item as ProcedureSetting;
-    return `${formatBRL(row.price)} · custo ${formatBRL(row.cost)}`;
-  }
-  return `${(item as MemberSetting).permissions.length} áreas permitidas`;
+  if (section === "units") return (item as UnitSetting).isDefault ? "Unidade principal" : "";
+  const row = item as ProcedureSetting;
+  return `${formatBRL(row.price)} · custo ${formatBRL(row.cost)}`;
 }
 
 const singular = (section: SettingsSection) =>
@@ -325,7 +346,7 @@ const singular = (section: SettingsSection) =>
     professionals: "profissional",
     chairs: "cadeira",
     procedures: "procedimento",
-    members: "usuário",
+    units: "unidade",
   })[section];
 const initials = (name: string) =>
   name

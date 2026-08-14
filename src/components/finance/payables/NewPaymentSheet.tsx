@@ -19,6 +19,7 @@ import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { createPayable } from "@/lib/finance/payables.functions";
 import { listSuppliers } from "@/lib/finance/suppliers.functions";
 import { formatBRL, parseBRLInput } from "@/lib/finance/format";
+import { useUnitSelection } from "@/lib/settings/unit-context";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -42,6 +43,7 @@ export function NewPaymentSheet({
   onAccountsChanged?: () => void;
 }) {
   const create = useServerFn(createPayable);
+  const { selectedUnitId } = useUnitSelection();
   const qc = useQueryClient();
   const fetchSuppliers = useServerFn(listSuppliers);
   const { data: fetchedSuppliers } = useQuery({
@@ -97,6 +99,7 @@ export function NewPaymentSheet({
           downPayment: installmentsOn ? downNum : 0,
           isRecurring: recurring && !installmentsOn,
           recurrenceType,
+          unitId: selectedUnitId ?? undefined,
         },
       }),
     onSuccess: (r) => {

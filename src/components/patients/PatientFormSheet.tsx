@@ -28,6 +28,7 @@ import {
   type PatientStatus,
   type PatientSummary,
 } from "@/lib/patients/patients.functions";
+import { useUnitSelection } from "@/lib/settings/unit-context";
 
 type Props = {
   open: boolean;
@@ -59,6 +60,7 @@ const EMPTY = {
 export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props) {
   const createFn = useServerFn(createPatient);
   const updateFn = useServerFn(updatePatient);
+  const { selectedUnitId } = useUnitSelection();
   const [form, setForm] = useState(EMPTY);
 
   useEffect(() => {
@@ -96,7 +98,10 @@ export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props
         await updateFn({ data: payload });
         return { id: patient.id };
       }
-      return createFn({ data: payload });
+      // unitId só importa pra admin (não-admin nem enxerga o campo) — vem da
+      // unidade escolhida no seletor da barra lateral, com o servidor caindo
+      // para a única unidade ativa sozinho quando não há escolha.
+      return createFn({ data: { ...payload, unitId: selectedUnitId ?? undefined } });
     },
     onSuccess: ({ id }) => {
       toast.success(patient ? "Paciente atualizado" : "Paciente criado");

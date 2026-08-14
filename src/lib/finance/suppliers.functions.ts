@@ -1,20 +1,22 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-
-const COMPANY_ID = "demo";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
 /**
  * Lista os fornecedores já utilizados (nomes distintos em pagamentos).
  * Leitura autenticada — consistente com a escrita das transações.
+ *
+ * Sem filtro de unidade de propósito: é só uma lista de autocompletar, e a
+ * RLS já restringe as linhas de `financial_transactions` que um não-admin
+ * enxerga à própria unidade — não precisa de precisão extra aqui.
  */
 export const listSuppliers = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((_: unknown) => ({}))
   .handler(async ({ context }) => {
     const { data: rows, error } = await context.supabase
       .from("financial_transactions")
       .select("supplier_name")
-      .eq("company_id", COMPANY_ID)
+      .eq("owner_id", context.ownerId)
       .eq("type", "payable")
       .not("supplier_name", "is", null);
     if (error) throw error;

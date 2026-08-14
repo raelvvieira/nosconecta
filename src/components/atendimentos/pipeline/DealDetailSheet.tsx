@@ -33,6 +33,7 @@ import { useAgendaCatalog } from "@/lib/agenda/useAppointmentForm";
 import { useSaveAppointment } from "@/lib/agenda/useSaveAppointment";
 import { sendWhatsappMessage } from "@/lib/atendimentos/atendimentos.functions";
 import { getPatientByCrmContact } from "@/lib/patients/patients.functions";
+import { useUnitSelection } from "@/lib/settings/unit-context";
 import { haptic } from "@/lib/haptics";
 import type { PipelineItem, PipelineStage } from "@/lib/atendimentos/pipeline.functions";
 import {
@@ -80,6 +81,7 @@ export function DealDetailSheet({
   const fetchPatient = useServerFn(getPatientByCrmContact);
   const doSaveStatus = useServerFn(saveDealStatus);
   const doConfirmarGanho = useServerFn(confirmarGanho);
+  const { selectedUnitId } = useUnitSelection();
   const doSaveValue = useServerFn(saveDealValue);
   const doAddNote = useServerFn(addDealNote);
   const doLogAppointment = useServerFn(logDealAppointment);
@@ -173,6 +175,7 @@ export function DealDetailSheet({
           valor: dados.valor,
           realizadoEm: dados.realizadoEm,
           gerarCobranca: dados.gerarCobranca,
+          unitId: selectedUnitId ?? undefined,
         },
       }),
     onSuccess: (r) => {

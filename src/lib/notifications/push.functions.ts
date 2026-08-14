@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
 export type PushType = "whatsapp_message" | "daily_agenda" | "appointment_reply" | "deal_result";
 
@@ -58,17 +58,17 @@ async function callEdgeFunction(name: string, body: unknown) {
  * dos outros segredos no painel, e não exige rebuild para trocar.
  */
 export const getVapidPublicKey = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async (): Promise<string | null> => process.env.VAPID_PUBLIC_KEY ?? null);
 
 export const getPushPreferences = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<PushPreferences> => {
     const supabase: any = context.supabase;
     const { data, error } = await supabase
       .from("push_preferences")
       .select("*")
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .maybeSingle();
     if (error) throw new Error(error.message);
     // Sem linha = nunca configurou = tudo ligado, igual ao default da tabela.
@@ -81,12 +81,12 @@ export const getPushPreferences = createServerFn({ method: "GET" })
   });
 
 export const savePushPreferences = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: Partial<PushPreferences>) => input)
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
     const { error } = await supabase.from("push_preferences").upsert(
-      { owner_id: context.userId, ...data, updated_at: new Date().toISOString() },
+      { owner_id: context.ownerId, ...data, updated_at: new Date().toISOString() },
       { onConflict: "owner_id" },
     );
     if (error) throw new Error(error.message);
@@ -94,13 +94,13 @@ export const savePushPreferences = createServerFn({ method: "POST" })
   });
 
 export const listPushDevices = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<PushDevice[]> => {
     const supabase: any = context.supabase;
     const { data, error } = await supabase
       .from("push_subscriptions")
       .select("id, user_agent, created_at, last_seen_at")
-      .eq("owner_id", context.userId)
+      .eq("owner_id", context.ownerId)
       .order("last_seen_at", { ascending: false });
     if (error) throw new Error(error.message);
     return (data ?? []).map((row: any) => ({
@@ -112,7 +112,7 @@ export const listPushDevices = createServerFn({ method: "GET" })
   });
 
 export const savePushSubscription = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator(
     (input: { endpoint: string; p256dh: string; auth: string; userAgent?: string }) => {
       if (!input.endpoint || !input.p256dh || !input.auth) {
@@ -127,7 +127,7 @@ export const savePushSubscription = createServerFn({ method: "POST" })
     // a linha em vez de duplicar.
     const { error } = await supabase.from("push_subscriptions").upsert(
       {
-        owner_id: context.userId,
+        owner_id: context.ownerId,
         endpoint: data.endpoint,
         p256dh: data.p256dh,
         auth: data.auth,
@@ -141,11 +141,11 @@ export const savePushSubscription = createServerFn({ method: "POST" })
   });
 
 export const deletePushSubscription = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .inputValidator((input: { id?: string; endpoint?: string }) => input)
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
-    let query = supabase.from("push_subscriptions").delete().eq("owner_id", context.userId);
+    let query = supabase.from("push_subscriptions").delete().eq("owner_id", context.ownerId);
     if (data.id) query = query.eq("id", data.id);
     else if (data.endpoint) query = query.eq("endpoint", data.endpoint);
     else throw new Error("Informe o aparelho a remover.");
@@ -155,8 +155,8 @@ export const deletePushSubscription = createServerFn({ method: "POST" })
   });
 
 export const sendTestPush = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireClinicMembership])
   .handler(async ({ context }) => {
-    await callEdgeFunction("push-send", { ownerId: context.userId, action: "test" });
+    await callEdgeFunction("push-send", { ownerId: context.ownerId, action: "test" });
     return { ok: true };
   });
