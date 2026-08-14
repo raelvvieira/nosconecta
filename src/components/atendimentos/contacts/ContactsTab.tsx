@@ -1,13 +1,12 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { AlertTriangle, Loader2, MessageCircle, Search, Users } from "lucide-react";
+import { AlertTriangle, Loader2, MessageCircle, Search, UserRound, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
-import type { CrmContact } from "@/lib/atendimentos/contacts.functions";
 import { useContatosIncremental } from "@/lib/atendimentos/useContatosIncremental";
 import {
   alternarSelecaoDoRecorte,
@@ -15,25 +14,43 @@ import {
   filtrarContatos,
 } from "@/lib/atendimentos/contactFilters";
 import { getConversations, getWhatsappInboxes } from "@/lib/atendimentos/atendimentos.functions";
+import { getPatientContacts } from "@/lib/patients/patients.functions";
 import { contatosDaCaixa, daParaSepararPorNumero } from "@/lib/atendimentos/inboxSnapshot";
 
 /** Constante, não `[]` na hora: array novo a cada render invalida todo
  *  `useMemo` que dependa dele — foi assim que a página de campanhas ganhou um
  *  laço infinito (ver FunnelSection.tsx). */
 const SEM_CONVERSAS: never[] = [];
+const SEM_PACIENTES: never[] = [];
 
-export interface ContatoSelecionado extends CrmContact {
-  /** Conversa aberta no WhatsApp, quando existe. */
+export interface ContatoUnificado {
+  id: string;
+  name: string;
+  phone: string | null;
+  /** "crm" = já sincronizado do WhatsApp, `id` é o contactId do CRM. "paciente"
+   *  = cadastrado na NÓS mas nunca teve conversa — `id` é o id do paciente, e
+   *  o CRM só ganha um contato pra ele na hora do disparo (ver `patientId`
+   *  em `garantirContatoCrm`, chamado antes de enfileirar). */
+  origem: "crm" | "paciente";
+  patientId: string | null;
+}
+
+export interface ContatoSelecionado extends ContatoUnificado {
+  /** Conversa aberta no WhatsApp, quando existe. Nunca existe pra `origem: "paciente"`. */
   conversationId: string | null;
 }
 
 /**
- * A base de contatos sincronizada, com busca, recorte por DDD e seleção — o
+ * A base de contatos pra disparo, com busca, recorte por DDD e seleção — o
  * passo de "para quem" dentro da criação de campanha, quando a audiência
  * escolhida é "Selecionar contatos" em vez de "Todos os contatos".
  *
- * Não existia nenhuma tela mostrando quem está sincronizado — a única leitura de
- * contatos no sistema inteiro pedia uma página de tamanho 1 só para ler o total.
+ * Junta duas fontes: os contatos do CRM (sincronizados de conversas de
+ * WhatsApp) e os pacientes da NÓS que nunca tiveram conversa nenhuma — sem
+ * isso, um paciente cadastrado direto no sistema (nunca mandou mensagem)
+ * era invisível pra qualquer disparo filtrado. Mandar pra quem nunca
+ * conversou continua sendo uma aposta não confirmada com o CRM/WhatsApp —
+ * ver aviso em BroadcastDialog.tsx.
  *
  * O recorte por DDD é ficha, não campo de texto: as fichas são geradas da
  * própria base, com a contagem ao lado, então dá para ver quais DDDs existem
@@ -61,6 +78,7 @@ export function ContactsTab({
 }) {
   const fetchConversations = useServerFn(getConversations);
   const fetchInboxes = useServerFn(getWhatsappInboxes);
+  const fetchPatientContacts = useServerFn(getPatientContacts);
 
   // Chega aos pedaços: a primeira página já aparece, e o resto entra por trás
   // — ver useContatosIncremental.ts. Não é `useQuery` porque o progresso
@@ -82,14 +100,31 @@ export function ContactsTab({
     staleTime: 5 * 60_000,
   });
 
+  // Segunda fonte da audiência: pacientes da NÓS que nunca tiveram conversa,
+  // logo não existem no CRM. Consulta única e leve — nada de paginação aqui.
+  const patientsQuery = useQuery({
+    queryKey: ["patient-contacts-sem-crm"],
+    queryFn: () => fetchPatientContacts(),
+    enabled: ativo,
+    staleTime: 60_000,
+  });
+
   const [busca, setBusca] = useState("");
   const [ddds, setDdds] = useState<Set<string>>(new Set());
   // Só quem é do número conectado, por padrão. Trocar de número no WhatsApp
   // deixa a caixa antiga na conta com todas as conversas dela, e disparar para
-  // essa gente é mandar mensagem de uma clínica que ela não reconhece.
+  // essa gente é mandar mensagem de uma clínica que ela não reconhece. Não se
+  // aplica a paciente sem CRM: não veio de sincronização nenhuma, é dado
+  // nosso, não tem como estar "contaminado" por número antigo.
   const [soDoNumeroAtual, setSoDoNumeroAtual] = useState(true);
 
-  const contatos = contatosEstado.contatos;
+  const contatos = useMemo<ContatoUnificado[]>(
+    () => [
+      ...contatosEstado.contatos.map((c) => ({ id: c.id, name: c.name, phone: c.phone, origem: "crm" as const, patientId: null })),
+      ...(patientsQuery.data ?? SEM_PACIENTES).map((p) => ({ id: p.id, name: p.name, phone: p.phone, origem: "paciente" as const, patientId: p.id })),
+    ],
+    [contatosEstado.contatos, patientsQuery.data],
+  );
 
   // Contato → conversa. É o que decide, no disparo, por qual caminho a mensagem
   // sai; e o que a linha mostra como "com conversa".
@@ -118,7 +153,9 @@ export function ContactsTab({
 
   const noEscopo = useMemo(
     () => (separavel && soDoNumeroAtual && daCaixaAtual
-      ? contatos.filter((c) => daCaixaAtual.has(c.id))
+      // Paciente sem CRM nunca é filtrado por caixa: não veio de sincronização
+      // nenhuma, então não tem como ser "do número antigo".
+      ? contatos.filter((c) => c.origem === "paciente" || daCaixaAtual.has(c.id))
       : contatos),
     [contatos, separavel, soDoNumeroAtual, daCaixaAtual],
   );
@@ -321,11 +358,15 @@ export function ContactsTab({
                       <p className="truncate text-sm font-semibold">{c.name}</p>
                       <p className="mt-0.5 flex items-center gap-1.5 truncate text-2xs text-muted-foreground">
                         <span className="font-mono">{formatWhatsappNumber(c.phone) || "sem telefone"}</span>
-                        {temConversa && (
+                        {c.origem === "paciente" ? (
+                          <span className="flex items-center gap-1 text-foreground-secondary">
+                            <UserRound className="h-3 w-3" /> paciente, sem conversa
+                          </span>
+                        ) : temConversa ? (
                           <span className="flex items-center gap-1 text-success">
                             <MessageCircle className="h-3 w-3" /> com conversa
                           </span>
-                        )}
+                        ) : null}
                       </p>
                     </div>
                   </label>

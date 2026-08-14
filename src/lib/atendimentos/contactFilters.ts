@@ -1,4 +1,12 @@
-import { ddd, type CrmContact } from "./contacts.functions";
+import { ddd } from "./contacts.functions";
+
+/** O mínimo que qualquer contato precisa ter pra ser buscado/filtrado/selecionado
+ *  — genérico pra caber tanto o contato do CRM quanto o de paciente sem CRM. */
+export interface ContatoFiltravel {
+  id: string;
+  name: string;
+  phone: string | null;
+}
 
 /**
  * O recorte da base: quem sobra depois da busca e das fichas de DDD.
@@ -7,10 +15,10 @@ import { ddd, type CrmContact } from "./contacts.functions";
  * Um erro aqui não aparece como tela torta — aparece como alguém de outro
  * estado recebendo um disparo que era do DDD 48.
  */
-export function filtrarContatos(
-  contatos: CrmContact[],
+export function filtrarContatos<T extends ContatoFiltravel>(
+  contatos: T[],
   { busca, ddds }: { busca: string; ddds: Set<string> },
-): CrmContact[] {
+): T[] {
   const q = busca.trim().toLocaleLowerCase("pt-BR");
   const digitos = busca.replace(/\D/g, "");
 
@@ -30,7 +38,7 @@ export function filtrarContatos(
 }
 
 /** DDDs presentes na base, com quantos cada um tem, do maior para o menor. */
-export function contarPorDdd(contatos: CrmContact[]): [string, number][] {
+export function contarPorDdd(contatos: ContatoFiltravel[]): [string, number][] {
   const contagem = new Map<string, number>();
   for (const c of contatos) {
     const d = ddd(c.phone);
@@ -48,7 +56,7 @@ export function contarPorDdd(contatos: CrmContact[]): [string, number][] {
  */
 export function alternarSelecaoDoRecorte(
   selecionados: Set<string>,
-  recorte: CrmContact[],
+  recorte: ContatoFiltravel[],
 ): Set<string> {
   const todosDentro = recorte.length > 0 && recorte.every((c) => selecionados.has(c.id));
   const next = new Set(selecionados);

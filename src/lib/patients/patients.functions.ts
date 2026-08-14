@@ -553,3 +553,65 @@ export const formatPatientWhatsApp = (phone: string | null) => {
   const digits = cleanDigits(phone);
   return digits ? `https://wa.me/${digits.startsWith("55") ? digits : `55${digits}`}` : null;
 };
+
+export interface PatientContact {
+  id: string;
+  name: string;
+  phone: string;
+}
+
+/**
+ * Pacientes da NÓS que nunca tiveram conversa de WhatsApp sincronizada — por
+ * isso não aparecem na base de contatos do CRM (que só existe pra quem já
+ * apareceu numa conversa daquele número).
+ *
+ * Existe pra que "Selecionar contatos" na campanha alcance também quem foi
+ * cadastrado direto no sistema e nunca mandou mensagem — sem isso, essas
+ * pessoas eram invisíveis pra qualquer disparo filtrado.
+ */
+export const getPatientContacts = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<PatientContact[]> => {
+    const supabase: any = context.supabase;
+    const { data, error } = await supabase
+      .from("patients")
+      .select("id, name, phone")
+      .eq("owner_id", context.userId)
+      .is("crm_contact_id", null)
+      .not("phone", "is", null);
+    if (error) throw new Error(error.message);
+    return (data ?? [])
+      .filter((p: any) => p.phone)
+      .map((p: any) => ({ id: p.id, name: p.name ?? "Sem nome", phone: p.phone }));
+  });
+
+/**
+ * Cria (ou acha) o contato no CRM pra um paciente que ainda não tinha um —
+ * é o que torna um paciente "sem conversa" disparável de verdade: o motor de
+ * envio (whatsapp-broadcast) só sabe falar com um `contactId` do CRM, nunca
+ * com um id de paciente.
+ *
+ * Ao contrário de `pushContactToCrm` (best-effort, silencioso, chamado no
+ * salvar do cadastro), esta é síncrona e propaga erro: no disparo, não dar
+ * pra vincular precisa impedir o envio, não ser engolido.
+ */
+export const garantirContatoCrm = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { patientId: string; name: string; phone: string }) => input)
+  .handler(async ({ data, context }): Promise<{ contactId: string | null }> => {
+    const url = process.env.SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !serviceKey) throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
+    const res = await fetch(`${url}/functions/v1/crm-contacts`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({
+        ownerId: context.userId,
+        action: "upsert",
+        patient: { patientId: data.patientId, name: data.name, phone: data.phone },
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json?.error ?? `Falha ao vincular contato no CRM (${res.status})`);
+    return { contactId: json.contactId ? String(json.contactId) : null };
+  });

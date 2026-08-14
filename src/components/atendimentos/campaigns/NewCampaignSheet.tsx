@@ -15,7 +15,8 @@ import {
   updatePendingMove,
   type MessageInterval,
 } from "@/lib/atendimentos/campaigns.functions";
-import { criarDisparo } from "@/lib/atendimentos/broadcast.functions";
+import { criarDisparo, type BroadcastAlvo } from "@/lib/atendimentos/broadcast.functions";
+import { garantirContatoCrm } from "@/lib/patients/patients.functions";
 import { movePipelineItem } from "@/lib/atendimentos/pipeline.functions";
 import { moveContactsToStage } from "@/lib/atendimentos/campaignMoveLoop";
 import { FunnelSection, type ResolvedAudience } from "./FunnelSection";
@@ -71,6 +72,7 @@ export function NewCampaignSheet({
   const fetchEstimate = useServerFn(getEstimatedRecipients);
   const fetchUsage = useServerFn(getDailySendUsage);
   const doDisparar = useServerFn(criarDisparo);
+  const doGarantirContato = useServerFn(garantirContatoCrm);
 
   const [audiencia, setAudiencia] = useState<"todos" | "selecionar">("todos");
 
@@ -207,18 +209,27 @@ export function NewCampaignSheet({
   });
 
   const disparoMutation = useMutation({
-    mutationFn: (dados: { message: string; intervalSeconds: number }) =>
-      doDisparar({
-        data: {
-          ...dados,
-          targets: (disparoSelecao ?? []).map((c) => ({
-            contactId: c.id,
-            conversationId: c.conversationId,
-            name: c.name,
-            phone: c.phone,
-          })),
-        },
-      }),
+    mutationFn: async (dados: { message: string; intervalSeconds: number }) => {
+      // Contato vindo da base de pacientes (nunca teve conversa) ainda não
+      // tem contactId no CRM — o motor de envio só sabe falar com um. Cria
+      // (ou acha) esse contato agora, um por um, antes de enfileirar; se
+      // algum falhar, a mutation inteira falha, em vez de enfileirar um
+      // alvo que o disparo não vai conseguir alcançar.
+      const alvos: BroadcastAlvo[] = await Promise.all(
+        (disparoSelecao ?? []).map(async (c) => {
+          if (c.origem === "crm") {
+            return { contactId: c.id, conversationId: c.conversationId, name: c.name, phone: c.phone };
+          }
+          if (!c.phone) throw new Error(`${c.name} não tem telefone cadastrado — não dá para disparar.`);
+          const { contactId } = await doGarantirContato({
+            data: { patientId: c.patientId!, name: c.name, phone: c.phone },
+          });
+          if (!contactId) throw new Error(`Não foi possível vincular ${c.name} ao CRM antes de disparar.`);
+          return { contactId, conversationId: null, name: c.name, phone: c.phone };
+        }),
+      );
+      return doDisparar({ data: { ...dados, targets: alvos } });
+    },
     onSuccess: (r) => {
       const fim = r.terminaEm ? new Date(r.terminaEm) : null;
       toast.success(
