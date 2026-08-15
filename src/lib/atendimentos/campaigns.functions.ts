@@ -152,7 +152,16 @@ export const getMessageTemplates = createServerFn({ method: "GET" })
 
 export const saveMessageTemplate = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
-  .inputValidator((input: { id?: string; name: string; content: string; mediaUrl?: string }) => input)
+  .inputValidator((input: { id?: string; name: string; content: string; mediaUrl?: string }) => {
+    // Mesma regra que já vale pro disparo por seleção (criarDisparo) — texto
+    // ou imagem, nunca os dois vazios. A tela já trava isto antes de chegar
+    // aqui (isComposerReady em NewCampaignSheet.tsx); isto é rede de
+    // segurança para quem bater direto no endpoint.
+    if (!input.content?.trim() && !input.mediaUrl) {
+      throw new Error("A mensagem precisa ter texto ou imagem.");
+    }
+    return input;
+  })
   .handler(async ({ data, context }) => {
     const json = await callTemplates({ ownerId: context.ownerId, action: "save", template: data });
     return { ok: true, template: json.template ? mapTemplate(json.template) : null };

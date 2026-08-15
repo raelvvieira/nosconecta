@@ -189,7 +189,7 @@ export function BroadcastDialog({
           <AlertDialogAction
             data-disparo-confirmar=""
             className="bg-gradient-primary text-white hover:opacity-90"
-            disabled={isPending || estouraLimite}
+            disabled={isPending || estouraLimite || !mensagem.trim()}
             onClick={(e) => {
               e.preventDefault();
               confirmar();

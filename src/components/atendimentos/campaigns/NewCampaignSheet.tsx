@@ -39,8 +39,13 @@ const INITIAL_COMPOSER: ComposerState = {
 };
 
 function isComposerReady(state: ComposerState): boolean {
-  if (state.mode === "digitar") return state.content.trim().length > 0;
-  if (state.isNewTemplate) return state.newTemplateName.trim().length > 0 && state.content.trim().length > 0;
+  // Texto OU imagem — uma mensagem só de imagem é válida, então checar só
+  // `content` deixava passar o "Prosseguir" desabilitado por engano num caso
+  // que o CRM aceita, e o inverso (nem texto nem imagem) tinha que ficar
+  // bloqueado, não só avisado depois de já ter disparado.
+  const hasContent = state.content.trim().length > 0 || !!state.mediaUrl;
+  if (state.mode === "digitar") return hasContent;
+  if (state.isNewTemplate) return state.newTemplateName.trim().length > 0 && hasContent;
   return !!state.templateId;
 }
 
