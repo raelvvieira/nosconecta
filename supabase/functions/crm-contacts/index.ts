@@ -72,12 +72,15 @@ async function handleUpsert(
   const body = { name: patient.name, phone_number: patient.phone || undefined };
 
   if (row?.crm_contact_id) {
+    // Atualizar nome/telefone é acessório: se o CRM demorar, o vínculo que já
+    // existe continua válido e o disparo segue.
     await crmFetch(supabase, ownerId, `/api/v1/contacts/${row.crm_contact_id}`, {
       method: "PATCH",
       body: JSON.stringify(body),
-    });
+    }).catch(() => null);
     return { ok: true, contactId: row.crm_contact_id };
   }
+
 
   let contactId: string | null = null;
   try {
