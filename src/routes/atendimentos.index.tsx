@@ -6,6 +6,7 @@ import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBadge";
 import { WhatsappConnectionCard } from "@/components/atendimentos/WhatsappConnectionCard";
+import { CrmBackfillCard } from "@/components/atendimentos/CrmBackfillCard";
 import { PipelineFunnelCard } from "@/components/atendimentos/PipelineFunnelCard";
 import { StuckConversationsCard } from "@/components/atendimentos/StuckConversationsCard";
 import { SalesPlaybookCard } from "@/components/atendimentos/SalesPlaybookCard";
@@ -104,6 +105,10 @@ function DashboardPage() {
         <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <StuckConversationsCard assistant={assistantQuery.data ?? null} />
           <SalesPlaybookCard playbook={playbookQuery.data ?? null} />
+        </section>
+
+        <section className="max-w-md">
+          <CrmBackfillCard />
         </section>
       </div>
     </main>

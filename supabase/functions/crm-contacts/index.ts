@@ -244,6 +244,49 @@ async function handleList(ownerId: string) {
   return { ok: true, contacts: contatos, total, truncado, camposDisponiveis };
 }
 
+/**
+ * Vincula de uma vez só todo paciente sem `crm_contact_id` cujo telefone já
+ * existe como contato no CRM — o backfill que faz o caso comum (base de
+ * pacientes que já se sobrepõe à base de contatos do CRM, porque o WhatsApp
+ * da clínica já vinha recebendo mensagem dessas pessoas antes) parar de
+ * bater em `buscarContatoPorTelefone` a cada disparo. Uma varredura só, uma
+ * vez, em vez de uma por paciente toda vez que alguém dispara pra ele.
+ */
+async function handleBackfillLinks(ownerId: string) {
+  const { contacts, truncado } = await handleList(ownerId);
+  const porTelefone = new Map<string, string>();
+  for (const c of contacts) {
+    if (c.phone) porTelefone.set(c.phone, c.id);
+  }
+
+  const { data: pacientes, error } = await supabase
+    .from("patients")
+    .select("id, phone")
+    .eq("owner_id", ownerId)
+    .is("crm_contact_id", null)
+    .not("phone", "is", null);
+  if (error) throw new Error(error.message);
+
+  let linkados = 0;
+  for (const p of pacientes ?? []) {
+    const contactId = porTelefone.get(p.phone);
+    if (!contactId) continue;
+    const { error: updError } = await supabase
+      .from("patients")
+      .update({ crm_contact_id: contactId })
+      .eq("id", p.id)
+      .eq("owner_id", ownerId);
+    if (!updError) linkados++;
+  }
+
+  return {
+    ok: true,
+    pacientesSemVinculo: (pacientes ?? []).length,
+    linkados,
+    baseTruncada: truncado,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
   try {
@@ -266,6 +309,8 @@ Deno.serve(async (req) => {
       result = await handleList(ownerId);
     } else if (action === "upsert" && patient) {
       result = await handleUpsert(ownerId, patient);
+    } else if (action === "backfill-links") {
+      result = await handleBackfillLinks(ownerId);
     } else {
       return new Response(JSON.stringify({ error: "action/patient inválidos" }), { status: 400 });
     }

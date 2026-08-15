@@ -642,3 +642,40 @@ export const garantirContatoCrm = createServerFn({ method: "POST" })
     if (!res.ok) throw new Error(json?.error ?? `Falha ao vincular contato no CRM (${res.status})`);
     return { contactId: json.contactId ? String(json.contactId) : null };
   });
+
+/**
+ * Vincula de uma vez toda a base de pacientes sem `crm_contact_id` cujo
+ * telefone já é um contato no CRM — o caso comum numa clínica cujo WhatsApp
+ * já vinha recebendo mensagem dessas pessoas antes deste sistema existir.
+ * Sem isto, cada disparo pra um paciente "sem conversa" nessa situação bate
+ * no caminho lento de `garantirContatoCrm` (cria, toma 422 de telefone
+ * duplicado, varre a base procurando) — rodar isto uma vez evita repetir
+ * essa varredura a cada disparo.
+ */
+export const backfillCrmContactLinks = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .handler(
+    async ({ context }): Promise<{ pacientesSemVinculo: number; linkados: number; baseTruncada: boolean }> => {
+      if (!context.isAdmin) throw new Error("Apenas administradores podem rodar isto.");
+      const url = process.env.SUPABASE_URL;
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!url || !serviceKey) throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
+      const res = await fetch(`${url}/functions/v1/crm-contacts`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
+        body: JSON.stringify({ ownerId: context.ownerId, action: "backfill-links" }),
+        // A varredura completa da base de contatos pode levar até os 45s que
+        // handleList já se dá — sem uma margem por cima disso, uma base
+        // grande derrubava a chamada por timeout do lado de cá antes da
+        // Edge Function terminar.
+        signal: AbortSignal.timeout(55_000),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? `Falha ao vincular pacientes (${res.status})`);
+      return {
+        pacientesSemVinculo: Number(json.pacientesSemVinculo ?? 0),
+        linkados: Number(json.linkados ?? 0),
+        baseTruncada: Boolean(json.baseTruncada),
+      };
+    },
+  );
