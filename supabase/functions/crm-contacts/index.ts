@@ -17,6 +17,13 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+/** Só dígitos — "+55 (48) 98419-5309" e "5548984195309" precisam bater mesmo
+ *  vindo de lugares que formatam diferente (o CRM de um jeito na criação, de
+ *  outro na listagem; o cadastro de paciente de outro ainda). Comparar as
+ *  strings cruas era o que fazia a busca por telefone nunca achar nada,
+ *  mesmo com o contato certo na página certa. */
+const soDigitos = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "");
+
 /**
  * Acha, na paginação já usada por `handleList`, o contato cujo telefone bate
  * com o pedido — usada só quando criar um contato novo falha porque o
@@ -33,6 +40,7 @@ const supabase = createClient(
  * tempo, que é um erro que pelo menos explica o que houve.
  */
 async function buscarContatoPorTelefone(ownerId: string, phone: string): Promise<string | null> {
+  const alvo = soDigitos(phone);
   const inicio = Date.now();
   const pendentes: number[] = [];
   for (let p = 1; p <= MAX_PAGES; p++) pendentes.push(p);
@@ -49,7 +57,7 @@ async function buscarContatoPorTelefone(ownerId: string, phone: string): Promise
       const contatos = unwrap(res);
       if (!Array.isArray(contatos)) continue;
       if (contatos.length < PAGE_SIZE) algumaVazia = true;
-      const achado = contatos.find((row: any) => (row?.phone_number ?? row?.phone) === phone);
+      const achado = contatos.find((row: any) => soDigitos(row?.phone_number ?? row?.phone) === alvo);
       if (achado?.id) return String(achado.id);
     }
     if (algumaVazia) return null; // uma página incompleta é o fim real da base
@@ -273,7 +281,8 @@ async function handleBackfillLinks(ownerId: string) {
   const { contacts, truncado } = await handleList(ownerId);
   const porTelefone = new Map<string, string>();
   for (const c of contacts) {
-    if (c.phone) porTelefone.set(c.phone, c.id);
+    const digitos = soDigitos(c.phone);
+    if (digitos) porTelefone.set(digitos, c.id);
   }
 
   const { data: pacientes, error } = await supabase
@@ -286,7 +295,7 @@ async function handleBackfillLinks(ownerId: string) {
 
   let linkados = 0;
   for (const p of pacientes ?? []) {
-    const contactId = porTelefone.get(p.phone);
+    const contactId = porTelefone.get(soDigitos(p.phone));
     if (!contactId) continue;
     const { error: updError } = await supabase
       .from("patients")
