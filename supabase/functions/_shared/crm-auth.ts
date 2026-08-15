@@ -11,7 +11,16 @@ import { rawFetch } from "./crm-client.ts";
 export const CRM_BASE_URL = "https://api.wavymarketing.com.br";
 export const CAMPAIGNS_BASE_URL = "https://flow.wavymarketing.com.br";
 
-const TOKEN_SAFETY_MARGIN_MS = 60_000;
+// A conta de integração (nosodontologia.integracao@wavymarketing.com.br) foi
+// marcada pelo time do CRM como "conta de serviço": token dura 30 dias e
+// login concorrente não derruba mais os outros (antes eram 2h e sessão
+// única — vários processos nossos relogando perto do vencimento ao mesmo
+// tempo, cada login revogando o token que outro processo tinha acabado de
+// gravar, é o que causava 401 intermitente). Renovar com 5 dias de folga
+// (não faltando só 1 minuto) foi a faixa que o time do CRM recomendou —
+// ainda reduz a chance de vários processos decidirem relogar ao mesmo
+// tempo perto do fim, mesmo não sendo mais uma questão de correção.
+const RENEW_BEFORE_EXPIRY_MS = 5 * 24 * 60 * 60 * 1000;
 
 interface CrmCredentialsRow {
   crm_email: string;
@@ -45,23 +54,16 @@ async function fetchCredentials(supabase: any, ownerId: string): Promise<CrmCred
   return data;
 }
 
-async function refreshToken(supabase: any, ownerId: string, row: CrmCredentialsRow): Promise<string> {
-  // Confirmado no manual (seção 2): "um login novo invalida o token do
-  // login anterior" — sem essa checagem, duas chamadas concorrentes (comum
-  // aqui: badge da sidebar, chat e sheet de conectar pollam de forma
-  // independente) que veem o token expirado ao mesmo tempo relogam em
-  // paralelo, e a segunda invalida o token que a primeira acabou de gravar,
-  // derrubando a chamada que a esperava. Reconsulta o banco bem antes de
-  // logar: se outra chamada concorrente já relogou nesse meio-tempo, reusa
-  // o token dela em vez de logar de novo. Não elimina a corrida por
-  // completo (ainda há uma janela entre esse check e o login em si), mas
-  // reduz bastante a chance na prática.
-  const fresh = await fetchCredentials(supabase, ownerId);
-  if (fresh.access_token && fresh.token_expires_at) {
-    const expiresAt = new Date(fresh.token_expires_at).getTime();
-    if (expiresAt - TOKEN_SAFETY_MARGIN_MS > Date.now()) return fresh.access_token;
-  }
-  const { accessToken, expiresInSeconds } = await login(fresh.crm_email, fresh.crm_password);
+/** Loga de verdade e grava o token novo, sem checar se o token guardado
+ *  "ainda não venceu pelo relógio" — é o que falta no caminho de retry de
+ *  401 (ver `authedFetch`): um 401 já prova que o token guardado não
+ *  funciona agora, mesmo que `token_expires_at` ainda esteja no futuro
+ *  (revogado do lado do CRM antes da hora, por exemplo). Reusar a checagem
+ *  de expiração ali reproduziria o mesmo token que acabou de falhar,
+ *  fazendo o retry falhar do mesmo jeito sempre — até o token vencer de
+ *  verdade e forçar um login pelo caminho normal. */
+async function forceLogin(supabase: any, ownerId: string, email: string, password: string): Promise<string> {
+  const { accessToken, expiresInSeconds } = await login(email, password);
   const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
   await supabase
     .from("crm_credentials")
@@ -70,11 +72,24 @@ async function refreshToken(supabase: any, ownerId: string, row: CrmCredentialsR
   return accessToken;
 }
 
+async function refreshToken(supabase: any, ownerId: string, row: CrmCredentialsRow): Promise<string> {
+  // Reconsulta o banco antes de logar: se outra chamada concorrente já
+  // relogou nesse meio-tempo, reusa o token dela em vez de logar de novo —
+  // puro cuidado de carga agora (o CRM não derruba mais logins concorrentes
+  // da conta de serviço), não mais uma questão de correção.
+  const fresh = await fetchCredentials(supabase, ownerId);
+  if (fresh.access_token && fresh.token_expires_at) {
+    const expiresAt = new Date(fresh.token_expires_at).getTime();
+    if (expiresAt - RENEW_BEFORE_EXPIRY_MS > Date.now()) return fresh.access_token;
+  }
+  return forceLogin(supabase, ownerId, fresh.crm_email, fresh.crm_password);
+}
+
 export async function ensureCrmToken(supabase: any, ownerId: string): Promise<string> {
   const row = await fetchCredentials(supabase, ownerId);
   if (row.access_token && row.token_expires_at) {
     const expiresAt = new Date(row.token_expires_at).getTime();
-    if (expiresAt - TOKEN_SAFETY_MARGIN_MS > Date.now()) return row.access_token;
+    if (expiresAt - RENEW_BEFORE_EXPIRY_MS > Date.now()) return row.access_token;
   }
   return refreshToken(supabase, ownerId, row);
 }
@@ -92,9 +107,11 @@ async function authedFetch(
     headers: { authorization: `Bearer ${token}`, ...(init.headers ?? {}) },
   });
   if (res.status === 401) {
-    // Token pode ter expirado sem avisar ou ter sido revogado — relogar uma vez.
+    // Não passa pelo `refreshToken`/checagem de expiração aqui — o 401 já
+    // prova que o token guardado não serve mais, então relogar de verdade é
+    // a única forma de o retry ter chance de funcionar.
     const row = await fetchCredentials(supabase, ownerId);
-    const fresh = await refreshToken(supabase, ownerId, row);
+    const fresh = await forceLogin(supabase, ownerId, row.crm_email, row.crm_password);
     res = await rawFetch(baseUrl, path, {
       ...init,
       headers: { authorization: `Bearer ${fresh}`, ...(init.headers ?? {}) },
