@@ -22,16 +22,37 @@ const supabase = createClient(
  * com o pedido — usada só quando criar um contato novo falha porque o
  * telefone já existe (ver `handleUpsert`). Não existe endpoint de busca por
  * telefone confirmado com o CRM; isto reaproveita o único jeito já testado
- * de enxergar a base (a mesma listagem paginada da tela de contatos), com o
- * mesmo teto de páginas.
+ * de enxergar a base (a mesma listagem paginada da tela de contatos).
+ *
+ * Mesmo padrão de `handleList` (páginas concorrentes, teto de tempo) — a
+ * primeira versão disto varria página por página, esperando cada uma antes
+ * de pedir a próxima, e numa base grande isso estourava o timeout de 15s de
+ * alguma página no meio do caminho, derrubando o disparo inteiro com um erro
+ * confuso. Uma página que falha ou demora agora só é ignorada — o disparo
+ * original (telefone já existe) é o que sobe se a busca não achar nada a
+ * tempo, que é um erro que pelo menos explica o que houve.
  */
 async function buscarContatoPorTelefone(ownerId: string, phone: string): Promise<string | null> {
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    const lote = unwrap(await buscarPagina(ownerId, page));
-    if (!Array.isArray(lote) || lote.length === 0) return null;
-    const achado = lote.find((row: any) => (row?.phone_number ?? row?.phone) === phone);
-    if (achado?.id) return String(achado.id);
-    if (lote.length < PAGE_SIZE) return null; // última página, sem mais o que buscar
+  const inicio = Date.now();
+  const pendentes: number[] = [];
+  for (let p = 1; p <= MAX_PAGES; p++) pendentes.push(p);
+
+  while (pendentes.length > 0) {
+    if (Date.now() - inicio > PRAZO_MS) return null;
+    const lote = pendentes.splice(0, CONCORRENCIA);
+    const respostas = await Promise.all(
+      lote.map((p) => buscarPagina(ownerId, p).catch(() => null)),
+    );
+    let algumaVazia = false;
+    for (const res of respostas) {
+      if (!res) continue; // página que falhou/demorou — ignora, não interrompe a busca
+      const contatos = unwrap(res);
+      if (!Array.isArray(contatos)) continue;
+      if (contatos.length < PAGE_SIZE) algumaVazia = true;
+      const achado = contatos.find((row: any) => (row?.phone_number ?? row?.phone) === phone);
+      if (achado?.id) return String(achado.id);
+    }
+    if (algumaVazia) return null; // uma página incompleta é o fim real da base
   }
   return null;
 }
