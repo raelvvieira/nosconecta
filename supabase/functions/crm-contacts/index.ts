@@ -92,13 +92,27 @@ async function handleUpsert(
     // WhatsApp antes de virar paciente, sem nunca ter sido linkado a este
     // paciente aqui) não é motivo pra falhar o disparo — reusa o contato que
     // já existe em vez de tentar criar outro.
+    //
+    // O mesmo vale quando o CRM simplesmente demora e o fetch é abortado
+    // ("TimeoutError: Signal timed out."): a criação pode ter acontecido do
+    // lado de lá, e derrubar tudo com um erro técnico deixava a tela em
+    // branco. Nos dois casos a saída é procurar o contato pelo telefone.
     const mensagem = e instanceof Error ? e.message : String(e);
     const jaExiste = /\(422\)/.test(mensagem) && /already been taken/i.test(mensagem);
-    if (jaExiste && patient.phone) {
+    const demorou = /timed out|TimeoutError|aborted|AbortError/i.test(mensagem);
+    if ((jaExiste || demorou) && patient.phone) {
       contactId = await buscarContatoPorTelefone(ownerId, patient.phone);
     }
-    if (!contactId) throw e;
+    if (!contactId) {
+      if (demorou) {
+        throw new Error(
+          "O CRM demorou demais para responder ao cadastrar o contato. Tente novamente em instantes.",
+        );
+      }
+      throw e;
+    }
   }
+
 
   if (contactId) {
     await supabase
