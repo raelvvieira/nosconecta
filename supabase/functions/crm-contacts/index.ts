@@ -65,6 +65,41 @@ async function buscarContatoPorTelefone(ownerId: string, phone: string): Promise
   return null;
 }
 
+/**
+ * Pergunta direto ao CRM "existe alguém com este telefone?", em vez de
+ * varrer a base paginada procurando (ver `buscarContatoPorTelefone`, que
+ * fica como último recurso caso este endpoint não devolva nada — ele é novo
+ * e ainda não testado à exaustão). `starts_with` com o telefone completo em
+ * vez de `equal_to`/`eq` porque só o operador `starts_with` foi confirmado
+ * funcionando pelo time do CRM (15/08); pra um telefone de tamanho fixo,
+ * "começa com o número inteiro" equivale a "é igual".
+ */
+async function buscarContatoPorTelefoneViaFiltro(ownerId: string, phone: string): Promise<string | null> {
+  const alvo = soDigitos(phone);
+  if (!alvo) return null;
+  try {
+    const res = await crmFetch(supabase, ownerId, "/api/v1/contacts/filter", {
+      method: "POST",
+      body: JSON.stringify({
+        payload: [
+          {
+            attribute_key: "phone_number",
+            filter_operator: "starts_with",
+            values: [alvo],
+            query_operator: null,
+          },
+        ],
+      }),
+    });
+    const contatos = unwrap(res);
+    if (!Array.isArray(contatos)) return null;
+    const achado = contatos.find((row: any) => soDigitos(row?.phone_number ?? row?.phone) === alvo);
+    return achado?.id ? String(achado.id) : null;
+  } catch {
+    return null; // endpoint novo, sem garantia — cai pra varredura paginada
+  }
+}
+
 async function handleUpsert(
   ownerId: string,
   patient: { patientId: string; name: string; phone?: string | null },
@@ -112,7 +147,8 @@ async function handleUpsert(
     const jaExiste = /\(422\)/.test(mensagem) && /already been taken/i.test(mensagem);
     const demorou = /timed out|TimeoutError|aborted|AbortError/i.test(mensagem);
     if ((jaExiste || demorou) && patient.phone) {
-      contactId = await buscarContatoPorTelefone(ownerId, patient.phone);
+      contactId = await buscarContatoPorTelefoneViaFiltro(ownerId, patient.phone);
+      if (!contactId) contactId = await buscarContatoPorTelefone(ownerId, patient.phone);
     }
     if (!contactId) {
       if (demorou) {
@@ -294,15 +330,39 @@ async function handleBackfillLinks(ownerId: string) {
   if (error) throw new Error(error.message);
 
   let linkados = 0;
+  const semMatch: { id: string; phone: string }[] = [];
   for (const p of pacientes ?? []) {
     const contactId = porTelefone.get(soDigitos(p.phone));
-    if (!contactId) continue;
+    if (!contactId) {
+      if (p.phone) semMatch.push({ id: p.id, phone: p.phone });
+      continue;
+    }
     const { error: updError } = await supabase
       .from("patients")
       .update({ crm_contact_id: contactId })
       .eq("id", p.id)
       .eq("owner_id", ownerId);
     if (!updError) linkados++;
+  }
+
+  // Segunda passada, só pra quem a listagem geral não achou: pergunta direto
+  // por telefone (ver buscarContatoPorTelefoneViaFiltro) — cobre o caso da
+  // listagem paginada não enxergar tudo (ex.: escopo por inbox), sem pagar
+  // esse custo extra pra quem já casou na primeira passada.
+  while (semMatch.length > 0) {
+    const lote = semMatch.splice(0, CONCORRENCIA);
+    const resultados = await Promise.all(
+      lote.map(async (p) => ({ id: p.id, contactId: await buscarContatoPorTelefoneViaFiltro(ownerId, p.phone) })),
+    );
+    for (const r of resultados) {
+      if (!r.contactId) continue;
+      const { error: updError } = await supabase
+        .from("patients")
+        .update({ crm_contact_id: r.contactId })
+        .eq("id", r.id)
+        .eq("owner_id", ownerId);
+      if (!updError) linkados++;
+    }
   }
 
   return {
