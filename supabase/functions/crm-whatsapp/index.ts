@@ -29,25 +29,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
 import { listInboxes } from "../_shared/crm-inbox.ts";
+import { normalizeBrazilianPhone } from "../_shared/phone.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
-
-// Só dígitos: código do país + DDD + número, sem zero inicial (formato
-// antigo de DDD interurbano, nunca válido aqui). Sem essa limpeza, o número
-// mandado pro CRM não bate com um número real e o celular recusa o
-// pareamento mesmo com o QR aparecendo normalmente.
-//
-// Sem `+`: é o formato do corpo de POST /api/v1/evolution/connections
-// ("5548984195309"), conforme especificado pelo time do CRM.
-function normalizeBrazilPhone(raw: string): string {
-  let digits = raw.replace(/\D/g, "");
-  if (digits.startsWith("0")) digits = digits.slice(1);
-  if (!digits.startsWith("55")) digits = `55${digits}`;
-  return digits;
-}
 
 // Estados possíveis na resposta de GET /evolution/instances nunca foram
 // confirmados com o Wavy (diferente do resto deste arquivo). Tenta primeiro
@@ -121,7 +108,7 @@ async function handleConnect(ownerId: string, phoneNumber?: string) {
   }
 
   const rawPhone = phoneNumber?.trim() || row.phone_number || null;
-  const effectivePhone = rawPhone ? normalizeBrazilPhone(rawPhone) : null;
+  const effectivePhone = rawPhone ? normalizeBrazilianPhone(rawPhone) : null;
   if (!effectivePhone) {
     throw new Error("Informe o número de WhatsApp da clínica (com DDD) antes de conectar.");
   }

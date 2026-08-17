@@ -11,6 +11,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
+import { normalizeBrazilianPhone } from "../_shared/phone.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -23,6 +24,32 @@ const supabase = createClient(
  *  strings cruas era o que fazia a busca por telefone nunca achar nada,
  *  mesmo com o contato certo na página certa. */
 const soDigitos = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "");
+
+/**
+ * Pergunta direto ao CRM "existe contato com este telefone?" — resolve
+ * ANTES de tentar criar, em vez de criar às cegas e só reagir ao 422
+ * depois (jeito antigo, ainda de propósito no catch de `handleUpsert` como
+ * rede de segurança). Recomendação do time do CRM (15/08): aceita telefone
+ * em qualquer formatação, tira máscara e completa o "55" sozinho — por
+ * isso resolve também o caso de telefone salvo sem código do país (ver
+ * `normalizeBrazilianPhone`, aplicado de qualquer forma antes de mandar,
+ * por garantia).
+ */
+async function resolverTelefoneNoCrm(ownerId: string, phone: string): Promise<string | null> {
+  const alvo = normalizeBrazilianPhone(phone);
+  if (!alvo) return null;
+  try {
+    const res = await crmFetch(supabase, ownerId, "/api/v1/audiences/resolve_phones", {
+      method: "POST",
+      body: JSON.stringify({ phones: [alvo] }),
+    });
+    const data = unwrap(res);
+    const contactId = data?.contact_ids?.[0];
+    return contactId ? String(contactId) : null;
+  } catch {
+    return null; // endpoint novo — quem chama decide o que tentar depois
+  }
+}
 
 /**
  * Acha, na paginação já usada por `handleList`, o contato cujo telefone bate
@@ -112,7 +139,12 @@ async function handleUpsert(
     .maybeSingle();
   if (error) throw new Error(error.message);
 
-  const body = { name: patient.name, phone_number: patient.phone || undefined };
+  // Normalizado aqui como última garantia, mesmo que patients.phone já
+  // devesse vir certo do lado de quem grava (patientInput, etc.) — telefone
+  // sem o "55" do Brasil faz o CRM interpretar o DDD como código de outro
+  // país e criar um contato pro qual o WhatsApp nunca entrega.
+  const phone = patient.phone ? normalizeBrazilianPhone(patient.phone) : null;
+  const body = { name: patient.name, phone_number: phone || undefined };
 
   if (row?.crm_contact_id) {
     // Atualizar nome/telefone é acessório: se o CRM demorar, o vínculo que já
@@ -124,42 +156,41 @@ async function handleUpsert(
     return { ok: true, contactId: row.crm_contact_id };
   }
 
+  // Resolve ANTES de criar (recomendação do time do CRM, 15/08) — evita
+  // tentar criar um contato que já existe e só reagir ao 422 depois, que é
+  // o jeito antigo mantido abaixo só como rede de segurança.
+  let contactId: string | null = phone ? await resolverTelefoneNoCrm(ownerId, phone) : null;
 
-  let contactId: string | null = null;
-  try {
-    const res = await crmFetch(supabase, ownerId, "/api/v1/contacts", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-    contactId = unwrap(res)?.id ? String(unwrap(res).id) : null;
-  } catch (e) {
-    // O CRM não deixa dois contatos com o mesmo telefone. Esse número já
-    // existir como contato (por exemplo, alguém que mandou mensagem por
-    // WhatsApp antes de virar paciente, sem nunca ter sido linkado a este
-    // paciente aqui) não é motivo pra falhar o disparo — reusa o contato que
-    // já existe em vez de tentar criar outro.
-    //
-    // O mesmo vale quando o CRM simplesmente demora e o fetch é abortado
-    // ("TimeoutError: Signal timed out."): a criação pode ter acontecido do
-    // lado de lá, e derrubar tudo com um erro técnico deixava a tela em
-    // branco. Nos dois casos a saída é procurar o contato pelo telefone.
-    const mensagem = e instanceof Error ? e.message : String(e);
-    const jaExiste = /\(422\)/.test(mensagem) && /already been taken/i.test(mensagem);
-    const demorou = /timed out|TimeoutError|aborted|AbortError/i.test(mensagem);
-    if ((jaExiste || demorou) && patient.phone) {
-      contactId = await buscarContatoPorTelefoneViaFiltro(ownerId, patient.phone);
-      if (!contactId) contactId = await buscarContatoPorTelefone(ownerId, patient.phone);
-    }
-    if (!contactId) {
-      if (demorou) {
-        throw new Error(
-          "O CRM demorou demais para responder ao cadastrar o contato. Tente novamente em instantes.",
-        );
+  if (!contactId) {
+    try {
+      const res = await crmFetch(supabase, ownerId, "/api/v1/contacts", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      contactId = unwrap(res)?.id ? String(unwrap(res).id) : null;
+    } catch (e) {
+      // Ainda pode cair aqui numa corrida rara (alguém criou o mesmo contato
+      // entre o resolve acima e este create) ou se resolve_phones falhar
+      // silenciosamente (endpoint novo). O mesmo vale quando o CRM demora e
+      // o fetch é abortado ("TimeoutError: Signal timed out.") — a criação
+      // pode ter acontecido do lado de lá mesmo assim.
+      const mensagem = e instanceof Error ? e.message : String(e);
+      const jaExiste = /\(422\)/.test(mensagem) && /already been taken/i.test(mensagem);
+      const demorou = /timed out|TimeoutError|aborted|AbortError/i.test(mensagem);
+      if ((jaExiste || demorou) && phone) {
+        contactId = await buscarContatoPorTelefoneViaFiltro(ownerId, phone);
+        if (!contactId) contactId = await buscarContatoPorTelefone(ownerId, phone);
       }
-      throw e;
+      if (!contactId) {
+        if (demorou) {
+          throw new Error(
+            "O CRM demorou demais para responder ao cadastrar o contato. Tente novamente em instantes.",
+          );
+        }
+        throw e;
+      }
     }
   }
-
 
   if (contactId) {
     await supabase
@@ -310,17 +341,19 @@ async function handleList(ownerId: string) {
  * existe como contato no CRM — o backfill que faz o caso comum (base de
  * pacientes que já se sobrepõe à base de contatos do CRM, porque o WhatsApp
  * da clínica já vinha recebendo mensagem dessas pessoas antes) parar de
- * bater em `buscarContatoPorTelefone` a cada disparo. Uma varredura só, uma
- * vez, em vez de uma por paciente toda vez que alguém dispara pra ele.
+ * bater no fluxo lento de criar/reagir a 422 a cada disparo.
+ *
+ * Resolve um telefone por vez (`resolverTelefoneNoCrm`), em lotes
+ * concorrentes — não em uma chamada só com todos os telefones (o endpoint
+ * aceita até 5000 de uma vez, mas devolve `contact_ids`/`nao_encontrados`
+ * como duas listas separadas, sem casar explicitamente cada id com o
+ * telefone que o gerou; arriscar essa correlação por posição poderia
+ * vincular gente errada a conversa de outra pessoa — pior que o problema
+ * que isto resolve). Quem sobrar sem achar cai na busca por
+ * `/contacts/filter` (ver `buscarContatoPorTelefoneViaFiltro`) como
+ * segunda tentativa.
  */
 async function handleBackfillLinks(ownerId: string) {
-  const { contacts, truncado } = await handleList(ownerId);
-  const porTelefone = new Map<string, string>();
-  for (const c of contacts) {
-    const digitos = soDigitos(c.phone);
-    if (digitos) porTelefone.set(digitos, c.id);
-  }
-
   const { data: pacientes, error } = await supabase
     .from("patients")
     .select("id, phone")
@@ -331,24 +364,27 @@ async function handleBackfillLinks(ownerId: string) {
 
   let linkados = 0;
   const semMatch: { id: string; phone: string }[] = [];
-  for (const p of pacientes ?? []) {
-    const contactId = porTelefone.get(soDigitos(p.phone));
-    if (!contactId) {
-      if (p.phone) semMatch.push({ id: p.id, phone: p.phone });
-      continue;
+  const pendentes = [...(pacientes ?? [])];
+  while (pendentes.length > 0) {
+    const lote = pendentes.splice(0, CONCORRENCIA);
+    const resultados = await Promise.all(
+      lote.map(async (p) => ({ id: p.id, phone: p.phone as string, contactId: await resolverTelefoneNoCrm(ownerId, p.phone) })),
+    );
+    for (const r of resultados) {
+      if (!r.contactId) {
+        semMatch.push({ id: r.id, phone: r.phone });
+        continue;
+      }
+      const { error: updError } = await supabase
+        .from("patients")
+        .update({ crm_contact_id: r.contactId })
+        .eq("id", r.id)
+        .eq("owner_id", ownerId);
+      if (!updError) linkados++;
     }
-    const { error: updError } = await supabase
-      .from("patients")
-      .update({ crm_contact_id: contactId })
-      .eq("id", p.id)
-      .eq("owner_id", ownerId);
-    if (!updError) linkados++;
   }
 
-  // Segunda passada, só pra quem a listagem geral não achou: pergunta direto
-  // por telefone (ver buscarContatoPorTelefoneViaFiltro) — cobre o caso da
-  // listagem paginada não enxergar tudo (ex.: escopo por inbox), sem pagar
-  // esse custo extra pra quem já casou na primeira passada.
+  // Segunda tentativa, só pra quem resolve_phones não achou.
   while (semMatch.length > 0) {
     const lote = semMatch.splice(0, CONCORRENCIA);
     const resultados = await Promise.all(
@@ -369,7 +405,7 @@ async function handleBackfillLinks(ownerId: string) {
     ok: true,
     pacientesSemVinculo: (pacientes ?? []).length,
     linkados,
-    baseTruncada: truncado,
+    baseTruncada: false,
   };
 }
 

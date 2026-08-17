@@ -2,6 +2,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
+import { normalizeBrazilianPhone } from "@/lib/atendimentos/phone";
 
 // Empurra o paciente pro CRM (fonte da verdade é sempre o paciente, nunca o
 // contrário). Best-effort: se o CRM estiver fora do ar ou a clínica ainda
@@ -321,7 +322,10 @@ const patientInput = (input: {
   name: input.name.trim(),
   crmContactId: input.crmContactId?.trim() || null,
   unitId: input.unitId?.trim() || null,
-  phone: input.phone?.trim() || null,
+  // Completa o "55" quando falta — telefone sem código do país faz o CRM
+  // interpretar o DDD como de outro país e criar um contato pro qual o
+  // WhatsApp nunca entrega (ver normalizeBrazilianPhone).
+  phone: input.phone?.trim() ? normalizeBrazilianPhone(input.phone) : null,
   email: input.email?.trim().toLowerCase() || null,
   cpf: input.cpf?.trim() || null,
   birthDate: input.birthDate || null,
@@ -392,6 +396,9 @@ export async function resolverPacienteDoContato(
   unitId: string,
 ): Promise<{ id: string; name: string; phone: string | null } | null> {
   const nome = contato.name?.trim();
+  // Completa o "55" quando falta — mesmo cuidado do patientInput/PatientFormSheet,
+  // aqui pro caminho de quem nasce de uma conversa (Agenda por chat, funil "Ganho").
+  const telefone = contato.phone ? normalizeBrazilianPhone(contato.phone) : null;
 
   const ler = async (coluna: "id" | "crm_contact_id", valor: string) => {
     const { data } = await supabase
@@ -411,13 +418,13 @@ export async function resolverPacienteDoContato(
     // Paciente antigo sem telefone: completar é o que faz a conversão passar a
     // casar. Nunca sobrescreve um número que já existe — quem digitou lá sabia
     // mais do que o CRM sabe.
-    if (contato.phone && !paciente.phone) {
+    if (telefone && !paciente.phone) {
       await supabase
         .from("patients")
-        .update({ phone: contato.phone, updated_at: new Date().toISOString() })
+        .update({ phone: telefone, updated_at: new Date().toISOString() })
         .eq("id", paciente.id)
         .eq("owner_id", ownerId);
-      paciente = { ...paciente, phone: contato.phone };
+      paciente = { ...paciente, phone: telefone };
     }
     return { id: paciente.id, name: paciente.name, phone: paciente.phone ?? null };
   }
@@ -431,7 +438,7 @@ export async function resolverPacienteDoContato(
       owner_id: ownerId,
       unit_id: unitId,
       name: nome,
-      phone: contato.phone || null,
+      phone: telefone,
       crm_contact_id: contato.crmContactId || null,
       status: "active",
     })
@@ -679,3 +686,45 @@ export const backfillCrmContactLinks = createServerFn({ method: "POST" })
       };
     },
   );
+
+/**
+ * Corrige telefone de paciente salvo sem o "55" do Brasil (ex.:
+ * "51993351821" — DDD 51, faltando o código do país) — confirmado pelo time
+ * do CRM (15/08): esse formato faz o CRM interpretar o DDD como código de
+ * outro país (Peru/Argentina) e criar um contato pro qual o WhatsApp nunca
+ * entrega. Só corrige o padrão exato do bug relatado — 10 ou 11 dígitos,
+ * sem "55" na frente — nunca telefones já certos ou claramente de outro
+ * formato, pra não inventar código de país por cima de algo que já é válido.
+ *
+ * Zera `crm_contact_id` de quem corrige: o contato que já existe no CRM pra
+ * esse paciente é o errado (o brasileiro virou peruano/argentino), então o
+ * vínculo antigo precisa ser esquecido — o próximo disparo (ou rodar
+ * "Vincular pacientes ao CRM" de novo) resolve o contato certo do zero,
+ * agora com o telefone corrigido.
+ */
+export const fixMissingCountryCodePhones = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .handler(async ({ context }): Promise<{ corrigidos: number }> => {
+    if (!context.isAdmin) throw new Error("Apenas administradores podem rodar isto.");
+    const supabase: any = context.supabase;
+    const { data: pacientes, error } = await supabase
+      .from("patients")
+      .select("id, phone")
+      .eq("owner_id", context.ownerId)
+      .not("phone", "is", null);
+    if (error) throw new Error(error.message);
+
+    let corrigidos = 0;
+    for (const p of (pacientes ?? []) as any[]) {
+      const digitos = String(p.phone).replace(/\D/g, "");
+      if (digitos.length !== 10 && digitos.length !== 11) continue;
+      if (digitos.startsWith("55")) continue;
+      const { error: updError } = await supabase
+        .from("patients")
+        .update({ phone: `55${digitos}`, crm_contact_id: null })
+        .eq("id", p.id)
+        .eq("owner_id", context.ownerId);
+      if (!updError) corrigidos++;
+    }
+    return { corrigidos };
+  });
