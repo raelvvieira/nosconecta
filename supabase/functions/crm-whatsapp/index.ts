@@ -223,6 +223,11 @@ async function handleStatus(ownerId: string) {
         // Autolimpa assim que um formato bate; só fica preenchido enquanto
         // nenhum candidato conhecido casa com a resposta real do CRM.
         crm_status_debug: matched ? null : { at: new Date().toISOString(), raw: res },
+        // Uma consulta que funciona apaga o erro da tentativa anterior — sem
+        // isto, um timeout passageiro (ex.: "Signal timed out.") ficava preso
+        // pra sempre na tela, mesmo com a conexão voltando a funcionar logo
+        // em seguida: nada aqui zerava o que o catch abaixo gravou.
+        last_error: null,
         updated_at: new Date().toISOString(),
       })
       .eq("owner_id", ownerId)
