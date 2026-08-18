@@ -169,7 +169,21 @@ async function handleUpsert(
   // sem o "55" do Brasil faz o CRM interpretar o DDD como código de outro
   // país e criar um contato pro qual o WhatsApp nunca entrega.
   const phone = patient.phone ? normalizeBrazilianPhone(patient.phone) : null;
-  const body = { name: patient.name, phone_number: phone || undefined };
+
+  // Sem isto, o CRM cria o contato mas devolve `contact_inbox: null` — sem
+  // o vínculo contato↔inbox (e o `source_id` que ele carrega), nenhuma
+  // mensagem consegue ser entregue pra esse contato depois. Confirmado pelo
+  // time do CRM (18/08), depois de investigarem um disparo real que falhou
+  // silenciosamente por causa disso. Mesmo campo já lido do mesmo jeito em
+  // `crm-campaigns/index.ts` e em `whatsapp-broadcast/index.ts`.
+  const { data: cred } = await supabase
+    .from("crm_credentials")
+    .select("inbox_id")
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  const inboxId: string | null = cred?.inbox_id ?? null;
+
+  const body = { name: patient.name, phone_number: phone || undefined, inbox_id: inboxId || undefined };
 
   if (row?.crm_contact_id) {
     // Atualizar nome/telefone é acessório: se o CRM demorar, o vínculo que já
@@ -223,13 +237,23 @@ async function handleUpsert(
     }
   }
 
-  if (contactId) {
-    await supabase
-      .from("patients")
-      .update({ crm_contact_id: contactId })
-      .eq("id", patient.patientId)
-      .eq("owner_id", ownerId);
+  // Sem exceção nenhuma até aqui, mas também sem id: não segue como
+  // "sucesso vazio" (o que já produziu um erro genérico e sem pista pro
+  // usuário, "Não foi possível vincular X ao CRM antes de disparar" —
+  // ver NewCampaignSheet.tsx) — melhor um erro específico agora do que
+  // deixar o mistério pra descobrir de novo depois.
+  if (!contactId) {
+    throw new Error(
+      "O CRM aceitou o contato mas não devolveu um id válido. Confira se o telefone tem o \"55\" " +
+        "do Brasil na frente (use \"Corrigir telefones sem código do país\") e tente de novo.",
+    );
   }
+
+  await supabase
+    .from("patients")
+    .update({ crm_contact_id: contactId })
+    .eq("id", patient.patientId)
+    .eq("owner_id", ownerId);
   return { ok: true, contactId };
 }
 
