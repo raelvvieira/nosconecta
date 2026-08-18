@@ -12,6 +12,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
 import { normalizeBrazilianPhone } from "../_shared/phone.ts";
+import { phoneMatches } from "../_shared/phone-match.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -24,6 +25,21 @@ const supabase = createClient(
  *  strings cruas era o que fazia a busca por telefone nunca achar nada,
  *  mesmo com o contato certo na página certa. */
 const soDigitos = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "");
+
+/**
+ * O CRM grava celular brasileiro SEM o 9 extra quando o número completo
+ * passa de 12 dígitos (confirmado pelo time do CRM, 15/08): "5551993351821"
+ * (13) vira "555193351821" (12) gravado. `resolve_phones` já normaliza os
+ * dois lados sozinho — por isso `resolverTelefoneNoCrm` não precisa disto.
+ * Mas `/contacts/filter` com `starts_with` compara prefixo literal: mandar o
+ * telefone com o 9 nunca bate contra um valor gravado sem ele (prefixo mais
+ * longo não pode "começar" um armazenado mais curto). Isto devolve a mesma
+ * forma que o CRM grava, pra consulta bater.
+ */
+function paraConsultaCrm(digits: string): string {
+  const semNono = digits.match(/^55(\d{2})9(\d{8})$/);
+  return semNono ? `55${semNono[1]}${semNono[2]}` : digits;
+}
 
 /**
  * Pergunta direto ao CRM "existe contato com este telefone?" — resolve
@@ -84,7 +100,7 @@ async function buscarContatoPorTelefone(ownerId: string, phone: string): Promise
       const contatos = unwrap(res);
       if (!Array.isArray(contatos)) continue;
       if (contatos.length < PAGE_SIZE) algumaVazia = true;
-      const achado = contatos.find((row: any) => soDigitos(row?.phone_number ?? row?.phone) === alvo);
+      const achado = contatos.find((row: any) => phoneMatches(soDigitos(row?.phone_number ?? row?.phone), alvo));
       if (achado?.id) return String(achado.id);
     }
     if (algumaVazia) return null; // uma página incompleta é o fim real da base
@@ -112,7 +128,7 @@ async function buscarContatoPorTelefoneViaFiltro(ownerId: string, phone: string)
           {
             attribute_key: "phone_number",
             filter_operator: "starts_with",
-            values: [alvo],
+            values: [paraConsultaCrm(alvo)],
             query_operator: null,
           },
         ],
@@ -120,7 +136,7 @@ async function buscarContatoPorTelefoneViaFiltro(ownerId: string, phone: string)
     });
     const contatos = unwrap(res);
     if (!Array.isArray(contatos)) return null;
-    const achado = contatos.find((row: any) => soDigitos(row?.phone_number ?? row?.phone) === alvo);
+    const achado = contatos.find((row: any) => phoneMatches(soDigitos(row?.phone_number ?? row?.phone), alvo));
     return achado?.id ? String(achado.id) : null;
   } catch {
     return null; // endpoint novo, sem garantia — cai pra varredura paginada
