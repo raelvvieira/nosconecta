@@ -60,7 +60,7 @@ const EMPTY = {
 export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props) {
   const createFn = useServerFn(createPatient);
   const updateFn = useServerFn(updatePatient);
-  const { selectedUnitId } = useUnitSelection();
+  const { selectedUnitId, setSelectedUnitId, units, isAdmin } = useUnitSelection();
   const [form, setForm] = useState(EMPTY);
 
   useEffect(() => {
@@ -93,6 +93,9 @@ export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props
   const mutation = useMutation({
     mutationFn: async () => {
       if (!form.name.trim()) throw new Error("Informe o nome do paciente.");
+      if (!patient && isAdmin && units.length > 1 && !selectedUnitId) {
+        throw new Error("Selecione a unidade.");
+      }
       const payload = { ...form, id: patient?.id };
       if (patient) {
         await updateFn({ data: payload });
@@ -151,6 +154,23 @@ export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props
                 autoFocus
               />
             </div>
+            {!patient && isAdmin && units.length > 1 && (
+              <div className="space-y-2">
+                <Label htmlFor="patient-unit">Unidade *</Label>
+                <Select value={selectedUnitId ?? undefined} onValueChange={setSelectedUnitId}>
+                  <SelectTrigger id="patient-unit">
+                    <SelectValue placeholder="Selecione a unidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {units.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="patient-phone">Telefone</Label>
