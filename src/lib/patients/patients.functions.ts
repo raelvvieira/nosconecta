@@ -248,12 +248,25 @@ export const getPatientDetail = createServerFn({ method: "GET" })
   .inputValidator((input: { patientId: string }) => ({ patientId: input.patientId }))
   .handler(async ({ data, context }): Promise<PatientDetail> => {
     const supabase: any = context.supabase;
-    // Sem filtro de unidade aqui: um paciente específico já foi pedido pelo
-    // id, e a RLS decide sozinha se essa linha existe pra quem está pedindo.
-    const base = await fetchBase(supabase, context.ownerId, null);
-    const row = base.rows.find((item: any) => item.id === data.patientId);
+    // Busca direta pelo id: a lista paginada podia não conter o paciente
+    // (limite de linhas), fazendo um paciente existente parecer inexistente.
+    // A RLS decide sozinha se essa linha existe pra quem está pedindo.
+    const patientRes = await supabase
+      .from("patients")
+      .select("*")
+      .eq("id", data.patientId)
+      .maybeSingle();
+    if (patientRes.error) throw new Error(patientRes.error.message);
+    const row = patientRes.data;
     if (!row) throw new Error("Paciente não encontrado.");
+    const transactionsRes = await supabase
+      .from("financial_transactions")
+      .select("id,patient_id,description,amount,due_date,paid_date,status")
+      .eq("type", "receivable")
+      .eq("patient_id", data.patientId);
+    const base = { transactions: transactionsRes.data ?? [] };
     const summary = buildSummary(row, base.transactions);
+
     const professionalsRes = row.responsible_professional_id
       ? await supabase
           .from("professionals")
