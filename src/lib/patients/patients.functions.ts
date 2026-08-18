@@ -248,12 +248,25 @@ export const getPatientDetail = createServerFn({ method: "GET" })
   .inputValidator((input: { patientId: string }) => ({ patientId: input.patientId }))
   .handler(async ({ data, context }): Promise<PatientDetail> => {
     const supabase: any = context.supabase;
-    // Sem filtro de unidade aqui: um paciente específico já foi pedido pelo
-    // id, e a RLS decide sozinha se essa linha existe pra quem está pedindo.
-    const base = await fetchBase(supabase, context.ownerId, null);
-    const row = base.rows.find((item: any) => item.id === data.patientId);
+    // Busca direta pelo id: a lista paginada podia não conter o paciente
+    // (limite de linhas), fazendo um paciente existente parecer inexistente.
+    // A RLS decide sozinha se essa linha existe pra quem está pedindo.
+    const patientRes = await supabase
+      .from("patients")
+      .select("*")
+      .eq("id", data.patientId)
+      .maybeSingle();
+    if (patientRes.error) throw new Error(patientRes.error.message);
+    const row = patientRes.data;
     if (!row) throw new Error("Paciente não encontrado.");
+    const transactionsRes = await supabase
+      .from("financial_transactions")
+      .select("id,patient_id,description,amount,due_date,paid_date,status")
+      .eq("type", "receivable")
+      .eq("patient_id", data.patientId);
+    const base = { transactions: transactionsRes.data ?? [] };
     const summary = buildSummary(row, base.transactions);
+
     const professionalsRes = row.responsible_professional_id
       ? await supabase
           .from("professionals")
@@ -636,18 +649,31 @@ export const garantirContatoCrm = createServerFn({ method: "POST" })
     const url = process.env.SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!url || !serviceKey) throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
-    const res = await fetch(`${url}/functions/v1/crm-contacts`, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
-      body: JSON.stringify({
-        ownerId: context.ownerId,
-        action: "upsert",
-        patient: { patientId: data.patientId, name: data.name, phone: data.phone },
-      }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json?.error ?? `Falha ao vincular contato no CRM (${res.status})`);
-    return { contactId: json.contactId ? String(json.contactId) : null };
+    // Timeout do CRM é lentidão momentânea do outro lado: uma segunda
+    // tentativa costuma resolver, e só então viramos erro para o usuário.
+    let ultimoErro = "Falha ao vincular contato no CRM";
+    for (let tentativa = 0; tentativa < 2; tentativa++) {
+      try {
+        const res = await fetch(`${url}/functions/v1/crm-contacts`, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
+          body: JSON.stringify({
+            ownerId: context.ownerId,
+            action: "upsert",
+            patient: { patientId: data.patientId, name: data.name, phone: data.phone },
+          }),
+          signal: AbortSignal.timeout(55_000),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok) return { contactId: json.contactId ? String(json.contactId) : null };
+        ultimoErro = json?.error ?? `Falha ao vincular contato no CRM (${res.status})`;
+        // Erro de regra (4xx que não seja timeout) não melhora repetindo.
+        if (res.status < 500 && !/demorou|timeout|timed out/i.test(String(ultimoErro))) break;
+      } catch {
+        ultimoErro = "O CRM demorou demais para responder ao cadastrar o contato. Tente novamente em instantes.";
+      }
+    }
+    throw new Error(ultimoErro);
   });
 
 /**

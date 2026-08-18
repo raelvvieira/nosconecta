@@ -50,17 +50,34 @@ export interface MessageRow {
   isPrivate: boolean;
 }
 
-async function callEdgeFunction(name: string, body: unknown) {
+/** Um timeout do CRM não é um erro do sistema — é lentidão momentânea do
+ *  outro lado. Damos uma segunda chance e, se ainda assim falhar, devolvemos
+ *  uma mensagem legível em vez de deixar o `TimeoutError` cru estourar na
+ *  tela. */
+async function callEdgeFunction(name: string, body: unknown, tentativa = 0): Promise<any> {
   const url = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
-  const res = await fetch(`${url}/functions/v1/${name}`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
-    body: JSON.stringify(body ?? {}),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${url}/functions/v1/${name}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify(body ?? {}),
+      signal: AbortSignal.timeout(55_000),
+    });
+  } catch (err) {
+    if (tentativa === 0) return callEdgeFunction(name, body, 1);
+    throw new Error("O CRM demorou demais para responder. Tente novamente em instantes.");
+  }
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error ?? `Falha ao chamar ${name} (${res.status})`);
+  if (!res.ok) {
+    const msg = String(json?.error ?? "");
+    if ((res.status >= 500 || /timed out|timeout/i.test(msg)) && tentativa === 0) {
+      return callEdgeFunction(name, body, 1);
+    }
+    throw new Error(json?.error ?? `Falha ao chamar ${name} (${res.status})`);
+  }
   return json;
 }
 
