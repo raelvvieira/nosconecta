@@ -554,6 +554,12 @@ export const markReceivableReceived = createServerFn({ method: "POST" })
       patientId: updated?.patient_id ?? null,
       amount: updated?.amount === null || updated?.amount === undefined ? null : Number(updated.amount),
     });
+    const { dispatchAutomationEvent } = await import("@/lib/atendimentos/automations.server");
+    await dispatchAutomationEvent(context.ownerId, "receivable.paid", {
+      entityId: data.id,
+      patientId: updated?.patient_id ?? null,
+      amount: updated?.amount === null || updated?.amount === undefined ? null : Number(updated.amount),
+    });
     const { sendPushToOwner } = await import("@/lib/notifications/push.server");
     await sendPushToOwner(context.ownerId, "deal_result", {
       title: "Pagamento recebido",

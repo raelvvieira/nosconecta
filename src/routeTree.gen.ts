@@ -22,6 +22,7 @@ import { Route as PagamentosRouteImport } from './routes/pagamentos'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
 import { Route as RecebimentosRouteImport } from './routes/recebimentos'
 import { Route as AtendimentosIndexRouteImport } from './routes/atendimentos.index'
+import { Route as AtendimentosAutomacoesRouteImport } from './routes/atendimentos.automacoes'
 import { Route as AtendimentosCampanhasRouteImport } from './routes/atendimentos.campanhas'
 import { Route as AtendimentosChatRouteImport } from './routes/atendimentos.chat'
 import { Route as AtendimentosPipelineRouteImport } from './routes/atendimentos.pipeline'
@@ -30,6 +31,7 @@ import { Route as ConfiguracoesIntegracoesRouteImport } from './routes/configura
 import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
 import { Route as PacientesIndexRouteImport } from './routes/pacientes.index'
 import { Route as PacientesPatientIdRouteImport } from './routes/pacientes.$patientId'
+import { Route as AtendimentosAutomacoesAutomationIdRouteImport } from './routes/atendimentos.automacoes.$automationId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -96,6 +98,11 @@ const AtendimentosIndexRoute = AtendimentosIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AtendimentosRoute,
 } as any)
+const AtendimentosAutomacoesRoute = AtendimentosAutomacoesRouteImport.update({
+  id: '/automacoes',
+  path: '/automacoes',
+  getParentRoute: () => AtendimentosRoute,
+} as any)
 const AtendimentosCampanhasRoute = AtendimentosCampanhasRouteImport.update({
   id: '/campanhas',
   path: '/campanhas',
@@ -138,6 +145,12 @@ const PacientesPatientIdRoute = PacientesPatientIdRouteImport.update({
   path: '/$patientId',
   getParentRoute: () => PacientesRoute,
 } as any)
+const AtendimentosAutomacoesAutomationIdRoute =
+  AtendimentosAutomacoesAutomationIdRouteImport.update({
+    id: '/$automationId',
+    path: '/$automationId',
+    getParentRoute: () => AtendimentosAutomacoesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -152,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/atendimentos/automacoes': typeof AtendimentosAutomacoesRouteWithChildren
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
@@ -161,6 +175,7 @@ export interface FileRoutesByFullPath {
   '/atendimentos/': typeof AtendimentosIndexRoute
   '/configuracoes/': typeof ConfiguracoesIndexRoute
   '/pacientes/': typeof PacientesIndexRoute
+  '/atendimentos/automacoes/$automationId': typeof AtendimentosAutomacoesAutomationIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -172,6 +187,7 @@ export interface FileRoutesByTo {
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/atendimentos/automacoes': typeof AtendimentosAutomacoesRouteWithChildren
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
@@ -181,6 +197,7 @@ export interface FileRoutesByTo {
   '/atendimentos': typeof AtendimentosIndexRoute
   '/configuracoes': typeof ConfiguracoesIndexRoute
   '/pacientes': typeof PacientesIndexRoute
+  '/atendimentos/automacoes/$automationId': typeof AtendimentosAutomacoesAutomationIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -196,6 +213,7 @@ export interface FileRoutesById {
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/atendimentos/automacoes': typeof AtendimentosAutomacoesRouteWithChildren
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
@@ -205,6 +223,7 @@ export interface FileRoutesById {
   '/atendimentos/': typeof AtendimentosIndexRoute
   '/configuracoes/': typeof ConfiguracoesIndexRoute
   '/pacientes/': typeof PacientesIndexRoute
+  '/atendimentos/automacoes/$automationId': typeof AtendimentosAutomacoesAutomationIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -221,6 +240,7 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/atendimentos/automacoes'
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
@@ -230,6 +250,7 @@ export interface FileRouteTypes {
     | '/atendimentos/'
     | '/configuracoes/'
     | '/pacientes/'
+    | '/atendimentos/automacoes/$automationId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -241,6 +262,7 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/atendimentos/automacoes'
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
@@ -250,6 +272,7 @@ export interface FileRouteTypes {
     | '/atendimentos'
     | '/configuracoes'
     | '/pacientes'
+    | '/atendimentos/automacoes/$automationId'
   id:
     | '__root__'
     | '/'
@@ -264,6 +287,7 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/atendimentos/automacoes'
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
@@ -273,6 +297,7 @@ export interface FileRouteTypes {
     | '/atendimentos/'
     | '/configuracoes/'
     | '/pacientes/'
+    | '/atendimentos/automacoes/$automationId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -383,6 +408,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AtendimentosIndexRouteImport
       parentRoute: typeof AtendimentosRoute
     }
+    '/atendimentos/automacoes': {
+      id: '/atendimentos/automacoes'
+      path: '/automacoes'
+      fullPath: '/atendimentos/automacoes'
+      preLoaderRoute: typeof AtendimentosAutomacoesRouteImport
+      parentRoute: typeof AtendimentosRoute
+    }
     '/atendimentos/campanhas': {
       id: '/atendimentos/campanhas'
       path: '/campanhas'
@@ -439,10 +471,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PacientesPatientIdRouteImport
       parentRoute: typeof PacientesRoute
     }
+    '/atendimentos/automacoes/$automationId': {
+      id: '/atendimentos/automacoes/$automationId'
+      path: '/$automationId'
+      fullPath: '/atendimentos/automacoes/$automationId'
+      preLoaderRoute: typeof AtendimentosAutomacoesAutomationIdRouteImport
+      parentRoute: typeof AtendimentosAutomacoesRoute
+    }
   }
 }
 
+interface AtendimentosAutomacoesRouteChildren {
+  AtendimentosAutomacoesAutomationIdRoute: typeof AtendimentosAutomacoesAutomationIdRoute
+}
+
+const AtendimentosAutomacoesRouteChildren: AtendimentosAutomacoesRouteChildren =
+  {
+    AtendimentosAutomacoesAutomationIdRoute:
+      AtendimentosAutomacoesAutomationIdRoute,
+  }
+
+const AtendimentosAutomacoesRouteWithChildren =
+  AtendimentosAutomacoesRoute._addFileChildren(
+    AtendimentosAutomacoesRouteChildren,
+  )
+
 interface AtendimentosRouteChildren {
+  AtendimentosAutomacoesRoute: typeof AtendimentosAutomacoesRouteWithChildren
   AtendimentosCampanhasRoute: typeof AtendimentosCampanhasRoute
   AtendimentosChatRoute: typeof AtendimentosChatRoute
   AtendimentosPipelineRoute: typeof AtendimentosPipelineRoute
@@ -450,6 +505,7 @@ interface AtendimentosRouteChildren {
 }
 
 const AtendimentosRouteChildren: AtendimentosRouteChildren = {
+  AtendimentosAutomacoesRoute: AtendimentosAutomacoesRouteWithChildren,
   AtendimentosCampanhasRoute: AtendimentosCampanhasRoute,
   AtendimentosChatRoute: AtendimentosChatRoute,
   AtendimentosPipelineRoute: AtendimentosPipelineRoute,

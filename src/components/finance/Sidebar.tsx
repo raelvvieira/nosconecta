@@ -20,6 +20,7 @@ import {
   MessageCircle,
   Workflow,
   Megaphone,
+  Bot,
   LayoutDashboard,
   type LucideIcon,
 } from "lucide-react";
@@ -51,7 +52,12 @@ const financeItems: FinanceItem[] = [
 type AtendimentosItem = {
   label: string;
   icon: LucideIcon;
-  to: "/atendimentos" | "/atendimentos/chat" | "/atendimentos/pipeline" | "/atendimentos/campanhas";
+  to:
+    | "/atendimentos"
+    | "/atendimentos/chat"
+    | "/atendimentos/pipeline"
+    | "/atendimentos/campanhas"
+    | "/atendimentos/automacoes";
 };
 
 const atendimentosItems: AtendimentosItem[] = [
@@ -59,6 +65,7 @@ const atendimentosItems: AtendimentosItem[] = [
   { label: "Chat", icon: MessageCircle, to: "/atendimentos/chat" },
   { label: "Pipeline", icon: Workflow, to: "/atendimentos/pipeline" },
   { label: "Campanhas", icon: Megaphone, to: "/atendimentos/campanhas" },
+  { label: "Automação", icon: Bot, to: "/atendimentos/automacoes" },
 ];
 
 // Espelha a estrutura do menu lateral do desktop pro painel "Mais" do
@@ -84,6 +91,7 @@ const MOBILE_MENU_GROUPS: {
       { label: "Chat", icon: MessageCircle, to: "/atendimentos/chat" },
       { label: "Pipeline", icon: Workflow, to: "/atendimentos/pipeline" },
       { label: "Campanhas", icon: Megaphone, to: "/atendimentos/campanhas" },
+      { label: "Automação", icon: Bot, to: "/atendimentos/automacoes" },
     ],
   },
   {

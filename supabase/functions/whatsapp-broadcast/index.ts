@@ -9,7 +9,7 @@
 // só, e dois contadores separados deixariam o número exposto ao dobro do que a
 // clínica escolheu como limite.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { crmFetch } from "../_shared/crm-auth.ts";
+import { enviarWhatsapp } from "../_shared/whatsapp-send.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -104,52 +104,6 @@ async function handleCreate(
   };
 }
 
-/** Manda uma mensagem, devolvendo por qual caminho saiu. */
-async function enviar(
-  ownerId: string,
-  alvo: { conversation_id: string | null; contact_id: string },
-  message: string,
-): Promise<{ via: string }> {
-  if (alvo.conversation_id) {
-    // Caminho CONFIRMADO: é o mesmo que o chat usa para responder alguém.
-    await crmFetch(supabase, ownerId, `/api/v1/conversations/${alvo.conversation_id}/messages`, {
-      method: "POST",
-      body: JSON.stringify({ content: message, message_type: "outgoing", private: false }),
-    });
-    return { via: "conversation" };
-  }
-
-  // Sem conversa ainda: cria a conversa direto — caminho validado pelo time do
-  // CRM (18/08) com disparo real entregue. Uma chamada só vincula contato↔inbox
-  // (a partir do telefone), abre a conversa e manda a mensagem de saída. Troca
-  // o antigo caminho especulativo via /scheduled_actions (nunca confirmado
-  // funcionando sozinho por contato — o uso real desse endpoint, em
-  // crm-conversations/index.ts, sempre exige conversation_id).
-  const { data: cred } = await supabase
-    .from("crm_credentials")
-    .select("inbox_id")
-    .eq("owner_id", ownerId)
-    .maybeSingle();
-  const inboxId: string | null = cred?.inbox_id ?? null;
-  if (!inboxId) {
-    throw new Error(
-      "Caixa de WhatsApp não encontrada para iniciar a conversa. Reconecte o número em Atendimentos → Conectar.",
-    );
-  }
-
-  // NÃO mandar `source_id`: o CRM deriva do telefone do contato, e um valor
-  // próprio faz a requisição ser recusada (confirmado pelo time do CRM, 18/08).
-  await crmFetch(supabase, ownerId, "/api/v1/conversations", {
-    method: "POST",
-    body: JSON.stringify({
-      contact_id: alvo.contact_id,
-      inbox_id: inboxId,
-      message: { content: message },
-    }),
-  });
-  return { via: "conversation_new" };
-}
-
 async function handleTick() {
   const agora = new Date().toISOString();
   const { data: alvos } = await supabase
@@ -188,7 +142,7 @@ async function handleTick() {
     }
 
     try {
-      const { via } = await enviar(alvo.owner_id, alvo, lote.message);
+      const { via } = await enviarWhatsapp(supabase, alvo.owner_id, alvo, lote.message);
       await supabase
         .from("whatsapp_broadcast_targets")
         .update({ status: "sent", sent_via: via, sent_at: new Date().toISOString(), error: null })

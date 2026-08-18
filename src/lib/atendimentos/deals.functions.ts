@@ -235,6 +235,15 @@ export const saveDealStatus = createServerFn({ method: "POST" })
       contactName: data.contactName ?? null,
       amount: deal?.value === null || deal?.value === undefined ? null : Number(deal.value),
     });
+    const { dispatchAutomationEvent } = await import("@/lib/atendimentos/automations.server");
+    await dispatchAutomationEvent(context.ownerId, "deal.status_changed", {
+      entityId: `${data.itemId}:${data.status}`,
+      itemId: data.itemId,
+      dealStatus: data.status,
+      crmContactId: data.crmContactId ?? null,
+      contactName: data.contactName ?? null,
+      amount: deal?.value === null || deal?.value === undefined ? null : Number(deal.value),
+    });
 
     // O push de "negociação ganha" mora agora em `confirmarGanho`, junto do
     // ganho de verdade — aqui `won` nem chega mais.

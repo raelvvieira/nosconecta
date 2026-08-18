@@ -467,6 +467,12 @@ export async function resolverPacienteDoContato(
     patientId: criado.id,
     contactName: criado.name,
   });
+  const { dispatchAutomationEvent } = await import("@/lib/atendimentos/automations.server");
+  await dispatchAutomationEvent(ownerId, "patient.created", {
+    entityId: criado.id,
+    patientId: criado.id,
+    contactName: criado.name,
+  });
 
   return { id: criado.id, name: criado.name, phone: criado.phone ?? null };
 }
@@ -515,6 +521,12 @@ export const createPatient = createServerFn({ method: "POST" })
     await dispatchMetaCapiEvent(context.ownerId, "patient.created", {
       entityId: created.id,
       patientId: created.id,
+    });
+    const { dispatchAutomationEvent } = await import("@/lib/atendimentos/automations.server");
+    await dispatchAutomationEvent(context.ownerId, "patient.created", {
+      entityId: created.id,
+      patientId: created.id,
+      contactName: data.name,
     });
     return { id: created.id };
   });

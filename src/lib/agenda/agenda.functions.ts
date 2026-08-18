@@ -278,6 +278,13 @@ export async function criarAgendamento(
     contactName: row.patient_name,
     amount: row.expected_revenue,
   });
+  const { dispatchAutomationEvent } = await import("@/lib/atendimentos/automations.server");
+  await dispatchAutomationEvent(ownerId, "appointment.created", {
+    entityId: inserted.id,
+    patientId: row.patient_id,
+    contactName: row.patient_name,
+    amount: row.expected_revenue,
+  });
 
   // Nascendo já concluído (registro retroativo pela agenda, ou um Ganho do
   // funil), a conversão e o recebimento saem do mesmo lugar que qualquer outra
@@ -353,6 +360,14 @@ async function onStatusTransition(
 
   const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
   await dispatchMetaCapiEvent(ownerId, "appointment.status_changed", {
+    entityId: `${id}:${row.status}`,
+    status: row.status,
+    patientId: row.patient_id,
+    contactName: row.patient_name,
+    amount: row.actual_revenue ?? row.expected_revenue ?? null,
+  });
+  const { dispatchAutomationEvent } = await import("@/lib/atendimentos/automations.server");
+  await dispatchAutomationEvent(ownerId, "appointment.status_changed", {
     entityId: `${id}:${row.status}`,
     status: row.status,
     patientId: row.patient_id,

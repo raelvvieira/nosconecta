@@ -142,5 +142,12 @@ export const movePipelineItem = createServerFn({ method: "POST" })
       crmContactId: moved?.type === "contact" ? moved.itemId : null,
       contactName: moved?.title ?? null,
     });
+    const { dispatchAutomationEvent } = await import("@/lib/atendimentos/automations.server");
+    await dispatchAutomationEvent(context.ownerId, "pipeline.stage_changed", {
+      entityId: `${data.itemId}:${data.newStageId}`,
+      stageId: data.newStageId,
+      crmContactId: moved?.type === "contact" ? moved.itemId : null,
+      contactName: moved?.title ?? null,
+    });
     return { ok: true };
   });
