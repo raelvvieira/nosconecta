@@ -206,7 +206,18 @@ async function handleUpsert(
         method: "POST",
         body: JSON.stringify(body),
       });
-      contactId = unwrap(res)?.id ? String(unwrap(res).id) : null;
+      // A resposta vem aninhada (`data.contact.id`, não `data.id`) desde que
+      // `inbox_id` passou a ser enviado e o CRM também tenta devolver
+      // `contact_inbox` junto — confirmado pelo time do CRM (18/08),
+      // reproduzindo a chamada exata daqui. Vale pros dois status (201
+      // criado, 200 já existia) — mesma estrutura nos dois. Mantém o
+      // fallback pro formato antigo/plano por segurança.
+      const dadosCriacao = unwrap(res);
+      contactId = dadosCriacao?.contact?.id
+        ? String(dadosCriacao.contact.id)
+        : dadosCriacao?.id
+          ? String(dadosCriacao.id)
+          : null;
     } catch (e) {
       // Ainda pode cair aqui numa corrida rara (alguém criou o mesmo contato
       // entre o resolve acima e este create) ou se resolve_phones falhar
