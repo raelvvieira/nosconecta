@@ -79,7 +79,10 @@ export function NewCampaignSheet({
   const doDisparar = useServerFn(criarDisparo);
   const doGarantirContato = useServerFn(garantirContatoCrm);
 
-  const [audiencia, setAudiencia] = useState<"todos" | "selecionar">("todos");
+  // "Todos os contatos" abre desativado (ver botão abaixo) — confirmado pelo
+  // time do CRM (18/08) que o motor de campanhas nunca disparou nada de
+  // verdade. Padrão já cai no único caminho que funciona.
+  const [audiencia, setAudiencia] = useState<"todos" | "selecionar">("selecionar");
 
   // Carregado só com a gaveta aberta: é uma ida ao CRM, e a tela precisa dele
   // apenas na hora de confirmar (e agora também para mostrar antes de programar).
@@ -281,17 +284,16 @@ export function NewCampaignSheet({
                 <button
                   type="button"
                   data-audiencia="todos"
-                  onClick={() => setAudiencia("todos")}
-                  className={cn(
-                    "flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-colors",
-                    audiencia === "todos" ? "border-coral bg-coral-soft" : "border-border bg-white",
-                  )}
+                  disabled
+                  title="O motor de campanhas do CRM não está executando disparos no momento."
+                  className="flex cursor-not-allowed items-start gap-3 rounded-2xl border border-border bg-muted/40 p-3.5 text-left opacity-60"
                 >
                   <Users className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
                   <span>
                     <span className="block text-sm font-semibold">Todos os contatos</span>
                     <span className="mt-0.5 block text-2xs text-muted-foreground">
-                      Vai para {estimateQuery.data ?? "…"} contatos da conta do CRM — sem recorte.
+                      Indisponível no momento — o motor de campanhas do CRM não está executando disparos.
+                      Use "Selecionar contatos".
                     </span>
                   </span>
                 </button>

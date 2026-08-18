@@ -241,6 +241,19 @@ export const saveCampaign = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data, context }) => {
+    // Confirmado pelo time do CRM (18/08, consultando o próprio banco deles):
+    // o motor de campanhas (sendToAll) nunca disparou nada — 5 campanhas
+    // criadas, 0 executadas, porque o servidor Temporal que ele exige não
+    // está implantado do lado deles. /execute responde sucesso sem mandar
+    // nada. Bloqueado aqui pra não deixar a clínica achar que disparou pra
+    // base inteira quando na verdade não saiu nada. "Selecionar contatos"
+    // (whatsapp-broadcast) é o único caminho que funciona hoje.
+    if (data.sendToAll) {
+      throw new Error(
+        "Envio para todos os contatos está temporariamente indisponível — o motor de campanhas do CRM não " +
+          "está executando disparos no momento (confirmado pelo time do CRM). Use \"Selecionar contatos\".",
+      );
+    }
     const json = await callCampaigns({ ownerId: context.ownerId, action: "save", campaign: data });
     return { ok: true, campaign: json.campaign ? mapCampaign(json.campaign) : null };
   });
@@ -248,9 +261,14 @@ export const saveCampaign = createServerFn({ method: "POST" })
 export const executeCampaign = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator((input: { campaignId: string }) => input)
-  .handler(async ({ data, context }) => {
-    const json = await callCampaigns({ ownerId: context.ownerId, action: "execute", campaignId: data.campaignId });
-    return { ok: true, recipientsCounted: json.recipientsCounted ?? 0 };
+  .handler(async (): Promise<{ ok: true; recipientsCounted: number }> => {
+    // Mesmo motivo do guard em saveCampaign — toda campanha salva por este
+    // sistema é sempre sendToAll: true, então não há campanha "segura" pra
+    // executar aqui. Cobre também as que já existiam antes deste bloqueio.
+    throw new Error(
+      "Envio para todos os contatos está temporariamente indisponível — o motor de campanhas do CRM não " +
+        "está executando disparos no momento (confirmado pelo time do CRM). Use \"Selecionar contatos\".",
+    );
   });
 
 export const deleteCampaign = createServerFn({ method: "POST" })
