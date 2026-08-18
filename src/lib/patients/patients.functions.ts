@@ -649,18 +649,31 @@ export const garantirContatoCrm = createServerFn({ method: "POST" })
     const url = process.env.SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!url || !serviceKey) throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
-    const res = await fetch(`${url}/functions/v1/crm-contacts`, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
-      body: JSON.stringify({
-        ownerId: context.ownerId,
-        action: "upsert",
-        patient: { patientId: data.patientId, name: data.name, phone: data.phone },
-      }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json?.error ?? `Falha ao vincular contato no CRM (${res.status})`);
-    return { contactId: json.contactId ? String(json.contactId) : null };
+    // Timeout do CRM é lentidão momentânea do outro lado: uma segunda
+    // tentativa costuma resolver, e só então viramos erro para o usuário.
+    let ultimoErro = "Falha ao vincular contato no CRM";
+    for (let tentativa = 0; tentativa < 2; tentativa++) {
+      try {
+        const res = await fetch(`${url}/functions/v1/crm-contacts`, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
+          body: JSON.stringify({
+            ownerId: context.ownerId,
+            action: "upsert",
+            patient: { patientId: data.patientId, name: data.name, phone: data.phone },
+          }),
+          signal: AbortSignal.timeout(55_000),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok) return { contactId: json.contactId ? String(json.contactId) : null };
+        ultimoErro = json?.error ?? `Falha ao vincular contato no CRM (${res.status})`;
+        // Erro de regra (4xx que não seja timeout) não melhora repetindo.
+        if (res.status < 500 && !/demorou|timeout|timed out/i.test(String(ultimoErro))) break;
+      } catch {
+        ultimoErro = "O CRM demorou demais para responder ao cadastrar o contato. Tente novamente em instantes.";
+      }
+    }
+    throw new Error(ultimoErro);
   });
 
 /**
