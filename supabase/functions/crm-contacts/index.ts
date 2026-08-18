@@ -12,7 +12,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
 import { normalizeBrazilianPhone } from "../_shared/phone.ts";
-import { phoneMatches } from "../_shared/phone-match.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -27,18 +26,28 @@ const supabase = createClient(
 const soDigitos = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "");
 
 /**
- * O CRM grava celular brasileiro SEM o 9 extra quando o número completo
- * passa de 12 dígitos (confirmado pelo time do CRM, 15/08): "5551993351821"
- * (13) vira "555193351821" (12) gravado. `resolve_phones` já normaliza os
- * dois lados sozinho — por isso `resolverTelefoneNoCrm` não precisa disto.
- * Mas `/contacts/filter` com `starts_with` compara prefixo literal: mandar o
- * telefone com o 9 nunca bate contra um valor gravado sem ele (prefixo mais
- * longo não pode "começar" um armazenado mais curto). Isto devolve a mesma
- * forma que o CRM grava, pra consulta bater.
+ * Forma exata como o CRM grava um celular brasileiro — regra confirmada
+ * pelo time do CRM (18/08), não é escolha do CRM e sim como o WhatsApp
+ * identifica esses números:
+ *   DDD < 31   -> mantém o 9   (ex.: 11 São Paulo -> +5511987654321)
+ *   DDD >= 31  -> remove o 9   (ex.: 51 Porto Alegre -> +555193967887)
+ * (Substitui a heurística anterior de "sempre remove passando de 12
+ * dígitos", que era inespecífica de DDD e por isso quebrava exatamente os
+ * DDDs < 31 — o próprio time do CRM avisou pra não tentar reconstruir esse
+ * número na mão; o motivo é este: não dá pra acertar sem saber a regra.)
+ *
+ * `resolve_phones` já aplica essa regra nos dois lados sozinho — por isso
+ * `resolverTelefoneNoCrm` não precisa disto. Só os dois caminhos de reserva
+ * abaixo (`buscarContatoPorTelefoneViaFiltro`, com `/contacts/filter`
+ * `starts_with`, que compara prefixo literal, e `buscarContatoPorTelefone`,
+ * que compara o telefone da varredura paginada) precisam da forma exata
+ * gravada pra bater.
  */
-function paraConsultaCrm(digits: string): string {
-  const semNono = digits.match(/^55(\d{2})9(\d{8})$/);
-  return semNono ? `55${semNono[1]}${semNono[2]}` : digits;
+function formaGravadaPeloCrm(digits: string): string {
+  const comNono = digits.match(/^55(\d{2})9(\d{8})$/);
+  if (!comNono) return digits; // não é celular BR de 13 dígitos com 9 — nada a ajustar
+  const ddd = Number(comNono[1]);
+  return ddd >= 31 ? `55${comNono[1]}${comNono[2]}` : digits;
 }
 
 /**
@@ -83,7 +92,7 @@ async function resolverTelefoneNoCrm(ownerId: string, phone: string): Promise<st
  * tempo, que é um erro que pelo menos explica o que houve.
  */
 async function buscarContatoPorTelefone(ownerId: string, phone: string): Promise<string | null> {
-  const alvo = soDigitos(phone);
+  const alvo = formaGravadaPeloCrm(soDigitos(phone));
   const inicio = Date.now();
   const pendentes: number[] = [];
   for (let p = 1; p <= MAX_PAGES; p++) pendentes.push(p);
@@ -100,7 +109,7 @@ async function buscarContatoPorTelefone(ownerId: string, phone: string): Promise
       const contatos = unwrap(res);
       if (!Array.isArray(contatos)) continue;
       if (contatos.length < PAGE_SIZE) algumaVazia = true;
-      const achado = contatos.find((row: any) => phoneMatches(soDigitos(row?.phone_number ?? row?.phone), alvo));
+      const achado = contatos.find((row: any) => soDigitos(row?.phone_number ?? row?.phone) === alvo);
       if (achado?.id) return String(achado.id);
     }
     if (algumaVazia) return null; // uma página incompleta é o fim real da base
@@ -118,7 +127,7 @@ async function buscarContatoPorTelefone(ownerId: string, phone: string): Promise
  * "começa com o número inteiro" equivale a "é igual".
  */
 async function buscarContatoPorTelefoneViaFiltro(ownerId: string, phone: string): Promise<string | null> {
-  const alvo = soDigitos(phone);
+  const alvo = formaGravadaPeloCrm(soDigitos(phone));
   if (!alvo) return null;
   try {
     const res = await crmFetch(supabase, ownerId, "/api/v1/contacts/filter", {
@@ -128,7 +137,7 @@ async function buscarContatoPorTelefoneViaFiltro(ownerId: string, phone: string)
           {
             attribute_key: "phone_number",
             filter_operator: "starts_with",
-            values: [paraConsultaCrm(alvo)],
+            values: [alvo],
             query_operator: null,
           },
         ],
@@ -136,7 +145,7 @@ async function buscarContatoPorTelefoneViaFiltro(ownerId: string, phone: string)
     });
     const contatos = unwrap(res);
     if (!Array.isArray(contatos)) return null;
-    const achado = contatos.find((row: any) => phoneMatches(soDigitos(row?.phone_number ?? row?.phone), alvo));
+    const achado = contatos.find((row: any) => soDigitos(row?.phone_number ?? row?.phone) === alvo);
     return achado?.id ? String(achado.id) : null;
   } catch {
     return null; // endpoint novo, sem garantia — cai pra varredura paginada
@@ -194,7 +203,13 @@ async function handleUpsert(
       const jaExiste = /\(422\)/.test(mensagem) && /already been taken/i.test(mensagem);
       const demorou = /timed out|TimeoutError|aborted|AbortError/i.test(mensagem);
       if ((jaExiste || demorou) && phone) {
-        contactId = await buscarContatoPorTelefoneViaFiltro(ownerId, phone);
+        // resolve_phones de novo primeiro (fluxo recomendado pelo time do
+        // CRM, 18/08) — se falhou na primeira vez (rede, falha momentânea),
+        // é o jeito confiável de achar, já que aplica a regra do nono
+        // dígito certinho. Os dois fallbacks abaixo só entram se isto
+        // também não achar.
+        contactId = await resolverTelefoneNoCrm(ownerId, phone);
+        if (!contactId) contactId = await buscarContatoPorTelefoneViaFiltro(ownerId, phone);
         if (!contactId) contactId = await buscarContatoPorTelefone(ownerId, phone);
       }
       if (!contactId) {
