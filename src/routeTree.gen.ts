@@ -31,6 +31,7 @@ import { Route as ConfiguracoesIntegracoesRouteImport } from './routes/configura
 import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
 import { Route as PacientesIndexRouteImport } from './routes/pacientes.index'
 import { Route as PacientesPatientIdRouteImport } from './routes/pacientes.$patientId'
+import { Route as AtendimentosAutomacoesIndexRouteImport } from './routes/atendimentos.automacoes.index'
 import { Route as AtendimentosAutomacoesAutomationIdRouteImport } from './routes/atendimentos.automacoes.$automationId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -145,6 +146,12 @@ const PacientesPatientIdRoute = PacientesPatientIdRouteImport.update({
   path: '/$patientId',
   getParentRoute: () => PacientesRoute,
 } as any)
+const AtendimentosAutomacoesIndexRoute =
+  AtendimentosAutomacoesIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AtendimentosAutomacoesRoute,
+  } as any)
 const AtendimentosAutomacoesAutomationIdRoute =
   AtendimentosAutomacoesAutomationIdRouteImport.update({
     id: '/$automationId',
@@ -176,6 +183,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes/': typeof ConfiguracoesIndexRoute
   '/pacientes/': typeof PacientesIndexRoute
   '/atendimentos/automacoes/$automationId': typeof AtendimentosAutomacoesAutomationIdRoute
+  '/atendimentos/automacoes/': typeof AtendimentosAutomacoesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -187,7 +195,6 @@ export interface FileRoutesByTo {
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
-  '/atendimentos/automacoes': typeof AtendimentosAutomacoesRouteWithChildren
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
@@ -198,6 +205,7 @@ export interface FileRoutesByTo {
   '/configuracoes': typeof ConfiguracoesIndexRoute
   '/pacientes': typeof PacientesIndexRoute
   '/atendimentos/automacoes/$automationId': typeof AtendimentosAutomacoesAutomationIdRoute
+  '/atendimentos/automacoes': typeof AtendimentosAutomacoesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -224,6 +232,7 @@ export interface FileRoutesById {
   '/configuracoes/': typeof ConfiguracoesIndexRoute
   '/pacientes/': typeof PacientesIndexRoute
   '/atendimentos/automacoes/$automationId': typeof AtendimentosAutomacoesAutomationIdRoute
+  '/atendimentos/automacoes/': typeof AtendimentosAutomacoesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -251,6 +260,7 @@ export interface FileRouteTypes {
     | '/configuracoes/'
     | '/pacientes/'
     | '/atendimentos/automacoes/$automationId'
+    | '/atendimentos/automacoes/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -262,7 +272,6 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
-    | '/atendimentos/automacoes'
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
@@ -273,6 +282,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/pacientes'
     | '/atendimentos/automacoes/$automationId'
+    | '/atendimentos/automacoes'
   id:
     | '__root__'
     | '/'
@@ -298,6 +308,7 @@ export interface FileRouteTypes {
     | '/configuracoes/'
     | '/pacientes/'
     | '/atendimentos/automacoes/$automationId'
+    | '/atendimentos/automacoes/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -471,6 +482,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PacientesPatientIdRouteImport
       parentRoute: typeof PacientesRoute
     }
+    '/atendimentos/automacoes/': {
+      id: '/atendimentos/automacoes/'
+      path: '/'
+      fullPath: '/atendimentos/automacoes/'
+      preLoaderRoute: typeof AtendimentosAutomacoesIndexRouteImport
+      parentRoute: typeof AtendimentosAutomacoesRoute
+    }
     '/atendimentos/automacoes/$automationId': {
       id: '/atendimentos/automacoes/$automationId'
       path: '/$automationId'
@@ -483,12 +501,14 @@ declare module '@tanstack/react-router' {
 
 interface AtendimentosAutomacoesRouteChildren {
   AtendimentosAutomacoesAutomationIdRoute: typeof AtendimentosAutomacoesAutomationIdRoute
+  AtendimentosAutomacoesIndexRoute: typeof AtendimentosAutomacoesIndexRoute
 }
 
 const AtendimentosAutomacoesRouteChildren: AtendimentosAutomacoesRouteChildren =
   {
     AtendimentosAutomacoesAutomationIdRoute:
       AtendimentosAutomacoesAutomationIdRoute,
+    AtendimentosAutomacoesIndexRoute: AtendimentosAutomacoesIndexRoute,
   }
 
 const AtendimentosAutomacoesRouteWithChildren =
