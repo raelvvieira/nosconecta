@@ -440,7 +440,23 @@ async function handleDispatch(
     .eq("owner_id", ownerId)
     .eq("trigger_event", systemEvent)
     .eq("active", true);
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Quem chama (dispatchAutomationEvent) engole erro de propósito, pra que
+    // uma automação fora do ar nunca derrube o cadastro que a originou. O
+    // efeito colateral é que coluna faltando (migration não aplicada) fica
+    // indistinguível de "não havia regra". Esta linha é o que torna isso
+    // visível no histórico em vez de silencioso.
+    await logRun({
+      owner_id: ownerId,
+      rule_id: null,
+      rule_name: "-",
+      trigger_event: systemEvent,
+      action_type: "-",
+      status: "failed",
+      error: `Falha ao ler as automações: ${error.message}`,
+    }).catch(() => null);
+    throw new Error(error.message);
+  }
 
   const matching = (regras ?? []).filter((r: any) => matchesConditions(r.trigger_conditions ?? {}, ctx));
   if (!matching.length) return { ok: true, skipped: "nenhuma automação corresponde", executed: 0 };

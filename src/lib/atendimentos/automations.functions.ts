@@ -205,6 +205,27 @@ export const saveAutomation = createServerFn({ method: "POST" })
     return { ok: true, id: row.id };
   });
 
+/** Liga/desliga sem passar pelo save completo.
+ *
+ *  `saveAutomation` monta a linha inteira e grava `?? {}` no que não vier no
+ *  input — então usá-lo pra um toggle apagava silenciosamente tudo que a tela
+ *  da lista não carrega (a janela de horário, e agora o grafo). Um update de
+ *  uma coluna só não tem como fazer isso.
+ */
+export const setAutomationActive = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { id: string; active: boolean }) => input)
+  .handler(async ({ data, context }) => {
+    const supabase: any = context.supabase;
+    const { error } = await supabase
+      .from("automation_rules")
+      .update({ active: data.active, updated_at: new Date().toISOString() })
+      .eq("id", data.id)
+      .eq("owner_id", context.ownerId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export const deleteAutomation = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator((input: { id: string }) => input)

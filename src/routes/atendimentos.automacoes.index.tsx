@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 import {
   deleteAutomation,
   listAutomations,
-  saveAutomation,
+  setAutomationActive,
   type AutomationRule,
 } from "@/lib/atendimentos/automations.functions";
 import { ACTION_LABEL, TRIGGER_LABEL_SHORT } from "@/components/atendimentos/automations/automationLabels";
@@ -67,7 +67,7 @@ function AutomacoesPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const fetchAutomations = useServerFn(listAutomations);
-  const doSave = useServerFn(saveAutomation);
+  const doSetActive = useServerFn(setAutomationActive);
   const doDelete = useServerFn(deleteAutomation);
 
   const [excluirId, setExcluirId] = useState<string | null>(null);
@@ -82,17 +82,7 @@ function AutomacoesPage() {
 
   const toggleMutation = useMutation({
     mutationFn: (regra: AutomationRule) =>
-      doSave({
-        data: {
-          id: regra.id,
-          name: regra.name,
-          active: !regra.active,
-          triggerEvent: regra.triggerEvent,
-          triggerConditions: regra.triggerConditions,
-          actions: regra.actions,
-          canvasLayout: regra.canvasLayout,
-        },
-      }),
+      doSetActive({ data: { id: regra.id, active: !regra.active } }),
     onSuccess: () => {
       toast.success("Automação atualizada");
       refresh();

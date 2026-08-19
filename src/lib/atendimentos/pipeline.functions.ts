@@ -145,6 +145,9 @@ export const movePipelineItem = createServerFn({ method: "POST" })
     const { dispatchAutomationEvent } = await import("@/lib/atendimentos/automations.server");
     await dispatchAutomationEvent(context.ownerId, "pipeline.stage_changed", {
       entityId: `${data.itemId}:${data.newStageId}`,
+      // Id "limpo" do card, separado do entityId composto: sem ele as ações
+      // que agem sobre o card (observação) não têm em que agir.
+      itemId: data.itemId,
       stageId: data.newStageId,
       crmContactId: moved?.type === "contact" ? moved.itemId : null,
       contactName: moved?.title ?? null,

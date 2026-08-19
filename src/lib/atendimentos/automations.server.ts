@@ -22,6 +22,15 @@ export interface AutomationDispatchContext {
   amount?: number | null;
 }
 
+/**
+ * `depth` existe pro dia em que uma ação de automação voltar a disparar um
+ * SYSTEM_EVENT — hoje NENHUMA faz isso (a ação de mover etapa chama a Edge
+ * Function `crm-pipeline` direto, justamente pra não re-disparar o evento),
+ * então ele é sempre 0 e o teto no executor nunca é atingido. Ou seja: não é
+ * ele que impede loop hoje. Quem impede é (a) essa escolha de furar o server
+ * function e (b) as recusas no validador de `saveAutomation`. Mantido pra
+ * quando a cadeia existir de verdade — mas não conte com ele.
+ */
 export async function dispatchAutomationEvent(
   ownerId: string,
   systemEvent: string,
