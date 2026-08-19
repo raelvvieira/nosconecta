@@ -90,7 +90,7 @@ export function EscolherGatilhoDialog({
           </DialogTitle>
           <DialogDescription>O que faz esta automação começar a rodar.</DialogDescription>
         </DialogHeader>
-        <div className="-mx-2 max-h-[60vh] space-y-1 overflow-y-auto px-2">
+        <div className="space-y-1">
           {SYSTEM_EVENTS.map((event) => (
             <button
               key={event}
@@ -350,7 +350,7 @@ export function AdicionarAcaoDialog({
         </DialogHeader>
 
         {tipo === "escolher" && (
-          <div className="-mx-2 space-y-1 px-2">
+          <div className="space-y-1">
             <p className="px-1 pb-1 pt-2 text-2xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               Mensagem
             </p>
@@ -953,7 +953,7 @@ export function EscolherCardDialog({
             do outro para ligá-los.
           </DialogDescription>
         </DialogHeader>
-        <div className="-mx-2 space-y-1 px-2">
+        <div className="space-y-1">
           {opcoes.map((o) => (
             <button
               key={o.tipo}

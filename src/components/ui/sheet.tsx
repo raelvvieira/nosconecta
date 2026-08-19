@@ -74,7 +74,7 @@ const SheetContent = React.forwardRef<
       </SheetPrimitive.Close>
       {/* O conteúdo rola dentro da gaveta; o botão de fechar fica de fora para
           não sumir junto com a rolagem. */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scroll">
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain custom-scroll">
         {children}
       </div>
     </SheetPrimitive.Content>

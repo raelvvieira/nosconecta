@@ -71,7 +71,7 @@ const DrawerContent = React.forwardRef<
       {/* O conteúdo rola aqui dentro. O vaul lê o scrollTop deste elemento para
           decidir entre arrastar a gaveta e rolar a lista: só arrasta quando a
           rolagem já está no topo, que é o que evita os dois gestos brigarem. */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scroll">
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain custom-scroll">
         {children}
       </div>
     </DrawerPrimitive.Content>

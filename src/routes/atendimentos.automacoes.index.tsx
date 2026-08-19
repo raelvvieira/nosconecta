@@ -207,15 +207,12 @@ function AutomacoesPage() {
                 <p className="mt-1 text-sm text-muted-foreground">
                   Ex.: quando um paciente é cadastrado, mandar uma mensagem de boas-vindas.
                 </p>
-                <Button asChild className="mt-5 gap-2 bg-gradient-primary text-white">
-                  <Link
-                    to="/atendimentos/automacoes/$automationId"
-                    params={{ automationId: "nova" }}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Criar automação
-                  </Link>
-                </Button>
+                {/* Sem botão aqui: "Nova automação", no cabeçalho, faz a mesma
+                    coisa — dois caminhos para a mesma ação só dividem a atenção. */}
+                <p className="mt-4 text-xs text-muted-foreground">
+                  Comece pelo botão <span className="font-medium text-foreground">Nova automação</span>,
+                  no topo da página.
+                </p>
               </div>
             </div>
           )}

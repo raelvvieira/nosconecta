@@ -44,8 +44,14 @@ const DialogContent = React.forwardRef<
       {...props}
     >
       {/* O `grid gap-4` desce para o invólucro para manter o espaçamento que
-          os diálogos já tinham; o que muda é só a rolagem. */}
-      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto overscroll-contain custom-scroll">
+          os diálogos já tinham; o que muda é só a rolagem.
+
+          `overflow-x-hidden` + `min-w-0` (mesmo par já usado em select.tsx,
+          dropdown-menu.tsx e command.tsx): com `overflow-y: auto`, o CSS
+          promove o eixo horizontal a `auto` também, e qualquer conteúdo que
+          passe um fio da largura vira uma barra de rolagem lateral no rodapé
+          do diálogo. Diálogo não rola para o lado. */}
+      <div className="grid min-h-0 min-w-0 flex-1 gap-4 overflow-y-auto overflow-x-hidden overscroll-contain custom-scroll">
         {children}
       </div>
       <DialogPrimitive.Close className="absolute right-4 top-4 z-10 tap-44 grid h-6 w-6 place-items-center rounded-sm opacity-70 ring-offset-background cursor-pointer transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
