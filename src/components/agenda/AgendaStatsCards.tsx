@@ -35,7 +35,7 @@ function StatCard({
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs text-muted-foreground font-medium">{label}</p>
-          <p className="text-2xl font-semibold text-foreground tracking-tight tabular-nums mt-0.5">
+          <p className="text-2xl font-semibold text-foreground tabular-nums mt-0.5">
             {value}
           </p>
         </div>

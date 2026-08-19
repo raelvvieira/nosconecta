@@ -114,7 +114,7 @@ function PlanningPage() {
           {/* Header */}
           <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6">
             <div>
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight leading-[1.1]">
+              <h1 className="text-2xl md:text-3xl font-semibold leading-[1.1]">
                 Planejamento Financeiro
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
@@ -187,12 +187,12 @@ function PlanningPage() {
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="hidden md:block text-2xl font-semibold tracking-tight tabular-nums mt-1">
+                  <p className="hidden md:block text-2xl font-semibold tabular-nums mt-1">
                     {summary.financialRunwayDays} dias
                   </p>
                 </div>
               </div>
-              <p className="md:hidden text-sm font-semibold tracking-tight tabular-nums leading-none">
+              <p className="md:hidden text-sm font-semibold tabular-nums leading-none">
                 {summary.financialRunwayDays} dias
               </p>
               <div className="flex items-center justify-between">

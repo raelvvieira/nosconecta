@@ -63,7 +63,7 @@ export function PushSettingsCard() {
 
   return (
     <section className="mt-8">
-      <h2 className="text-lg font-semibold tracking-tight">Notificações no celular</h2>
+      <h2 className="text-lg font-semibold">Notificações no celular</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Avisos para a equipe da clínica, direto no aparelho — diferente dos canais acima, que vão
         para o paciente.

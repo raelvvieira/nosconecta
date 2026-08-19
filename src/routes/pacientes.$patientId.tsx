@@ -111,7 +111,7 @@ function PatientDetailPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-xl font-semibold tracking-tight lg:text-2xl leading-[1.1]">Paciente</h1>
+          <h1 className="text-xl font-semibold lg:text-2xl leading-[1.1]">Paciente</h1>
           <button
             type="button"
             aria-label="Editar paciente"
@@ -128,7 +128,7 @@ function PatientDetailPage() {
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-3">
-              <h2 className="truncate text-2xl font-semibold tracking-tight lg:text-3xl leading-[1.1]">
+              <h2 className="truncate text-2xl font-semibold lg:text-3xl leading-[1.1]">
                 {patient.name}
               </h2>
               <span
@@ -373,7 +373,7 @@ function CareTimeline({ events }: { events: CareEvent[] }) {
     <section className="surface-card p-5 sm:p-7">
       <div className="flex items-center gap-2">
         <Stethoscope className="h-5 w-5 text-pink" />
-        <h2 className="text-xl font-semibold tracking-tight">Linha de cuidado</h2>
+        <h2 className="text-xl font-semibold">Linha de cuidado</h2>
       </div>
       {events.length ? (
         <div className="relative mt-6 space-y-0">
@@ -448,7 +448,7 @@ function CareTimeline({ events }: { events: CareEvent[] }) {
 function History({ patient }: { patient: PatientDetail }) {
   return (
     <section className="surface-card mt-5 overflow-hidden p-5 sm:p-7">
-      <h2 className="text-xl font-semibold tracking-tight">Histórico do paciente</h2>
+      <h2 className="text-xl font-semibold">Histórico do paciente</h2>
       <div className="mt-5 divide-y divide-border">
         {patient.timeline.map((event) => (
           <div key={event.id} className="flex gap-4 py-4">
@@ -483,7 +483,7 @@ function Finance({ patient, onReceive }: { patient: PatientDetail; onReceive: ()
       <section className="surface-card overflow-hidden lg:col-span-3">
         <div className="flex items-center justify-between px-5 py-5 sm:px-7">
           <div>
-            <h2 className="text-xl font-semibold tracking-tight">Movimentações</h2>
+            <h2 className="text-xl font-semibold">Movimentações</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Recebimentos vinculados a este paciente.
             </p>

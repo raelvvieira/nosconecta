@@ -79,6 +79,7 @@ import {
   type ReceivablesOverview,
   type ReceivableStatus,
 } from "@/lib/finance/receivables.functions";
+import { corCategorica } from "@/lib/finance/chart-theme";
 
 const searchSchema = z.object({
   from: z.string().optional(),
@@ -120,7 +121,7 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Cancelado",
 };
 
-const PROC_COLORS = ["#7c3aed", "#06b6d4", "#f97316", "#22c55e", "#ec4899", "#eab308", "#94a3b8"];
+
 
 const overviewOpts = (fetcher: (args: { data: any }) => Promise<ReceivablesOverview>, s: Search) =>
   queryOptions({
@@ -230,7 +231,7 @@ function RecebimentosPage() {
       <main className="flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-24 lg:pb-8">
         <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight leading-[1.1]">Recebimentos</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold leading-[1.1]">Recebimentos</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Acompanhe todas as entradas financeiras da clínica
             </p>
@@ -318,19 +319,19 @@ function RecebimentosPage() {
                     margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
                   >
                     <CartesianGrid
-                      stroke="hsl(var(--border))"
+                      stroke="var(--border)"
                       strokeDasharray="3 3"
                       vertical={false}
                     />
                     <XAxis
                       dataKey="period"
-                      stroke="hsl(var(--muted-foreground))"
+                      stroke="var(--muted-foreground)"
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
                     />
                     <YAxis
-                      stroke="hsl(var(--muted-foreground))"
+                      stroke="var(--muted-foreground)"
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
@@ -339,8 +340,8 @@ function RecebimentosPage() {
                     <Tooltip
                       contentStyle={{
                         borderRadius: 12,
-                        border: "1px solid hsl(var(--border))",
-                        background: "hsl(var(--card))",
+                        border: "1px solid var(--border)",
+                        background: "var(--card)",
                       }}
                       formatter={(v: number, name) => [formatBRL(v), name]}
                     />
@@ -853,7 +854,7 @@ function TopProceduresCard({ items }: { items: ReceivablesOverview["topProcedure
               <PieChart>
                 <Pie data={data} dataKey="value" innerRadius={40} outerRadius={60} stroke="none">
                   {data.map((_, i) => (
-                    <Cell key={i} fill={PROC_COLORS[i % PROC_COLORS.length]} />
+                    <Cell key={i} fill={corCategorica(i)} />
                   ))}
                 </Pie>
               </PieChart>
@@ -864,7 +865,7 @@ function TopProceduresCard({ items }: { items: ReceivablesOverview["topProcedure
               <li key={p.id} className="flex items-center gap-2">
                 <span
                   className="h-2 w-2 rounded-full shrink-0"
-                  style={{ background: PROC_COLORS[i % PROC_COLORS.length] }}
+                  style={{ background: corCategorica(i) }}
                 />
                 <span className="flex-1 truncate">{p.name}</span>
                 <span className="text-muted-foreground tabular-nums">{p.pct.toFixed(0)}%</span>

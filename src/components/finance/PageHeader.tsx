@@ -26,7 +26,7 @@ export function PageHeader({
   return (
     <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight leading-[1.1]">Financeiro</h1>
+        <h1 className="text-3xl font-semibold leading-[1.1]">Financeiro</h1>
         <p className="text-sm text-muted-foreground mt-1">Resumo financeiro da clínica</p>
       </div>
 

@@ -103,7 +103,7 @@ export const getSettings = createServerFn({ method: "GET" })
         id: row.id,
         name: row.name,
         roomName: row.room_name ?? "",
-        color: row.color ?? "#FF6B57",
+        color: row.color ?? "#FF7A59",
         active: row.active ?? true,
         notes: row.notes ?? "",
         unitId: row.unit_id ?? null,
@@ -168,7 +168,7 @@ export const saveSetting = createServerFn({ method: "POST" })
         unit_id: await resolveUnitId(context, item.unitId ?? null),
         name: item.name,
         room_name: item.roomName || null,
-        color: item.color || "#FF6B57",
+        color: item.color || "#FF7A59",
         active: item.active ?? true,
         notes: item.notes || null,
       };

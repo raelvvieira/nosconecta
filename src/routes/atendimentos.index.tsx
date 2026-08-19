@@ -85,7 +85,7 @@ function DashboardPage() {
   return (
     <main className="flex flex-1 flex-col pb-24 lg:pb-8">
       <header className="flex w-full items-center justify-between gap-3 px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-[-0.03em]">
+        <h1 className="flex items-center gap-2 text-2xl font-semibold">
           <LayoutDashboard className="h-5 w-5 text-pink" />
           Dashboard
         </h1>

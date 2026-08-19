@@ -46,14 +46,14 @@ export function KpiCard({
         {/* Desktop only: label + value stacked next to icon */}
         <div className="hidden md:flex flex-1 min-w-0 flex-col">
           <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="text-2xl font-semibold tracking-tight tabular-nums mt-1">{value}</p>
+          <p className="text-2xl font-semibold tabular-nums mt-1">{value}</p>
         </div>
         {/* Mobile only: label next to icon */}
         <p className="md:hidden text-2xs leading-tight text-muted-foreground pt-0.5 flex-1 min-w-0">{label}</p>
       </div>
 
       {/* Mobile only: value full width */}
-      <p className="md:hidden text-sm font-semibold tracking-tight tabular-nums leading-none">{value}</p>
+      <p className="md:hidden text-sm font-semibold tabular-nums leading-none">{value}</p>
 
       <div className="flex items-center justify-between text-xs">
         {deltaPct !== undefined ? (

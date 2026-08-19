@@ -42,7 +42,7 @@ function SettingsLayout() {
             <Settings2 className="h-4 w-4" />
             Base operacional
           </div>
-          <h1 className="text-3xl font-semibold tracking-[-0.035em] lg:text-4xl leading-[1.1]">
+          <h1 className="text-3xl font-semibold lg:text-4xl leading-[1.1]">
             Configurações
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">

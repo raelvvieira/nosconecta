@@ -327,7 +327,7 @@ function ChatPage() {
         )}
       >
         <header className="px-4 pb-3 pt-6 sm:px-6 lg:px-5 lg:pt-7">
-          <h1 className="text-2xl font-semibold tracking-[-0.03em]">Conversas</h1>
+          <h1 className="text-2xl font-semibold">Conversas</h1>
           <div className="mt-0.5">
             <WhatsappStatusBadge variant="minimal" />
           </div>

@@ -116,7 +116,7 @@ function NotificationsPage() {
   return (
     <>
       <header>
-        <h2 className="text-xl font-semibold tracking-tight">Notificações</h2>
+        <h2 className="text-xl font-semibold">Notificações</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Confirmação de agendamento e lembretes automáticos por e-mail, SMS e WhatsApp.
         </p>

@@ -232,7 +232,7 @@ function CampanhasPage() {
     <>
       <main className="mx-auto w-full max-w-[900px] px-4 pb-28 pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
         <header className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-[-0.03em]">
+          <h1 className="flex items-center gap-2 text-2xl font-semibold">
             <Megaphone className="h-5 w-5 text-pink" />
             Campanhas
           </h1>

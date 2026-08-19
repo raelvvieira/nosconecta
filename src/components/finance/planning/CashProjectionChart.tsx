@@ -7,6 +7,7 @@ import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
 import type { ProjectionPoint, RangeDays } from "@/lib/finance/planning.functions";
+import { CHART_SERIES } from "@/lib/finance/chart-theme";
 
 const RANGES: { label: string; value: RangeDays }[] = [
   { label: "30 dias", value: 30 },
@@ -96,38 +97,38 @@ export function CashProjectionChart({
           <ComposedChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -10 }}>
             <defs>
               <linearGradient id="riskFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="hsl(0 80% 60%)" stopOpacity={0.12} />
-                <stop offset="100%" stopColor="hsl(0 80% 60%)" stopOpacity={0.04} />
+                <stop offset="0%" stopColor="var(--danger)" stopOpacity={0.12} />
+                <stop offset="100%" stopColor="var(--danger)" stopOpacity={0.04} />
               </linearGradient>
             </defs>
-            <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} opacity={0.6} />
-            <XAxis dataKey="label" tick={{ fontSize: "0.6875rem", fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+            <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} opacity={0.6} />
+            <XAxis dataKey="label" tick={{ fontSize: "0.6875rem", fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
             <YAxis
-              tick={{ fontSize: "0.6875rem", fill: "hsl(var(--muted-foreground))" }}
+              tick={{ fontSize: "0.6875rem", fill: "var(--muted-foreground)" }}
               axisLine={false} tickLine={false}
               tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`}
               width={60}
             />
             <Tooltip content={<ChartTooltip />} />
             <ReferenceArea y1={-100_000} y2={0} fill="url(#riskFill)" />
-            <ReferenceLine y={0} stroke="hsl(0 70% 65%)" strokeOpacity={0.5} />
+            <ReferenceLine y={0} stroke="var(--danger)" strokeOpacity={0.5} />
             {/* Sem meta cadastrada não há linha: desenhar um valor inventado
                 faria a clínica achar que ela mesma tinha definido aquilo. */}
             {data.some((p) => p.goal !== null) && (
               <Line
                 type="monotone" dataKey="goal" name="Meta Financeira"
-                stroke="hsl(var(--muted-foreground))" strokeDasharray="2 4" strokeOpacity={0.7}
+                stroke={CHART_SERIES.meta} strokeDasharray="2 4" strokeOpacity={0.7}
                 dot={false} strokeWidth={1.5} isAnimationActive={false}
               />
             )}
             <Line
               type="monotone" dataKey="actual" name="Saldo Atual"
-              stroke="hsl(var(--primary))" strokeWidth={2.4} dot={false}
+              stroke="var(--primary)" strokeWidth={2.4} dot={false}
               activeDot={{ r: 4 }}
             />
             <Line
               type="monotone" dataKey="projected" name="Saldo Projetado"
-              stroke="oklch(0.58 0.20 290)" strokeWidth={2.2} strokeDasharray="5 5" dot={false}
+              stroke={CHART_SERIES.saldo} strokeWidth={2.2} strokeDasharray="5 5" dot={false}
               activeDot={{ r: 4 }}
             />
           </ComposedChart>

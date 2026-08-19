@@ -78,7 +78,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f8a90e44-aa95-437f-9ffc-a812fd85284b/id-preview-07a4c3cc--d99d44d3-aac2-4003-ad96-b3d585719075.lovable.app-1781664690838.png",
       },
-      { name: "theme-color", content: "var(--coral)" },
+      // Literal, e não `var(--coral)`: meta tag não resolve variável de CSS —
+      // o navegador recebia a string crua e a barra de status ficava sem cor.
+      { name: "theme-color", content: "#FF7A59" },
       { name: "application-name", content: "NÓS Conecta" },
       // O iOS ignora o manifest para decidir se abre em tela cheia; quem
       // manda são estas duas.

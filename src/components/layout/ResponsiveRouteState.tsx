@@ -54,7 +54,7 @@ export function ResponsiveRouteState({
           <p className="mt-5 text-xs font-semibold uppercase tracking-[0.14em] text-pink">
             {notFound ? "Página não encontrada" : "Não foi possível carregar"}
           </p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
+          <h1 className="mt-2 text-2xl font-semibold text-foreground">{title}</h1>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
             {description ??
               (notFound

@@ -91,7 +91,7 @@ function CadastroEquipePage() {
           <div className="h-14 w-14 rounded-[20px] bg-gradient-primary grid place-items-center shadow-soft mb-4">
             <Sparkles className="h-7 w-7 text-white" strokeWidth={2} />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">NÓS Conecta</h1>
+          <h1 className="text-2xl font-semibold">NÓS Conecta</h1>
           <p className="text-sm text-muted-foreground mt-1">Cadastro da equipe</p>
         </div>
 

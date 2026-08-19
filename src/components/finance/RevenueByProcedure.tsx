@@ -1,12 +1,8 @@
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import { formatBRL } from "@/lib/finance/format";
+import { corCategorica } from "@/lib/finance/chart-theme";
 
-const COLORS = [
-  "oklch(0.6 0.17 270)",
-  "oklch(0.7 0.13 195)",
-  "oklch(0.72 0.13 155)",
-  "oklch(0.74 0.15 70)",
-];
+
 
 interface Item {
   id: string;
@@ -37,7 +33,7 @@ export function RevenueByProcedure({ data }: { data: Item[] }) {
                 stroke="none"
               >
                 {data.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  <Cell key={i} fill={corCategorica(i)} />
                 ))}
               </Pie>
             </PieChart>
@@ -50,7 +46,7 @@ export function RevenueByProcedure({ data }: { data: Item[] }) {
               <span className="flex items-center gap-2 min-w-0">
                 <span
                   className="h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ background: COLORS[i % COLORS.length] }}
+                  style={{ background: corCategorica(i) }}
                 />
                 <span className="text-muted-foreground truncate">{d.name}</span>
               </span>

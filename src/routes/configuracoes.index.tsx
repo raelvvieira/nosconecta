@@ -156,7 +156,7 @@ function SettingsRegistryPage() {
     <>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">{label}</h2>
+          <h2 className="text-xl font-semibold">{label}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {activeCount} ativos de {items.length} cadastrados
           </p>
@@ -273,7 +273,7 @@ function SettingsRow({
   const subtitle = rowSubtitle(section, item);
   const detail = rowDetail(section, item);
   const color =
-    "color" in item ? item.color : ["#FF6B57", "#8B5CF6", "#0EA5E9", "#F59E0B"][index % 4];
+    "color" in item ? item.color : ["#FF7A59", "#8B5CF6", "#0EA5E9", "#F59E0B"][index % 4];
   return (
     <div className="flex min-h-[92px] items-center gap-3 px-4 py-4 sm:px-5">
       <span

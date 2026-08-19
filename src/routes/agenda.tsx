@@ -370,7 +370,7 @@ function AgendaPage() {
         {/* Header */}
         <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground leading-[1.1]">
+            <h1 className="text-2xl md:text-3xl font-semibold text-foreground leading-[1.1]">
               Agenda
             </h1>
             <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>

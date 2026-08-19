@@ -244,7 +244,7 @@ function IntegrationsPage() {
   return (
     <>
       <header>
-        <h2 className="text-xl font-semibold tracking-tight">Integrações</h2>
+        <h2 className="text-xl font-semibold">Integrações</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Envie eventos de conversão para a Meta direto do sistema, sem depender do navegador do
           paciente.
@@ -396,7 +396,7 @@ function IntegrationsPage() {
       {/* Gatilhos */}
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h3 className="text-lg font-semibold tracking-tight">Gatilhos</h3>
+          <h3 className="text-lg font-semibold">Gatilhos</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             O que acontece no sistema e qual evento isso envia para a Meta.
           </p>
@@ -514,7 +514,7 @@ function IntegrationsPage() {
       </div>
 
       {/* Histórico */}
-      <h3 className="mt-8 text-lg font-semibold tracking-tight">Últimos envios</h3>
+      <h3 className="mt-8 text-lg font-semibold">Últimos envios</h3>
       <div className="surface-card mt-3 divide-y divide-border overflow-hidden">
         {(log.data ?? []).map((row) => (
           <div key={row.id} className="flex items-center gap-3 px-4 py-3 sm:px-5">

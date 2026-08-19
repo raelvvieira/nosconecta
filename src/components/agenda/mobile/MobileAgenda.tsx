@@ -106,7 +106,7 @@ function StatsCarousel({ appointments, date }: { appointments: Appointment[]; da
           </div>
           <div>
             <p className="text-2xs text-muted-foreground leading-tight">{c.label}</p>
-            <p className="text-xl font-semibold text-foreground tracking-tight tabular-nums mt-0.5">{c.value}</p>
+            <p className="text-xl font-semibold text-foreground tabular-nums mt-0.5">{c.value}</p>
           </div>
           <p className="text-2xs text-muted-foreground">{c.sub}</p>
         </div>
@@ -432,7 +432,7 @@ export function MobileAgenda({
         {/* Header */}
         <header>
           <div className="min-w-0">
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">Agenda</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Agenda</h1>
             <p className="text-sm text-muted-foreground mt-1 capitalize">{subtitle}</p>
           </div>
         </header>

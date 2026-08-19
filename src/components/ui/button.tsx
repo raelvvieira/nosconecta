@@ -17,14 +17,17 @@ import { cn } from "@/lib/utils";
 // A transição lista as propriedades em vez de `all`: `all` inclui o que é
 // layout, e aí cada quadro sai do compositor.
 const buttonVariants = cva(
-  "inline-flex touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-[14px] text-sm font-medium cursor-pointer transition-[transform,background-color,border-color,color,box-shadow,opacity] duration-[260ms] ease-spring active:duration-75 active:ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex touch-manipulation items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium cursor-pointer transition-[transform,background-color,border-color,color,box-shadow,opacity,filter] duration-[260ms] ease-spring active:duration-75 active:ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default:
-          "bg-gradient-primary text-white shadow-soft hover:opacity-95 active:opacity-90",
+        // `premium` é o nome que o projeto usa para a ação principal; `default`
+        // aponta para ela em vez de repetir a string, que era o que fazia as
+        // duas divergirem em silêncio quando uma era ajustada.
         premium:
-          "bg-gradient-primary text-white shadow-soft hover:opacity-95 active:opacity-90",
+          "bg-gradient-primary text-white shadow-2 hover:brightness-[1.03] hover:shadow-3 active:brightness-[0.97]",
+        default:
+          "bg-gradient-primary text-white shadow-2 hover:brightness-[1.03] hover:shadow-3 active:brightness-[0.97]",
         dark:
           "bg-foreground text-white hover:bg-foreground-hover active:bg-foreground-active",
         destructive:
@@ -40,8 +43,8 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-11 px-5",
-        sm: "h-9 px-3.5 text-xs rounded-[12px]",
-        lg: "h-12 px-6 text-base",
+        sm: "h-9 px-3.5 text-xs rounded-sm",
+        lg: "h-12 px-6 text-base rounded-lg",
         icon: "h-11 w-11",
       },
     },

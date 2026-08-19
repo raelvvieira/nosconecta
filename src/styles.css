@@ -2,15 +2,26 @@
 @source "../src";
 @import "tw-animate-css";
 
+/* O app é só tema claro. A variante fica declarada — e apontando para uma
+   classe `.dark` que nada aplica — de propósito: sem esta linha, um `dark:`
+   escrito por engano vira `@media (prefers-color-scheme: dark)` e passa a
+   valer de verdade para quem usa o sistema no escuro. Assim ele falha em
+   silêncio, que é o certo aqui. */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --radius-sm: 10px;
-  --radius-md: 12px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
-  --radius-2xl: 24px;
-  --radius-3xl: 28px;
+  /* Raio por HIERARQUIA, não por gosto: quanto mais elevada a superfície,
+     maior o raio. Antes a escala era arbitrária e o resultado ficava
+     invertido — o diálogo (a coisa mais elevada da tela) tinha 14px enquanto
+     o cartão embaixo dele tinha 24px, e o app inteiro usava 17 raios
+     diferentes. Os nomes do Tailwind continuam os mesmos; o que muda é para
+     onde apontam. */
+  --radius-sm: var(--radius-chip);          /* 10px — pílula pequena, etiqueta */
+  --radius-md: var(--radius-control);       /* 12px — campo, botão */
+  --radius-lg: var(--radius-control-lg);    /* 14px — controle grande */
+  --radius-xl: var(--radius-card);          /* 16px — cartão de dado */
+  --radius-2xl: var(--radius-feature);      /* 20px — cartão de destaque */
+  --radius-3xl: var(--radius-island);       /* 26px — ilha, diálogo, gaveta */
   --radius-4xl: 32px;
 
   --color-background: var(--background);
@@ -88,22 +99,69 @@
   --text-3xs: 0.625rem; /* 10px */
   --text-2xs: 0.6875rem; /* 11px */
 
+  /* Entrelinha e espaçamento entre letras ACOPLADOS ao tamanho.
+     Texto pequeno quer entrelinha folgada e letras levemente abertas; título
+     grande quer o contrário. Antes havia um único `letter-spacing: -0.005em`
+     no `body` valendo para tudo — do título de 36px à etiqueta de 10px — e o
+     ajuste real ficava por conta de `tracking-tight` espalhado em 35 lugares.
+
+     Ficam aqui, na escala, e não numa classe de papel: no Tailwind o
+     utilitário de tamanho também escreve `line-height`, e ele é emitido depois
+     da camada de componentes — uma `line-height` declarada numa classe própria
+     perde em silêncio para o `text-2xl` do mesmo elemento. Na escala, o
+     espaçamento certo chega junto com o tamanho, e todo call site existente
+     herda sem ser editado. `tracking-*` no elemento continua ganhando quando
+     precisa (é o caso da etiqueta em maiúsculas, que quer abrir). */
+  --text-3xs--line-height: 1.3;
+  --text-3xs--letter-spacing: 0.012em;
+  --text-2xs--line-height: 1.32;
+  --text-2xs--letter-spacing: 0.01em;
+  --text-xs--line-height: 1.35;
+  --text-xs--letter-spacing: 0.005em;
+  --text-sm--line-height: 1.5;
+  --text-sm--letter-spacing: -0.002em;
+  --text-base--line-height: 1.55;
+  --text-base--letter-spacing: -0.005em;
+  --text-lg--line-height: 1.45;
+  --text-lg--letter-spacing: -0.009em;
+  --text-xl--line-height: 1.35;
+  --text-xl--letter-spacing: -0.013em;
+  --text-2xl--line-height: 1.25;
+  --text-2xl--letter-spacing: -0.017em;
+  --text-3xl--line-height: 1.18;
+  --text-3xl--letter-spacing: -0.021em;
+  --text-4xl--line-height: 1.1;
+  --text-4xl--letter-spacing: -0.025em;
 }
 
 /* Os utilitários de sombra do Tailwind caem na nossa escala. Sem isto,
    `shadow-lg` num cartão e `shadow-elev` no cartão ao lado desenham duas
    sombras de cor e altura diferentes na mesma tela. */
 @theme {
-  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
-  --shadow-3: 0 10px 30px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
-  --shadow-4: 0 24px 64px rgba(0, 0, 0, 0.18);
+  /* Sobre branco, profundidade não vem de projeção escura — vem de um contorno
+     fino e de uma sombra rasa e ampla. Uma sombra preta forte, que sobre fundo
+     escuro lê como altura, sobre branco lê como sujeira. Por isso os degraus
+     são difusos e de baixa opacidade, e os dois mais altos carregam um realce
+     interno branco na borda de cima, que é o que dá a impressão de borda viva
+     em vez de retângulo colado.
 
+     O tom não é preto puro: `24,24,30` é o neutro levemente frio da escala,
+     e sombra preta sobre uma paleta quente cinza-suja a superfície. */
+  --shadow-1: 0 1px 2px rgba(24, 24, 30, 0.045);
+  --shadow-2: 0 8px 24px rgba(24, 24, 30, 0.06), 0 1px 2px rgba(24, 24, 30, 0.03);
+  --shadow-3: 0 16px 45px rgba(24, 24, 30, 0.10), 0 2px 8px rgba(24, 24, 30, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --shadow-4: 0 28px 70px rgba(24, 24, 30, 0.16), 0 4px 12px rgba(24, 24, 30, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+
+  /* Um nome por degrau. Antes `shadow-lg` e `shadow-xl` desenhavam exatamente
+     a mesma sombra, e seis nomes apontavam para dois valores — escolher entre
+     eles não mudava nada, o que torna a escala decorativa. */
   --shadow-xs: var(--shadow-1);
   --shadow-sm: var(--shadow-1);
   --shadow-md: var(--shadow-2);
   --shadow-lg: var(--shadow-3);
-  --shadow-xl: var(--shadow-3);
+  --shadow-xl: var(--shadow-4);
   --shadow-2xl: var(--shadow-4);
 
   /* Molas, como curvas de easing.
@@ -132,7 +190,20 @@
 }
 
 :root {
-  --radius: 14px;
+  /* Só o tema claro. `color-scheme` diz isso ao navegador, que então pinta
+     barra de rolagem, `<select>` e controles nativos de acordo — e poupa os
+     remendos que normalmente aparecem em `<option>`. */
+  color-scheme: light;
+
+  /* Hierarquia de raio. Os utilitários do Tailwind (`rounded-md`, `rounded-xl`…)
+     apontam para estes nomes no @theme acima, então um card é `rounded-xl`
+     porque é card, não porque 16px pareceu bonito. */
+  --radius-chip: 10px;
+  --radius-control: 12px;
+  --radius-control-lg: 14px;
+  --radius-card: 16px;
+  --radius-feature: 20px;
+  --radius-island: 26px;
 
   /* Neutrals
      Escala neutra, não azulada. A agenda, a home do celular e o menu foram
@@ -238,25 +309,6 @@
   --gradient-primary: linear-gradient(135deg, #F55F95 0%, #FF7A59 50%, #FFB086 100%);
 }
 
-.dark {
-  --background: #0E0E10;
-  --foreground: #F6F6F7;
-  --card: #1B1B1F;
-  --card-foreground: #F6F6F7;
-  --popover: #1B1B1F;
-  --popover-foreground: #F6F6F7;
-  --primary: #FF7A59;
-  --primary-foreground: #1B1B1F;
-  --secondary: #26262B;
-  --secondary-foreground: #F6F6F7;
-  --muted: #26262B;
-  --muted-foreground: #9A9AA1;
-  --accent: #2A1F1A;
-  --accent-foreground: #FF7A59;
-  --border: rgba(255, 255, 255, 0.06);
-  --input: rgba(255, 255, 255, 0.08);
-}
-
 @layer base {
   * {
     border-color: var(--color-border);
@@ -268,7 +320,9 @@
     font-family: var(--font-sans);
     font-feature-settings: "cv11", "ss01", "ss03";
     -webkit-font-smoothing: antialiased;
-    letter-spacing: -0.005em;
+    /* Onde a fonte tiver eixo óptico, o desenho da letra acompanha o tamanho
+       em vez de ser o mesmo desenho esticado. */
+    font-optical-sizing: auto;
     /* `clip` corta igual ao `hidden`, mas sem criar contêiner de rolagem — e era
        esse contêiner que fazia o menu lateral (`sticky top-0`) rolar junto com a
        página e sumir pela metade. O `hidden` fica como reserva para navegador
@@ -367,11 +421,23 @@
   background: var(--background);
 }
 
+/* Cartão de dado: a superfície de trabalho do app. Raio de card (16px), não
+   de ilha — antes eram 24px, o mesmo raio de um diálogo, e com tudo no mesmo
+   raio a tela perde a noção do que está acima do quê. */
 @utility surface-card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 24px;
-  box-shadow: var(--shadow-soft);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-1);
+}
+
+/* Cartão de destaque: um degrau acima do de dado, para o bloco que a tela
+   quer que seja lido primeiro. Um por tela — se tudo é destaque, nada é. */
+@utility feature-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-feature);
+  box-shadow: var(--shadow-2);
 }
 
 @utility card-dark {

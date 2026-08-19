@@ -13,12 +13,13 @@ import {
 import { Info } from "lucide-react";
 import type { CashFlowPoint, Granularity } from "@/lib/finance/queries.functions";
 import { formatBRL } from "@/lib/finance/format";
+import { CHART_AXIS, CHART_SERIES, CHART_TICK_FONT_SIZE } from "@/lib/finance/chart-theme";
 
 const COLORS = {
-  entradas: "oklch(0.72 0.13 155)",
-  saidas: "oklch(0.7 0.16 25)",
-  futuro: "oklch(0.6 0.17 270)",
-  saldo: "oklch(0.55 0.18 270)",
+  entradas: CHART_SERIES.entrada,
+  saidas: CHART_SERIES.saida,
+  futuro: CHART_SERIES.previsto,
+  saldo: CHART_SERIES.saldo,
 };
 
 const granLabels: Record<Granularity, string> = {
@@ -114,24 +115,24 @@ export function CashFlowChart({
       <div className="flex-1 min-h-[320px]">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 20, right: 8, left: -10, bottom: 0 }}>
-            <CartesianGrid stroke="oklch(0.93 0.01 260)" strokeDasharray="3 6" vertical={false} />
+            <CartesianGrid stroke={CHART_AXIS.grid} strokeDasharray="3 6" vertical={false} />
             <XAxis
               dataKey="label"
-              stroke="oklch(0.65 0.02 260)"
+              stroke={CHART_AXIS.tick}
               fontSize={11}
               tickLine={false}
               axisLine={false}
               interval="preserveStartEnd"
             />
             <YAxis
-              stroke="oklch(0.65 0.02 260)"
+              stroke={CHART_AXIS.tick}
               fontSize={11}
               tickLine={false}
               axisLine={false}
               tickFormatter={(v) => formatBRL(v, { compact: true })}
               width={70}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: "oklch(0.95 0.02 270 / 0.4)" }} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--surface-muted)", fillOpacity: 0.6 }} />
             <Bar dataKey="entradas" fill={COLORS.entradas} radius={[6, 6, 0, 0]} barSize={10} />
             <Bar dataKey="saidas" fill={COLORS.saidas} radius={[6, 6, 0, 0]} barSize={10} />
             <Bar

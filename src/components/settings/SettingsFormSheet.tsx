@@ -77,7 +77,7 @@ const EMPTY = {
     active: true,
     unitId: null as string | null,
   },
-  chairs: { name: "", roomName: "", color: "#FF6B57", active: true, notes: "", unitId: null as string | null },
+  chairs: { name: "", roomName: "", color: "#FF7A59", active: true, notes: "", unitId: null as string | null },
   procedures: { name: "", category: "", durationMinutes: 60, price: 0, cost: 0, active: true },
   units: { name: "", address: "", active: true },
 };
@@ -216,7 +216,7 @@ export function SettingsFormSheet({ open, section, item, units, isAdmin, onOpenC
                 />
               </Field>
               <ColorField
-                value={String(form.color ?? "#FF6B57")}
+                value={String(form.color ?? "#FF7A59")}
                 onChange={(value) => set("color", value)}
               />
               <Field label="Observações">

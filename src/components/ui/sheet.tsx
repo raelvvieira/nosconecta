@@ -31,23 +31,23 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  "fixed z-50 flex flex-col gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out",
+  "fixed z-50 flex flex-col gap-4 bg-card p-6 shadow-3 transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out",
   {
     variants: {
       side: {
-        top: "inset-x-0 top-0 max-h-[92dvh] border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+        top: "inset-x-0 top-0 max-h-[92dvh] rounded-b-3xl border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
         // `pb-` vence o `p-0` que as gavetas de celular passam (o Tailwind
         // ordena padding antes de padding-bottom), então a barra de gestos do
         // iPhone nunca cobre o conteúdo.
         bottom:
-          "inset-x-0 bottom-0 max-h-[92dvh] pb-[env(safe-area-inset-bottom)] border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+          "inset-x-0 bottom-0 max-h-[92dvh] rounded-t-3xl pb-[env(safe-area-inset-bottom)] border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
         // As laterais também precisam da barra de gestos: no celular elas viram
         // tela cheia (`w-full` do consumidor vence o `w-3/4`), e aí o rodapé
         // grudado embaixo — onde moram os botões de salvar e excluir — ficava
         // por baixo do indicador de home do iPhone.
-        left: "inset-y-0 left-0 h-full w-3/4 pb-[env(safe-area-inset-bottom)] border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm sm:pb-0",
+        left: "inset-y-0 left-0 h-full w-3/4 rounded-r-3xl pb-[env(safe-area-inset-bottom)] border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm sm:pb-0",
         right:
-          "inset-y-0 right-0 h-full w-3/4 pb-[env(safe-area-inset-bottom)] border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm sm:pb-0",
+          "inset-y-0 right-0 h-full w-3/4 rounded-l-3xl pb-[env(safe-area-inset-bottom)] border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm sm:pb-0",
       },
     },
     defaultVariants: {

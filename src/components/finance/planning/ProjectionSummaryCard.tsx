@@ -1,8 +1,9 @@
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { formatBRL } from "@/lib/finance/format";
 import type { ForecastSummary } from "@/lib/finance/planning.functions";
+import { CHART_SERIES } from "@/lib/finance/chart-theme";
 
-const COLORS = ["hsl(150 65% 45%)", "hsl(0 75% 60%)", "oklch(0.58 0.20 290)"];
+const COLORS = [CHART_SERIES.entrada, CHART_SERIES.saida, CHART_SERIES.saldo];
 
 export function ProjectionSummaryCard({ forecast }: { forecast: ForecastSummary }) {
   const { expectedReceivables, expectedPayables, projectedNet } = forecast;
@@ -44,7 +45,7 @@ export function ProjectionSummaryCard({ forecast }: { forecast: ForecastSummary 
           </ResponsiveContainer>
           <div className="absolute inset-0 grid place-items-center text-center pointer-events-none">
             <div>
-              <p className="text-lg font-semibold tracking-tight tabular-nums">R$ {(projectedNet / 1000).toFixed(0)}k</p>
+              <p className="text-lg font-semibold tabular-nums">R$ {(projectedNet / 1000).toFixed(0)}k</p>
               <p className="text-3xs text-muted-foreground">Saldo líquido</p>
             </div>
           </div>

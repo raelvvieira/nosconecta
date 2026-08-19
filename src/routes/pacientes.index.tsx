@@ -118,7 +118,7 @@ function PatientsPage() {
       <main className="mx-auto w-full max-w-[1180px] px-4 pb-28 pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
         <header className="pr-16 lg:flex lg:items-end lg:justify-between lg:gap-6 lg:pr-0">
           <div>
-            <h1 className="text-3xl font-semibold tracking-[-0.035em] text-foreground lg:text-4xl leading-[1.1]">
+            <h1 className="text-3xl font-semibold text-foreground lg:text-4xl leading-[1.1]">
               Pacientes
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -171,7 +171,7 @@ function PatientsPage() {
         </div>
 
         <section className="surface-card mt-6 overflow-hidden px-5 py-5 sm:px-6">
-          <h2 className="text-lg font-semibold tracking-tight">Precisa de atenção</h2>
+          <h2 className="text-lg font-semibold">Precisa de atenção</h2>
           <div className="mt-3 divide-y divide-border">
             <AttentionRow
               icon={CalendarClock}
@@ -190,7 +190,7 @@ function PatientsPage() {
 
         <section className="mt-7">
           <div className="mb-3 flex items-center gap-2">
-            <h2 className="text-xl font-semibold tracking-tight">
+            <h2 className="text-xl font-semibold">
               {search.status === "all"
                 ? "Todos os pacientes"
                 : FILTERS.find((item) => item.value === search.status)?.label}

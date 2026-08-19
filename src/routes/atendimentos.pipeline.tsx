@@ -54,7 +54,7 @@ export const Route = createFileRoute("/atendimentos/pipeline")({
   component: PipelinePage,
 });
 
-const STAGE_COLORS = ["#FF6B57", "#8B5CF6", "#0EA5E9", "#F59E0B", "#22C55E", "#EC4899"];
+const STAGE_COLORS = ["#FF7A59", "#8B5CF6", "#0EA5E9", "#F59E0B", "#22C55E", "#EC4899"];
 type StatusFilter = "open" | "all" | "won" | "lost";
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "open", label: "Em aberto" },
@@ -236,7 +236,7 @@ function PipelinePage() {
     <>
       <main className="flex flex-1 flex-col pb-24 lg:h-full lg:overflow-hidden lg:pb-0">
         <header className="flex w-full flex-wrap items-center justify-between gap-3 px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-[-0.03em]">
+          <h1 className="flex items-center gap-2 text-2xl font-semibold">
             <Workflow className="h-5 w-5 text-pink" />
             Pipeline
           </h1>
@@ -289,7 +289,7 @@ function PipelinePage() {
               <span className="mx-auto grid h-14 w-14 place-items-center rounded-[20px] bg-coral-soft text-coral">
                 <Workflow className="h-6 w-6" />
               </span>
-              <h2 className="mt-5 text-xl font-semibold tracking-tight">Criar o pipeline</h2>
+              <h2 className="mt-5 text-xl font-semibold">Criar o pipeline</h2>
               <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
                 Esta clínica ainda não tem um funil no CRM. Dê um nome e crie — depois dá pra
                 adicionar, renomear e reordenar as etapas livremente.
