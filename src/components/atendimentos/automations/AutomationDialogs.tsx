@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Bell,
@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SYSTEM_EVENTS, type SystemEvent } from "@/lib/integrations/meta-capi.functions";
+import { varsDoGatilho } from "@/lib/atendimentos/automation-vars";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import type {
@@ -212,6 +213,64 @@ export function EditarCondicaoDialog({
   );
 }
 
+/** Chips das variáveis que o gatilho escolhido consegue preencher.
+ *
+ *  Clicar insere no ponto onde o cursor está, e não no fim do texto: escrever
+ *  "confirmado para o dia " e ter {{data}} caindo no fim da frase seria pior
+ *  do que digitar à mão. Só aparecem as compatíveis — o save recusa o resto,
+ *  então oferecer uma variável que aquele gatilho não preenche seria convidar
+ *  para um erro. */
+function VariaveisDisponiveis({
+  trigger,
+  campoRef,
+  valor,
+  onInserir,
+}: {
+  trigger: SystemEvent | null;
+  campoRef: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>;
+  valor: string;
+  onInserir: (novo: string) => void;
+}) {
+  const vars = varsDoGatilho(trigger);
+  if (!vars.length) return null;
+
+  const inserir = (chave: string) => {
+    const token = `{{${chave}}}`;
+    const el = campoRef.current;
+    const pos = el?.selectionStart ?? valor.length;
+    const fim = el?.selectionEnd ?? pos;
+    onInserir(valor.slice(0, pos) + token + valor.slice(fim));
+    // Devolve o foco com o cursor depois do token, senão o próximo clique
+    // recomeça do fim do texto.
+    requestAnimationFrame(() => {
+      el?.focus();
+      const p = pos + token.length;
+      el?.setSelectionRange?.(p, p);
+    });
+  };
+
+  return (
+    <div className="mt-2">
+      <p className="text-2xs text-muted-foreground">
+        Toque para inserir — o valor real entra na hora do envio:
+      </p>
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {vars.map((v) => (
+          <button
+            key={v.chave}
+            type="button"
+            onClick={() => inserir(v.chave)}
+            title={`${v.rotulo} — ex.: ${v.exemplo}`}
+            className="rounded-full border border-border bg-surface-subtle px-2.5 py-1 font-mono text-2xs text-foreground-secondary transition-colors hover:border-coral hover:text-coral"
+          >
+            {`{{${v.chave}}}`}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function AdicionarAcaoDialog({
   open,
   onOpenChange,
@@ -238,6 +297,11 @@ export function AdicionarAcaoDialog({
     | "wait"
   >("escolher");
   const [mensagem, setMensagem] = useState("");
+  // Refs pra inserir a variável na posição do cursor (ver VariaveisDisponiveis).
+  const refMensagem = useRef<HTMLTextAreaElement>(null);
+  const refNota = useRef<HTMLTextAreaElement>(null);
+  const refPushTitulo = useRef<HTMLInputElement>(null);
+  const refPushTexto = useRef<HTMLTextAreaElement>(null);
   const [stageId, setStageId] = useState("");
   const [nota, setNota] = useState("");
   const [pushTitulo, setPushTitulo] = useState("");
@@ -403,18 +467,21 @@ export function AdicionarAcaoDialog({
             <div>
               <Label htmlFor="acao-mensagem">Mensagem *</Label>
               <Textarea
+                ref={refMensagem}
                 id="acao-mensagem"
                 value={mensagem}
                 onChange={(e) => setMensagem(e.target.value)}
                 rows={4}
                 autoFocus
-                placeholder="Oi {{nome}}! Tudo bem?"
+                placeholder="Oi {{nome}}! Seu agendamento está confirmado para {{data}} às {{hora}} na {{unidade}}."
                 className="mt-1.5"
               />
-              <p className="mt-1.5 text-2xs text-muted-foreground">
-                Use <code className="rounded bg-muted px-1">{"{{nome}}"}</code> para inserir o nome
-                da pessoa.
-              </p>
+              <VariaveisDisponiveis
+                trigger={triggerEvent}
+                campoRef={refMensagem}
+                valor={mensagem}
+                onInserir={setMensagem}
+              />
             </div>
             {avisaSemContato && (
               <p className="flex items-start gap-2 rounded-xl bg-warning-soft px-3 py-2 text-2xs leading-4 text-warning">
@@ -485,6 +552,7 @@ export function AdicionarAcaoDialog({
             <div>
               <Label htmlFor="acao-nota">Observação *</Label>
               <Textarea
+                ref={refNota}
                 id="acao-nota"
                 value={nota}
                 onChange={(e) => setNota(e.target.value)}
@@ -496,6 +564,12 @@ export function AdicionarAcaoDialog({
               <p className="mt-1.5 text-2xs text-muted-foreground">
                 Aparece no histórico do card, junto das anotações escritas à mão.
               </p>
+              <VariaveisDisponiveis
+                trigger={triggerEvent}
+                campoRef={refNota}
+                valor={nota}
+                onInserir={setNota}
+              />
             </div>
             <div className="flex gap-2">
               <Button
@@ -520,6 +594,7 @@ export function AdicionarAcaoDialog({
             <div>
               <Label htmlFor="acao-push-titulo">Título *</Label>
               <Input
+                ref={refPushTitulo}
                 id="acao-push-titulo"
                 value={pushTitulo}
                 onChange={(e) => setPushTitulo(e.target.value)}
@@ -531,12 +606,19 @@ export function AdicionarAcaoDialog({
             <div>
               <Label htmlFor="acao-push-texto">Texto *</Label>
               <Textarea
+                ref={refPushTexto}
                 id="acao-push-texto"
                 value={pushTexto}
                 onChange={(e) => setPushTexto(e.target.value)}
                 rows={2}
                 placeholder="{{nome}} acabou de entrar na base."
                 className="mt-1.5"
+              />
+              <VariaveisDisponiveis
+                trigger={triggerEvent}
+                campoRef={refPushTexto}
+                valor={pushTexto}
+                onInserir={setPushTexto}
               />
             </div>
             <p className="flex items-start gap-2 rounded-xl bg-info-soft px-3 py-2 text-2xs leading-4 text-info">
@@ -866,7 +948,10 @@ export function EscolherCardDialog({
       <DialogContent className="sm:max-w-[420px]">
         <DialogHeader>
           <DialogTitle>Adicionar card</DialogTitle>
-          <DialogDescription>O que vem depois neste ponto do fluxo.</DialogDescription>
+          <DialogDescription>
+            O card entra solto no canvas. Depois arraste do ponto de saída de um card até a entrada
+            do outro para ligá-los.
+          </DialogDescription>
         </DialogHeader>
         <div className="-mx-2 space-y-1 px-2">
           {opcoes.map((o) => (

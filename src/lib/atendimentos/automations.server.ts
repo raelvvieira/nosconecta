@@ -20,6 +20,26 @@ export interface AutomationDispatchContext {
   status?: string | null;
   dealStatus?: string | null;
   amount?: number | null;
+  /**
+   * Dados do agendamento que originou o evento, para as variáveis da mensagem
+   * ({{data}}, {{hora}}, {{unidade}}…).
+   *
+   * Vão CONGELADOS aqui, e não buscados pelo executor na hora de mandar, pelo
+   * mesmo motivo de `graph_snapshot`: entre o gatilho e o envio pode haver uma
+   * espera de dias, e o agendamento pode ter sido remarcado ou apagado. A
+   * mensagem tem que falar do que aconteceu, não do que está no banco agora.
+   *
+   * `unitId` viaja em vez do nome/endereço porque resolvê-los custa uma
+   * consulta a `clinic_units` — que o executor só faz se a mensagem usar
+   * {{unidade}} ou {{endereco}}.
+   */
+  appointment?: {
+    date?: string | null;
+    startTime?: string | null;
+    procedureName?: string | null;
+    professionalName?: string | null;
+    unitId?: string | null;
+  } | null;
 }
 
 /**

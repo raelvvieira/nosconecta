@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { SYSTEM_EVENTS, type SystemEvent } from "@/lib/integrations/meta-capi.functions";
+import { varsIncompativeis } from "@/lib/atendimentos/automation-vars";
 
 export type AutomationActionType =
   | "send_whatsapp"
@@ -12,11 +13,12 @@ export type AutomationActionType =
 
 export interface AutomationAction {
   type: AutomationActionType;
-  /** Só em send_whatsapp — texto da mensagem, aceita {{nome}}. */
+  /** Só em send_whatsapp — texto da mensagem, aceita as variáveis de
+   *  automation-vars.ts ({{nome}}, {{data}}, {{hora}}, {{unidade}}…). */
   message?: string;
   /** Só em move_pipeline_stage — etapa de destino. */
   stageId?: string;
-  /** Só em add_deal_note — texto da observação, aceita {{nome}}. */
+  /** Só em add_deal_note — texto da observação, aceita as mesmas variáveis. */
   noteBody?: string;
   /** Só em send_push. */
   pushTitle?: string;
@@ -114,12 +116,55 @@ export interface AutomationRunLogRow {
  *  ações em `actions`. Desenha ela como a cadeia linear que sempre foi:
  *  gatilho -> ação1 -> ação2 -> … O executor faz a MESMA síntese, pra que
  *  uma regra antiga continue rodando sem ninguém precisar reabrir e salvar. */
+const TIPOS_DE_NO: AutomationNodeType[] = ["trigger", "action", "condition", "randomizer"];
+
+/** Um nó só entra no canvas se for utilizável: id, tipo conhecido e posição
+ *  numérica. Não é paranoia — a coluna `nodes` já recebeu escrita de fora
+ *  deste código (uma migration de conversão gravou nós sem `position` e de um
+ *  tipo `config` que não existe aqui), e o React Flow lê `position.x` sem
+ *  checar: um nó torto derruba a tela inteira do editor. */
+function noUtilizavel(n: any): n is AutomationNode {
+  return (
+    !!n &&
+    typeof n.id === "string" &&
+    n.id.length > 0 &&
+    TIPOS_DE_NO.includes(n.type) &&
+    Number.isFinite(n?.position?.x) &&
+    Number.isFinite(n?.position?.y)
+  );
+}
+
+/** Grafo gravado que sobrevive ao saneamento — ou `null`, e aí a leitura cai
+ *  na síntese a partir de `actions`, que continua íntegra na sua coluna. */
+function grafoGravado(row: { nodes?: unknown; edges?: unknown }): {
+  nodes: AutomationNode[];
+  edges: AutomationEdge[];
+} | null {
+  if (!Array.isArray(row.nodes) || !row.nodes.length) return null;
+  const nodes = (row.nodes as any[]).filter(noUtilizavel);
+  // Sem gatilho não há por onde o fluxo começar: melhor remontar do zero a
+  // partir de `actions` do que abrir um canvas órfão.
+  if (!nodes.some((n) => n.type === "trigger")) return null;
+  const ids = new Set(nodes.map((n) => n.id));
+  const edges = (Array.isArray(row.edges) ? (row.edges as any[]) : [])
+    .filter((e) => e && typeof e.id === "string" && ids.has(e.source) && ids.has(e.target))
+    .map((e) => ({
+      id: String(e.id),
+      source: String(e.source),
+      target: String(e.target),
+      sourceHandle: e.sourceHandle ?? null,
+    }));
+  return { nodes, edges };
+}
+
 export function sintetizarNodes(row: {
   nodes?: unknown;
+  edges?: unknown;
   actions?: unknown;
   canvas_layout?: any;
 }): AutomationNode[] {
-  if (Array.isArray(row.nodes) && row.nodes.length) return row.nodes as AutomationNode[];
+  const gravado = grafoGravado(row);
+  if (gravado) return gravado.nodes;
   const acoes: AutomationAction[] = Array.isArray(row.actions) ? row.actions : [];
   const x0 = row.canvas_layout?.acionamento?.x ?? 0;
   const y0 = row.canvas_layout?.acionamento?.y ?? 40;
@@ -138,9 +183,8 @@ export function sintetizarNodes(row: {
 }
 
 export function sintetizarEdges(row: { nodes?: unknown; edges?: unknown; actions?: unknown }): AutomationEdge[] {
-  if (Array.isArray(row.nodes) && row.nodes.length) {
-    return Array.isArray(row.edges) ? (row.edges as AutomationEdge[]) : [];
-  }
+  const gravado = grafoGravado(row);
+  if (gravado) return gravado.edges;
   const acoes: AutomationAction[] = Array.isArray(row.actions) ? row.actions : [];
   return acoes.map((_, i) => ({
     id: `e${i}`,
@@ -271,6 +315,24 @@ export const saveAutomation = createServerFn({ method: "POST" })
       if (!acao) throw new Error("Há um card de ação vazio no fluxo.");
       if (acao.type === "send_whatsapp" && !acao.message?.trim()) {
         throw new Error("Escreva a mensagem da ação de WhatsApp.");
+      }
+      // Variável que este gatilho não sabe preencher é recusada AQUI, e não no
+      // envio: barrar na hora de salvar é o único momento em que dá pra
+      // explicar o problema pra quem escreveu. Em runtime o executor só pula.
+      for (const [campo, texto] of [
+        ["mensagem", acao.message],
+        ["observação", acao.noteBody],
+        ["título da notificação", acao.pushTitle],
+        ["texto da notificação", acao.pushBody],
+      ] as const) {
+        if (!texto) continue;
+        const invalidas = varsIncompativeis(texto, input.triggerEvent);
+        if (invalidas.length) {
+          throw new Error(
+            `O gatilho escolhido não preenche ${invalidas.map((v) => `{{${v}}}`).join(", ")} — ` +
+              `tire ${invalidas.length > 1 ? "essas variáveis" : "essa variável"} da ${campo} ou troque o gatilho.`,
+          );
+        }
       }
       if (acao.type === "move_pipeline_stage" && !acao.stageId) {
         throw new Error("Escolha a etapa de destino da ação de mover no funil.");

@@ -65,9 +65,12 @@ export const Route = createFileRoute("/atendimentos/chat")({
     <ResponsiveRouteState error={error}
       title="Não foi possível carregar os atendimentos"
       description="Houve uma falha ao buscar as conversas. Tente novamente em instantes."
+      semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound />,
+  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
+  semSidebar
+/>,
   component: ChatPage,
 });
 

@@ -27,9 +27,12 @@ export const Route = createFileRoute("/atendimentos/")({
     <ResponsiveRouteState error={error}
       title="Não foi possível carregar o dashboard"
       description="Houve uma falha ao buscar as métricas de atendimento. Tente novamente em instantes."
+      semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound />,
+  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
+  semSidebar
+/>,
   component: DashboardPage,
 });
 

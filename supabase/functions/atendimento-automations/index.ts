@@ -38,6 +38,14 @@ interface DispatchContext {
   status?: string | null;
   dealStatus?: string | null;
   amount?: number | null;
+  /** Dados do agendamento congelados no disparo — ver automations.server.ts. */
+  appointment?: {
+    date?: string | null;
+    startTime?: string | null;
+    procedureName?: string | null;
+    professionalName?: string | null;
+    unitId?: string | null;
+  } | null;
 }
 
 type ActionConfig =
@@ -161,8 +169,88 @@ function matchesConditions(conditions: Record<string, unknown>, ctx: DispatchCon
   return true;
 }
 
-function interpolar(template: string, nome: string | null): string {
-  return template.replace(/\{\{\s*nome\s*\}\}/gi, nome?.trim() || "");
+// ---------- variáveis da mensagem ----------
+//
+// Cópia deliberada de src/lib/atendimentos/automation-vars.ts: são dois
+// runtimes e Deno não importa de `src/`. Lá a lista serve pra oferecer as
+// variáveis na tela e recusar no save as que o gatilho não preenche; aqui ela
+// substitui. Mudou lá, muda aqui.
+
+const PADRAO_VAR = /\{\{\s*([a-zA-Z_]+)\s*\}\}/g;
+
+/** "2026-09-18" -> "18/09/2026". Sem `new Date`: a string já é a data local do
+ *  agendamento, e passar por Date em UTC devolveria o dia anterior. */
+function dataBR(iso: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso ?? ""));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
+}
+
+function moedaBR(v: number | null | undefined): string {
+  if (v === null || v === undefined || Number.isNaN(Number(v))) return "";
+  return Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+/** Busca nome/endereço da unidade só quando o texto pede — a consulta não vale
+ *  o custo numa mensagem que não usa {{unidade}} nem {{endereco}}. */
+async function valoresDasVariaveis(
+  ownerId: string,
+  ctx: DispatchContext,
+  precisaUnidade: boolean,
+): Promise<Record<string, string>> {
+  const ap = ctx.appointment ?? null;
+  const valores: Record<string, string> = {
+    nome: ctx.contactName?.trim() ?? "",
+    data: dataBR(ap?.date),
+    hora: String(ap?.startTime ?? "").slice(0, 5),
+    procedimento: ap?.procedureName?.trim() ?? "",
+    profissional: ap?.professionalName?.trim() ?? "",
+    valor: moedaBR(ctx.amount),
+    unidade: "",
+    endereco: "",
+  };
+
+  if (precisaUnidade && ap?.unitId) {
+    const { data } = await supabase
+      .from("clinic_units")
+      .select("name, address")
+      .eq("id", ap.unitId)
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    valores.unidade = data?.name ?? "";
+    valores.endereco = data?.address ?? "";
+  }
+  return valores;
+}
+
+/** Substitui as variáveis e diz quais ficaram sem valor.
+ *
+ *  Quem chama decide o que fazer com `faltando`: numa mensagem de WhatsApp,
+ *  mandar "confirmado para o dia  às " é pior do que não mandar. */
+async function interpolar(
+  template: string,
+  ownerId: string,
+  ctx: DispatchContext,
+): Promise<{ texto: string; faltando: string[] }> {
+  const usadas = new Set<string>();
+  for (const m of template.matchAll(PADRAO_VAR)) usadas.add(m[1].toLowerCase());
+  if (!usadas.size) return { texto: template, faltando: [] };
+
+  const valores = await valoresDasVariaveis(
+    ownerId,
+    ctx,
+    usadas.has("unidade") || usadas.has("endereco"),
+  );
+  const faltando: string[] = [];
+  const texto = template.replace(PADRAO_VAR, (_todo, chave: string) => {
+    const k = String(chave).toLowerCase();
+    const v = valores[k];
+    if (!v) {
+      faltando.push(k);
+      return "";
+    }
+    return v;
+  });
+  return { texto, faltando };
 }
 
 // ---------- janela de horário ----------
@@ -361,8 +449,6 @@ async function executarAcao(
     action_type: action.type,
     run_id: runId,
   };
-  const nome = ctx.contactName ?? null;
-
   if (action.type === "send_whatsapp") {
     const alvo = await resolverContatoParaEnvio(ownerId, ctx);
     if (!alvo) {
@@ -381,8 +467,21 @@ async function executarAcao(
       });
       return;
     }
+    // Variável sem valor NÃO vira texto vazio no WhatsApp do paciente:
+    // "confirmado para o dia  às " é pior do que não mandar. O save já recusa
+    // variável incompatível com o gatilho, então chegar aqui significa dado
+    // faltando no evento — vira registro, não mensagem torta.
+    const { texto, faltando } = await interpolar(action.message, ownerId, ctx);
+    if (faltando.length) {
+      await logRun({
+        ...base,
+        status: "skipped_missing_var",
+        error: `Sem valor para ${faltando.map((f) => `{{${f}}}`).join(", ")}.`,
+      });
+      return;
+    }
     try {
-      await enviarWhatsapp(supabase, ownerId, alvo, interpolar(action.message, nome));
+      await enviarWhatsapp(supabase, ownerId, alvo, texto);
       await debitDailyUsage(supabase, ownerId, `automation:${regra.id}`, 1);
       await logRun({ ...base, status: "sent" });
     } catch (e) {
@@ -436,7 +535,7 @@ async function executarAcao(
         owner_id: ownerId,
         item_id: ctx.itemId,
         kind: "note",
-        body: interpolar(action.noteBody, nome),
+        body: (await interpolar(action.noteBody, ownerId, ctx)).texto,
         meta: { automation: regra.name },
       });
       if (error) throw new Error(error.message);
@@ -450,8 +549,10 @@ async function executarAcao(
   if (action.type === "send_push") {
     try {
       await pushToOwner(supabase, ownerId, "automation", {
-        title: interpolar(action.pushTitle, nome),
-        body: interpolar(action.pushBody, nome),
+        // Diferente do WhatsApp: estes textos são internos, então variável
+        // sem valor sai como vazio em vez de cancelar o aviso à equipe.
+        title: (await interpolar(action.pushTitle, ownerId, ctx)).texto,
+        body: (await interpolar(action.pushBody, ownerId, ctx)).texto,
         url: "/atendimentos/automacoes",
       });
       await logRun({ ...base, status: "sent" });

@@ -77,9 +77,12 @@ export const Route = createFileRoute("/atendimentos/campanhas")({
     <ResponsiveRouteState error={error}
       title="Não foi possível carregar as campanhas"
       description="Houve uma falha ao buscar as campanhas. Tente novamente em instantes."
+      semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound />,
+  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
+  semSidebar
+/>,
   component: CampanhasPage,
 });
 

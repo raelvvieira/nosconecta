@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 import { Handle, Position } from "@xyflow/react";
-import { Bot, Clock, Dices, Plus, Split, Trash2, Zap } from "lucide-react";
+import { Bot, Clock, Dices, Split, Trash2, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SystemEvent } from "@/lib/integrations/meta-capi.functions";
 import type {
@@ -34,9 +34,6 @@ export interface EditorAcoes {
   onEditarJanela: () => void;
   onEditarNo: (id: string) => void;
   onRemoverNo: (id: string) => void;
-  /** Cria um card novo já ligado nesta saída — é o "+" do handle. No celular
-   *  arrastar de um ponto de 8px a outro simplesmente não funciona. */
-  onAdicionarDe: (id: string, handle: string | null) => void;
 }
 
 const EditorCtx = createContext<EditorAcoes | null>(null);
@@ -48,18 +45,34 @@ function useEditor(): EditorAcoes {
   return ctx;
 }
 
-/** Botão "+" colado no ponto de saída. */
-function BotaoSaida({ onClick, titulo }: { onClick: () => void; titulo: string }) {
+/** Ponto de saída do card: é daqui que se arrasta a linha até o próximo card.
+ *
+ *  Não é botão de criar card — criar é no "+" do cabeçalho do editor. O ponto
+ *  é maior que o handle padrão do React Flow (8px) porque no celular um alvo
+ *  de 8px é impossível de pegar. */
+function PontoDeSaida({
+  id,
+  rotulo,
+  cor,
+}: {
+  /** Handle nomeado ("sim"/"nao"/"a"/"b"); ausente na saída única. */
+  id?: string;
+  rotulo: string;
+  cor: string;
+}) {
   return (
-    <button
-      type="button"
-      title={titulo}
-      aria-label={titulo}
-      onClick={onClick}
-      className="nodrag grid h-6 w-6 place-items-center rounded-full bg-gradient-primary text-white shadow-soft transition-transform hover:scale-110"
-    >
-      <Plus className="h-3.5 w-3.5" />
-    </button>
+    <div className="flex items-center justify-end gap-2 py-0.5">
+      <span className="text-2xs font-semibold text-muted-foreground">{rotulo}</span>
+      {/* O handle é posicionado pelo React Flow em relação ao NÓ, não a este
+          span — por isso `!relative`, que o traz para o fluxo da linha e faz o
+          ponto nascer exatamente ao lado do rótulo da saída. */}
+      <Handle
+        id={id}
+        type="source"
+        position={Position.Right}
+        className={cn("!relative !left-0 !top-0 !h-3.5 !w-3.5 !translate-x-0 !translate-y-0 !border-2 !border-white", cor)}
+      />
+    </div>
   );
 }
 
@@ -169,7 +182,7 @@ const TEM_FILTRO: SystemEvent[] = [
 
 /** Card de entrada do fluxo: qual evento, com que filtro e em que janela.
  *  Não é deletável — automação sem entrada não roda. */
-export function TriggerNode({ id }: { id: string }) {
+export function TriggerNode() {
   const e = useEditor();
   return (
     <NodeShell
@@ -177,9 +190,8 @@ export function TriggerNode({ id }: { id: string }) {
       title="Acionamento"
       tone="violet"
       rodape={
-        <div className="flex items-center justify-end gap-2 border-t border-border px-3.5 py-2">
-          <span className="text-2xs text-muted-foreground">Próximo passo</span>
-          <BotaoSaida onClick={() => e.onAdicionarDe(id, null)} titulo="Adicionar próximo card" />
+        <div className="border-t border-border px-3.5 py-2">
+          <PontoDeSaida rotulo="Próximo passo" cor="!bg-coral" />
         </div>
       }
     >
@@ -210,7 +222,6 @@ export function TriggerNode({ id }: { id: string }) {
           onClick={e.onEditarJanela}
         />
       )}
-      <Handle type="source" position={Position.Right} className="!h-2 !w-2 !bg-coral" />
     </NodeShell>
   );
 }
@@ -249,9 +260,8 @@ export function ActionNode({ id, data }: { id: string; data: AutomationNodeData 
       hasTarget
       onRemover={() => e.onRemoverNo(id)}
       rodape={
-        <div className="flex items-center justify-end gap-2 border-t border-border px-3.5 py-2">
-          <span className="text-2xs text-muted-foreground">Próximo passo</span>
-          <BotaoSaida onClick={() => e.onAdicionarDe(id, null)} titulo="Adicionar próximo card" />
+        <div className="border-t border-border px-3.5 py-2">
+          <PontoDeSaida rotulo="Próximo passo" cor="!bg-coral" />
         </div>
       }
     >
@@ -277,7 +287,6 @@ export function ActionNode({ id, data }: { id: string; data: AutomationNodeData 
           {ESCOPO_LABEL[escopo]}
         </span>
       )}
-      <Handle type="source" position={Position.Right} className="!h-2 !w-2 !bg-coral" />
     </NodeShell>
   );
 }
@@ -307,15 +316,9 @@ export function ConditionNode({ id, data }: { id: string; data: AutomationNodeDa
       hasTarget
       onRemover={() => e.onRemoverNo(id)}
       rodape={
-        <div className="space-y-1.5 border-t border-border px-3.5 py-2">
-          <div className="flex items-center justify-end gap-2">
-            <span className="text-2xs font-semibold text-success">Sim</span>
-            <BotaoSaida onClick={() => e.onAdicionarDe(id, "sim")} titulo="Card do caminho Sim" />
-          </div>
-          <div className="flex items-center justify-end gap-2">
-            <span className="text-2xs font-semibold text-muted-foreground">Não</span>
-            <BotaoSaida onClick={() => e.onAdicionarDe(id, "nao")} titulo="Card do caminho Não" />
-          </div>
+        <div className="space-y-1 border-t border-border px-3.5 py-2">
+          <PontoDeSaida id="sim" rotulo="Sim" cor="!bg-success" />
+          <PontoDeSaida id="nao" rotulo="Não" cor="!bg-muted-foreground" />
         </div>
       }
     >
@@ -326,22 +329,6 @@ export function ConditionNode({ id, data }: { id: string; data: AutomationNodeDa
       >
         <p className="text-sm font-medium">{condicaoTexto(data, e.stages)}</p>
       </button>
-      {/* Handles nomeados: sem o id, `sourceHandle` chega nulo na ligação e o
-          executor não sabe qual ramo seguir. */}
-      <Handle
-        id="sim"
-        type="source"
-        position={Position.Right}
-        style={{ top: "auto", bottom: 34 }}
-        className="!h-2 !w-2 !bg-success"
-      />
-      <Handle
-        id="nao"
-        type="source"
-        position={Position.Right}
-        style={{ top: "auto", bottom: 12 }}
-        className="!h-2 !w-2 !bg-muted-foreground"
-      />
     </NodeShell>
   );
 }
@@ -358,15 +345,9 @@ export function RandomizerNode({ id, data }: { id: string; data: AutomationNodeD
       hasTarget
       onRemover={() => e.onRemoverNo(id)}
       rodape={
-        <div className="space-y-1.5 border-t border-border px-3.5 py-2">
-          <div className="flex items-center justify-end gap-2">
-            <span className="text-2xs font-semibold text-muted-foreground">A · {pesoA}%</span>
-            <BotaoSaida onClick={() => e.onAdicionarDe(id, "a")} titulo="Card do caminho A" />
-          </div>
-          <div className="flex items-center justify-end gap-2">
-            <span className="text-2xs font-semibold text-muted-foreground">B · {pesoB}%</span>
-            <BotaoSaida onClick={() => e.onAdicionarDe(id, "b")} titulo="Card do caminho B" />
-          </div>
+        <div className="space-y-1 border-t border-border px-3.5 py-2">
+          <PontoDeSaida id="a" rotulo={`A · ${pesoA}%`} cor="!bg-coral" />
+          <PontoDeSaida id="b" rotulo={`B · ${pesoB}%`} cor="!bg-coral" />
         </div>
       }
     >
@@ -380,20 +361,6 @@ export function RandomizerNode({ id, data }: { id: string; data: AutomationNodeD
           {pesoA}% no A, {pesoB}% no B
         </p>
       </button>
-      <Handle
-        id="a"
-        type="source"
-        position={Position.Right}
-        style={{ top: "auto", bottom: 34 }}
-        className="!h-2 !w-2 !bg-coral"
-      />
-      <Handle
-        id="b"
-        type="source"
-        position={Position.Right}
-        style={{ top: "auto", bottom: 12 }}
-        className="!h-2 !w-2 !bg-coral"
-      />
     </NodeShell>
   );
 }

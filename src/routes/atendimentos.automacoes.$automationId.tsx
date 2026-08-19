@@ -17,7 +17,7 @@ import {
   type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -67,9 +67,12 @@ export const Route = createFileRoute("/atendimentos/automacoes/$automationId")({
       error={error}
       title="Não foi possível carregar a automação"
       description="Houve uma falha ao buscar esta automação. Tente novamente em instantes."
+      semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Automação não encontrada" notFound />,
+  notFoundComponent: () => <ResponsiveRouteState title="Automação não encontrada" notFound
+  semSidebar
+/>,
   component: EditorPage,
 });
 
@@ -95,7 +98,19 @@ const novoId = () => `n${Date.now().toString(36)}${(contador++).toString(36)}`;
  *  vez de afrouxar `AutomationNodeData` com um index signature — que quebraria
  *  a checagem de serialização das server functions. */
 const paraFlow = (n: RegraNode): Node =>
-  ({ ...n, data: n.data as unknown as Record<string, unknown>, deletable: n.type !== "trigger" }) as Node;
+  ({
+    ...n,
+    // Última linha de defesa: o React Flow lê `position.x` sem checar, e um nó
+    // sem posição derruba o canvas inteiro. O saneamento de verdade é no
+    // `sintetizarNodes`; isto aqui é para nenhum caminho novo conseguir passar
+    // um nó torto adiante.
+    position: {
+      x: Number.isFinite(n.position?.x) ? n.position.x : 0,
+      y: Number.isFinite(n.position?.y) ? n.position.y : 0,
+    },
+    data: n.data as unknown as Record<string, unknown>,
+    deletable: n.type !== "trigger",
+  }) as Node;
 
 const dadosDoNo = (n: Node | undefined): AutomationNodeData =>
   (n?.data ?? {}) as unknown as AutomationNodeData;
@@ -136,9 +151,7 @@ function Editor() {
   const [gatilhoDialog, setGatilhoDialog] = useState(false);
   const [filtroDialog, setFiltroDialog] = useState(false);
   const [janelaDialog, setJanelaDialog] = useState(false);
-  const [escolherCard, setEscolherCard] = useState<{ de: string; handle: string | null } | null>(
-    null,
-  );
+  const [escolherCard, setEscolherCard] = useState(false);
   const [acaoDialog, setAcaoDialog] = useState<{ nodeId: string } | null>(null);
   const [condicaoNoDialog, setCondicaoNoDialog] = useState<{ nodeId: string } | null>(null);
   const [randomDialog, setRandomDialog] = useState<{ nodeId: string } | null>(null);
@@ -158,7 +171,14 @@ function Editor() {
     queryFn: () => fetchStages(),
     staleTime: 60_000,
   });
-  const stages = stagesQuery.data?.stages ?? [];
+  // Memoizado, e não `stagesQuery.data?.stages ?? []` solto: enquanto a
+  // consulta não responde, o `?? []` devolve um array NOVO a cada render, que
+  // invalida toda dependência de hook que o toque. Foi exatamente isso que
+  // travou o editor da versão anterior — lá o array instável chegava num
+  // `useEffect` que chamava `setNodes`, e o ciclo não fechava nunca
+  // ("Maximum update depth exceeded"). Aqui não há mais esse efeito, mas o
+  // array instável ainda re-renderizaria todos os cards a cada render.
+  const stages = useMemo(() => stagesQuery.data?.stages ?? [], [stagesQuery.data]);
 
   const hidratado = useRef(false);
   useEffect(() => {
@@ -189,27 +209,24 @@ function Editor() {
     [setEdges],
   );
 
+  /** Card novo entra SOLTO no canvas — ligar é arrastar do ponto de saída de um
+   *  card até a entrada do outro. Nasce à direita e abaixo do que já existe,
+   *  para não cair em cima de nenhum. */
   const criarCard = useCallback(
-    (tipo: "action" | "condition" | "randomizer", de: string, handle: string | null) => {
-      const origem = nodes.find((n) => n.id === de);
+    (tipo: "action" | "condition" | "randomizer") => {
       const id = novoId();
-      const position = {
-        x: (origem?.position.x ?? 0) + 340,
-        y: (origem?.position.y ?? 0) + (handle === "nao" || handle === "b" ? 200 : 0),
-      };
-      const data: AutomationNodeData =
-        tipo === "randomizer" ? { weights: { a: 50, b: 50 } } : {};
-      setNodes((atual) => [...atual, paraFlow({ id, type: tipo, position, data })]);
-      setEdges((atual) => [
-        // Uma ligação por saída: a nova substitui a que houver no mesmo ponto.
-        ...atual.filter((e) => !(e.source === de && (e.sourceHandle ?? null) === handle)),
-        { id: `e${id}`, source: de, target: id, sourceHandle: handle, type: "deletavel" } as Edge,
-      ]);
+      setNodes((atual) => {
+        const maisAbaixo = atual.reduce((m, n) => Math.max(m, n.position.y), 0);
+        const position = { x: 360, y: atual.length <= 1 ? 60 : maisAbaixo + 220 };
+        const data: AutomationNodeData =
+          tipo === "randomizer" ? { weights: { a: 50, b: 50 } } : {};
+        return [...atual, paraFlow({ id, type: tipo, position, data })];
+      });
       // Card novo já abre a configuração — ninguém quer um card vazio.
       if (tipo === "action") setAcaoDialog({ nodeId: id });
       if (tipo === "condition") setCondicaoNoDialog({ nodeId: id });
     },
-    [nodes, setNodes, setEdges],
+    [setNodes],
   );
 
   const onConnect = useCallback(
@@ -253,7 +270,6 @@ function Editor() {
         if (node?.type === "randomizer") setRandomDialog({ nodeId: id });
       },
       onRemoverNo: removerNo,
-      onAdicionarDe: (id, handle) => setEscolherCard({ de: id, handle }),
     }),
     [triggerEvent, conditions, scheduleWindow, stages, nodes, removerNo],
   );
@@ -296,6 +312,26 @@ function Editor() {
     },
     onSuccess: () => {
       toast.success(ehNova ? "Automação criada" : "Automação salva");
+      // Card solto salva, mas nunca roda: agora que card novo nasce
+      // desconectado, esquecer de ligar é fácil demais para passar calado. É
+      // aviso, não bloqueio — montar o fluxo aos poucos é legítimo.
+      const alcancados = new Set<string>();
+      const fila = nodes.filter((n) => n.type === "trigger").map((n) => n.id);
+      while (fila.length) {
+        const atual = fila.shift()!;
+        if (alcancados.has(atual)) continue;
+        alcancados.add(atual);
+        for (const e of edges) if (e.source === atual) fila.push(e.target);
+      }
+      const soltos = nodes.filter((n) => !alcancados.has(n.id)).length;
+      if (soltos > 0) {
+        toast.warning(
+          soltos === 1
+            ? "Há 1 card sem ligação com o acionamento — ele não vai rodar."
+            : `Há ${soltos} cards sem ligação com o acionamento — eles não vão rodar.`,
+          { duration: 7000 },
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ["automations"] });
       queryClient.invalidateQueries({ queryKey: ["automation", automationId] });
       navigate({ to: "/atendimentos/automacoes" });
@@ -328,6 +364,17 @@ function Editor() {
           <Switch checked={ativa} onCheckedChange={setAtiva} />
           <span className="hidden sm:inline">{ativa ? "Ativa" : "Pausada"}</span>
         </label>
+        {/* Criar card é daqui, não de dentro dos cards: lá o "+" era o ponto de
+            saída da linha, e as duas coisas no mesmo lugar confundiam. */}
+        <Button
+          variant="outline"
+          className="gap-1.5"
+          onClick={() => setEscolherCard(true)}
+          aria-label="Adicionar card ao fluxo"
+        >
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">Card</span>
+        </Button>
         <Button
           className="gap-1.5 bg-gradient-primary text-white"
           disabled={saveMutation.isPending}
@@ -350,6 +397,12 @@ function Editor() {
             edgeTypes={edgeTypes}
             fitView
             fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
+            // Ligar é arrastar do ponto de saída até a entrada do outro card.
+            // O raio generoso existe pro toque: soltar o dedo exatamente em
+            // cima de um alvo pequeno é o que mais falha no celular. O React
+            // Flow também aceita tocar numa saída e depois na entrada, sem
+            // arrastar — que é o caminho mais confiável no telefone.
+            connectionRadius={44}
             proOptions={{ hideAttribution: true }}
             // O gatilho é a entrada do fluxo: `deletable: false` nele, e o
             // veto aqui como segunda linha.
@@ -394,11 +447,11 @@ function Editor() {
         onSalvar={setScheduleWindow}
       />
       <EscolherCardDialog
-        open={!!escolherCard}
-        onOpenChange={(o) => !o && setEscolherCard(null)}
+        open={escolherCard}
+        onOpenChange={setEscolherCard}
         onEscolher={(tipo) => {
-          if (escolherCard) criarCard(tipo, escolherCard.de, escolherCard.handle);
-          setEscolherCard(null);
+          criarCard(tipo);
+          setEscolherCard(false);
         }}
       />
       <AdicionarAcaoDialog

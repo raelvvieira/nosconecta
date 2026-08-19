@@ -52,9 +52,12 @@ export const Route = createFileRoute("/atendimentos/automacoes/")({
       error={error}
       title="Não foi possível carregar as automações"
       description="Houve uma falha ao buscar as automações. Tente novamente em instantes."
+      semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound />,
+  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
+  semSidebar
+/>,
   component: AutomacoesPage,
 });
 

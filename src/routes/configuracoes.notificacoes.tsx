@@ -38,9 +38,12 @@ export const Route = createFileRoute("/configuracoes/notificacoes")({
     <ResponsiveRouteState error={error}
       title="Não foi possível carregar as notificações"
       description="Houve uma falha ao buscar os dados. Tente novamente em instantes."
+      semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound />,
+  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
+  semSidebar
+/>,
   component: NotificationsPage,
 });
 

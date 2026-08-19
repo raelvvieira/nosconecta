@@ -17,9 +17,25 @@ type Props = {
    * técnica fica recolhida, longe de quem só quer recarregar.
    */
   error?: unknown;
+  /**
+   * Não renderiza o menu lateral.
+   *
+   * Rotas de topo (/financeiro, /agenda…) desenham o próprio menu, então esta
+   * tela precisa do dela. Já as rotas filhas de `atendimentos.tsx` e
+   * `configuracoes.tsx` vivem DENTRO de um layout que já tem menu — sem esta
+   * saída, qualquer erro ali mostrava dois menus lado a lado.
+   */
+  semSidebar?: boolean;
 };
 
-export function ResponsiveRouteState({ title, description, notFound = false, onRetry, error }: Props) {
+export function ResponsiveRouteState({
+  title,
+  description,
+  notFound = false,
+  onRetry,
+  error,
+  semSidebar = false,
+}: Props) {
   const detalhe =
     error instanceof Error
       ? error.message
@@ -29,7 +45,7 @@ export function ResponsiveRouteState({ title, description, notFound = false, onR
 
   return (
     <div className="min-h-dvh app-bg lg:flex">
-      <Sidebar />
+      {!semSidebar && <Sidebar />}
       <main className="flex min-h-dvh flex-1 items-center justify-center px-5 pb-28 pt-20 lg:min-h-0 lg:px-10 lg:pb-10 lg:pt-10">
         <section className="surface-card w-full max-w-[520px] px-6 py-8 text-center sm:px-10 sm:py-10">
           <span className="mx-auto grid h-14 w-14 place-items-center rounded-[20px] bg-coral-soft text-coral">

@@ -60,9 +60,12 @@ export const Route = createFileRoute("/configuracoes/")({
     <ResponsiveRouteState error={error}
       title="Não foi possível carregar os cadastros"
       description="Houve uma falha ao buscar os dados da clínica. Tente novamente em instantes."
+      semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound />,
+  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
+  semSidebar
+/>,
   component: SettingsRegistryPage,
 });
 

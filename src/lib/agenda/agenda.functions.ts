@@ -351,6 +351,13 @@ export async function criarAgendamento(
     patientId: row.patient_id,
     contactName: row.patient_name,
     amount: row.expected_revenue,
+    appointment: {
+      date: row.date ?? null,
+      startTime: row.start_time ?? null,
+      procedureName: row.procedure_name ?? null,
+      professionalName: row.professional_name ?? null,
+      unitId: row.unit_id ?? null,
+    },
   });
 
   // Nascendo já concluído (registro retroativo pela agenda, ou um Ganho do
@@ -443,6 +450,13 @@ async function onStatusTransition(
     patientId: row.patient_id,
     contactName: row.patient_name,
     amount: row.actual_revenue ?? row.expected_revenue ?? null,
+    appointment: {
+      date: row.date ?? null,
+      startTime: row.start_time ?? null,
+      procedureName: row.procedure_name ?? null,
+      professionalName: row.professional_name ?? null,
+      unitId: row.unit_id ?? null,
+    },
   });
 
   // Cumpre o que o interruptor "Gerar cobrança ao concluir" sempre prometeu.

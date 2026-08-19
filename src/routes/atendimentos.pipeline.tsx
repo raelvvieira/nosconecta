@@ -45,9 +45,12 @@ export const Route = createFileRoute("/atendimentos/pipeline")({
     <ResponsiveRouteState error={error}
       title="Não foi possível carregar o pipeline"
       description="Houve uma falha ao buscar as etapas. Tente novamente em instantes."
+      semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound />,
+  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
+  semSidebar
+/>,
   component: PipelinePage,
 });
 
