@@ -220,6 +220,89 @@ export type Database = {
           },
         ]
       }
+      automation_rules: {
+        Row: {
+          actions: Json
+          active: boolean
+          canvas_layout: Json
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          trigger_conditions: Json
+          trigger_event: string
+          updated_at: string
+        }
+        Insert: {
+          actions?: Json
+          active?: boolean
+          canvas_layout?: Json
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+          trigger_conditions?: Json
+          trigger_event: string
+          updated_at?: string
+        }
+        Update: {
+          actions?: Json
+          active?: boolean
+          canvas_layout?: Json
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          trigger_conditions?: Json
+          trigger_event?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      automation_runs: {
+        Row: {
+          action_type: string
+          error: string | null
+          id: string
+          owner_id: string
+          ran_at: string
+          rule_id: string | null
+          rule_name: string | null
+          status: string
+          trigger_event: string
+        }
+        Insert: {
+          action_type: string
+          error?: string | null
+          id?: string
+          owner_id: string
+          ran_at?: string
+          rule_id?: string | null
+          rule_name?: string | null
+          status: string
+          trigger_event: string
+        }
+        Update: {
+          action_type?: string
+          error?: string | null
+          id?: string
+          owner_id?: string
+          ran_at?: string
+          rule_id?: string | null
+          rule_name?: string | null
+          status?: string
+          trigger_event?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_runs_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "automation_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blocked_times: {
         Row: {
           created_at: string
