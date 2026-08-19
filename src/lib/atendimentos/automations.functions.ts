@@ -44,6 +44,39 @@ export interface AutomationCanvasPosition {
   y: number;
 }
 
+export type AutomationNodeType = "trigger" | "action" | "condition" | "randomizer";
+
+/** Campo do evento que uma condição pode testar — só o que já chega no
+ *  contexto do disparo, sem consulta extra ao banco ou ao CRM. */
+export type ConditionField = "amount" | "hasContact" | "status" | "stageId" | "dealStatus";
+export type ConditionOperator = "gt" | "lt" | "eq";
+
+export interface AutomationNodeData {
+  /** action: a ação em si (mesma forma de sempre). */
+  action?: AutomationAction;
+  /** condition. */
+  field?: ConditionField;
+  operator?: ConditionOperator;
+  value?: string;
+  /** randomizer: peso por saída, em %. As chaves são os handles ("a","b",…). */
+  weights?: Record<string, number>;
+}
+
+export interface AutomationNode {
+  id: string;
+  type: AutomationNodeType;
+  position: AutomationCanvasPosition;
+  data: AutomationNodeData;
+}
+
+export interface AutomationEdge {
+  id: string;
+  source: string;
+  target: string;
+  /** "sim"/"nao" numa condição, "a"/"b"/… num randomizador, null numa ação. */
+  sourceHandle?: string | null;
+}
+
 export interface AutomationCanvasLayout {
   acionamento?: AutomationCanvasPosition;
   configuracoes?: AutomationCanvasPosition;
@@ -56,7 +89,11 @@ export interface AutomationRule {
   active: boolean;
   triggerEvent: SystemEvent | null;
   triggerConditions: { stageId?: string; status?: string; dealStatus?: string };
+  /** Espelho derivado do grafo, mantido por um release — a lista usa pro
+   *  resumo. O executor lê `nodes`. */
   actions: AutomationAction[];
+  nodes: AutomationNode[];
+  edges: AutomationEdge[];
   scheduleWindow: AutomationScheduleWindow;
   canvasLayout: AutomationCanvasLayout;
   createdAt: string;
@@ -73,6 +110,46 @@ export interface AutomationRunLogRow {
   ranAt: string;
 }
 
+/** Automação salva antes do canvas livre tem `nodes` vazio e a lista de
+ *  ações em `actions`. Desenha ela como a cadeia linear que sempre foi:
+ *  gatilho -> ação1 -> ação2 -> … O executor faz a MESMA síntese, pra que
+ *  uma regra antiga continue rodando sem ninguém precisar reabrir e salvar. */
+export function sintetizarNodes(row: {
+  nodes?: unknown;
+  actions?: unknown;
+  canvas_layout?: any;
+}): AutomationNode[] {
+  if (Array.isArray(row.nodes) && row.nodes.length) return row.nodes as AutomationNode[];
+  const acoes: AutomationAction[] = Array.isArray(row.actions) ? row.actions : [];
+  const x0 = row.canvas_layout?.acionamento?.x ?? 0;
+  const y0 = row.canvas_layout?.acionamento?.y ?? 40;
+  const nodes: AutomationNode[] = [
+    { id: "trigger", type: "trigger", position: { x: x0, y: y0 }, data: {} },
+  ];
+  acoes.forEach((action, i) => {
+    nodes.push({
+      id: `a${i}`,
+      type: "action",
+      position: { x: x0 + 360 * (i + 1), y: y0 },
+      data: { action },
+    });
+  });
+  return nodes;
+}
+
+export function sintetizarEdges(row: { nodes?: unknown; edges?: unknown; actions?: unknown }): AutomationEdge[] {
+  if (Array.isArray(row.nodes) && row.nodes.length) {
+    return Array.isArray(row.edges) ? (row.edges as AutomationEdge[]) : [];
+  }
+  const acoes: AutomationAction[] = Array.isArray(row.actions) ? row.actions : [];
+  return acoes.map((_, i) => ({
+    id: `e${i}`,
+    source: i === 0 ? "trigger" : `a${i - 1}`,
+    target: `a${i}`,
+    sourceHandle: null,
+  }));
+}
+
 function mapRule(row: any): AutomationRule {
   return {
     id: String(row.id),
@@ -81,6 +158,8 @@ function mapRule(row: any): AutomationRule {
     triggerEvent: (row.trigger_event as SystemEvent) ?? null,
     triggerConditions: (row.trigger_conditions ?? {}) as AutomationRule["triggerConditions"],
     actions: Array.isArray(row.actions) ? row.actions : [],
+    nodes: sintetizarNodes(row),
+    edges: sintetizarEdges(row),
     scheduleWindow: (row.schedule_window ?? {}) as AutomationScheduleWindow,
     canvasLayout: (row.canvas_layout ?? {}) as AutomationCanvasLayout,
     createdAt: row.created_at,
@@ -127,8 +206,69 @@ export const saveAutomation = createServerFn({ method: "POST" })
     if (!input.triggerEvent || !SYSTEM_EVENTS.includes(input.triggerEvent)) {
       throw new Error("Escolha quando a automação dispara.");
     }
-    if (!input.actions?.length) throw new Error("Adicione ao menos uma ação.");
-    input.actions.forEach((acao, i) => {
+    const nodes = input.nodes ?? [];
+    const edges = input.edges ?? [];
+    const acoesDoGrafo = nodes.filter((n) => n.type === "action");
+    if (!acoesDoGrafo.length) throw new Error("Adicione ao menos uma ação ao fluxo.");
+    if (nodes.length > 100 || edges.length > 200) throw new Error("O fluxo ficou grande demais.");
+
+    const porId = new Map(nodes.map((n) => [n.id, n]));
+    const raiz = nodes.find((n) => n.type === "trigger");
+    if (!raiz) throw new Error("O fluxo precisa do card de acionamento.");
+
+    // Ligações: apontam para cards que existem, não voltam pro próprio card,
+    // e respeitam uma saída por handle / uma entrada por card. Essas duas
+    // últimas mantêm o fluxo em árvore — sem elas, dois caminhos chegando no
+    // mesmo card fariam ele rodar duas vezes (mensagem duplicada).
+    const saidasUsadas = new Set<string>();
+    const entradasUsadas = new Set<string>();
+    for (const e of edges) {
+      if (!porId.has(e.source) || !porId.has(e.target)) {
+        throw new Error("Há uma ligação solta no fluxo. Refaça as conexões.");
+      }
+      if (e.source === e.target) throw new Error("Um card não pode se ligar a ele mesmo.");
+      const chaveSaida = `${e.source}:${e.sourceHandle ?? ""}`;
+      if (saidasUsadas.has(chaveSaida)) {
+        throw new Error("Cada saída de card pode ter só uma ligação.");
+      }
+      saidasUsadas.add(chaveSaida);
+      if (entradasUsadas.has(e.target)) {
+        throw new Error("Cada card pode receber só uma ligação de entrada.");
+      }
+      entradasUsadas.add(e.target);
+    }
+    if (!edges.some((e) => e.source === raiz.id)) {
+      throw new Error("Ligue o card de acionamento ao primeiro passo do fluxo.");
+    }
+
+    // Ciclo: é a única falha que custa dinheiro de verdade (envio, cota,
+    // fila crescendo sem fim), então é recusada aqui em vez de tratada em
+    // runtime — o `depth` do executor não protege nada (ver automations.server.ts).
+    const saidas = new Map<string, string[]>();
+    for (const e of edges) saidas.set(e.source, [...(saidas.get(e.source) ?? []), e.target]);
+    const estado = new Map<string, 1 | 2>();
+    const temCiclo = (id: string): boolean => {
+      if (estado.get(id) === 1) return true;
+      if (estado.get(id) === 2) return false;
+      estado.set(id, 1);
+      for (const alvo of saidas.get(id) ?? []) if (temCiclo(alvo)) return true;
+      estado.set(id, 2);
+      return false;
+    };
+    for (const n of nodes) if (temCiclo(n.id)) throw new Error("O fluxo tem um ciclo — um caminho que volta pra trás. Desfaça a ligação de volta.");
+
+    // Validação por card, portada da lista de ações.
+    for (const n of nodes) {
+      if (n.type === "condition") {
+        if (!n.data.field) throw new Error("Escolha o que a condição testa.");
+        if (n.data.field !== "hasContact" && !String(n.data.value ?? "").trim()) {
+          throw new Error("Informe o valor de comparação da condição.");
+        }
+        continue;
+      }
+      if (n.type !== "action") continue;
+      const acao = n.data.action;
+      if (!acao) throw new Error("Há um card de ação vazio no fluxo.");
       if (acao.type === "send_whatsapp" && !acao.message?.trim()) {
         throw new Error("Escreva a mensagem da ação de WhatsApp.");
       }
@@ -141,11 +281,8 @@ export const saveAutomation = createServerFn({ method: "POST" })
       if (acao.type === "send_push" && (!acao.pushTitle?.trim() || !acao.pushBody?.trim())) {
         throw new Error("Preencha título e texto da notificação.");
       }
-      if (acao.type === "webhook") {
-        const url = acao.webhookUrl?.trim() ?? "";
-        if (!/^https:\/\//i.test(url)) {
-          throw new Error("A URL do webhook precisa começar com https://.");
-        }
+      if (acao.type === "webhook" && !/^https:\/\//i.test(acao.webhookUrl?.trim() ?? "")) {
+        throw new Error("A URL do webhook precisa começar com https://.");
       }
       if (acao.type === "wait") {
         const min = Number(acao.waitMinutes ?? 0);
@@ -154,11 +291,11 @@ export const saveAutomation = createServerFn({ method: "POST" })
         }
         // Esperar sem nada depois não faz nada — melhor recusar do que salvar
         // uma automação que parece fazer algo e não faz.
-        if (i === input.actions!.length - 1) {
-          throw new Error('"Aguardar tempo" não pode ser a última ação — adicione o que fazer depois da espera.');
+        if (!edges.some((e) => e.source === n.id)) {
+          throw new Error('"Aguardar tempo" não pode terminar o fluxo — ligue o que vem depois da espera.');
         }
       }
-    });
+    }
 
     const janela = input.scheduleWindow;
     if (janela?.enabled) {
@@ -174,11 +311,13 @@ export const saveAutomation = createServerFn({ method: "POST" })
       // avaliador no servidor compara minutos no mesmo dia.
       if (ini >= fim) throw new Error("O fim da janela precisa ser depois do início.");
     }
-    // Guardrail de loop: mover etapa não pode ser ação de uma automação que
-    // já dispara ao mudar de etapa — ver comentário em automations.server.ts.
+
+    // Guardrail de loop, portado da lista para o grafo: mover etapa não pode
+    // estar em NENHUM card de uma automação que já dispara ao mudar de etapa.
+    // Como o `depth` do executor é inerte, este check é a proteção real.
     if (
       input.triggerEvent === "pipeline.stage_changed" &&
-      input.actions.some((a) => a.type === "move_pipeline_stage")
+      acoesDoGrafo.some((n) => n.data.action?.type === "move_pipeline_stage")
     ) {
       throw new Error(
         'Automações que disparam quando "o card muda de etapa" não podem ter "mover para etapa" como ação — isso criaria um loop.',
@@ -195,7 +334,12 @@ export const saveAutomation = createServerFn({ method: "POST" })
       active: data.active ?? true,
       trigger_event: data.triggerEvent,
       trigger_conditions: data.triggerConditions ?? {},
-      actions: data.actions,
+      // Espelho derivado, mantido por um release (a lista usa pro resumo).
+      actions: (data.nodes ?? [])
+        .filter((n) => n.type === "action" && n.data.action)
+        .map((n) => n.data.action!),
+      nodes: data.nodes ?? [],
+      edges: data.edges ?? [],
       schedule_window: data.scheduleWindow ?? {},
       canvas_layout: data.canvasLayout ?? {},
       updated_at: new Date().toISOString(),

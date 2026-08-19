@@ -43,6 +43,38 @@ export const ACTION_LABEL: Record<AutomationActionType, string> = {
   wait: "Aguardar tempo",
 };
 
+/** Sobre quem cada ação age. É a resposta pra "esse gatilho é pra quem?":
+ *  a automação sempre trata do contato daquele evento — o que muda é se a
+ *  ação recai sobre ele ou sobre a clínica. */
+export const ACTION_ESCOPO: Record<AutomationActionType, "pessoa" | "clinica" | "fluxo"> = {
+  send_whatsapp: "pessoa",
+  move_pipeline_stage: "pessoa",
+  add_deal_note: "pessoa",
+  send_push: "clinica",
+  webhook: "clinica",
+  wait: "fluxo",
+};
+
+export const ESCOPO_LABEL: Record<"pessoa" | "clinica" | "fluxo", string> = {
+  pessoa: "para a pessoa do evento",
+  clinica: "para a equipe da clínica",
+  fluxo: "pausa o fluxo",
+};
+
+export const CONDITION_FIELD_LABEL: Record<string, string> = {
+  amount: "Valor do evento",
+  hasContact: "Tem paciente vinculado",
+  status: "Situação do agendamento",
+  stageId: "Etapa do funil",
+  dealStatus: "Situação da negociação",
+};
+
+export const CONDITION_OPERATOR_LABEL: Record<string, string> = {
+  gt: "maior que",
+  lt: "menor que",
+  eq: "igual a",
+};
+
 /** Dias da semana no índice de `getDay()` — 0=domingo. Mesma convenção do
  *  avaliador da janela na Edge Function. */
 export const DIAS_SEMANA = [

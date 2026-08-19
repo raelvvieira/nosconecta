@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,8 +7,12 @@ import {
   Controls,
   ReactFlow,
   ReactFlowProvider,
+  addEdge,
   useEdgesState,
   useNodesState,
+  type Connection,
+  type Edge,
+  type EdgeTypes,
   type Node,
   type NodeTypes,
 } from "@xyflow/react";
@@ -21,21 +25,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
-  AcionamentoNode,
-  AcoesNode,
-  ConfiguracoesNode,
+  ActionNode,
+  ConditionNode,
+  EditorAcoesProvider,
+  RandomizerNode,
+  TriggerNode,
+  type EditorAcoes,
 } from "@/components/atendimentos/automations/AutomationNodes";
+import { DeletableEdge } from "@/components/atendimentos/automations/AutomationEdge";
 import {
   AdicionarAcaoDialog,
   EditarCondicaoDialog,
-  EscolherGatilhoDialog,
+  EditarCondicaoNoDialog,
   EditarJanelaDialog,
+  EditarRandomizadorDialog,
+  EscolherCardDialog,
+  EscolherGatilhoDialog,
 } from "@/components/atendimentos/automations/AutomationDialogs";
 import {
   getAutomation,
   saveAutomation,
   type AutomationAction,
-  type AutomationCanvasLayout,
+  type AutomationEdge as RegraEdge,
+  type AutomationNode as RegraNode,
+  type AutomationNodeData,
   type AutomationScheduleWindow,
 } from "@/lib/atendimentos/automations.functions";
 import type { SystemEvent } from "@/lib/integrations/meta-capi.functions";
@@ -60,38 +73,32 @@ export const Route = createFileRoute("/atendimentos/automacoes/$automationId")({
   component: EditorPage,
 });
 
-// Topologia fixa em v1: sempre Acionamento -> Configurações -> Ações. As
-// arestas não são editáveis (nada de conectar/desconectar) — só o conteúdo de
-// cada nó é configurável, e a posição é livre pra clínica organizar como
-// preferir (salva em canvas_layout).
-const POSICOES_PADRAO: Required<AutomationCanvasLayout> = {
-  acionamento: { x: 0, y: 40 },
-  configuracoes: { x: 360, y: 40 },
-  acoes: { x: 720, y: 40 },
-};
-
-const EDGES_FIXAS = [
-  {
-    id: "e1",
-    source: "acionamento",
-    target: "configuracoes",
-    animated: true,
-    style: { stroke: "#f0668a", strokeDasharray: "4 4" },
-  },
-  {
-    id: "e2",
-    source: "configuracoes",
-    target: "acoes",
-    animated: true,
-    style: { stroke: "#f0668a", strokeDasharray: "4 4" },
-  },
-];
-
 const nodeTypes: NodeTypes = {
-  acionamento: AcionamentoNode,
-  configuracoes: ConfiguracoesNode,
-  acoes: AcoesNode,
+  trigger: TriggerNode,
+  action: ActionNode,
+  condition: ConditionNode,
+  randomizer: RandomizerNode,
 };
+
+const edgeTypes: EdgeTypes = { deletavel: DeletableEdge };
+
+const GRAFO_NOVO: { nodes: RegraNode[]; edges: RegraEdge[] } = {
+  nodes: [{ id: "trigger", type: "trigger", position: { x: 0, y: 60 }, data: {} }],
+  edges: [],
+};
+
+let contador = 0;
+const novoId = () => `n${Date.now().toString(36)}${(contador++).toString(36)}`;
+
+/** O React Flow tipa `node.data` como `Record<string, unknown>`; o nosso tipo
+ *  é um objeto de campos conhecidos. A conversão fica só nesta fronteira, em
+ *  vez de afrouxar `AutomationNodeData` com um index signature — que quebraria
+ *  a checagem de serialização das server functions. */
+const paraFlow = (n: RegraNode): Node =>
+  ({ ...n, data: n.data as unknown as Record<string, unknown>, deletable: n.type !== "trigger" }) as Node;
+
+const dadosDoNo = (n: Node | undefined): AutomationNodeData =>
+  (n?.data ?? {}) as unknown as AutomationNodeData;
 
 function EditorPage() {
   return (
@@ -119,14 +126,32 @@ function Editor() {
     status?: string;
     dealStatus?: string;
   }>({});
-  const [actions, setActions] = useState<AutomationAction[]>([]);
-  const [layout, setLayout] = useState<Required<AutomationCanvasLayout>>(POSICOES_PADRAO);
+  const [scheduleWindow, setScheduleWindow] = useState<AutomationScheduleWindow>({});
+
+  // `nodes`/`edges` do React Flow são a FONTE DE VERDADE do fluxo — não há
+  // mais um `useState` paralelo com a lista de ações espelhada em nós.
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>(GRAFO_NOVO.nodes.map(paraFlow));
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const [gatilhoDialog, setGatilhoDialog] = useState(false);
-  const [scheduleWindow, setScheduleWindow] = useState<AutomationScheduleWindow>({});
-  const [condicaoDialog, setCondicaoDialog] = useState(false);
+  const [filtroDialog, setFiltroDialog] = useState(false);
   const [janelaDialog, setJanelaDialog] = useState(false);
-  const [acaoDialog, setAcaoDialog] = useState(false);
+  const [escolherCard, setEscolherCard] = useState<{ de: string; handle: string | null } | null>(
+    null,
+  );
+  const [acaoDialog, setAcaoDialog] = useState<{ nodeId: string } | null>(null);
+  const [condicaoNoDialog, setCondicaoNoDialog] = useState<{ nodeId: string } | null>(null);
+  const [randomDialog, setRandomDialog] = useState<{ nodeId: string } | null>(null);
+
+  const detalheQuery = useQuery({
+    queryKey: ["automation", automationId],
+    queryFn: () => fetchAutomation({ data: { id: automationId } }),
+    enabled: !ehNova,
+    // Hidratar uma vez só: com refetch no foco da janela, trocar de aba
+    // apagava o fluxo não salvo.
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
+  });
 
   const stagesQuery = useQuery({
     queryKey: ["pipeline-stages"],
@@ -135,108 +160,127 @@ function Editor() {
   });
   const stages = stagesQuery.data?.stages ?? [];
 
-  const automationQuery = useQuery({
-    queryKey: ["automation", automationId],
-    queryFn: () => fetchAutomation({ data: { id: automationId } }),
-    enabled: !ehNova,
-    staleTime: 0,
-  });
-
-  // Carrega o estado salvo uma vez, quando a automação existente chega.
+  const hidratado = useRef(false);
   useEffect(() => {
-    const regra = automationQuery.data;
+    if (ehNova || hidratado.current) return;
+    const regra = detalheQuery.data;
     if (!regra) return;
+    hidratado.current = true;
     setNome(regra.name);
     setAtiva(regra.active);
     setTriggerEvent(regra.triggerEvent);
     setConditions(regra.triggerConditions ?? {});
     setScheduleWindow(regra.scheduleWindow ?? {});
-    setActions(regra.actions ?? []);
-    setLayout({
-      acionamento: regra.canvasLayout?.acionamento ?? POSICOES_PADRAO.acionamento,
-      configuracoes: regra.canvasLayout?.configuracoes ?? POSICOES_PADRAO.configuracoes,
-      acoes: regra.canvasLayout?.acoes ?? POSICOES_PADRAO.acoes,
-    });
-  }, [automationQuery.data]);
+    setNodes((regra.nodes.length ? regra.nodes : GRAFO_NOVO.nodes).map(paraFlow));
+    setEdges(regra.edges.map((e) => ({ ...e, type: "deletavel" })) as Edge[]);
+  }, [ehNova, detalheQuery.data, setNodes, setEdges]);
 
-  // Trocar de gatilho invalida a condição antiga (era de outro evento) e
-  // qualquer ação de mover etapa, se o novo gatilho for o de mudança de etapa
-  // (guardrail de loop — o servidor recusaria de qualquer forma).
-  const escolherGatilho = useCallback((event: SystemEvent) => {
-    setTriggerEvent((anterior) => {
-      if (anterior !== event) setConditions({});
-      return event;
-    });
-    if (event === "pipeline.stage_changed") {
-      setActions((atual) => atual.filter((a) => a.type !== "move_pipeline_stage"));
-    }
-  }, []);
-
-  const removerAcao = useCallback((index: number) => {
-    setActions((atual) => atual.filter((_, i) => i !== index));
-  }, []);
-
-  const nodesIniciais: Node[] = useMemo(
-    () => [
-      {
-        id: "acionamento",
-        type: "acionamento",
-        position: layout.acionamento,
-        data: { triggerEvent, onEscolher: () => setGatilhoDialog(true) },
-      },
-      {
-        id: "configuracoes",
-        type: "configuracoes",
-        position: layout.configuracoes,
-        data: {
-          triggerEvent,
-          conditions,
-          stages,
-          scheduleWindow,
-          onEditar: () => setCondicaoDialog(true),
-          onEditarJanela: () => setJanelaDialog(true),
-        },
-      },
-      {
-        id: "acoes",
-        type: "acoes",
-        position: layout.acoes,
-        data: {
-          actions,
-          stages,
-          onAdicionar: () => setAcaoDialog(true),
-          onRemover: removerAcao,
-        },
-      },
-    ],
-    // `layout` de propósito fora: reposicionar durante o arraste recriaria o
-    // nó no meio do gesto. A posição só volta pro estado ao salvar (onNodeDragStop).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [triggerEvent, conditions, scheduleWindow, actions, stages, removerAcao],
+  const removerNo = useCallback(
+    (id: string) => {
+      setNodes((atual) => atual.filter((n) => n.id !== id));
+      // Sem isto sobram ligações apontando pro vazio — que o save recusa.
+      setEdges((atual) => atual.filter((e) => e.source !== id && e.target !== id));
+    },
+    [setNodes, setEdges],
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>(nodesIniciais);
-  const [edges, , onEdgesChange] = useEdgesState(EDGES_FIXAS);
+  const removerLigacao = useCallback(
+    (id: string) => setEdges((atual) => atual.filter((e) => e.id !== id)),
+    [setEdges],
+  );
 
-  // Conteúdo dos nós muda (gatilho escolhido, ação adicionada) sem mexer na
-  // posição que a clínica já arrastou.
-  useEffect(() => {
-    setNodes((atuais) =>
-      nodesIniciais.map((novo) => {
-        const existente = atuais.find((n) => n.id === novo.id);
-        return existente ? { ...novo, position: existente.position } : novo;
-      }),
-    );
-  }, [nodesIniciais, setNodes]);
+  const criarCard = useCallback(
+    (tipo: "action" | "condition" | "randomizer", de: string, handle: string | null) => {
+      const origem = nodes.find((n) => n.id === de);
+      const id = novoId();
+      const position = {
+        x: (origem?.position.x ?? 0) + 340,
+        y: (origem?.position.y ?? 0) + (handle === "nao" || handle === "b" ? 200 : 0),
+      };
+      const data: AutomationNodeData =
+        tipo === "randomizer" ? { weights: { a: 50, b: 50 } } : {};
+      setNodes((atual) => [...atual, paraFlow({ id, type: tipo, position, data })]);
+      setEdges((atual) => [
+        // Uma ligação por saída: a nova substitui a que houver no mesmo ponto.
+        ...atual.filter((e) => !(e.source === de && (e.sourceHandle ?? null) === handle)),
+        { id: `e${id}`, source: de, target: id, sourceHandle: handle, type: "deletavel" } as Edge,
+      ]);
+      // Card novo já abre a configuração — ninguém quer um card vazio.
+      if (tipo === "action") setAcaoDialog({ nodeId: id });
+      if (tipo === "condition") setCondicaoNoDialog({ nodeId: id });
+    },
+    [nodes, setNodes, setEdges],
+  );
+
+  const onConnect = useCallback(
+    (c: Connection) => {
+      if (c.target === "trigger" || c.source === c.target) return;
+      setEdges((atual) => {
+        const limpo = atual.filter(
+          (e) =>
+            !(e.source === c.source && (e.sourceHandle ?? null) === (c.sourceHandle ?? null)) &&
+            e.target !== c.target,
+        );
+        return addEdge({ ...c, type: "deletavel" }, limpo);
+      });
+    },
+    [setEdges],
+  );
+
+  const atualizarNo = useCallback(
+    (id: string, data: AutomationNodeData) =>
+      setNodes((atual) =>
+        atual.map((n) =>
+          n.id === id ? { ...n, data: data as unknown as Record<string, unknown> } : n,
+        ),
+      ),
+    [setNodes],
+  );
+
+  const editorAcoes: EditorAcoes = useMemo(
+    () => ({
+      triggerEvent,
+      conditions,
+      scheduleWindow,
+      stages,
+      onEditarGatilho: () => setGatilhoDialog(true),
+      onEditarFiltro: () => setFiltroDialog(true),
+      onEditarJanela: () => setJanelaDialog(true),
+      onEditarNo: (id) => {
+        const node = nodes.find((n) => n.id === id);
+        if (node?.type === "action") setAcaoDialog({ nodeId: id });
+        if (node?.type === "condition") setCondicaoNoDialog({ nodeId: id });
+        if (node?.type === "randomizer") setRandomDialog({ nodeId: id });
+      },
+      onRemoverNo: removerNo,
+      onAdicionarDe: (id, handle) => setEscolherCard({ de: id, handle }),
+    }),
+    [triggerEvent, conditions, scheduleWindow, stages, nodes, removerNo],
+  );
+
+  // O botão de excluir mora na aresta, então o callback viaja em `edge.data`
+  // — que, ao contrário de `node.data`, é descartado no save.
+  const edgesComAcao = useMemo(
+    () => edges.map((e) => ({ ...e, data: { ...e.data, onDelete: removerLigacao } })),
+    [edges, removerLigacao],
+  );
 
   const saveMutation = useMutation({
     mutationFn: () => {
-      const posicoes = nodes.reduce<AutomationCanvasLayout>((acc, node) => {
-        if (node.id === "acionamento") acc.acionamento = node.position;
-        if (node.id === "configuracoes") acc.configuracoes = node.position;
-        if (node.id === "acoes") acc.acoes = node.position;
-        return acc;
-      }, {});
+      // Sanitiza: só o que é config. `node.data` vai inteiro pro banco, e o
+      // React Flow enfia `measured`, `selected`, `dragging`, `width`… ali.
+      const nodesLimpos: RegraNode[] = nodes.map((n) => ({
+        id: n.id,
+        type: n.type as RegraNode["type"],
+        position: n.position,
+        data: dadosDoNo(n),
+      }));
+      const edgesLimpas: RegraEdge[] = edges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle ?? null,
+      }));
       return doSave({
         data: {
           id: ehNova ? undefined : automationId,
@@ -245,8 +289,8 @@ function Editor() {
           triggerEvent,
           triggerConditions: conditions,
           scheduleWindow,
-          actions,
-          canvasLayout: posicoes,
+          nodes: nodesLimpos,
+          edges: edgesLimpas,
         },
       });
     },
@@ -258,6 +302,10 @@ function Editor() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const acaoAtual = acaoDialog
+    ? (dadosDoNo(nodes.find((n) => n.id === acaoDialog.nodeId)).action ?? null)
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-surface-subtle">
@@ -291,33 +339,49 @@ function Editor() {
 
       {/* Altura explícita: canvas com altura auto renderiza em branco. */}
       <div className="min-h-0 flex-1">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          nodeTypes={nodeTypes}
-          fitView
-          fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
-          proOptions={{ hideAttribution: true }}
-          // Topologia fixa: sem criar/apagar conexão nem deletar nó.
-          nodesConnectable={false}
-          deleteKeyCode={null}
-          className="bg-surface-subtle"
-        >
-          <Background gap={18} size={1.5} color="#d9d9de" />
-          <Controls showInteractive={false} />
-        </ReactFlow>
+        <EditorAcoesProvider value={editorAcoes}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edgesComAcao}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            fitView
+            fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
+            proOptions={{ hideAttribution: true }}
+            // O gatilho é a entrada do fluxo: `deletable: false` nele, e o
+            // veto aqui como segunda linha.
+            onBeforeDelete={async ({ nodes: aExcluir }) =>
+              !aExcluir.some((n) => n.id === "trigger" || n.type === "trigger")
+            }
+            className="bg-surface-subtle"
+          >
+            <Background gap={18} size={1.5} color="#d9d9de" />
+            <Controls showInteractive={false} />
+          </ReactFlow>
+        </EditorAcoesProvider>
       </div>
 
       <EscolherGatilhoDialog
         open={gatilhoDialog}
         onOpenChange={setGatilhoDialog}
-        onEscolher={escolherGatilho}
+        onEscolher={(evento) => {
+          setTriggerEvent(evento);
+          setConditions({});
+          // Guardrail de loop: mover etapa não pode sobreviver a uma troca
+          // para o gatilho de mudança de etapa (o servidor também recusa).
+          if (evento === "pipeline.stage_changed") {
+            setNodes((atual) =>
+              atual.filter((n) => dadosDoNo(n).action?.type !== "move_pipeline_stage"),
+            );
+          }
+        }}
       />
       <EditarCondicaoDialog
-        open={condicaoDialog}
-        onOpenChange={setCondicaoDialog}
+        open={filtroDialog}
+        onOpenChange={setFiltroDialog}
         triggerEvent={triggerEvent}
         conditions={conditions}
         stages={stages}
@@ -329,12 +393,43 @@ function Editor() {
         janela={scheduleWindow}
         onSalvar={setScheduleWindow}
       />
+      <EscolherCardDialog
+        open={!!escolherCard}
+        onOpenChange={(o) => !o && setEscolherCard(null)}
+        onEscolher={(tipo) => {
+          if (escolherCard) criarCard(tipo, escolherCard.de, escolherCard.handle);
+          setEscolherCard(null);
+        }}
+      />
       <AdicionarAcaoDialog
-        open={acaoDialog}
-        onOpenChange={setAcaoDialog}
+        open={!!acaoDialog}
+        onOpenChange={(o) => !o && setAcaoDialog(null)}
         triggerEvent={triggerEvent}
         stages={stages}
-        onAdicionar={(action) => setActions((atual) => [...atual, action])}
+        acaoAtual={acaoAtual}
+        onAdicionar={(action: AutomationAction) => {
+          if (acaoDialog) atualizarNo(acaoDialog.nodeId, { action });
+          setAcaoDialog(null);
+        }}
+      />
+      <EditarCondicaoNoDialog
+        open={!!condicaoNoDialog}
+        onOpenChange={(o) => !o && setCondicaoNoDialog(null)}
+        data={dadosDoNo(nodes.find((n) => n.id === condicaoNoDialog?.nodeId))}
+        stages={stages}
+        onSalvar={(data) => {
+          if (condicaoNoDialog) atualizarNo(condicaoNoDialog.nodeId, data);
+          setCondicaoNoDialog(null);
+        }}
+      />
+      <EditarRandomizadorDialog
+        open={!!randomDialog}
+        onOpenChange={(o) => !o && setRandomDialog(null)}
+        data={dadosDoNo(nodes.find((n) => n.id === randomDialog?.nodeId))}
+        onSalvar={(data) => {
+          if (randomDialog) atualizarNo(randomDialog.nodeId, data);
+          setRandomDialog(null);
+        }}
       />
     </div>
   );

@@ -63,6 +63,93 @@ interface Regra {
   trigger_event: string;
 }
 
+type NodeType = "trigger" | "action" | "condition" | "randomizer";
+
+interface GrafoNode {
+  id: string;
+  type: NodeType;
+  data: {
+    action?: ActionConfig;
+    field?: "amount" | "hasContact" | "status" | "stageId" | "dealStatus";
+    operator?: "gt" | "lt" | "eq";
+    value?: string;
+    weights?: Record<string, number>;
+  };
+}
+
+interface GrafoEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string | null;
+}
+
+interface Grafo {
+  nodes: GrafoNode[];
+  edges: GrafoEdge[];
+}
+
+/** Automação salva antes do canvas livre tem `nodes` vazio e a lista em
+ *  `actions`. A síntese mora AQUI, e não só na tela: uma regra antiga que
+ *  ninguém reabriu tem que continuar rodando. Mesma cadeia linear que o
+ *  `sintetizarNodes` do front desenha. */
+function grafoDaRegra(row: any): Grafo {
+  const nodes: GrafoNode[] = Array.isArray(row.nodes) ? row.nodes : [];
+  if (nodes.length) {
+    return { nodes, edges: Array.isArray(row.edges) ? row.edges : [] };
+  }
+  const acoes: ActionConfig[] = Array.isArray(row.actions) ? row.actions : [];
+  return {
+    nodes: [
+      { id: "trigger", type: "trigger", data: {} },
+      ...acoes.map((action, i) => ({ id: `a${i}`, type: "action" as const, data: { action } })),
+    ],
+    edges: acoes.map((_, i) => ({
+      id: `e${i}`,
+      source: i === 0 ? "trigger" : `a${i - 1}`,
+      target: `a${i}`,
+      sourceHandle: null,
+    })),
+  };
+}
+
+/** Avalia uma condição só com o que já veio no contexto do disparo.
+ *  Valor ausente cai sempre no ramo "não" — `patient.created` e
+ *  `pipeline.stage_changed` não carregam valor, e isso tem que ser
+ *  previsível em vez de virar erro. */
+function avaliarCondicao(node: GrafoNode, ctx: DispatchContext): boolean {
+  const { field, operator, value } = node.data;
+  if (field === "hasContact") return Boolean(ctx.patientId || ctx.crmContactId);
+  if (field === "amount") {
+    if (ctx.amount === null || ctx.amount === undefined) return false;
+    const alvo = Number(String(value ?? "").replace(",", "."));
+    if (!Number.isFinite(alvo)) return false;
+    if (operator === "gt") return Number(ctx.amount) > alvo;
+    if (operator === "lt") return Number(ctx.amount) < alvo;
+    return Number(ctx.amount) === alvo;
+  }
+  // Igualdades usam a mesma coerção de matchesConditions, senão a condição do
+  // gatilho e a do card se comportariam diferente pro mesmo valor.
+  const doCtx =
+    field === "status" ? ctx.status : field === "stageId" ? ctx.stageId : ctx.dealStatus;
+  return String(value ?? "") === String(doCtx ?? "");
+}
+
+/** Sorteia entre as saídas CONECTADAS, normalizando os pesos só sobre elas —
+ *  sortear um handle solto viraria um "não fez nada" aleatório. */
+function sortearSaida(node: GrafoNode, saidas: GrafoEdge[]): GrafoEdge | null {
+  if (!saidas.length) return null;
+  const pesos = saidas.map((e) => Math.max(0, Number(node.data.weights?.[e.sourceHandle ?? "a"] ?? 1)));
+  const total = pesos.reduce((a, b) => a + b, 0);
+  if (total <= 0) return saidas[0];
+  let sorte = Math.random() * total;
+  for (let i = 0; i < saidas.length; i++) {
+    sorte -= pesos[i];
+    if (sorte <= 0) return saidas[i];
+  }
+  return saidas[saidas.length - 1];
+}
+
 // Mesma função de meta-capi/index.ts:381-388, copiada — 6 linhas não
 // justificam um módulo compartilhado, e cada consumidor evolui sozinho.
 function matchesConditions(conditions: Record<string, unknown>, ctx: DispatchContext) {
@@ -168,15 +255,22 @@ async function logRun(row: {
   action_type: string;
   status: string;
   error?: string | null;
+  run_id?: string | null;
 }) {
   await supabase.from("automation_runs").insert(row);
 }
 
+/** Guarda "continue a partir deste nó", junto com o grafo congelado.
+ *
+ *  O snapshot é o que mantém a linha autossuficiente: sem ele, editar o fluxo
+ *  durante uma espera de 3 dias deixaria o pendente apontando pra um nó que
+ *  não existe mais. */
 async function enfileirar(
   ownerId: string,
   regra: Regra,
   ctx: DispatchContext,
-  restantes: ActionConfig[],
+  grafo: Grafo,
+  resumeNodeId: string,
   runAfter: Date,
   depth: number,
 ) {
@@ -186,7 +280,9 @@ async function enfileirar(
     rule_name: regra.name,
     trigger_event: regra.trigger_event,
     context: ctx,
-    remaining_actions: restantes,
+    remaining_actions: [],
+    graph_snapshot: grafo,
+    resume_node_id: resumeNodeId,
     depth,
     run_after: runAfter.toISOString(),
   });
@@ -255,6 +351,7 @@ async function executarAcao(
   action: ActionConfig,
   ctx: DispatchContext,
   regra: Regra,
+  runId: string,
 ) {
   const base = {
     owner_id: ownerId,
@@ -262,6 +359,7 @@ async function executarAcao(
     rule_name: regra.name,
     trigger_event: regra.trigger_event,
     action_type: action.type,
+    run_id: runId,
   };
   const nome = ctx.contactName ?? null;
 
@@ -388,23 +486,91 @@ async function executarAcao(
   }
 }
 
-/** Executa a lista em ordem. Ao encontrar um "aguardar", guarda o RESTO na
- *  fila e para — o cron retoma daí. `depth` viaja junto pra que o guardrail
- *  antiloop sobreviva ao adiamento. */
-async function executarAcoes(
+/** Anda pelo fluxo a partir de um nó, seguindo as ligações.
+ *
+ *  Card de ação executa e segue sua saída; condição avalia e segue "sim" ou
+ *  "não"; randomizador sorteia entre as saídas conectadas. Ao encontrar um
+ *  "aguardar", guarda ONDE parou (não o resto de uma lista — num grafo não
+ *  existe "resto") e para; o cron retoma daquele nó.
+ *
+ *  O teto de passos é rede de segurança: ciclo é recusado no save
+ *  (`saveAutomation`), mas um grafo gravado por outro caminho não pode rodar
+ *  pra sempre. */
+async function percorrerGrafo(
   ownerId: string,
-  acoes: ActionConfig[],
+  grafo: Grafo,
+  inicialId: string,
   ctx: DispatchContext,
   regra: Regra,
   depth: number,
+  runId: string,
 ) {
-  for (let i = 0; i < acoes.length; i++) {
-    const acao = acoes[i];
+  const porId = new Map(grafo.nodes.map((n) => [n.id, n]));
+  const saidasDe = (id: string) => grafo.edges.filter((e) => e.source === id);
+
+  let atualId: string | null = inicialId;
+  let passos = 0;
+
+  while (atualId && passos < 50) {
+    passos++;
+    const node = porId.get(atualId);
+    if (!node) return; // ligação apontando pro vazio: fim de ramo, sem exceção
+
+    if (node.type === "trigger") {
+      atualId = saidasDe(node.id)[0]?.target ?? null;
+      continue;
+    }
+
+    if (node.type === "condition") {
+      const passou = avaliarCondicao(node, ctx);
+      await logRun({
+        owner_id: ownerId,
+        rule_id: regra.id,
+        rule_name: regra.name,
+        trigger_event: regra.trigger_event,
+        action_type: "condition",
+        status: passou ? "branch_sim" : "branch_nao",
+        run_id: runId,
+      });
+      const handle = passou ? "sim" : "nao";
+      atualId = saidasDe(node.id).find((e) => e.sourceHandle === handle)?.target ?? null;
+      continue;
+    }
+
+    if (node.type === "randomizer") {
+      const escolhida = sortearSaida(node, saidasDe(node.id));
+      await logRun({
+        owner_id: ownerId,
+        rule_id: regra.id,
+        rule_name: regra.name,
+        trigger_event: regra.trigger_event,
+        action_type: "randomizer",
+        status: `branch_${escolhida?.sourceHandle ?? "nenhum"}`,
+        run_id: runId,
+      });
+      atualId = escolhida?.target ?? null;
+      continue;
+    }
+
+    const acao = node.data.action;
+    if (!acao) {
+      atualId = saidasDe(node.id)[0]?.target ?? null;
+      continue;
+    }
+
     if (acao.type === "wait") {
+      const proximo = saidasDe(node.id)[0]?.target;
+      if (!proximo) return; // esperar sem nada depois não faz nada
       const minutos = Math.max(1, Math.min(Number(acao.waitMinutes ?? 0), 60 * 24 * 30));
-      const restantes = acoes.slice(i + 1);
-      if (!restantes.length) return; // esperar sem nada depois não faz nada
-      await enfileirar(ownerId, regra, ctx, restantes, new Date(Date.now() + minutos * 60000), depth);
+      await enfileirar(
+        ownerId,
+        regra,
+        ctx,
+        grafo,
+        proximo,
+        new Date(Date.now() + minutos * 60000),
+        depth,
+      );
       await logRun({
         owner_id: ownerId,
         rule_id: regra.id,
@@ -412,10 +578,13 @@ async function executarAcoes(
         trigger_event: regra.trigger_event,
         action_type: "wait",
         status: "deferred",
+        run_id: runId,
       });
       return;
     }
-    await executarAcao(ownerId, acao, ctx, regra);
+
+    await executarAcao(ownerId, acao, ctx, regra, runId);
+    atualId = saidasDe(node.id)[0]?.target ?? null;
   }
 }
 
@@ -436,7 +605,7 @@ async function handleDispatch(
 
   const { data: regras, error } = await supabase
     .from("automation_rules")
-    .select("id, name, trigger_conditions, actions, schedule_window")
+    .select("id, name, trigger_conditions, actions, nodes, edges, schedule_window")
     .eq("owner_id", ownerId)
     .eq("trigger_event", systemEvent)
     .eq("active", true);
@@ -464,8 +633,12 @@ async function handleDispatch(
   const agora = new Date();
   for (const r of matching as any[]) {
     const regra: Regra = { id: r.id, name: r.name, trigger_event: systemEvent };
-    const acoes: ActionConfig[] = Array.isArray(r.actions) ? r.actions : [];
+    const grafo = grafoDaRegra(r);
+    const raiz = grafo.nodes.find((n) => n.type === "trigger");
+    const primeiro = grafo.edges.find((e) => e.source === (raiz?.id ?? "trigger"))?.target;
+    if (!primeiro) continue; // fluxo sem nada ligado ao gatilho
     const janela: ScheduleWindow | null = r.schedule_window ?? null;
+    const runId = crypto.randomUUID();
 
     if (janelaAtiva(janela) && !dentroDaJanela(janela, agora)) {
       if ((janela.outside ?? "defer") === "skip") {
@@ -476,10 +649,11 @@ async function handleDispatch(
           trigger_event: systemEvent,
           action_type: "-",
           status: "skipped_outside_window",
+          run_id: runId,
         });
         continue;
       }
-      await enfileirar(ownerId, regra, ctx, acoes, proximaAbertura(janela, agora), depth);
+      await enfileirar(ownerId, regra, ctx, grafo, primeiro, proximaAbertura(janela, agora), depth);
       await logRun({
         owner_id: ownerId,
         rule_id: regra.id,
@@ -487,11 +661,12 @@ async function handleDispatch(
         trigger_event: systemEvent,
         action_type: "-",
         status: "deferred_outside_window",
+        run_id: runId,
       });
       continue;
     }
 
-    await executarAcoes(ownerId, acoes, ctx, regra, depth);
+    await percorrerGrafo(ownerId, grafo, primeiro, ctx, regra, depth, runId);
   }
 
   return { ok: true, executed: matching.length };
@@ -500,33 +675,66 @@ async function handleDispatch(
 /** Retoma o que estava na fila e já venceu. Stateless e multi-tenant, mesmo
  *  molde do tick do disparo: o cron não manda ownerId. */
 async function handleTick() {
-  const agora = new Date().toISOString();
-  const { data: pendentes } = await supabase
-    .from("automation_pending_actions")
-    .select("id, owner_id, rule_id, rule_name, trigger_event, context, remaining_actions, depth")
-    .eq("status", "pending")
-    .lte("run_after", agora)
-    .order("run_after", { ascending: true })
-    .limit(POR_TICK);
+  const agora = new Date();
 
+  // Claim atômico: marca e colhe na MESMA operação. Com select-depois-update,
+  // dois ticks sobrepostos (a função ficou mais lenta com o grafo) colhiam as
+  // mesmas linhas e mandavam a mensagem duas vezes.
+  const { data: pendentes, error } = await supabase
+    .from("automation_pending_actions")
+    .update({ status: "done", ran_at: agora.toISOString() })
+    .eq("status", "pending")
+    .lte("run_after", agora.toISOString())
+    .select(
+      "id, owner_id, rule_id, rule_name, trigger_event, context, graph_snapshot, resume_node_id, remaining_actions, depth",
+    )
+    .limit(POR_TICK);
+  if (error) throw new Error(error.message);
   if (!pendentes?.length) return { ok: true, retomados: 0 };
 
   let retomados = 0;
   for (const p of pendentes as any[]) {
-    // Marca antes de executar: se a função morrer no meio, a linha não volta
-    // a ser colhida no minuto seguinte e a mensagem não sai duas vezes.
-    await supabase
-      .from("automation_pending_actions")
-      .update({ status: "done", ran_at: new Date().toISOString() })
-      .eq("id", p.id);
+    const regra: Regra = {
+      id: p.rule_id,
+      name: p.rule_name ?? "",
+      trigger_event: p.trigger_event,
+    };
+    const ctx = (p.context ?? {}) as DispatchContext;
+    const runId = crypto.randomUUID();
+
     try {
-      await executarAcoes(
-        p.owner_id,
-        Array.isArray(p.remaining_actions) ? p.remaining_actions : [],
-        (p.context ?? {}) as DispatchContext,
-        { id: p.rule_id, name: p.rule_name ?? "", trigger_event: p.trigger_event },
-        Number(p.depth ?? 0),
-      );
+      // A janela é re-checada na retomada: uma espera de 3 dias acordando às
+      // 3h da manhã e mandando WhatsApp é exatamente o que a janela existe
+      // pra impedir. Se estiver fora, reenfileira pra próxima abertura.
+      const { data: regraViva } = await supabase
+        .from("automation_rules")
+        .select("active, schedule_window")
+        .eq("id", p.rule_id)
+        .maybeSingle();
+      if (regraViva && regraViva.active === false) continue; // pausada durante a espera
+
+      const grafo: Grafo = p.graph_snapshot?.nodes?.length
+        ? p.graph_snapshot
+        : grafoDaRegra({ actions: p.remaining_actions });
+      const inicial: string =
+        p.resume_node_id ?? grafo.edges.find((e: GrafoEdge) => e.source === "trigger")?.target ?? "";
+      if (!inicial) continue;
+
+      const janela: ScheduleWindow | null = regraViva?.schedule_window ?? null;
+      if (janelaAtiva(janela) && !dentroDaJanela(janela, agora)) {
+        await enfileirar(
+          p.owner_id,
+          regra,
+          ctx,
+          grafo,
+          inicial,
+          proximaAbertura(janela, agora),
+          Number(p.depth ?? 0),
+        );
+        continue;
+      }
+
+      await percorrerGrafo(p.owner_id, grafo, inicial, ctx, regra, Number(p.depth ?? 0), runId);
       retomados++;
     } catch (e) {
       await supabase

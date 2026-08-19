@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   Bell,
+  Bot,
+  Dices,
+  Split,
   CalendarPlus,
   GitBranch,
   MessageSquare,
@@ -35,7 +38,10 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import type {
   AutomationAction,
+  AutomationNodeData,
   AutomationScheduleWindow,
+  ConditionField,
+  ConditionOperator,
 } from "@/lib/atendimentos/automations.functions";
 import type { PipelineStage } from "@/lib/atendimentos/pipeline.functions";
 import {
@@ -211,12 +217,15 @@ export function AdicionarAcaoDialog({
   onOpenChange,
   triggerEvent,
   stages,
+  acaoAtual,
   onAdicionar,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   triggerEvent: SystemEvent | null;
   stages: PipelineStage[];
+  /** Ação já configurada, quando o card está sendo reaberto pra editar. */
+  acaoAtual?: AutomationAction | null;
   onAdicionar: (action: AutomationAction) => void;
 }) {
   const [tipo, setTipo] = useState<
@@ -239,16 +248,29 @@ export function AdicionarAcaoDialog({
 
   useEffect(() => {
     if (!open) return;
-    setTipo("escolher");
-    setMensagem("");
-    setStageId("");
-    setNota("");
-    setPushTitulo("");
-    setPushTexto("");
-    setUrl("");
-    setEsperaValor("1");
-    setEsperaUnidade("dias");
-  }, [open]);
+    // Card sendo reaberto: abre direto no formulário dele, já preenchido.
+    setTipo(acaoAtual?.type ?? "escolher");
+    setMensagem(acaoAtual?.message ?? "");
+    setStageId(acaoAtual?.stageId ?? "");
+    setNota(acaoAtual?.noteBody ?? "");
+    setPushTitulo(acaoAtual?.pushTitle ?? "");
+    setPushTexto(acaoAtual?.pushBody ?? "");
+    setUrl(acaoAtual?.webhookUrl ?? "");
+    const min = Number(acaoAtual?.waitMinutes ?? 0);
+    if (min > 0 && min % (60 * 24) === 0) {
+      setEsperaValor(String(min / (60 * 24)));
+      setEsperaUnidade("dias");
+    } else if (min > 0 && min % 60 === 0) {
+      setEsperaValor(String(min / 60));
+      setEsperaUnidade("horas");
+    } else if (min > 0) {
+      setEsperaValor(String(min));
+      setEsperaUnidade("minutos");
+    } else {
+      setEsperaValor("1");
+      setEsperaUnidade("dias");
+    }
+  }, [open, acaoAtual]);
 
   // Guardrail de loop: mover etapa não pode ser ação de quem já dispara ao
   // mudar de etapa (o servidor também recusa — ver saveAutomation).
@@ -784,6 +806,289 @@ export function EditarJanelaDialog({
                   ? { enabled: true, days: [...dias].sort((a, b) => a - b), start: inicio, end: fim, outside: foraDaJanela }
                   : {},
               );
+              onOpenChange(false);
+            }}
+          >
+            Aplicar
+          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Escolhe que tipo de card criar. Chamado pelo "+" de uma saída — o card
+ *  nasce já ligado ali, que é o que faz isso funcionar no celular. */
+export function EscolherCardDialog({
+  open,
+  onOpenChange,
+  onEscolher,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onEscolher: (tipo: "action" | "condition" | "randomizer") => void;
+}) {
+  const opcoes: {
+    tipo: "action" | "condition" | "randomizer";
+    titulo: string;
+    descricao: string;
+    icone: React.ReactNode;
+    cor: string;
+  }[] = [
+    {
+      tipo: "action",
+      titulo: "Ação",
+      descricao: "Enviar WhatsApp, mover no funil, notificar, esperar…",
+      icone: <Bot className="h-4 w-4" />,
+      cor: "bg-success-soft text-success",
+    },
+    {
+      tipo: "condition",
+      titulo: "Condição",
+      descricao: "Divide o fluxo em dois caminhos: sim e não.",
+      icone: <Split className="h-4 w-4" />,
+      cor: "bg-warning-soft text-warning",
+    },
+    {
+      tipo: "randomizer",
+      titulo: "Randomizador",
+      descricao: "Sorteia entre dois caminhos, para testar mensagens.",
+      icone: <Dices className="h-4 w-4" />,
+      cor: "bg-info-soft text-info",
+    },
+  ];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[420px]">
+        <DialogHeader>
+          <DialogTitle>Adicionar card</DialogTitle>
+          <DialogDescription>O que vem depois neste ponto do fluxo.</DialogDescription>
+        </DialogHeader>
+        <div className="-mx-2 space-y-1 px-2">
+          {opcoes.map((o) => (
+            <button
+              key={o.tipo}
+              type="button"
+              onClick={() => {
+                onEscolher(o.tipo);
+                onOpenChange(false);
+              }}
+              className="flex w-full items-start gap-3 rounded-2xl border border-transparent px-3 py-2.5 text-left transition-colors hover:border-border hover:bg-surface-subtle"
+            >
+              <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl ${o.cor}`}>
+                {o.icone}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">{o.titulo}</span>
+                <span className="mt-0.5 block text-2xs text-muted-foreground">{o.descricao}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Condição de um card de ramificação. Só testa o que já vem no contexto do
+ *  disparo — sem consulta extra ao banco nem ao CRM. */
+export function EditarCondicaoNoDialog({
+  open,
+  onOpenChange,
+  data,
+  stages,
+  onSalvar,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  data: AutomationNodeData;
+  stages: PipelineStage[];
+  onSalvar: (data: AutomationNodeData) => void;
+}) {
+  const [field, setField] = useState<ConditionField>("hasContact");
+  const [operator, setOperator] = useState<ConditionOperator>("gt");
+  const [valor, setValor] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setField((data.field as ConditionField) ?? "hasContact");
+    setOperator((data.operator as ConditionOperator) ?? "gt");
+    setValor(data.value ?? "");
+  }, [open, data]);
+
+  const precisaValor = field !== "hasContact";
+  const listaStatus =
+    field === "status" ? APPOINTMENT_STATUSES : field === "dealStatus" ? DEAL_STATUSES : null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle>Condição</DialogTitle>
+          <DialogDescription>
+            Se der certo, o fluxo segue pelo "sim"; senão, pelo "não".
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div>
+            <Label>Testar</Label>
+            <Select
+              value={field}
+              onValueChange={(v) => {
+                setField(v as ConditionField);
+                setValor("");
+              }}
+            >
+              <SelectTrigger className="mt-1.5">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="hasContact">Tem paciente vinculado</SelectItem>
+                <SelectItem value="amount">Valor do evento</SelectItem>
+                <SelectItem value="status">Situação do agendamento</SelectItem>
+                <SelectItem value="stageId">Etapa do funil</SelectItem>
+                <SelectItem value="dealStatus">Situação da negociação</SelectItem>
+              </SelectContent>
+            </Select>
+            {field === "amount" && (
+              <p className="mt-1.5 text-2xs text-muted-foreground">
+                Cadastro de paciente e mudança de etapa não carregam valor — nesses casos a
+                condição cai sempre no "não".
+              </p>
+            )}
+          </div>
+
+          {field === "amount" && (
+            <div className="flex gap-2">
+              <Select value={operator} onValueChange={(v) => setOperator(v as ConditionOperator)}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gt">maior que</SelectItem>
+                  <SelectItem value="lt">menor que</SelectItem>
+                  <SelectItem value="eq">igual a</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                value={valor}
+                onChange={(e) => setValor(e.target.value)}
+                inputMode="decimal"
+                placeholder="500"
+                className="flex-1"
+              />
+            </div>
+          )}
+
+          {listaStatus && (
+            <div>
+              <Label>Valor</Label>
+              <Select value={valor} onValueChange={setValor}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Escolha" />
+                </SelectTrigger>
+                <SelectContent>
+                  {listaStatus.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {field === "stageId" && (
+            <div>
+              <Label>Etapa</Label>
+              <Select value={valor} onValueChange={setValor}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Escolha a etapa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stages.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <Button
+            className="flex-1 bg-gradient-primary text-white"
+            disabled={precisaValor && !valor.trim()}
+            onClick={() => {
+              onSalvar({ field, operator, value: precisaValor ? valor.trim() : undefined });
+              onOpenChange(false);
+            }}
+          >
+            Aplicar
+          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Pesos do randomizador. */
+export function EditarRandomizadorDialog({
+  open,
+  onOpenChange,
+  data,
+  onSalvar,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  data: AutomationNodeData;
+  onSalvar: (data: AutomationNodeData) => void;
+}) {
+  const [pesoA, setPesoA] = useState("50");
+
+  useEffect(() => {
+    if (!open) return;
+    setPesoA(String(data.weights?.a ?? 50));
+  }, [open, data]);
+
+  const a = Math.max(0, Math.min(100, Number(pesoA) || 0));
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Randomizador</DialogTitle>
+          <DialogDescription>Divide quem passa por aqui entre dois caminhos.</DialogDescription>
+        </DialogHeader>
+        <div>
+          <Label htmlFor="peso-a">Porcentagem no caminho A</Label>
+          <Input
+            id="peso-a"
+            value={pesoA}
+            onChange={(e) => setPesoA(e.target.value.replace(/\D/g, ""))}
+            inputMode="numeric"
+            className="mt-1.5"
+          />
+          <p className="mt-1.5 text-2xs text-muted-foreground">
+            {a}% seguem pelo A, {100 - a}% pelo B. Se um dos caminhos não estiver ligado, quem
+            cair nele simplesmente para.
+          </p>
+        </div>
+        <div className="flex gap-2 pt-1">
+          <Button
+            className="flex-1 bg-gradient-primary text-white"
+            onClick={() => {
+              onSalvar({ weights: { a, b: 100 - a } });
               onOpenChange(false);
             }}
           >
