@@ -282,8 +282,10 @@ export type Database = {
           active: boolean
           canvas_layout: Json
           created_at: string
+          edges: Json
           id: string
           name: string
+          nodes: Json
           owner_id: string
           schedule_window: Json
           trigger_conditions: Json
@@ -295,8 +297,10 @@ export type Database = {
           active?: boolean
           canvas_layout?: Json
           created_at?: string
+          edges?: Json
           id?: string
           name: string
+          nodes?: Json
           owner_id: string
           schedule_window?: Json
           trigger_conditions?: Json
@@ -308,8 +312,10 @@ export type Database = {
           active?: boolean
           canvas_layout?: Json
           created_at?: string
+          edges?: Json
           id?: string
           name?: string
+          nodes?: Json
           owner_id?: string
           schedule_window?: Json
           trigger_conditions?: Json
