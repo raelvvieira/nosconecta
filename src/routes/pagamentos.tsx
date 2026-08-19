@@ -1,23 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { PageHeading } from "@/components/layout/PageHeading";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { useState } from "react";
 import { z } from "zod";
-import {
-  Plus,
-  Upload,
-  Download,
-  Search,
-  Filter,
-  MoreHorizontal,
-  Check,
-  Pencil,
-  Trash2,
-  ArrowUpRight,
-  ArrowDownRight,
-  CalendarDays,
-  TrendingUp,
-} from "lucide-react";
+import { ArrowDownRight, ArrowUpCircle, ArrowUpRight, CalendarDays, Check, Download, Filter, MoreHorizontal, Pencil, Plus, Search, Trash2, TrendingUp, Upload } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 
@@ -194,14 +181,12 @@ function PagamentosPage() {
 
       <main className="flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 md:space-y-8 pb-nav lg:pb-8">
         {/* Header */}
-        <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 min-h-[80px]">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-semibold leading-[1.1]">Pagamentos</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Gerencie todas as despesas da clínica
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+        <PageHeading
+          icon={ArrowUpCircle}
+          title="Pagamentos"
+          subtitle="Gerencie todas as despesas da clínica"
+          actions={
+            <>
             <Button
               onClick={() => setSheetOpen(true)}
               variant="premium"
@@ -215,8 +200,9 @@ function PagamentosPage() {
             <Button variant="secondary" className="hidden md:inline-flex">
               <Download className="h-4 w-4" /> Exportar
             </Button>
-          </div>
-        </header>
+            </>
+          }
+        />
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5">

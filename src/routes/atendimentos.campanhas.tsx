@@ -230,15 +230,15 @@ function CampanhasPage() {
 
   return (
     <>
-      <main className="mx-auto w-full max-w-[900px] px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
+      <main className="w-full px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
         <header className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <Megaphone className="h-5 w-5 text-pink" />
+          <h1 className="flex items-center gap-2.5 text-2xl font-semibold md:text-3xl">
+            <Megaphone className="h-[1.1em] w-[1.1em] shrink-0 text-pink" strokeWidth={1.75} />
             Campanhas
           </h1>
           <div className="flex items-center gap-2.5">
             <WhatsappStatusBadge />
-            <Button className="gap-2 bg-gradient-primary text-white" onClick={() => setFormOpen(true)}>
+            <Button variant="premium" className="gap-2" onClick={() => setFormOpen(true)}>
               <Plus className="h-4 w-4" />
               Nova campanha
             </Button>

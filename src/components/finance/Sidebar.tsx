@@ -118,7 +118,14 @@ const STORAGE_KEY = "sidebar-collapsed";
 export function Sidebar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(true);
+  // Dois estados, uma largura.
+  //
+  // `fixado` é a escolha por clique, que persiste; `espiando` é a abertura por
+  // hover, que retrai sozinha. São separados de propósito — só o que muda é a
+  // persistência —, e a largura sai de qualquer um dos dois estar ativo.
+  const [fixado, setFixado] = useState(false);
+  const [espiando, setEspiando] = useState(false);
+  const aberto = fixado || espiando;
   // O foco volta para o botão que abriu, e não some no começo da página.
   const recolherRef = useRef<HTMLButtonElement>(null);
   const [mounted, setMounted] = useState(false);
@@ -127,6 +134,8 @@ export function Sidebar() {
   const fab = fabCtx?.fab ?? null;
   const navActions = fabCtx?.navActions ?? [];
   const { isAdmin, units } = useUnitSelection();
+
+  const collapsed = !aberto;
 
   const inFinance = useMemo(
     () =>
@@ -155,13 +164,15 @@ export function Sidebar() {
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored !== null) setCollapsed(stored === "true");
+    if (stored !== null) setFixado(stored === "false");
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (mounted) localStorage.setItem(STORAGE_KEY, String(collapsed));
-  }, [collapsed, mounted]);
+    // Guarda o estado FIXADO, não o visível: senão passar o mouse por cima
+    // faria o app "lembrar" de um menu aberto que ninguém pediu para abrir.
+    if (mounted) localStorage.setItem(STORAGE_KEY, String(!fixado));
+  }, [fixado, mounted]);
 
   // Logged-in user info
   const [userName, setUserName] = useState<string>("Conta");
@@ -249,12 +260,30 @@ export function Sidebar() {
         aria-label="Navegação principal"
         onKeyDown={(e) => {
           // Escape recolhe quando o foco está dentro da navegação — o mesmo
-          // gesto de fechar de qualquer painel. Sem isto, quem entrou por
-          // teclado só sai clicando.
-          if (e.key === "Escape" && !collapsed) {
-            setCollapsed(true);
+          // gesto de fechar de qualquer painel. Limpa OS DOIS estados: zerar
+          // só o fixado faria o Escape parecer inerte, com o menu seguindo
+          // aberto pelo hover.
+          if (e.key === "Escape" && aberto) {
+            setFixado(false);
+            setEspiando(false);
             recolherRef.current?.focus();
           }
+        }}
+        onPointerEnter={(e) => {
+          // Exclui o toque, em vez de exigir mouse: `pointerType === "mouse"`
+          // falha fechado em qualquer ambiente que não reporte o tipo, e caneta
+          // também paira de verdade. No toque, `pointerenter` chega junto com o
+          // toque no destino — sem esta guarda o menu pisca aberto a cada toque.
+          if (e.pointerType !== "touch") setEspiando(true);
+        }}
+        // Sem guarda nenhuma na saída: um `enter` sem o `leave` correspondente
+        // deixaria a ilha aberta para sempre.
+        onPointerLeave={() => setEspiando(false)}
+        // Foco entrando na ilha revela os rótulos do mesmo jeito que o hover —
+        // rótulo que só o mouse alcança é rótulo que parte das pessoas nunca lê.
+        onFocus={() => setEspiando(true)}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setEspiando(false);
         }}
         className={cn(
           "nav-island hidden lg:flex flex-col gap-6 py-5 glass-island",
@@ -279,19 +308,22 @@ export function Sidebar() {
               <span className="font-semibold text-foreground text-sm">NÓS Conecta</span>
             )}
           </div>
+          {/* Rótulo e ícone seguem o FIXADO, não o estado visível: seguindo o
+              visível, mudariam sozinhos enquanto o mouse passa por cima, e o
+              botão diria "recolher" sem que ninguém tenha aberto nada. */}
           <button
             ref={recolherRef}
             type="button"
-            onClick={() => setCollapsed((c) => !c)}
-            aria-expanded={!collapsed}
+            onClick={() => setFixado((v) => !v)}
+            aria-expanded={aberto}
             aria-controls="menu-principal"
             className="h-9 w-9 grid place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-            aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+            aria-label={fixado ? "Recolher menu" : "Manter menu aberto"}
           >
-            {collapsed ? (
-              <PanelLeftOpen className="h-[16px] w-[16px]" strokeWidth={1.75} />
-            ) : (
+            {fixado ? (
               <PanelLeftClose className="h-[16px] w-[16px]" strokeWidth={1.75} />
+            ) : (
+              <PanelLeftOpen className="h-[16px] w-[16px]" strokeWidth={1.75} />
             )}
           </button>
         </div>

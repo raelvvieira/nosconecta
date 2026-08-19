@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, CheckCheck, ChevronDown, Search, StickyNote, X } from "lucide-react";
+import { ArrowLeft, Check, CheckCheck, ChevronDown, MessageCircle, Search, StickyNote, X } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -327,7 +327,10 @@ function ChatPage() {
         )}
       >
         <header className="px-4 pb-3 pt-6 sm:px-6 lg:px-5 lg:pt-7">
-          <h1 className="text-2xl font-semibold">Conversas</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
+            <MessageCircle className="h-[1.1em] w-[1.1em] shrink-0 text-pink" strokeWidth={1.75} />
+            Conversas
+          </h1>
           <div className="mt-0.5">
             <WhatsappStatusBadge variant="minimal" />
           </div>

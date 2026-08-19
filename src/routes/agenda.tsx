@@ -1,10 +1,11 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { PageHeading } from "@/components/layout/PageHeading";
 import { useQuery, useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Plus, Lock, MoreHorizontal } from "lucide-react";
+import { CalendarDays, Plus, Lock, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/finance/Sidebar";
 import { AgendaStatsCards } from "@/components/agenda/AgendaStatsCards";
@@ -368,24 +369,19 @@ function AgendaPage() {
       {/* Desktop */}
       <main className="hidden lg:block flex-1 min-w-0 px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-nav lg:pb-8">
         {/* Header */}
-        <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-semibold text-foreground leading-[1.1]">
-              Agenda
-            </h1>
-            <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
-              Gerencie os agendamentos da sua clínica
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
+        <PageHeading
+          icon={CalendarDays}
+          title="Agenda"
+          subtitle="Gerencie os agendamentos da sua clínica"
+          actions={
+            <>
             <Button
               onClick={() => {
                 setSelectedAppt(null);
                 setApptDrawerOpen(true);
               }}
-              className="gap-2 text-white font-semibold rounded-xl"
-              style={{ background: "var(--gradient-primary)" }}
+              variant="premium"
+              className="gap-2 font-semibold"
             >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Novo Agendamento</span>
@@ -394,19 +390,20 @@ function AgendaPage() {
             <Button
               variant="outline"
               onClick={() => setBlockDrawerOpen(true)}
-              className="gap-2 rounded-xl border-surface-muted text-foreground-secondary hover:bg-surface"
+              className="gap-2"
             >
               <Lock className="h-4 w-4" />
               <span className="hidden sm:inline">Bloqueio de Horário</span>
             </Button>
             <Button
               variant="outline"
-              className="gap-2 rounded-xl border-surface-muted text-foreground-secondary hover:bg-surface"
+              className="gap-2"
             >
               <MoreHorizontal className="h-4 w-4" />
             </Button>
-          </div>
-        </header>
+            </>
+          }
+        />
 
         {/* Stats */}
         <AgendaStatsCards appointments={appointments} date={todayStr} />

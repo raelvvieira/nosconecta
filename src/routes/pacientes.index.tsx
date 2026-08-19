@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PageHeading } from "@/components/layout/PageHeading";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -115,23 +116,18 @@ function PatientsPage() {
   return (
     <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
-      <main className="mx-auto w-full max-w-[1240px] px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
-        <header className="pr-16 lg:flex lg:items-end lg:justify-between lg:gap-6 lg:pr-0">
-          <div>
-            <h1 className="text-3xl font-semibold text-foreground lg:text-4xl leading-[1.1]">
-              Pacientes
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Encontre e acompanhe seus pacientes
-            </p>
-          </div>
-          <Button
-            className="mt-5 hidden gap-2 bg-gradient-primary text-white lg:flex"
-            onClick={() => setFormOpen(true)}
-          >
-            <UserPlus className="h-4 w-4" /> Novo paciente
-          </Button>
-        </header>
+      <main className="w-full px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
+        <PageHeading
+          className="pr-16 lg:pr-0"
+          icon={Users}
+          title="Pacientes"
+          subtitle="Encontre e acompanhe seus pacientes"
+          actions={
+            <Button variant="premium" className="hidden gap-2 lg:flex" onClick={() => setFormOpen(true)}>
+              <UserPlus className="h-4 w-4" /> Novo paciente
+            </Button>
+          }
+        />
 
         <div className="mt-7 grid gap-3 lg:grid-cols-[1fr_auto]">
           <div className="relative">

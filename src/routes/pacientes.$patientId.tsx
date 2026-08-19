@@ -2,24 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  CalendarDays,
-  Check,
-  ChevronRight,
-  CircleDollarSign,
-  ClipboardList,
-  Clock3,
-  MapPin,
-  MessageCircle,
-  MoreHorizontal,
-  ReceiptText,
-  Sparkles,
-  Stethoscope,
-  UserRound,
-  WalletCards,
-} from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, Check, ChevronRight, CircleDollarSign, ClipboardList, Clock3, MapPin, MessageCircle, MoreHorizontal, ReceiptText, Sparkles, Stethoscope, UserRound, WalletCards } from "lucide-react";
 import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
@@ -101,7 +84,7 @@ function PatientDetailPage() {
   return (
     <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
-      <main className="mx-auto w-full max-w-[1240px] px-4 pb-nav pt-5 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8">
+      <main className="w-full px-4 pb-nav pt-5 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8">
         <header className="flex items-center justify-between gap-3">
           <Link
             to="/pacientes"
@@ -111,7 +94,10 @@ function PatientDetailPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-xl font-semibold lg:text-2xl leading-[1.1]">Paciente</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl font-semibold md:text-3xl">
+            <UserRound className="h-[1.1em] w-[1.1em] shrink-0 text-pink" strokeWidth={1.75} />
+            Paciente
+          </h1>
           <button
             type="button"
             aria-label="Editar paciente"

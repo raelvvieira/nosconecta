@@ -236,8 +236,8 @@ function PipelinePage() {
     <>
       <main className="flex flex-1 flex-col pb-nav lg:h-full lg:overflow-hidden lg:pb-0">
         <header className="flex w-full flex-wrap items-center justify-between gap-3 px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7">
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <Workflow className="h-5 w-5 text-pink" />
+          <h1 className="flex items-center gap-2.5 text-2xl font-semibold md:text-3xl">
+            <Workflow className="h-[1.1em] w-[1.1em] shrink-0 text-pink" strokeWidth={1.75} />
             Pipeline
           </h1>
           <div className="flex items-center gap-2.5">

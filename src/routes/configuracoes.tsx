@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { PageHeading } from "@/components/layout/PageHeading";
 import { Settings2 } from "lucide-react";
 import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -36,19 +37,14 @@ function SettingsLayout() {
   return (
     <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
-      <main className="mx-auto w-full max-w-[1240px] px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
-        <header className="pr-16 lg:pr-0">
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-pink">
-            <Settings2 className="h-4 w-4" />
-            Base operacional
-          </div>
-          <h1 className="text-3xl font-semibold lg:text-4xl leading-[1.1]">
-            Configurações
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Cadastros e conexões que mantêm agenda, atendimento e financeiro funcionando juntos.
-          </p>
-        </header>
+      <main className="w-full px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
+        <PageHeading
+          className="pr-16 lg:pr-0"
+          icon={Settings2}
+          kicker="Base operacional"
+          title="Configurações"
+          subtitle="Cadastros e conexões que mantêm agenda, atendimento e financeiro funcionando juntos."
+        />
 
         <div className="mt-7 grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
           <SettingsNav />

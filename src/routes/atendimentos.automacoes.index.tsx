@@ -107,18 +107,18 @@ function AutomacoesPage() {
 
   return (
     <>
-      <main className="mx-auto w-full max-w-[900px] px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
+      <main className="w-full px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
         <header className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="flex items-center gap-2 text-2xl font-semibold">
-              <Bot className="h-5 w-5 text-pink" />
+            <h1 className="flex items-center gap-2.5 text-2xl font-semibold md:text-3xl">
+              <Bot className="h-[1.1em] w-[1.1em] shrink-0 text-pink" strokeWidth={1.75} />
               Automação
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Quando algo acontece na clínica, o sistema age sozinho.
             </p>
           </div>
-          <Button asChild className="gap-2 bg-gradient-primary text-white">
+          <Button asChild variant="premium" className="gap-2">
             <Link to="/atendimentos/automacoes/$automationId" params={{ automationId: "nova" }}>
               <Plus className="h-4 w-4" />
               Nova automação

@@ -1,18 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { PageHeading } from "@/components/layout/PageHeading";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
 import { toast } from "sonner";
-import {
-  Plus,
-  Upload,
-  Share2,
-  Wallet,
-  CalendarDays,
-  CalendarRange,
-  Shield,
-  Info,
-} from "lucide-react";
+import { CalendarDays, CalendarRange, Info, Plus, Share2, Shield, TrendingUp, Upload, Wallet } from "lucide-react";
 
 import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -112,17 +104,12 @@ function PlanningPage() {
 
         <main className="flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-8 pb-nav lg:pb-8">
           {/* Header */}
-          <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-semibold leading-[1.1]">
-                Planejamento Financeiro
-              </h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                Projeções, cenários e previsões para sua clínica
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
+        <PageHeading
+          icon={TrendingUp}
+          title="Planejamento Financeiro"
+          subtitle="Projeções, cenários e previsões para sua clínica"
+          actions={
+            <>
               <Button className="gap-2 hidden lg:inline-flex" onClick={handleNewScenario}>
                 <Plus className="h-4 w-4" /> Novo Cenário
               </Button>
@@ -132,8 +119,9 @@ function PlanningPage() {
               <Button variant="outline" className="gap-2">
                 <Share2 className="h-4 w-4" /> Compartilhar
               </Button>
-            </div>
-          </header>
+            </>
+          }
+        />
 
           {/* KPIs */}
           <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5">

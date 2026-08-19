@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { PageHeading } from "@/components/layout/PageHeading";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, LayoutDashboard, Megaphone, MessageCircle, Workflow } from "lucide-react";
@@ -84,13 +85,12 @@ function DashboardPage() {
 
   return (
     <main className="flex flex-1 flex-col pb-nav lg:pb-8">
-      <header className="flex w-full items-center justify-between gap-3 px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold">
-          <LayoutDashboard className="h-5 w-5 text-pink" />
-          Dashboard
-        </h1>
-        <WhatsappStatusBadge />
-      </header>
+      <PageHeading
+        className="px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7"
+        icon={LayoutDashboard}
+        title="Dashboard"
+        actions={<WhatsappStatusBadge />}
+      />
 
       <div className="space-y-5 px-4 sm:px-6 lg:px-10">
         <section className="grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-4">

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { PageHeading } from "@/components/layout/PageHeading";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -229,14 +230,12 @@ function RecebimentosPage() {
       <Sidebar />
 
       <main className="flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-nav lg:pb-8">
-        <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-semibold leading-[1.1]">Recebimentos</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Acompanhe todas as entradas financeiras da clínica
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+        <PageHeading
+          icon={ArrowDownCircle}
+          title="Recebimentos"
+          subtitle="Acompanhe todas as entradas financeiras da clínica"
+          actions={
+            <>
             <Button
               onClick={() => setSheetOpen(true)}
               variant="premium"
@@ -261,8 +260,9 @@ function RecebimentosPage() {
             >
               <Download className="h-4 w-4" /> Exportar
             </Button>
-          </div>
-        </header>
+            </>
+          }
+        />
 
         <div className="grid grid-cols-1 2xl:grid-cols-[1fr_340px] gap-5">
           <div className="space-y-5 min-w-0">
