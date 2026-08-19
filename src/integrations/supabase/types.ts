@@ -220,6 +220,62 @@ export type Database = {
           },
         ]
       }
+      automation_pending_actions: {
+        Row: {
+          context: Json
+          created_at: string
+          depth: number
+          error: string | null
+          id: string
+          owner_id: string
+          ran_at: string | null
+          remaining_actions: Json
+          rule_id: string | null
+          rule_name: string | null
+          run_after: string
+          status: string
+          trigger_event: string
+        }
+        Insert: {
+          context?: Json
+          created_at?: string
+          depth?: number
+          error?: string | null
+          id?: string
+          owner_id: string
+          ran_at?: string | null
+          remaining_actions?: Json
+          rule_id?: string | null
+          rule_name?: string | null
+          run_after: string
+          status?: string
+          trigger_event: string
+        }
+        Update: {
+          context?: Json
+          created_at?: string
+          depth?: number
+          error?: string | null
+          id?: string
+          owner_id?: string
+          ran_at?: string | null
+          remaining_actions?: Json
+          rule_id?: string | null
+          rule_name?: string | null
+          run_after?: string
+          status?: string
+          trigger_event?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_pending_actions_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "automation_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_rules: {
         Row: {
           actions: Json
@@ -229,6 +285,7 @@ export type Database = {
           id: string
           name: string
           owner_id: string
+          schedule_window: Json
           trigger_conditions: Json
           trigger_event: string
           updated_at: string
@@ -241,6 +298,7 @@ export type Database = {
           id?: string
           name: string
           owner_id: string
+          schedule_window?: Json
           trigger_conditions?: Json
           trigger_event: string
           updated_at?: string
@@ -253,6 +311,7 @@ export type Database = {
           id?: string
           name?: string
           owner_id?: string
+          schedule_window?: Json
           trigger_conditions?: Json
           trigger_event?: string
           updated_at?: string
@@ -1436,6 +1495,7 @@ export type Database = {
       push_preferences: {
         Row: {
           appointment_reply: boolean
+          automation: boolean
           created_at: string
           daily_agenda: boolean
           deal_result: boolean
@@ -1445,6 +1505,7 @@ export type Database = {
         }
         Insert: {
           appointment_reply?: boolean
+          automation?: boolean
           created_at?: string
           daily_agenda?: boolean
           deal_result?: boolean
@@ -1454,6 +1515,7 @@ export type Database = {
         }
         Update: {
           appointment_reply?: boolean
+          automation?: boolean
           created_at?: string
           daily_agenda?: boolean
           deal_result?: boolean
