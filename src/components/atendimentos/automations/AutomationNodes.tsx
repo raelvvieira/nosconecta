@@ -3,13 +3,18 @@ import { Bot, GitBranch, Plus, Sliders, Trash2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SystemEvent } from "@/lib/integrations/meta-capi.functions";
-import type { AutomationAction } from "@/lib/atendimentos/automations.functions";
+import type {
+  AutomationAction,
+  AutomationScheduleWindow,
+} from "@/lib/atendimentos/automations.functions";
 import type { PipelineStage } from "@/lib/atendimentos/pipeline.functions";
 import {
   ACTION_LABEL,
   APPOINTMENT_STATUSES,
   DEAL_STATUSES,
+  DIAS_SEMANA,
   TRIGGER_LABEL_SHORT,
+  duracaoTexto,
 } from "./automationLabels";
 
 /** Casca comum dos três nós — mesmo vocabulário visual dos cards do resto do
@@ -88,7 +93,9 @@ export interface ConfiguracoesNodeData {
   triggerEvent: SystemEvent | null;
   conditions: { stageId?: string; status?: string; dealStatus?: string };
   stages: PipelineStage[];
+  scheduleWindow: AutomationScheduleWindow;
   onEditar: () => void;
+  onEditarJanela: () => void;
   [key: string]: unknown;
 }
 
@@ -107,6 +114,22 @@ function condicaoTexto(data: ConfiguracoesNodeData): string | null {
     return status ? `Só quando "${status.label}"` : null;
   }
   return null;
+}
+
+/** "Seg–Sex, 08:00–18:00" — resumo da janela pro card. Dias contíguos viram
+ *  faixa; o resto é listado. */
+function janelaTexto(w: AutomationScheduleWindow): string | null {
+  if (!w?.enabled || !w.days?.length) return null;
+  const dias = [...w.days].sort((a, b) => a - b);
+  const curto = (v: number) => DIAS_SEMANA.find((d) => d.valor === v)?.curto ?? "";
+  const contiguo = dias.every((v, i) => i === 0 || v === dias[i - 1] + 1);
+  const rotulo =
+    dias.length === 7
+      ? "Todo dia"
+      : contiguo && dias.length > 2
+        ? `${curto(dias[0])}–${curto(dias[dias.length - 1])}`
+        : dias.map(curto).join(", ");
+  return `${rotulo}, ${w.start ?? "00:00"}–${w.end ?? "23:59"}`;
 }
 
 const TEM_CONDICAO: SystemEvent[] = [
@@ -141,8 +164,20 @@ export function ConfiguracoesNode({ data }: { data: ConfiguracoesNodeData }) {
           onClick={data.onEditar}
           className="w-full rounded-xl border border-border bg-surface-subtle px-3 py-2.5 text-left transition-colors hover:border-coral"
         >
-          <p className="text-sm font-medium">{texto ?? "Sem filtro — dispara sempre"}</p>
-          <p className="mt-0.5 text-2xs text-muted-foreground">Toque para ajustar</p>
+          <p className="text-2xs uppercase tracking-[0.1em] text-muted-foreground">Filtro</p>
+          <p className="mt-0.5 text-sm font-medium">{texto ?? "Sem filtro — dispara sempre"}</p>
+        </button>
+      )}
+      {data.triggerEvent && (
+        <button
+          type="button"
+          onClick={data.onEditarJanela}
+          className="w-full rounded-xl border border-border bg-surface-subtle px-3 py-2.5 text-left transition-colors hover:border-coral"
+        >
+          <p className="text-2xs uppercase tracking-[0.1em] text-muted-foreground">Janela</p>
+          <p className="mt-0.5 text-sm font-medium">
+            {janelaTexto(data.scheduleWindow) ?? "A qualquer hora"}
+          </p>
         </button>
       )}
     </NodeShell>
@@ -158,9 +193,22 @@ export interface AcoesNodeData {
 }
 
 function acaoResumo(action: AutomationAction, stages: PipelineStage[]): string {
-  if (action.type === "send_whatsapp") return action.message?.trim() || "(sem texto)";
-  const stage = stages.find((s) => s.id === action.stageId);
-  return stage ? stage.name : "(etapa não encontrada)";
+  switch (action.type) {
+    case "send_whatsapp":
+      return action.message?.trim() || "(sem texto)";
+    case "move_pipeline_stage": {
+      const stage = stages.find((s) => s.id === action.stageId);
+      return stage ? stage.name : "(etapa não encontrada)";
+    }
+    case "add_deal_note":
+      return action.noteBody?.trim() || "(sem texto)";
+    case "send_push":
+      return action.pushTitle?.trim() || "(sem título)";
+    case "webhook":
+      return action.webhookUrl?.trim() || "(sem URL)";
+    case "wait":
+      return duracaoTexto(Number(action.waitMinutes ?? 0));
+  }
 }
 
 export function AcoesNode({ data }: { data: AcoesNodeData }) {

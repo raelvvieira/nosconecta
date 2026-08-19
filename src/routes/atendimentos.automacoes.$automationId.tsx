@@ -29,12 +29,14 @@ import {
   AdicionarAcaoDialog,
   EditarCondicaoDialog,
   EscolherGatilhoDialog,
+  EditarJanelaDialog,
 } from "@/components/atendimentos/automations/AutomationDialogs";
 import {
   getAutomation,
   saveAutomation,
   type AutomationAction,
   type AutomationCanvasLayout,
+  type AutomationScheduleWindow,
 } from "@/lib/atendimentos/automations.functions";
 import type { SystemEvent } from "@/lib/integrations/meta-capi.functions";
 import { getPipelineStages } from "@/lib/atendimentos/pipeline.functions";
@@ -121,7 +123,9 @@ function Editor() {
   const [layout, setLayout] = useState<Required<AutomationCanvasLayout>>(POSICOES_PADRAO);
 
   const [gatilhoDialog, setGatilhoDialog] = useState(false);
+  const [scheduleWindow, setScheduleWindow] = useState<AutomationScheduleWindow>({});
   const [condicaoDialog, setCondicaoDialog] = useState(false);
+  const [janelaDialog, setJanelaDialog] = useState(false);
   const [acaoDialog, setAcaoDialog] = useState(false);
 
   const stagesQuery = useQuery({
@@ -146,6 +150,7 @@ function Editor() {
     setAtiva(regra.active);
     setTriggerEvent(regra.triggerEvent);
     setConditions(regra.triggerConditions ?? {});
+    setScheduleWindow(regra.scheduleWindow ?? {});
     setActions(regra.actions ?? []);
     setLayout({
       acionamento: regra.canvasLayout?.acionamento ?? POSICOES_PADRAO.acionamento,
@@ -183,7 +188,14 @@ function Editor() {
         id: "configuracoes",
         type: "configuracoes",
         position: layout.configuracoes,
-        data: { triggerEvent, conditions, stages, onEditar: () => setCondicaoDialog(true) },
+        data: {
+          triggerEvent,
+          conditions,
+          stages,
+          scheduleWindow,
+          onEditar: () => setCondicaoDialog(true),
+          onEditarJanela: () => setJanelaDialog(true),
+        },
       },
       {
         id: "acoes",
@@ -200,7 +212,7 @@ function Editor() {
     // `layout` de propósito fora: reposicionar durante o arraste recriaria o
     // nó no meio do gesto. A posição só volta pro estado ao salvar (onNodeDragStop).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [triggerEvent, conditions, actions, stages, removerAcao],
+    [triggerEvent, conditions, scheduleWindow, actions, stages, removerAcao],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>(nodesIniciais);
@@ -232,6 +244,7 @@ function Editor() {
           active: ativa,
           triggerEvent,
           triggerConditions: conditions,
+          scheduleWindow,
           actions,
           canvasLayout: posicoes,
         },
@@ -309,6 +322,12 @@ function Editor() {
         conditions={conditions}
         stages={stages}
         onSalvar={setConditions}
+      />
+      <EditarJanelaDialog
+        open={janelaDialog}
+        onOpenChange={setJanelaDialog}
+        janela={scheduleWindow}
+        onSalvar={setScheduleWindow}
       />
       <AdicionarAcaoDialog
         open={acaoDialog}

@@ -1,5 +1,18 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, CalendarPlus, GitBranch, MessageSquare, UserPlus, Wallet, XCircle, Zap } from "lucide-react";
+import {
+  AlertTriangle,
+  Bell,
+  CalendarPlus,
+  GitBranch,
+  MessageSquare,
+  StickyNote,
+  Timer,
+  UserPlus,
+  Wallet,
+  Webhook,
+  XCircle,
+  Zap,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,11 +31,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SYSTEM_EVENTS, type SystemEvent } from "@/lib/integrations/meta-capi.functions";
-import type { AutomationAction } from "@/lib/atendimentos/automations.functions";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import type {
+  AutomationAction,
+  AutomationScheduleWindow,
+} from "@/lib/atendimentos/automations.functions";
 import type { PipelineStage } from "@/lib/atendimentos/pipeline.functions";
 import {
   APPOINTMENT_STATUSES,
   DEAL_STATUSES,
+  DIAS_SEMANA,
   TRIGGER_LABEL,
   TRIGGERS_SEM_CONTATO_GARANTIDO,
 } from "./automationLabels";
@@ -200,15 +219,35 @@ export function AdicionarAcaoDialog({
   stages: PipelineStage[];
   onAdicionar: (action: AutomationAction) => void;
 }) {
-  const [tipo, setTipo] = useState<"escolher" | "send_whatsapp" | "move_pipeline_stage">("escolher");
+  const [tipo, setTipo] = useState<
+    | "escolher"
+    | "send_whatsapp"
+    | "move_pipeline_stage"
+    | "add_deal_note"
+    | "send_push"
+    | "webhook"
+    | "wait"
+  >("escolher");
   const [mensagem, setMensagem] = useState("");
   const [stageId, setStageId] = useState("");
+  const [nota, setNota] = useState("");
+  const [pushTitulo, setPushTitulo] = useState("");
+  const [pushTexto, setPushTexto] = useState("");
+  const [url, setUrl] = useState("");
+  const [esperaValor, setEsperaValor] = useState("1");
+  const [esperaUnidade, setEsperaUnidade] = useState<"minutos" | "horas" | "dias">("dias");
 
   useEffect(() => {
     if (!open) return;
     setTipo("escolher");
     setMensagem("");
     setStageId("");
+    setNota("");
+    setPushTitulo("");
+    setPushTexto("");
+    setUrl("");
+    setEsperaValor("1");
+    setEsperaUnidade("dias");
   }, [open]);
 
   // Guardrail de loop: mover etapa não pode ser ação de quem já dispara ao
@@ -263,6 +302,74 @@ export function AdicionarAcaoDialog({
                   {podeMoverEtapa
                     ? "Move o card do funil para outra etapa."
                     : "Indisponível: a automação já dispara ao mudar de etapa — mover de novo criaria um loop."}
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTipo("add_deal_note")}
+              className="flex w-full items-start gap-3 rounded-2xl border border-transparent px-3 py-2.5 text-left transition-colors hover:border-border hover:bg-surface-subtle"
+            >
+              <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-violet-soft text-violet">
+                <StickyNote className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Registrar observação</span>
+                <span className="mt-0.5 block text-2xs text-muted-foreground">
+                  Escreve uma anotação no histórico do card.
+                </span>
+              </span>
+            </button>
+
+            <p className="px-1 pb-1 pt-3 text-2xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Equipe
+            </p>
+            <button
+              type="button"
+              onClick={() => setTipo("send_push")}
+              className="flex w-full items-start gap-3 rounded-2xl border border-transparent px-3 py-2.5 text-left transition-colors hover:border-border hover:bg-surface-subtle"
+            >
+              <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-warning-soft text-warning">
+                <Bell className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Notificar a equipe</span>
+                <span className="mt-0.5 block text-2xs text-muted-foreground">
+                  Manda uma notificação para os aparelhos da clínica.
+                </span>
+              </span>
+            </button>
+
+            <p className="px-1 pb-1 pt-3 text-2xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Avançado
+            </p>
+            <button
+              type="button"
+              onClick={() => setTipo("wait")}
+              className="flex w-full items-start gap-3 rounded-2xl border border-transparent px-3 py-2.5 text-left transition-colors hover:border-border hover:bg-surface-subtle"
+            >
+              <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
+                <Timer className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Aguardar tempo</span>
+                <span className="mt-0.5 block text-2xs text-muted-foreground">
+                  Espera antes de seguir para as próximas ações.
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTipo("webhook")}
+              className="flex w-full items-start gap-3 rounded-2xl border border-transparent px-3 py-2.5 text-left transition-colors hover:border-border hover:bg-surface-subtle"
+            >
+              <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
+                <Webhook className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Disparar webhook</span>
+                <span className="mt-0.5 block text-2xs text-muted-foreground">
+                  Chama uma URL externa com os dados do evento.
                 </span>
               </span>
             </button>
@@ -350,6 +457,342 @@ export function AdicionarAcaoDialog({
             </div>
           </div>
         )}
+
+        {tipo === "add_deal_note" && (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="acao-nota">Observação *</Label>
+              <Textarea
+                id="acao-nota"
+                value={nota}
+                onChange={(e) => setNota(e.target.value)}
+                rows={3}
+                autoFocus
+                placeholder="Paciente {{nome}} entrou em contato pelo site."
+                className="mt-1.5"
+              />
+              <p className="mt-1.5 text-2xs text-muted-foreground">
+                Aparece no histórico do card, junto das anotações escritas à mão.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1 bg-gradient-primary text-white"
+                disabled={!nota.trim()}
+                onClick={() => {
+                  onAdicionar({ type: "add_deal_note", noteBody: nota.trim() });
+                  onOpenChange(false);
+                }}
+              >
+                Adicionar
+              </Button>
+              <Button variant="outline" onClick={() => setTipo("escolher")}>
+                Voltar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {tipo === "send_push" && (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="acao-push-titulo">Título *</Label>
+              <Input
+                id="acao-push-titulo"
+                value={pushTitulo}
+                onChange={(e) => setPushTitulo(e.target.value)}
+                autoFocus
+                placeholder="Novo paciente cadastrado"
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label htmlFor="acao-push-texto">Texto *</Label>
+              <Textarea
+                id="acao-push-texto"
+                value={pushTexto}
+                onChange={(e) => setPushTexto(e.target.value)}
+                rows={2}
+                placeholder="{{nome}} acabou de entrar na base."
+                className="mt-1.5"
+              />
+            </div>
+            <p className="flex items-start gap-2 rounded-xl bg-info-soft px-3 py-2 text-2xs leading-4 text-info">
+              <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+              A notificação vai para todos os aparelhos da clínica — não dá para endereçar uma
+              pessoa só. Quem não quiser receber desliga em Configurações › Notificações.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1 bg-gradient-primary text-white"
+                disabled={!pushTitulo.trim() || !pushTexto.trim()}
+                onClick={() => {
+                  onAdicionar({
+                    type: "send_push",
+                    pushTitle: pushTitulo.trim(),
+                    pushBody: pushTexto.trim(),
+                  });
+                  onOpenChange(false);
+                }}
+              >
+                Adicionar
+              </Button>
+              <Button variant="outline" onClick={() => setTipo("escolher")}>
+                Voltar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {tipo === "webhook" && (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="acao-url">URL *</Label>
+              <Input
+                id="acao-url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                autoFocus
+                inputMode="url"
+                placeholder="https://hook.make.com/..."
+                className="mt-1.5"
+              />
+              <p className="mt-1.5 text-2xs text-muted-foreground">
+                Recebe um POST com o evento, a automação e os dados do contato. Precisa ser
+                https:// e um endereço público.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1 bg-gradient-primary text-white"
+                disabled={!/^https:\/\//i.test(url.trim())}
+                onClick={() => {
+                  onAdicionar({ type: "webhook", webhookUrl: url.trim() });
+                  onOpenChange(false);
+                }}
+              >
+                Adicionar
+              </Button>
+              <Button variant="outline" onClick={() => setTipo("escolher")}>
+                Voltar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {tipo === "wait" && (
+          <div className="space-y-4">
+            <div>
+              <Label>Esperar *</Label>
+              <div className="mt-1.5 flex gap-2">
+                <Input
+                  value={esperaValor}
+                  onChange={(e) => setEsperaValor(e.target.value.replace(/\D/g, ""))}
+                  inputMode="numeric"
+                  autoFocus
+                  className="w-24"
+                />
+                <Select
+                  value={esperaUnidade}
+                  onValueChange={(v) => setEsperaUnidade(v as typeof esperaUnidade)}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="minutos">minutos</SelectItem>
+                    <SelectItem value="horas">horas</SelectItem>
+                    <SelectItem value="dias">dias</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="mt-1.5 text-2xs text-muted-foreground">
+                De 1 minuto a 30 dias. As ações seguintes só rodam depois da espera — então
+                adicione ao menos uma ação abaixo desta.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1 bg-gradient-primary text-white"
+                disabled={!(Number(esperaValor) >= 1)}
+                onClick={() => {
+                  const fator =
+                    esperaUnidade === "dias" ? 60 * 24 : esperaUnidade === "horas" ? 60 : 1;
+                  const minutos = Math.min(Number(esperaValor) * fator, 60 * 24 * 30);
+                  onAdicionar({ type: "wait", waitMinutes: minutos });
+                  onOpenChange(false);
+                }}
+              >
+                Adicionar
+              </Button>
+              <Button variant="outline" onClick={() => setTipo("escolher")}>
+                Voltar
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Janela em que a automação pode agir. Fora dela, ou adia para a próxima
+ *  abertura (padrão — "não mande de madrugada" ≠ "não mande") ou não roda. */
+export function EditarJanelaDialog({
+  open,
+  onOpenChange,
+  janela,
+  onSalvar,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  janela: AutomationScheduleWindow;
+  onSalvar: (janela: AutomationScheduleWindow) => void;
+}) {
+  const [ativa, setAtiva] = useState(false);
+  const [dias, setDias] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [inicio, setInicio] = useState("08:00");
+  const [fim, setFim] = useState("18:00");
+  const [foraDaJanela, setForaDaJanela] = useState<"defer" | "skip">("defer");
+
+  useEffect(() => {
+    if (!open) return;
+    setAtiva(Boolean(janela?.enabled));
+    setDias(janela?.days?.length ? janela.days : [1, 2, 3, 4, 5]);
+    setInicio(janela?.start ?? "08:00");
+    setFim(janela?.end ?? "18:00");
+    setForaDaJanela(janela?.outside === "skip" ? "skip" : "defer");
+  }, [open, janela]);
+
+  const minutos = (v: string) => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(v);
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const ini = minutos(inicio);
+  const f = minutos(fim);
+  const horarioValido = ini !== null && f !== null && ini < f;
+  const podeSalvar = !ativa || (dias.length > 0 && horarioValido);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[460px]">
+        <DialogHeader>
+          <DialogTitle>Janela de horário</DialogTitle>
+          <DialogDescription>
+            Quando a automação pode agir, no horário de Brasília.
+          </DialogDescription>
+        </DialogHeader>
+
+        <label className="flex items-center justify-between gap-3 rounded-2xl border border-border px-4 py-3">
+          <span>
+            <span className="block text-sm font-medium">Limitar a dias e horários</span>
+            <span className="block text-2xs text-muted-foreground">
+              Desligado, a automação age a qualquer hora.
+            </span>
+          </span>
+          <Switch checked={ativa} onCheckedChange={setAtiva} />
+        </label>
+
+        {ativa && (
+          <div className="space-y-4">
+            <div>
+              <Label>Dias *</Label>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {DIAS_SEMANA.map((d) => {
+                  const marcado = dias.includes(d.valor);
+                  return (
+                    <button
+                      key={d.valor}
+                      type="button"
+                      onClick={() =>
+                        setDias((atual) =>
+                          marcado ? atual.filter((v) => v !== d.valor) : [...atual, d.valor],
+                        )
+                      }
+                      className={
+                        marcado
+                          ? "rounded-xl bg-gradient-primary px-3 py-1.5 text-xs font-semibold text-white"
+                          : "rounded-xl border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-coral"
+                      }
+                    >
+                      {d.curto}
+                    </button>
+                  );
+                })}
+              </div>
+              {!dias.length && (
+                <p className="mt-1.5 text-2xs text-danger">Escolha ao menos um dia.</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="janela-inicio">Início *</Label>
+                <Input
+                  id="janela-inicio"
+                  type="time"
+                  value={inicio}
+                  onChange={(e) => setInicio(e.target.value)}
+                  className="mt-1.5"
+                />
+              </div>
+              <div>
+                <Label htmlFor="janela-fim">Fim *</Label>
+                <Input
+                  id="janela-fim"
+                  type="time"
+                  value={fim}
+                  onChange={(e) => setFim(e.target.value)}
+                  className="mt-1.5"
+                />
+              </div>
+            </div>
+            {!horarioValido && (
+              <p className="text-2xs text-danger">O fim precisa ser depois do início.</p>
+            )}
+
+            <div>
+              <Label>Se acontecer fora da janela</Label>
+              <Select
+                value={foraDaJanela}
+                onValueChange={(v) => setForaDaJanela(v as "defer" | "skip")}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="defer">Guardar para a próxima janela</SelectItem>
+                  <SelectItem value="skip">Não executar</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1.5 text-2xs text-muted-foreground">
+                {foraDaJanela === "defer"
+                  ? "A automação fica na fila e roda assim que a janela abrir."
+                  : "O evento é ignorado e nada acontece."}
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <Button
+            className="flex-1 bg-gradient-primary text-white"
+            disabled={!podeSalvar}
+            onClick={() => {
+              onSalvar(
+                ativa
+                  ? { enabled: true, days: [...dias].sort((a, b) => a - b), start: inicio, end: fim, outside: foraDaJanela }
+                  : {},
+              );
+              onOpenChange(false);
+            }}
+          >
+            Aplicar
+          </Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

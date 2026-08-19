@@ -11,6 +11,11 @@ const PREFERENCE_COLUMN = {
   daily_agenda: "daily_agenda",
   appointment_reply: "appointment_reply",
   deal_result: "deal_result",
+  // Push disparado por uma automação personalizada. Tipo próprio, e não
+  // reaproveitando um dos quatro acima, pra que a preferência de
+  // "resultado de negociação" não controle silenciosamente algo que a
+  // clínica configurou noutro lugar.
+  automation: "automation",
 } as const;
 
 export type PushType = keyof typeof PREFERENCE_COLUMN;

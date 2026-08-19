@@ -10,6 +10,7 @@
 // clínica escolheu como limite.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enviarWhatsapp } from "../_shared/whatsapp-send.ts";
+import { debitDailyUsage, getDailyUsage } from "../_shared/daily-quota.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -27,24 +28,6 @@ interface AlvoEntrada {
   phone?: string | null;
 }
 
-async function getDailyUsage(ownerId: string): Promise<{ limit: number; usedToday: number }> {
-  const { data: cred } = await supabase
-    .from("crm_credentials")
-    .select("daily_send_limit")
-    .eq("owner_id", ownerId)
-    .maybeSingle();
-  const limit = cred?.daily_send_limit ?? 200;
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
-  const { data: sends } = await supabase
-    .from("crm_campaign_sends")
-    .select("recipient_count")
-    .eq("owner_id", ownerId)
-    .gte("executed_at", startOfDay.toISOString());
-  const usedToday = (sends ?? []).reduce((s: number, r: any) => s + (r.recipient_count ?? 0), 0);
-  return { limit, usedToday };
-}
-
 async function handleCreate(
   ownerId: string,
   message: string,
@@ -56,7 +39,7 @@ async function handleCreate(
 
   // Confere ANTES de enfileirar: enfileirar e recusar depois deixaria metade
   // das mensagens saindo antes de alguém perceber.
-  const { limit, usedToday } = await getDailyUsage(ownerId);
+  const { limit, usedToday } = await getDailyUsage(supabase, ownerId);
   if (usedToday + alvos.length > limit) {
     throw new Error(
       `Limite diário excedido (${usedToday}/${limit} contatos hoje, esta seleção tem ${alvos.length}). Ajuste o limite ou aguarde amanhã.`,
@@ -92,9 +75,7 @@ async function handleCreate(
 
   // Debita a cota inteira agora, como o disparo de campanha já faz: cancelar no
   // meio não devolve, porque o que já saiu não volta.
-  await supabase
-    .from("crm_campaign_sends")
-    .insert({ owner_id: ownerId, campaign_id: `broadcast:${lote.id}`, recipient_count: alvos.length });
+  await debitDailyUsage(supabase, ownerId, `broadcast:${lote.id}`, alvos.length);
 
   return {
     ok: true,

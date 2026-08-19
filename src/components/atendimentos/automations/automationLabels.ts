@@ -37,7 +37,36 @@ export const APPOINTMENT_STATUSES = [
 export const ACTION_LABEL: Record<AutomationActionType, string> = {
   send_whatsapp: "Enviar mensagem de WhatsApp",
   move_pipeline_stage: "Mover para etapa do funil",
+  add_deal_note: "Registrar observação na negociação",
+  send_push: "Notificar a equipe",
+  webhook: "Disparar webhook",
+  wait: "Aguardar tempo",
 };
+
+/** Dias da semana no índice de `getDay()` — 0=domingo. Mesma convenção do
+ *  avaliador da janela na Edge Function. */
+export const DIAS_SEMANA = [
+  { valor: 0, curto: "Dom" },
+  { valor: 1, curto: "Seg" },
+  { valor: 2, curto: "Ter" },
+  { valor: 3, curto: "Qua" },
+  { valor: 4, curto: "Qui" },
+  { valor: 5, curto: "Sex" },
+  { valor: 6, curto: "Sáb" },
+];
+
+/** "2 h", "3 d", "45 min" — resumo curto pro card da ação. */
+export function duracaoTexto(minutos: number): string {
+  if (minutos % (60 * 24) === 0) {
+    const d = minutos / (60 * 24);
+    return `${d} ${d === 1 ? "dia" : "dias"}`;
+  }
+  if (minutos % 60 === 0) {
+    const h = minutos / 60;
+    return `${h} ${h === 1 ? "hora" : "horas"}`;
+  }
+  return `${minutos} min`;
+}
 
 // Gatilhos que podem acontecer sem paciente/contato vinculado — usado pro
 // aviso na hora de escolher "Enviar WhatsApp" como ação (ver

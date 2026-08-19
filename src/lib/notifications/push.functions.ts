@@ -1,7 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
-export type PushType = "whatsapp_message" | "daily_agenda" | "appointment_reply" | "deal_result";
+export type PushType =
+  | "whatsapp_message"
+  | "daily_agenda"
+  | "appointment_reply"
+  | "deal_result"
+  | "automation";
 
 export const PUSH_TYPE_LABEL: Record<PushType, { title: string; description: string }> = {
   whatsapp_message: {
@@ -20,6 +25,10 @@ export const PUSH_TYPE_LABEL: Record<PushType, { title: string; description: str
     title: "Negociação ganha e pagamento recebido",
     description: "Quando uma negociação é fechada ou entra dinheiro.",
   },
+  automation: {
+    title: "Aviso de automação",
+    description: "Quando uma automação com a ação \u201cNotificar a equipe\u201d dispara.",
+  },
 };
 
 export const PUSH_TYPES = Object.keys(PUSH_TYPE_LABEL) as PushType[];
@@ -29,6 +38,7 @@ export interface PushPreferences {
   daily_agenda: boolean;
   appointment_reply: boolean;
   deal_result: boolean;
+  automation: boolean;
 }
 
 export interface PushDevice {
@@ -77,6 +87,7 @@ export const getPushPreferences = createServerFn({ method: "GET" })
       daily_agenda: data?.daily_agenda ?? true,
       appointment_reply: data?.appointment_reply ?? true,
       deal_result: data?.deal_result ?? true,
+      automation: data?.automation ?? true,
     };
   });
 

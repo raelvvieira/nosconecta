@@ -3,7 +3,12 @@
 // (nunca no topo do módulo) a partir de *.functions.ts — esses arquivos vão
 // para o bundle do cliente. Mesma regra de meta-capi.server.ts.
 
-export type PushType = "whatsapp_message" | "daily_agenda" | "appointment_reply" | "deal_result";
+export type PushType =
+  | "whatsapp_message"
+  | "daily_agenda"
+  | "appointment_reply"
+  | "deal_result"
+  | "automation";
 
 export async function sendPushToOwner(
   ownerId: string,

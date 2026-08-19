@@ -2,7 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { SYSTEM_EVENTS, type SystemEvent } from "@/lib/integrations/meta-capi.functions";
 
-export type AutomationActionType = "send_whatsapp" | "move_pipeline_stage";
+export type AutomationActionType =
+  | "send_whatsapp"
+  | "move_pipeline_stage"
+  | "add_deal_note"
+  | "send_push"
+  | "webhook"
+  | "wait";
 
 export interface AutomationAction {
   type: AutomationActionType;
@@ -10,6 +16,27 @@ export interface AutomationAction {
   message?: string;
   /** Só em move_pipeline_stage — etapa de destino. */
   stageId?: string;
+  /** Só em add_deal_note — texto da observação, aceita {{nome}}. */
+  noteBody?: string;
+  /** Só em send_push. */
+  pushTitle?: string;
+  pushBody?: string;
+  /** Só em webhook — precisa ser https e host público. */
+  webhookUrl?: string;
+  /** Só em wait — 1 minuto a 30 dias. */
+  waitMinutes?: number;
+}
+
+/** Janela em que a automação pode agir, no relógio da clínica
+ *  (America/Sao_Paulo). Fora dela, `outside` decide entre adiar para a
+ *  próxima abertura ou simplesmente não executar. */
+export interface AutomationScheduleWindow {
+  enabled?: boolean;
+  /** getDay() do JS: 0=domingo ... 6=sábado. */
+  days?: number[];
+  start?: string;
+  end?: string;
+  outside?: "defer" | "skip";
 }
 
 export interface AutomationCanvasPosition {
@@ -30,6 +57,7 @@ export interface AutomationRule {
   triggerEvent: SystemEvent | null;
   triggerConditions: { stageId?: string; status?: string; dealStatus?: string };
   actions: AutomationAction[];
+  scheduleWindow: AutomationScheduleWindow;
   canvasLayout: AutomationCanvasLayout;
   createdAt: string;
   updatedAt: string;
@@ -53,6 +81,7 @@ function mapRule(row: any): AutomationRule {
     triggerEvent: (row.trigger_event as SystemEvent) ?? null,
     triggerConditions: (row.trigger_conditions ?? {}) as AutomationRule["triggerConditions"],
     actions: Array.isArray(row.actions) ? row.actions : [],
+    scheduleWindow: (row.schedule_window ?? {}) as AutomationScheduleWindow,
     canvasLayout: (row.canvas_layout ?? {}) as AutomationCanvasLayout,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -99,13 +128,51 @@ export const saveAutomation = createServerFn({ method: "POST" })
       throw new Error("Escolha quando a automação dispara.");
     }
     if (!input.actions?.length) throw new Error("Adicione ao menos uma ação.");
-    for (const acao of input.actions) {
+    input.actions.forEach((acao, i) => {
       if (acao.type === "send_whatsapp" && !acao.message?.trim()) {
         throw new Error("Escreva a mensagem da ação de WhatsApp.");
       }
       if (acao.type === "move_pipeline_stage" && !acao.stageId) {
         throw new Error("Escolha a etapa de destino da ação de mover no funil.");
       }
+      if (acao.type === "add_deal_note" && !acao.noteBody?.trim()) {
+        throw new Error("Escreva o texto da observação.");
+      }
+      if (acao.type === "send_push" && (!acao.pushTitle?.trim() || !acao.pushBody?.trim())) {
+        throw new Error("Preencha título e texto da notificação.");
+      }
+      if (acao.type === "webhook") {
+        const url = acao.webhookUrl?.trim() ?? "";
+        if (!/^https:\/\//i.test(url)) {
+          throw new Error("A URL do webhook precisa começar com https://.");
+        }
+      }
+      if (acao.type === "wait") {
+        const min = Number(acao.waitMinutes ?? 0);
+        if (!(min >= 1) || min > 60 * 24 * 30) {
+          throw new Error("O tempo de espera precisa ficar entre 1 minuto e 30 dias.");
+        }
+        // Esperar sem nada depois não faz nada — melhor recusar do que salvar
+        // uma automação que parece fazer algo e não faz.
+        if (i === input.actions!.length - 1) {
+          throw new Error('"Aguardar tempo" não pode ser a última ação — adicione o que fazer depois da espera.');
+        }
+      }
+    });
+
+    const janela = input.scheduleWindow;
+    if (janela?.enabled) {
+      if (!janela.days?.length) throw new Error("Escolha ao menos um dia da semana na janela de horário.");
+      const min = (v?: string) => {
+        const m = /^(\d{1,2}):(\d{2})$/.exec(v ?? "");
+        return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+      };
+      const ini = min(janela.start);
+      const fim = min(janela.end);
+      if (ini === null || fim === null) throw new Error("Informe início e fim da janela de horário.");
+      // Janela que vira o dia (ex.: 22:00-06:00) não é suportada — o
+      // avaliador no servidor compara minutos no mesmo dia.
+      if (ini >= fim) throw new Error("O fim da janela precisa ser depois do início.");
     }
     // Guardrail de loop: mover etapa não pode ser ação de uma automação que
     // já dispara ao mudar de etapa — ver comentário em automations.server.ts.
@@ -129,6 +196,7 @@ export const saveAutomation = createServerFn({ method: "POST" })
       trigger_event: data.triggerEvent,
       trigger_conditions: data.triggerConditions ?? {},
       actions: data.actions,
+      schedule_window: data.scheduleWindow ?? {},
       canvas_layout: data.canvasLayout ?? {},
       updated_at: new Date().toISOString(),
     };
