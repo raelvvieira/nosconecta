@@ -112,7 +112,7 @@ function FinanceiroVisaoGeral() {
 
       {dadosHome && <MobileHome dados={dadosHome} />}
 
-      <main className="hidden lg:block flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-24 lg:pb-8">
+      <main className="hidden lg:block flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-nav lg:pb-8">
         <PageHeader
           period={period}
           onPeriodChange={setPeriod}

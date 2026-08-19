@@ -101,7 +101,7 @@ function PatientDetailPage() {
   return (
     <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
-      <main className="mx-auto w-full max-w-[1180px] px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8">
+      <main className="mx-auto w-full max-w-[1240px] px-4 pb-nav pt-5 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8">
         <header className="flex items-center justify-between gap-3">
           <Link
             to="/pacientes"

@@ -234,7 +234,7 @@ function PipelinePage() {
 
   return (
     <>
-      <main className="flex flex-1 flex-col pb-24 lg:h-full lg:overflow-hidden lg:pb-0">
+      <main className="flex flex-1 flex-col pb-nav lg:h-full lg:overflow-hidden lg:pb-0">
         <header className="flex w-full flex-wrap items-center justify-between gap-3 px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7">
           <h1 className="flex items-center gap-2 text-2xl font-semibold">
             <Workflow className="h-5 w-5 text-pink" />

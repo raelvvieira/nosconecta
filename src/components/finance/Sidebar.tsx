@@ -25,7 +25,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useMobileFab } from "@/components/finance/mobile-fab-context";
@@ -119,6 +119,8 @@ export function Sidebar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(true);
+  // O foco volta para o botão que abriu, e não some no começo da página.
+  const recolherRef = useRef<HTMLButtonElement>(null);
   const [mounted, setMounted] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const fabCtx = useMobileFab();
@@ -185,6 +187,9 @@ export function Sidebar() {
     };
   }, []);
 
+  // Era "Administrador" cravado para todo mundo, inclusive para quem não é.
+  const papel = isAdmin ? "Administrador" : "Equipe";
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     toast.success("Sessão encerrada.");
@@ -220,29 +225,67 @@ export function Sidebar() {
 
   return (
     <TooltipProvider delayDuration={150}>
+      {/* Espaçador no fluxo.
+          A ilha em si é `fixed`, mas alguma coisa precisa reservar o lugar
+          dela — senão o conteúdo passa por baixo do vidro. Reservar aqui, e
+          não com padding em cada tela, é o que permite as 25 rotas ficarem
+          como estão: elas continuam sendo `flex` com a navegação de primeiro
+          filho, e nem sabem que a navegação passou a flutuar.
+
+          A largura é ilha + respiro da borda + ar até o conteúdo, e transiciona
+          junto com a ilha, no mesmo tempo e na mesma curva, para as duas se
+          moverem como uma coisa só. */}
+      <div
+        aria-hidden="true"
+        className="hidden lg:block shrink-0 transition-[width] duration-[320ms] ease-spring"
+        style={{
+          width: collapsed
+            ? "calc(var(--nav-gutter) + var(--nav-collapsed) + var(--nav-gap))"
+            : "calc(var(--nav-gutter) + var(--nav-expanded) + var(--nav-gap))",
+        }}
+      />
       <aside
+        id="menu-principal"
+        aria-label="Navegação principal"
+        onKeyDown={(e) => {
+          // Escape recolhe quando o foco está dentro da navegação — o mesmo
+          // gesto de fechar de qualquer painel. Sem isto, quem entrou por
+          // teclado só sai clicando.
+          if (e.key === "Escape" && !collapsed) {
+            setCollapsed(true);
+            recolherRef.current?.focus();
+          }
+        }}
         className={cn(
-          "hidden lg:flex shrink-0 flex-col bg-sidebar border-r border-border py-6 gap-6 transition-[width] duration-200",
-          "h-dvh sticky top-0",
-          collapsed ? "w-[88px] items-center px-0" : "w-[240px] items-stretch px-4",
+          "nav-island hidden lg:flex flex-col gap-6 py-5 glass-island",
+          // `top` e `bottom` pareados, nunca `height: 100vh`: no celular a
+          // altura da janela muda quando a barra de endereço some, e `100vh`
+          // transborda a tela.
+          "fixed left-[var(--nav-gutter)] top-[var(--nav-gutter)] bottom-[var(--nav-gutter)] z-40",
+          "rounded-3xl transition-[width] duration-[320ms] ease-spring",
+          collapsed ? "items-center px-2" : "items-stretch px-3",
         )}
+        style={{ width: collapsed ? "var(--nav-collapsed)" : "var(--nav-expanded)" }}
       >
-        {/* Logo + toggle */}
-        <div className={cn("flex items-center", collapsed ? "flex-col gap-3" : "justify-between")}>
+        {/* Marca + alternar.
+            A marca fica ancorada na mesma posição x nos dois estados — é o que
+            evita a sensação de que a ilha inteira pulou ao expandir. */}
+        <div className={cn("flex items-center", collapsed ? "flex-col gap-2" : "justify-between")}>
           <div className={cn("flex items-center gap-3", collapsed && "flex-col")}>
-            <div className="h-11 w-11 rounded-2xl bg-gradient-primary text-white grid place-items-center font-bold text-lg shadow-soft shrink-0">
+            <div className="h-11 w-11 rounded-xl bg-gradient-primary text-white grid place-items-center font-bold text-lg shadow-2 shrink-0">
               N
             </div>
             {!collapsed && (
-              <span className="font-semibold text-foreground text-sm leading-tight">
-                NÓS Conecta
-              </span>
+              <span className="font-semibold text-foreground text-sm">NÓS Conecta</span>
             )}
           </div>
           <button
+            ref={recolherRef}
             type="button"
             onClick={() => setCollapsed((c) => !c)}
-            className="h-9 w-9 grid place-items-center rounded-xl text-muted-foreground hover:bg-surface-subtle hover:text-foreground transition-colors"
+            aria-expanded={!collapsed}
+            aria-controls="menu-principal"
+            className="h-9 w-9 grid place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
           >
             {collapsed ? (
@@ -256,7 +299,9 @@ export function Sidebar() {
         {/* Nav */}
         <nav
           className={cn(
-            "flex-1 flex flex-col gap-2 min-h-0",
+            // `min-h-0` + rolagem própria: sem os dois, uma lista longa empurra
+            // o rodapé (unidade, conta, sair) para fora da ilha em vez de rolar.
+            "flex-1 flex flex-col gap-1.5 min-h-0 overflow-y-auto scrollbar-none",
             collapsed ? "items-center" : "items-stretch",
           )}
         >
@@ -267,7 +312,7 @@ export function Sidebar() {
                   type="button"
                   onClick={() => setView("modules")}
                   className={cn(
-                    "flex items-center rounded-2xl text-muted-foreground hover:bg-surface-subtle hover:text-foreground transition-colors",
+                    "press flex items-center rounded-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                     collapsed ? "h-10 w-10 justify-center" : "h-9 w-full px-3 gap-2 mb-1",
                   )}
                   aria-label="Voltar aos módulos"
@@ -288,13 +333,14 @@ export function Sidebar() {
                 <Link
                   to="/agenda"
                   className={cn(
-                    "flex items-center rounded-2xl transition-colors",
+                    "press flex items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                     collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
                     pathname === "/agenda"
                       ? "bg-foreground text-white"
                       : "text-muted-foreground hover:bg-surface-subtle hover:text-foreground",
                   )}
                   aria-label="Agenda"
+                  aria-current={pathname === "/agenda" ? "page" : undefined}
                 >
                   <CalendarDays className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
                   {!collapsed && <span className="text-sm font-medium truncate">Agenda</span>}
@@ -319,7 +365,7 @@ export function Sidebar() {
                         ? inAtendimentos
                         : pathname === m.to;
                 const className = cn(
-                  "flex items-center rounded-2xl transition-colors",
+                  "press flex items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                   collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
                   active
                     ? "bg-foreground text-white"
@@ -336,7 +382,12 @@ export function Sidebar() {
                 return (
                   <div key={m.label}>
                     {maybeTooltip(
-                      <Link to={m.to} className={className} aria-label={m.label}>
+                      <Link
+                        to={m.to}
+                        className={className}
+                        aria-label={m.label}
+                        aria-current={active ? "page" : undefined}
+                      >
                         {inner}
                       </Link>,
                       m.label,
@@ -353,7 +404,7 @@ export function Sidebar() {
                   type="button"
                   onClick={() => setView("modules")}
                   className={cn(
-                    "flex items-center rounded-2xl text-muted-foreground hover:bg-surface-subtle hover:text-foreground transition-colors",
+                    "press flex items-center rounded-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                     collapsed ? "h-10 w-10 justify-center" : "h-9 w-full px-3 gap-2 mb-1",
                   )}
                   aria-label="Voltar aos módulos"
@@ -373,7 +424,7 @@ export function Sidebar() {
               {atendimentosItems.map((it) => {
                 const active = it.to === "/atendimentos" ? pathname === it.to : pathname.startsWith(it.to);
                 const className = cn(
-                  "flex items-center rounded-2xl transition-colors",
+                  "press flex items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                   collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
                   active
                     ? "bg-foreground text-white"
@@ -388,7 +439,12 @@ export function Sidebar() {
                 return (
                   <div key={it.label}>
                     {maybeTooltip(
-                      <Link to={it.to} className={className} aria-label={it.label}>
+                      <Link
+                        to={it.to}
+                        className={className}
+                        aria-label={it.label}
+                        aria-current={active ? "page" : undefined}
+                      >
                         {inner}
                       </Link>,
                       it.label,
@@ -405,7 +461,7 @@ export function Sidebar() {
                   type="button"
                   onClick={() => setView("modules")}
                   className={cn(
-                    "flex items-center rounded-2xl text-muted-foreground hover:bg-surface-subtle hover:text-foreground transition-colors",
+                    "press flex items-center rounded-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                     collapsed ? "h-10 w-10 justify-center" : "h-9 w-full px-3 gap-2 mb-1",
                   )}
                   aria-label="Voltar aos módulos"
@@ -426,7 +482,7 @@ export function Sidebar() {
                 const active = pathname === it.to || pathname.startsWith(it.to);
                 const isReal = REAL_ROUTES.has(it.to);
                 const className = cn(
-                  "flex items-center rounded-2xl transition-colors",
+                  "press flex items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                   collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
                   active
                     ? "bg-foreground text-white"
@@ -442,7 +498,12 @@ export function Sidebar() {
                 const trigger = isReal ? (
                   // "/comissoes" is a placeholder nav entry with no real route
                   // yet; isReal already gates it out of this branch at runtime.
-                  <Link to={it.to as "/" | "/recebimentos" | "/pagamentos" | "/planejamento"} className={className} aria-label={it.label}>
+                  <Link
+                    to={it.to as "/" | "/recebimentos" | "/pagamentos" | "/planejamento"}
+                    className={className}
+                    aria-label={it.label}
+                    aria-current={active ? "page" : undefined}
+                  >
                     {inner}
                   </Link>
                 ) : (
@@ -463,51 +524,49 @@ export function Sidebar() {
             collapsed ? "flex-col items-center" : "flex-col items-stretch",
           )}
         >
+          {/* Selo de plano, não botão: não havia `onClick` nenhum aqui — era um
+              botão que não fazia nada, e o degradê ainda disputava atenção com
+              a ação principal de cada tela. Como informação, o mesmo conteúdo
+              é honesto e para de competir. */}
           {maybeTooltip(
-            <button
-              type="button"
+            <div
               className={cn(
-                "flex items-center rounded-2xl bg-gradient-primary text-white shadow-soft hover:opacity-90 transition-opacity",
+                "flex items-center rounded-xl bg-coral-soft text-coral",
                 collapsed ? "h-11 w-11 justify-center" : "h-11 w-full px-3 gap-3",
               )}
-              aria-label="Upgrade Premium"
             >
               <Sparkles className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
               {!collapsed && <span className="text-sm font-semibold">Plano Premium</span>}
-            </button>,
-            "Upgrade Premium",
+            </div>,
+            "Plano Premium",
           )}
 
           {maybeTooltip(
-            <button
-              type="button"
+            <div
               className={cn(
-                "flex items-center transition-colors",
+                "flex items-center",
                 collapsed
-                  ? "h-10 w-10 rounded-full bg-surface-subtle border border-border text-foreground justify-center text-xs font-semibold hover:bg-muted"
-                  : "h-12 w-full rounded-2xl px-3 gap-3 hover:bg-surface-subtle",
+                  ? "h-10 w-10 rounded-full bg-surface-muted border border-border text-foreground justify-center text-xs font-semibold"
+                  : "h-12 w-full rounded-xl px-3 gap-3",
               )}
-              aria-label="Conta"
             >
               {collapsed ? (
                 userInitial
               ) : (
                 <>
-                  <span className="h-8 w-8 rounded-full bg-surface-subtle border border-border grid place-items-center text-xs font-semibold shrink-0">
+                  <span className="h-8 w-8 rounded-full bg-surface-muted border border-border grid place-items-center text-xs font-semibold shrink-0">
                     {userInitial}
                   </span>
                   <span className="flex flex-col text-left leading-tight min-w-0">
                     <span className="text-sm font-medium text-foreground truncate">
                       {userName}
                     </span>
-                    <span className="text-2xs text-muted-foreground truncate">
-                      Administrador
-                    </span>
+                    <span className="text-2xs text-muted-foreground truncate">{papel}</span>
                   </span>
                 </>
               )}
-            </button>,
-            `${userName} · Administrador`,
+            </div>,
+            `${userName} · ${papel}`,
           )}
 
           {isAdmin && units.length > 1 && maybeTooltip(<UnitSwitcher collapsed={collapsed} />, "Unidade")}
@@ -517,7 +576,7 @@ export function Sidebar() {
               type="button"
               onClick={handleSignOut}
               className={cn(
-                "flex items-center rounded-2xl text-muted-foreground hover:bg-surface-subtle hover:text-foreground transition-colors",
+                "press flex items-center rounded-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                 collapsed ? "h-10 w-10 justify-center" : "h-11 w-full px-3 gap-3",
               )}
               aria-label="Sair"
@@ -532,7 +591,7 @@ export function Sidebar() {
 
       {/* Mobile bottom navigation — premium floating card with central FAB */}
       <nav
-        className="lg:hidden fixed z-50 flex items-center justify-between material-bar"
+        className="nav-island-mobile lg:hidden fixed z-50 flex items-center justify-between material-bar"
         style={{
           left: 16,
           right: 16,
@@ -546,7 +605,7 @@ export function Sidebar() {
           // O fundo vem do utilitário `material-bar` (vidro fosco, com volta
           // para superfície sólida quando o sistema pede menos transparência).
           boxShadow: "var(--shadow-3)",
-          border: "1px solid rgba(226,232,240,0.6)",
+          border: "1px solid var(--border)",
           paddingLeft: 6,
           paddingRight: 6,
           marginBottom: "env(safe-area-inset-bottom)",
@@ -584,7 +643,7 @@ export function Sidebar() {
                     width: 30,
                     height: 30,
                     borderRadius: 999,
-                    background: active ? "rgba(255,107,87,0.12)" : "transparent",
+                    background: active ? "var(--coral-soft)" : "transparent",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -632,7 +691,8 @@ export function Sidebar() {
                 key={item.label}
                 to={item.to}
                 aria-label={item.label}
-                className="press"
+                aria-current={active ? "page" : undefined}
+                className="press rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 style={wrapperStyle}
               >
                 {inner}
@@ -717,7 +777,7 @@ export function Sidebar() {
                       fontFamily: "Inter, sans-serif",
                       fontSize: "0.625rem",
                       fontWeight: 500,
-                      letterSpacing: "-0.01em",
+                      letterSpacing: "0.01em",
                       lineHeight: 1,
                       color: "var(--muted-foreground)",
                       whiteSpace: "nowrap",
@@ -733,6 +793,7 @@ export function Sidebar() {
                   type="button"
                   onClick={a.onClick}
                   aria-label={a.label}
+                  className="press rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                   style={wrapperStyle}
                 >
                   {inner}
@@ -815,7 +876,7 @@ export function Sidebar() {
                           width: 30,
                           height: 30,
                           borderRadius: 999,
-                          background: active ? "rgba(255,107,87,0.12)" : "transparent",
+                          background: active ? "var(--coral-soft)" : "transparent",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -832,7 +893,7 @@ export function Sidebar() {
                           fontFamily: "Inter, sans-serif",
                           fontSize: "0.625rem",
                           fontWeight: 500,
-                          letterSpacing: "-0.01em",
+                          letterSpacing: "0.01em",
                           lineHeight: 1,
                           color: active ? "var(--coral)" : "var(--muted-foreground)",
                           whiteSpace: "nowrap",
@@ -849,6 +910,7 @@ export function Sidebar() {
                         type="button"
                         onClick={() => setMoreOpen(true)}
                         aria-label="Mais opções"
+                        className="press rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                         style={homeItemStyle}
                       >
                         {iconEl}
@@ -873,6 +935,8 @@ export function Sidebar() {
                       key={item.label}
                       to={item.to}
                       aria-label={item.label}
+                      aria-current={active ? "page" : undefined}
+                      className="press rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                       style={homeItemStyle}
                     >
                       {iconEl}

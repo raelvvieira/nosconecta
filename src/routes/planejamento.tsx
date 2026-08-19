@@ -110,7 +110,7 @@ function PlanningPage() {
       <div className="h-dvh flex bg-background overflow-hidden">
         <Sidebar />
 
-        <main className="flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-8 pb-28 lg:pb-8">
+        <main className="flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-8 pb-nav lg:pb-8">
           {/* Header */}
           <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6">
             <div>

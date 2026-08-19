@@ -340,7 +340,9 @@ export function MobileHome({ dados }: { dados: HomeData }) {
       className="lg:hidden flex-1 min-w-0 w-full overflow-x-hidden overflow-y-auto custom-scroll"
       style={{
         background: "radial-gradient(circle at top right, color-mix(in oklab, var(--pink) 6%, transparent), transparent 32%), var(--surface)",
-        paddingBottom: 110,
+        // Mesmo respiro das outras telas: a ilha inferior ocupa 76px mais o
+        // inset da barra de gestos, que o 110 fixo ignorava.
+        paddingBottom: "calc(96px + env(safe-area-inset-bottom))",
       }}
     >
       <Header />

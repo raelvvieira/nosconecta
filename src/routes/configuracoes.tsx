@@ -36,7 +36,7 @@ function SettingsLayout() {
   return (
     <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
-      <main className="mx-auto w-full max-w-[1240px] px-4 pb-28 pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
+      <main className="mx-auto w-full max-w-[1240px] px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
         <header className="pr-16 lg:pr-0">
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-pink">
             <Settings2 className="h-4 w-4" />

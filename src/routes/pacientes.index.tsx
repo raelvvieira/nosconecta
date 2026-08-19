@@ -115,7 +115,7 @@ function PatientsPage() {
   return (
     <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
-      <main className="mx-auto w-full max-w-[1180px] px-4 pb-28 pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
+      <main className="mx-auto w-full max-w-[1240px] px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
         <header className="pr-16 lg:flex lg:items-end lg:justify-between lg:gap-6 lg:pr-0">
           <div>
             <h1 className="text-3xl font-semibold text-foreground lg:text-4xl leading-[1.1]">

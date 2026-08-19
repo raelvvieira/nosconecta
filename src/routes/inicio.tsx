@@ -43,7 +43,7 @@ function InicioPage() {
 
       {dados && <MobileHome dados={dados} />}
 
-      <main className="hidden lg:block flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-8 lg:px-12 py-6 md:py-8 pb-24 lg:pb-8">
+      <main className="hidden lg:block flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 pb-nav lg:pb-8">
         {dados && <DesktopHome dados={dados} />}
       </main>
     </div>

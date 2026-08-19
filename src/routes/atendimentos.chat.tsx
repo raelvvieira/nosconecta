@@ -318,7 +318,7 @@ function ChatPage() {
     // Sem `mx-auto`/`max-w`: em tela larga isso centralizava as duas colunas
     // e deixava um vão vazio grande entre o menu lateral e a lista de
     // conversas. Agora a lista encosta no menu e a conversa ocupa o resto.
-    <main className="flex w-full flex-1 flex-col pb-20 lg:h-full lg:flex-row lg:overflow-hidden lg:pb-0">
+    <main className="flex w-full flex-1 flex-col pb-nav lg:h-full lg:flex-row lg:overflow-hidden lg:pb-0">
       {/* Conversation list */}
       <section
         className={cn(

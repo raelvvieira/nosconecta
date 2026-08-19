@@ -78,14 +78,6 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
 
   --font-sans: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -285,15 +277,6 @@
   --chart-4: #7C5CFA;
   --chart-5: #1F9D55;
 
-  /* Sidebar */
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #6B6B72;
-  --sidebar-primary: #1B1B1F;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #FAFAFA;
-  --sidebar-accent-foreground: #1B1B1F;
-  --sidebar-border: #F0F0F2;
-  --sidebar-ring: #FF7A59;
 
   /* Elevação: os quatro degraus vivem no @theme acima, para que os utilitários
      do Tailwind caiam neles também. Aqui ficam só os derivados.
@@ -419,6 +402,78 @@
 
 @utility app-bg {
   background: var(--background);
+}
+
+/* ── Ilha de navegação ───────────────────────────────────────────────────
+   As medidas moram aqui, e não no componente, porque duas coisas precisam
+   concordar: a largura da ilha e o quanto o conteúdo se afasta. Fora de
+   sincronia, ou sobra faixa vazia ou a ilha cobre a primeira coluna da tela. */
+:root {
+  --nav-collapsed: 72px;
+  --nav-expanded: 248px;
+  /* Distância da ilha até a borda da janela. É esse respiro que faz a
+     navegação flutuar sobre a tela em vez de virar uma parede colada nela. */
+  --nav-gutter: 16px;
+  /* Ar entre a ilha e o conteúdo. Sem ele o texto encosta no vidro. */
+  --nav-gap: 24px;
+}
+
+/* Vidro do tema claro: translucidez, desfoque, realce de borda e sombra —
+   as quatro coisas juntas. Um retângulo claro com borda não é vidro; o que
+   faz o material aparecer é a página passando por baixo dele.
+
+   O desfoque é caro: fica só na navegação e nas barras contextuais, nunca
+   atrás de tabela, formulário ou lista que rola. */
+@utility glass-island {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.7)),
+    rgba(255, 255, 255, 0.66);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 24px 64px rgba(24, 24, 30, 0.11),
+    0 2px 10px rgba(24, 24, 30, 0.05),
+    inset 0 1px 0 #fff;
+  backdrop-filter: blur(24px) saturate(125%);
+  -webkit-backdrop-filter: blur(24px) saturate(125%);
+}
+
+/* Sem suporte a desfoque o vidro vira superfície opaca — em vez de um
+   retângulo semitransparente com o texto da página aparecendo por trás. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-island {
+    background: var(--card);
+    border-color: var(--border);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass-island {
+    background: var(--card);
+    border-color: var(--border);
+  }
+}
+
+@media (prefers-contrast: more) {
+  .glass-island {
+    background: var(--card);
+    border-color: var(--divider);
+    box-shadow: none;
+  }
+}
+
+/* Respiro para a ilha inferior do celular.
+   A ilha ocupa 8px de fundo + 68px de altura + o inset da barra de gestos.
+   As telas resolviam isso à mão, e divergiram: `pb-20` deixava 4px de folga,
+   `pb-24` deixava 20, `pb-28` deixava 36 — e nenhuma contava o inset, então
+   no iPhone o último item da lista ficava embaixo do vidro.
+
+   Fica dentro de uma media query, e não como padding solto, para o `lg:pb-*`
+   das telas não precisar brigar com ele: acima do breakpoint a regra
+   simplesmente não existe. */
+@utility pb-nav {
+  @media (width < 64rem) {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
 }
 
 /* Cartão de dado: a superfície de trabalho do app. Raio de card (16px), não

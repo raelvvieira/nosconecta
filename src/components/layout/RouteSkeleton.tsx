@@ -96,7 +96,7 @@ export function RouteSkeleton({ shape = "list" }: { shape?: Shape }) {
     <div className="app-bg flex h-dvh overflow-hidden" aria-busy="true" aria-live="polite">
       <Sidebar />
       <span className="sr-only">Carregando…</span>
-      <main className="custom-scroll min-w-0 flex-1 space-y-5 overflow-y-auto px-4 pb-28 pt-[calc(env(safe-area-inset-top)+52px)] md:px-6 lg:px-10 lg:pb-8 lg:pt-8">
+      <main className="custom-scroll min-w-0 flex-1 space-y-5 overflow-y-auto px-4 pb-nav pt-[calc(env(safe-area-inset-top)+52px)] md:px-6 lg:px-10 lg:pb-8 lg:pt-8">
         <div className="space-y-2">
           <Line className="h-7 w-52" />
           <Line className="h-4 w-40" />
