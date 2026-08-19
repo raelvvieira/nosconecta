@@ -226,10 +226,12 @@ export type Database = {
           created_at: string
           depth: number
           error: string | null
+          graph_snapshot: Json
           id: string
           owner_id: string
           ran_at: string | null
           remaining_actions: Json
+          resume_node_id: string | null
           rule_id: string | null
           rule_name: string | null
           run_after: string
@@ -241,10 +243,12 @@ export type Database = {
           created_at?: string
           depth?: number
           error?: string | null
+          graph_snapshot?: Json
           id?: string
           owner_id: string
           ran_at?: string | null
           remaining_actions?: Json
+          resume_node_id?: string | null
           rule_id?: string | null
           rule_name?: string | null
           run_after: string
@@ -256,10 +260,12 @@ export type Database = {
           created_at?: string
           depth?: number
           error?: string | null
+          graph_snapshot?: Json
           id?: string
           owner_id?: string
           ran_at?: string | null
           remaining_actions?: Json
+          resume_node_id?: string | null
           rule_id?: string | null
           rule_name?: string | null
           run_after?: string
@@ -333,6 +339,7 @@ export type Database = {
           ran_at: string
           rule_id: string | null
           rule_name: string | null
+          run_id: string | null
           status: string
           trigger_event: string
         }
@@ -344,6 +351,7 @@ export type Database = {
           ran_at?: string
           rule_id?: string | null
           rule_name?: string | null
+          run_id?: string | null
           status: string
           trigger_event: string
         }
@@ -355,6 +363,7 @@ export type Database = {
           ran_at?: string
           rule_id?: string | null
           rule_name?: string | null
+          run_id?: string | null
           status?: string
           trigger_event?: string
         }
