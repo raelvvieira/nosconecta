@@ -1,6 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 
 import { Sidebar } from "@/components/finance/Sidebar";
 import { DesktopHome } from "@/components/home/DesktopHome";
@@ -8,17 +6,8 @@ import { MobileHome } from "@/components/home/MobileHome";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { RouteSkeleton } from "@/components/layout/RouteSkeleton";
 import { getFinanceOverview } from "@/lib/finance/queries.functions";
-
-const homeOverviewOptions = (
-  fetcher: (args: {
-    data: { period: "today"; granularity: "daily" };
-  }) => Promise<Awaited<ReturnType<typeof getFinanceOverview>>>,
-) =>
-  queryOptions({
-    queryKey: ["home-overview", "today"],
-    queryFn: () => fetcher({ data: { period: "today", granularity: "daily" } }),
-    staleTime: 30_000,
-  });
+import { getHomeToday } from "@/lib/agenda/agenda.functions";
+import { homeOverviewOptions, homeTodayOptions, useHomeData } from "@/components/home/useHomeData";
 
 export const Route = createFileRoute("/inicio")({
   ssr: false,
@@ -28,8 +17,13 @@ export const Route = createFileRoute("/inicio")({
       { name: "description", content: "Resumo do dia da clínica odontológica." },
     ],
   }),
+  // As duas consultas que a tela usa. Deixar a agenda de fora aqui faria o
+  // esqueleto sumir com os cards do dia ainda em branco.
   loader: ({ context }) =>
-    context.queryClient.ensureQueryData(homeOverviewOptions(getFinanceOverview as any)),
+    Promise.all([
+      context.queryClient.ensureQueryData(homeOverviewOptions(getFinanceOverview as any)),
+      context.queryClient.ensureQueryData(homeTodayOptions(getHomeToday as any)),
+    ]),
   pendingComponent: () => <RouteSkeleton shape="kpis" />,
   // 150ms evita o piscar em navegação instantânea; 400ms de mínimo
   // evita que o esqueleto apareça e suma num susto.
@@ -41,21 +35,16 @@ export const Route = createFileRoute("/inicio")({
 });
 
 function InicioPage() {
-  const fetchOverview = useServerFn(getFinanceOverview);
-  const { data } = useSuspenseQuery(homeOverviewOptions(fetchOverview as any));
+  const dados = useHomeData();
 
   return (
     <div className="app-bg h-dvh flex overflow-hidden">
       <Sidebar />
 
-      <MobileHome />
+      {dados && <MobileHome dados={dados} />}
 
       <main className="hidden lg:block flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-8 lg:px-12 py-6 md:py-8 pb-24 lg:pb-8">
-        <DesktopHome
-          revenueToday={data.kpis.revenue.current}
-          overdueTotal={data.kpis.overdue.total}
-          overduePatients={data.kpis.overdue.patients}
-        />
+        {dados && <DesktopHome dados={dados} />}
       </main>
     </div>
   );

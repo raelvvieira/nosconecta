@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { localDateStr } from "@/lib/date";
 
 export type Period = "today" | "7d" | "30d" | "90d";
 export type Granularity = "daily" | "weekly" | "monthly";
@@ -90,7 +91,7 @@ function periodToRange(period: Period, customFrom?: string, customTo?: string): 
   return { from, to };
 }
 
-const toDateStr = (d: Date) => d.toISOString().slice(0, 10);
+const toDateStr = (d: Date) => localDateStr(d);
 
 function previousRange({ from, to }: { from: Date; to: Date }) {
   const span = to.getTime() - from.getTime();
@@ -183,12 +184,17 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
       sumAmount(supabase, ownerId, unitId, "receivable", "paid", "paid_date", prevFromStr, prevToStr),
       sumAmount(supabase, ownerId, unitId, "payable", "paid", "paid_date", fromStr, toStr),
       sumAmount(supabase, ownerId, unitId, "payable", "paid", "paid_date", prevFromStr, prevToStr),
+      // Atraso é DERIVADO, nunca gravado: nada no sistema escreve
+      // `status: 'overdue'` (o valor só existe no enum). Filtrar por ele
+      // zerava a inadimplência em toda tela que lê esta overview. A regra
+      // aqui é a mesma de receivables/payables: pendente e já vencido.
       cu(supabase
         .from("financial_transactions")
         .select("amount, patient_id")
         .eq("owner_id", ownerId)
         .eq("type", "receivable")
-        .eq("status", "overdue")),
+        .eq("status", "pending")
+        .lt("due_date", toDateStr(new Date()))),
       cu(supabase
         .from("financial_accounts")
         .select("id,name,type,last_digits,current_balance")

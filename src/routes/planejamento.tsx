@@ -33,7 +33,6 @@ import { SmartInsightsCard } from "@/components/finance/planning/SmartInsightsCa
 import {
   getPlanningOverview,
   deleteScenario,
-  generateMoreInsights,
   type PlanningOverview,
   type RangeDays,
   type Insight,
@@ -86,7 +85,6 @@ function PlanningPage() {
 
   const fetchOverview = useServerFn(getPlanningOverview);
   const deleteScenarioFn = useServerFn(deleteScenario);
-  const generateMoreFn = useServerFn(generateMoreInsights);
 
   const { data } = useSuspenseQuery(overviewOpts(fetchOverview as any, range));
 
@@ -100,15 +98,6 @@ function PlanningPage() {
       toast.success("Cenário excluído");
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao excluir cenário"),
-  });
-
-  const generateMoreMutation = useMutation({
-    mutationFn: (excludeIds: string[]) =>
-      generateMoreFn({ data: { excludeIds } }) as Promise<Insight[]>,
-    onSuccess: (newOnes) => {
-      toast.success(`${newOnes.length} novos insights gerados`);
-    },
-    onError: (e: any) => toast.error(e?.message ?? "Falha ao gerar insights"),
   });
 
   const { summary, projection, forecast, timeline, goals, scenarios, insights } = data;
@@ -239,11 +228,7 @@ function PlanningPage() {
             />
             <div className="space-y-5">
               <FinancialGoalsCard goals={goals} />
-              <SmartInsightsCard
-                insights={insights}
-                onGenerateMore={(excludeIds) => generateMoreMutation.mutateAsync(excludeIds) as any}
-                isGenerating={generateMoreMutation.isPending}
-              />
+              <SmartInsightsCard insights={insights} />
             </div>
           </section>
         </main>

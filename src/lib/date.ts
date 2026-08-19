@@ -4,6 +4,16 @@
 // JS interpreta "2026-08-10" como UTC e, em fuso negativo como o do Brasil,
 // devolve o dia anterior.
 
+/** "YYYY-MM-DD" no fuso de quem está usando o sistema.
+ *
+ *  `toISOString()` é UTC: aplicado a um `Date` de fim de dia local (23:59), em
+ *  UTC-3 ele devolve o dia SEGUINTE, e a janela do dashboard passa a incluir
+ *  um dia que ninguém pediu. Formatar a partir dos componentes locais é a
+ *  única forma de não depender do horário em que a página foi aberta. */
+export function localDateStr(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 /** Soma meses preservando o dia; 31/01 + 1 mês cai em 03/03 nos anos comuns,
  *  que é o comportamento nativo do Date e o mesmo já usado no financeiro. */
 export function addMonths(dateStr: string, months: number): string {

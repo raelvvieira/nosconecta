@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 import { gravarTolerandoColunaAusente, semColuna } from "@/lib/schema-fallback";
+import { localDateStr } from "@/lib/date";
 import type {
   Appointment,
   AppointmentNotification,
@@ -138,6 +139,72 @@ export const getAgendaOverview = createServerFn({ method: "GET" })
     };
   });
 
+/** O que a tela inicial precisa saber do dia — e nada além disso.
+ *
+ *  Não reaproveita `getAgendaOverview` de propósito: aquela carrega até 2000
+ *  agendamentos porque o calendário navega mês a mês. A tela inicial só mostra
+ *  hoje, e pagar aquele custo em toda abertura do app seria desperdício.
+ *  As contagens são as MESMAS de `AgendaStatsCards` — se um dia divergirem, é
+ *  bug em um dos dois. */
+export interface HomeToday {
+  date: string;
+  total: number;
+  confirmed: number;
+  pending: number;
+  missed: number;
+  /** Os que ainda estão por vir hoje, em ordem de horário. */
+  next: {
+    id: string;
+    time: string;
+    patientName: string;
+    procedureName: string;
+    professionalName: string;
+    status: AppointmentStatus;
+  }[];
+}
+
+export const getHomeToday = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { unitId?: string } | undefined) => ({ unitId: input?.unitId ?? null }))
+  .handler(async ({ data, context }): Promise<HomeToday> => {
+    const supabase: any = context.supabase;
+    const unitFilter = context.isAdmin ? data.unitId : context.unitId;
+    const hoje = localDateStr();
+
+    let q = supabase
+      .from("appointments")
+      .select("id, patient_name, procedure_name, professional_name, start_time, status")
+      .eq("owner_id", context.ownerId)
+      .eq("date", hoje)
+      .order("start_time", { ascending: true });
+    if (unitFilter) q = q.eq("unit_id", unitFilter);
+
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+
+    const lista = (rows ?? []) as any[];
+    const conta = (...status: string[]) => lista.filter((a) => status.includes(a.status)).length;
+
+    return {
+      date: hoje,
+      total: lista.length,
+      confirmed: conta("confirmed", "completed"),
+      pending: conta("pending"),
+      missed: conta("missed"),
+      next: lista
+        .filter((a) => a.status === "pending" || a.status === "confirmed" || a.status === "in_progress")
+        .slice(0, 3)
+        .map((a) => ({
+          id: a.id,
+          time: String(a.start_time).slice(0, 5),
+          patientName: a.patient_name,
+          procedureName: a.procedure_name,
+          professionalName: a.professional_name || "",
+          status: a.status as AppointmentStatus,
+        })),
+    };
+  });
+
 // ---------- appointments: mutations ----------
 
 /** Colunas lidas depois de gravar, para decidir a transição de status. */
@@ -247,7 +314,7 @@ export async function criarAgendamento(
   supabase: any,
   ownerId: string,
   row: Record<string, any>,
-  opcoes: { skipConfirmation?: boolean; retornoEm?: string | null } = {},
+  opcoes: { skipConfirmation?: boolean; retornoEm?: string | null; receberEm?: string | null } = {},
 ): Promise<{ id: string }> {
   const { data: inserted, error } = await gravarTolerandoColunaAusente({
     coluna: "actual_revenue",
@@ -294,6 +361,7 @@ export async function criarAgendamento(
       supabase, ownerId, inserted.id, null,
       { ...row, actual_revenue: row.actual_revenue ?? null } as any,
       opcoes.retornoEm,
+      opcoes.receberEm,
     );
   }
   return { id: inserted.id };
@@ -355,6 +423,8 @@ async function onStatusTransition(
     unit_id?: string | null;
   },
   retornoEm?: string | null,
+  /** Data em que o valor entrou no caixa. Presente só no "Ganho" do funil. */
+  receberEm?: string | null,
 ): Promise<{ patientName: string; startTime: string }[]> {
   if (statusAnterior === row.status) return [];
 
@@ -389,6 +459,7 @@ async function onStatusTransition(
         dueDate: row.date ?? new Date().toISOString().slice(0, 10),
         patientId: row.patient_id,
         professionalId: row.professional_id ?? null,
+        paidOn: receberEm ?? null,
       });
     } catch (e) {
       console.error("[agenda] recebimento do atendimento concluído", e);

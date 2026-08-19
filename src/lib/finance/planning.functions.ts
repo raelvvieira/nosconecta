@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { localDateStr } from "@/lib/date";
 
 /* ---------- Types ---------- */
 
@@ -22,7 +23,8 @@ export interface ProjectionPoint {
   label: string;
   actual: number | null;
   projected: number | null;
-  goal: number;
+  /** Nulo = a clínica não cadastrou meta de caixa; o gráfico não desenha linha. */
+  goal: number | null;
   risk: 0;
 }
 
@@ -97,7 +99,7 @@ export interface PlanningOverview {
 type Supabase = any;
 
 const MONTHS_PT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+const iso = (d: Date) => localDateStr(d);
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const fmtLabel = (d: Date) => `${String(d.getDate()).padStart(2, "0")} ${MONTHS_PT[d.getMonth()]}`;
 
@@ -208,12 +210,22 @@ export const getPlanningSummary = createServerFn({ method: "GET" })
 
     const pct = (cur: number, base: number) => base === 0 ? 0 : ((cur - base) / Math.abs(base)) * 100;
 
+    // "vs. mês anterior" era a constante 12 — a mesma variação para toda
+    // clínica, todo mês. Agora é calculada: desfaz o que entrou e saiu desde o
+    // dia 1º para chegar ao saldo do fim do mês passado e compara com o de
+    // hoje. `paid` cobre 90 dias, então o mês corrente está sempre inteiro ali.
+    const inicioDoMes = iso(new Date(today.getFullYear(), today.getMonth(), 1));
+    const liquidoNoMes = paid
+      .filter((p) => p.paid_date >= inicioDoMes)
+      .reduce((s, p) => s + (p.type === "receivable" ? p.amount : -p.amount), 0);
+    const saldoFimMesPassado = currentBalance - liquidoNoMes;
+
     return {
       currentBalance,
       projectedBalance30,
       projectedBalance90,
       financialRunwayDays,
-      deltaVsPreviousMonthPct: 12,
+      deltaVsPreviousMonthPct: Math.round(pct(currentBalance, saldoFimMesPassado)),
       projected30DeltaPct: Math.round(pct(projectedBalance30, currentBalance)),
       projected90DeltaPct: Math.round(pct(projectedBalance90, currentBalance)),
     };
@@ -253,7 +265,11 @@ export const getCashProjection = createServerFn({ method: "GET" })
     // Goal value (active cash goal) — clínica inteira, sem unidade.
     const { data: cashGoal } = await supabase.from("financial_goals")
       .select("target_amount").eq("owner_id", context.ownerId).eq("goal_type", "cash").limit(1).maybeSingle();
-    const goal = Number(cashGoal?.target_amount ?? 50_000);
+    // Sem meta cadastrada não se desenha meta nenhuma: um valor inventado
+    // (era R$ 50.000 fixos) é lido como decisão da clínica.
+    const goal = cashGoal?.target_amount === null || cashGoal?.target_amount === undefined
+      ? null
+      : Number(cashGoal.target_amount);
 
     // Build per-day map of future pending
     const futureNet = new Map<string, number>();
@@ -498,17 +514,6 @@ export const simulateScenario = createServerFn({ method: "POST" })
 
 /* ---------- Insights ---------- */
 
-const INSIGHT_POOL: Insight[] = [
-  { id: "p1", tone: "info", icon: "spark", text: "Segunda-feira gera mais faturamento médio nas últimas 12 semanas." },
-  { id: "p2", tone: "violet", icon: "pie", text: "PIX representa a forma de pagamento mais usada pelos pacientes." },
-  { id: "p3", tone: "success", icon: "trend", text: "Ticket médio cresceu nas últimas semanas." },
-  { id: "p4", tone: "warning", icon: "alert", text: "Concentração alta de vencimentos no fim do mês — distribua se possível." },
-  { id: "p5", tone: "info", icon: "spark", text: "Pacientes com plano de tratamento ativo geram receita recorrente." },
-  { id: "p6", tone: "violet", icon: "pie", text: "Implantes e ortodontia somam mais da metade da receita futura." },
-  { id: "p7", tone: "success", icon: "trend", text: "Inadimplência abaixo de 5% — saudável." },
-  { id: "p8", tone: "warning", icon: "alert", text: "Custos fixos representam grande parte da despesa mensal." },
-];
-
 async function computeInsights(supabase: Supabase, ownerId: string, unitId: string | null): Promise<Insight[]> {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -568,17 +573,6 @@ export const getInsights = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
     return computeInsights(context.supabase, context.ownerId, unitFilter);
-  });
-
-export const generateMoreInsights = createServerFn({ method: "POST" })
-  .inputValidator((input: { excludeIds?: string[] }) => ({ excludeIds: input?.excludeIds ?? [] }))
-  .handler(async ({ data }): Promise<Insight[]> => {
-    const excluded = new Set(data.excludeIds);
-    const available = INSIGHT_POOL.filter(i => !excluded.has(i.id));
-    // Rotate deterministically based on excluded count
-    const offset = data.excludeIds.length % Math.max(1, available.length);
-    const ordered = [...available.slice(offset), ...available.slice(0, offset)];
-    return ordered.slice(0, 2);
   });
 
 export const getPlanningOverview = createServerFn({ method: "GET" })

@@ -14,23 +14,9 @@ import { KpiCard } from "@/components/finance/KpiCard";
 import { Button } from "@/components/ui/button";
 import { formatBRL } from "@/lib/finance/format";
 import { useGreetingUser } from "@/components/home/use-greeting-user";
-import {
-  appointments,
-  attentionItems,
-  AGENDA_TODAY_COUNT,
-  AGENDA_TODAY_DETAILS,
-  PENDING_CONFIRMATIONS_COUNT,
-} from "@/components/home/mock-data";
+import type { HomeData } from "@/components/home/home-data";
 
-export function DesktopHome({
-  revenueToday,
-  overdueTotal,
-  overduePatients,
-}: {
-  revenueToday: number;
-  overdueTotal: number;
-  overduePatients: number;
-}) {
+export function DesktopHome({ dados }: { dados: HomeData }) {
   const navigate = useNavigate();
   const { firstName, greeting } = useGreetingUser();
 
@@ -57,31 +43,39 @@ export function DesktopHome({
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5">
         <KpiCard
           label="Agenda de hoje"
-          value={String(AGENDA_TODAY_COUNT)}
+          value={String(dados.agendaHoje.total)}
           icon={CalendarDays}
           tone="violet"
-          footer={<span className="text-muted-foreground">{AGENDA_TODAY_DETAILS.join(" · ")}</span>}
+          footer={
+            <span className="text-muted-foreground">
+              {dados.agendaHoje.detalhes.join(" · ") || "nenhum agendamento hoje"}
+            </span>
+          }
         />
         <KpiCard
           label="Confirmações pendentes"
-          value={String(PENDING_CONFIRMATIONS_COUNT)}
+          value={String(dados.confirmacoesPendentes)}
           icon={Users}
           tone="violet"
           footer={<span className="text-muted-foreground">pacientes aguardando</span>}
         />
         <KpiCard
-          label="Recebimentos de hoje"
-          value={formatBRL(revenueToday)}
+          label="Recebido hoje"
+          value={formatBRL(dados.recebidoHoje)}
           icon={DollarSign}
           tone="success"
-          footer={<span className="text-muted-foreground">a receber hoje</span>}
+          footer={<span className="text-muted-foreground">entrou no caixa hoje</span>}
         />
         <KpiCard
           label="Alertas"
-          value={String(overduePatients)}
+          value={String(dados.alertas.total)}
           icon={AlertTriangle}
           tone="danger"
-          footer={<span className="text-muted-foreground">{formatBRL(overdueTotal)} em atraso</span>}
+          footer={
+            <span className="text-muted-foreground">
+              {formatBRL(dados.alertas.valorEmAtraso)} em atraso
+            </span>
+          }
         />
       </div>
 
@@ -92,9 +86,14 @@ export function DesktopHome({
             Ver todos
           </Link>
         </div>
+        {dados.proximos.length === 0 ? (
+          <p className="py-3 text-sm text-muted-foreground">
+            Nenhum atendimento pendente para o resto de hoje.
+          </p>
+        ) : (
         <div className="divide-y divide-border">
-          {appointments.map((appt, i) => (
-            <div key={i} className="flex items-center gap-3 py-3">
+          {dados.proximos.map((appt) => (
+            <div key={appt.id} className="flex items-center gap-3 py-3">
               <div className="w-16 shrink-0 text-sm font-semibold tabular-nums">{appt.time}</div>
               <div
                 className="h-10 w-10 shrink-0 rounded-full grid place-items-center text-xs font-bold"
@@ -109,15 +108,16 @@ export function DesktopHome({
               <span
                 className="text-2xs font-semibold px-2.5 py-1 rounded-full shrink-0"
                 style={{
-                  background: appt.status === "Confirmado" ? "rgba(34,197,94,0.12)" : "rgba(249,115,22,0.12)",
-                  color: appt.status === "Confirmado" ? "var(--success)" : "var(--warning)",
+                  background: appt.confirmado ? "rgba(34,197,94,0.12)" : "rgba(249,115,22,0.12)",
+                  color: appt.confirmado ? "var(--success)" : "var(--warning)",
                 }}
               >
-                {appt.status}
+                {appt.confirmado ? "Confirmado" : "Pendente"}
               </span>
             </div>
           ))}
         </div>
+        )}
       </section>
 
       <section className="surface-card p-6">
@@ -160,9 +160,16 @@ export function DesktopHome({
 
       <section className="surface-card p-6">
         <h2 className="text-lg font-semibold mb-4">Precisa de atenção</h2>
+        {dados.atencao.length === 0 ? (
+          <p className="py-3 text-sm text-muted-foreground">Nada pendente por aqui.</p>
+        ) : (
         <div className="divide-y divide-border">
-          {attentionItems.map((item, i) => (
-            <button key={i} type="button" className="w-full flex items-center gap-3 py-3 text-left">
+          {dados.atencao.map((item, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => navigate({ to: item.to })}
+              className="w-full flex items-center gap-3 py-3 text-left">
               <div className="h-9 w-9 shrink-0 rounded-full grid place-items-center" style={{ background: item.bg }}>
                 <item.icon className="h-4 w-4" style={{ color: item.color }} strokeWidth={1.75} />
               </div>
@@ -171,6 +178,7 @@ export function DesktopHome({
             </button>
           ))}
         </div>
+        )}
       </section>
     </div>
   );

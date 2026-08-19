@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { localDateStr } from "@/lib/date";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 
 export type ReceivableStatus = "all" | "received" | "pending" | "overdue" | "installments" | "recurring";
@@ -58,14 +59,14 @@ function sb() {
   );
 }
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = () => localDateStr();
 
 function resolveRange(from?: string, to?: string): { from: string; to: string } {
   if (from && to) return { from, to };
   const t = new Date();
   const f = new Date();
   f.setDate(f.getDate() - 29);
-  return { from: f.toISOString().slice(0, 10), to: t.toISOString().slice(0, 10) };
+  return { from: localDateStr(f), to: localDateStr(t) };
 }
 
 function previousRange(from: string, to: string): { from: string; to: string } {
@@ -76,7 +77,7 @@ function previousRange(from: string, to: string): { from: string; to: string } {
   prevTo.setDate(prevTo.getDate() - 1);
   const prevFrom = new Date(prevTo);
   prevFrom.setDate(prevFrom.getDate() - (days - 1));
-  return { from: prevFrom.toISOString().slice(0, 10), to: prevTo.toISOString().slice(0, 10) };
+  return { from: localDateStr(prevFrom), to: localDateStr(prevTo) };
 }
 
 const variation = (current: number, previous: number) => ({
@@ -129,8 +130,8 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
     // Build evolution: last 12 months ending at range.to
     const toDate = new Date(range.to + "T00:00:00");
     const evoStart = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1);
-    const evoStartStr = evoStart.toISOString().slice(0, 10);
-    const evoEnd = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0).toISOString().slice(0, 10);
+    const evoStartStr = localDateStr(evoStart);
+    const evoEnd = localDateStr(new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0));
 
     let listQuery = cu(
       supabase
@@ -154,7 +155,7 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
     if (data.q) listQuery = listQuery.ilike("description", `%${data.q}%`);
 
     const [
-      listRes, paidCurRes, paidPrevRes, pendingInRangeRes, overdueAllRes,
+      listRes, paidCurRes, paidPrevRes, pendingFutureRes, overdueAllRes,
       evoRes, topProcRes, topProfRes, defaultersRes, recurringRes,
       accountsRes, categoriesRes, patientsRes, professionalsRes,
     ] = await Promise.all([
@@ -165,11 +166,16 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
       cu(supabase.from("financial_transactions").select("amount")
         .eq("owner_id", ownerId).eq("type", "receivable").eq("status", "paid")
         .gte("paid_date", prev.from).lte("paid_date", prev.to)),
+      // "A receber" é o que ainda vai vencer — não tem relação com o período
+      // escolhido na tela, que termina hoje. Cruzar os dois deixava passar só
+      // o que vence no próprio dia.
       cu(supabase.from("financial_transactions").select("amount,due_date,status")
         .eq("owner_id", ownerId).eq("type", "receivable").in("status", ["pending", "overdue"])
-        .gte("due_date", range.from).lte("due_date", range.to)),
+        .gte("due_date", today)),
+      // Atraso é derivado (pendente e vencido): nada grava `status: 'overdue'`.
       cu(supabase.from("financial_transactions").select("amount,patient_id,patients(name)")
-        .eq("owner_id", ownerId).eq("type", "receivable").eq("status", "overdue")),
+        .eq("owner_id", ownerId).eq("type", "receivable").in("status", ["pending", "overdue"])
+        .lt("due_date", today)),
       // evolution 12 months: pull paid+pending+overdue with due_date OR paid_date in window
       cu(supabase.from("financial_transactions").select("amount,due_date,paid_date,status")
         .eq("owner_id", ownerId).eq("type", "receivable")
@@ -182,7 +188,8 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
       }),
       cu(supabase.from("financial_transactions")
         .select("amount, patient_id, patients(name)")
-        .eq("owner_id", ownerId).eq("type", "receivable").eq("status", "overdue")),
+        .eq("owner_id", ownerId).eq("type", "receivable").in("status", ["pending", "overdue"])
+        .lt("due_date", today)),
       cu(supabase.from("financial_transactions")
         .select("id, description, amount, recurrence_type, due_date")
         .eq("owner_id", ownerId).eq("type", "receivable").eq("is_recurring", true)
@@ -196,7 +203,7 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
       cu(supabase.from("professionals").select("id,name").eq("owner_id", ownerId).order("name")),
     ]);
 
-    for (const r of [listRes, paidCurRes, paidPrevRes, pendingInRangeRes, overdueAllRes, evoRes, topProcRes, topProfRes, defaultersRes, recurringRes, accountsRes, categoriesRes, patientsRes, professionalsRes]) {
+    for (const r of [listRes, paidCurRes, paidPrevRes, pendingFutureRes, overdueAllRes, evoRes, topProcRes, topProfRes, defaultersRes, recurringRes, accountsRes, categoriesRes, patientsRes, professionalsRes]) {
       if ((r as any).error) throw (r as any).error;
     }
 
@@ -204,11 +211,9 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
     const paidPrevious = ((paidPrevRes.data ?? []) as any[]).reduce((a, r) => a + Number(r.amount), 0);
     const paidCount = (paidCurRes.data ?? []).length;
 
-    const pendingRows = (pendingInRangeRes.data ?? []) as any[];
-    const toReceiveTotal = pendingRows
-      .filter((r) => r.status === "pending" && r.due_date >= today)
-      .reduce((a, r) => a + Number(r.amount), 0);
-    const toReceiveCount = pendingRows.filter((r) => r.status === "pending" && r.due_date >= today).length;
+    const pendingRows = (pendingFutureRes.data ?? []) as any[];
+    const toReceiveTotal = pendingRows.reduce((a, r) => a + Number(r.amount), 0);
+    const toReceiveCount = pendingRows.length;
 
     const allOverdue = (overdueAllRes.data ?? []) as any[];
     const overdueTotal = allOverdue.reduce((a, r) => a + Number(r.amount), 0);
@@ -342,7 +347,7 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
 function addMonths(dateStr: string, months: number): string {
   const d = new Date(dateStr + "T00:00:00");
   d.setMonth(d.getMonth() + months);
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 }
 
 export const createReceivable = createServerFn({ method: "POST" })
@@ -489,6 +494,12 @@ export const createReceivable = createServerFn({ method: "POST" })
  * A forma da linha é a mesma do caminho sem parcelas de `createReceivable`.
  *
  * Cortesia não vira cobrança: valor zero (ou negativo) sai sem inserir nada.
+ *
+ * `paidOn` marca o lançamento como já recebido naquele dia — é o caminho do
+ * "Ganho" do funil, onde o valor combinado já entrou no caixa na data do
+ * atendimento (a mesma semântica de `markReceivedNow` em `createReceivable`).
+ * Sem ele, fica pendente com vencimento na data — que é o que a Agenda quer
+ * quando o "Gerar cobrança ao concluir" abre uma cobrança a receber.
  */
 export async function createAppointmentReceivable(
   supabase: any,
@@ -500,9 +511,11 @@ export async function createAppointmentReceivable(
     dueDate: string;
     patientId: string | null;
     professionalId: string | null;
+    paidOn?: string | null;
   },
 ): Promise<void> {
   if (!(params.amount > 0)) return;
+  const recebido = !!params.paidOn;
   const { error } = await supabase.from("financial_transactions").insert({
     owner_id: ownerId,
     unit_id: unitId,
@@ -510,8 +523,8 @@ export async function createAppointmentReceivable(
     description: params.description,
     amount: params.amount,
     due_date: params.dueDate,
-    paid_date: null,
-    status: "pending" as any,
+    paid_date: recebido ? params.paidOn : null,
+    status: (recebido ? "paid" : "pending") as any,
     patient_id: params.patientId,
     professional_id: params.professionalId,
     category_id: null,

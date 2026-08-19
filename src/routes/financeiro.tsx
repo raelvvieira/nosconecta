@@ -6,6 +6,7 @@ import { DollarSign, TrendingDown, BarChart3, Users } from "lucide-react";
 
 import { Sidebar } from "@/components/finance/Sidebar";
 import { MobileHome } from "@/components/home/MobileHome";
+import { useHomeData } from "@/components/home/useHomeData";
 import { PageHeader } from "@/components/finance/PageHeader";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { CashFlowChart } from "@/components/finance/CashFlowChart";
@@ -101,12 +102,15 @@ function FinanceiroVisaoGeral() {
     });
 
   const { kpis } = data;
+  // No celular esta rota mostra a tela inicial — os mesmos números de /inicio,
+  // buscados pelo mesmo hook para nunca divergirem.
+  const dadosHome = useHomeData();
 
   return (
     <div className="app-bg h-dvh flex overflow-hidden">
       <Sidebar />
 
-      <MobileHome />
+      {dadosHome && <MobileHome dados={dadosHome} />}
 
       <main className="hidden lg:block flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-24 lg:pb-8">
         <PageHeader

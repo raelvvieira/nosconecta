@@ -111,11 +111,15 @@ export function CashProjectionChart({
             <Tooltip content={<ChartTooltip />} />
             <ReferenceArea y1={-100_000} y2={0} fill="url(#riskFill)" />
             <ReferenceLine y={0} stroke="hsl(0 70% 65%)" strokeOpacity={0.5} />
-            <Line
-              type="monotone" dataKey="goal" name="Meta Financeira"
-              stroke="hsl(var(--muted-foreground))" strokeDasharray="2 4" strokeOpacity={0.7}
-              dot={false} strokeWidth={1.5} isAnimationActive={false}
-            />
+            {/* Sem meta cadastrada não há linha: desenhar um valor inventado
+                faria a clínica achar que ela mesma tinha definido aquilo. */}
+            {data.some((p) => p.goal !== null) && (
+              <Line
+                type="monotone" dataKey="goal" name="Meta Financeira"
+                stroke="hsl(var(--muted-foreground))" strokeDasharray="2 4" strokeOpacity={0.7}
+                dot={false} strokeWidth={1.5} isAnimationActive={false}
+              />
+            )}
             <Line
               type="monotone" dataKey="actual" name="Saldo Atual"
               stroke="hsl(var(--primary))" strokeWidth={2.4} dot={false}

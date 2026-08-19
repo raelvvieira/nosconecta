@@ -21,6 +21,9 @@ export interface DadosGanho {
   /** Telefone conferido/digitado, no formato que vai para a Meta. */
   phone: string | null;
   gerarCobranca: boolean;
+  /** Ganho com valor é dinheiro que entrou na data do evento — por isso vem
+   *  marcado. Desmarcado, o recebimento nasce em aberto. */
+  pagamentoRecebido: boolean;
 }
 
 /** Hoje pela data local. `toISOString` é UTC e viraria o dia depois das 21h. */
@@ -69,6 +72,7 @@ export function ConfirmarGanho({
   const [data, setData] = useState(hoje());
   const [fone, setFone] = useState("");
   const [gerarCobranca, setGerarCobranca] = useState(true);
+  const [pagamentoRecebido, setPagamentoRecebido] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
   // Repovoa a cada abertura: o painel fica montado e um estado velho mostraria
@@ -79,6 +83,7 @@ export function ConfirmarGanho({
     setData(hoje());
     setFone(formatWhatsappNumber(phone));
     setGerarCobranca(true);
+    setPagamentoRecebido(true);
     setErro(null);
   }, [open, valorSugerido, phone]);
 
@@ -104,6 +109,7 @@ export function ConfirmarGanho({
       realizadoEm: data,
       phone: fone.trim() ? fone.trim() : null,
       gerarCobranca,
+      pagamentoRecebido,
     });
   };
 
@@ -197,6 +203,24 @@ export function ConfirmarGanho({
             </span>
             <Switch checked={gerarCobranca} onCheckedChange={setGerarCobranca} />
           </label>
+
+          {gerarCobranca && (
+            <label className="flex items-start justify-between gap-3 rounded-xl bg-surface px-3 py-2.5">
+              <span className="min-w-0 text-sm text-foreground-secondary">
+                Pagamento já recebido
+                <span className="mt-0.5 block text-2xs leading-4 text-muted-foreground">
+                  {pagamentoRecebido
+                    ? `Entra como receita${data ? ` em ${data.split("-").reverse().join("/")}` : ""}.`
+                    : "Fica como cobrança em aberto, a receber."}
+                </span>
+              </span>
+              <Switch
+                data-ganho-recebido=""
+                checked={pagamentoRecebido}
+                onCheckedChange={setPagamentoRecebido}
+              />
+            </label>
+          )}
 
           <p className="flex gap-2 rounded-xl bg-surface px-3 py-2 text-2xs leading-4 text-muted-foreground">
             <Info className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />

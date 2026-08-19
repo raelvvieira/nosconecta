@@ -41,6 +41,7 @@ import {
   LOSS_REASONS,
   type DealStatus,
 } from "@/lib/atendimentos/deals.functions";
+import { chaveDaNegociacao, chavesDaNegociacao } from "@/lib/atendimentos/deal-key";
 import { ConfirmarGanho, type DadosGanho } from "@/components/atendimentos/pipeline/ConfirmarGanho";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -168,8 +169,24 @@ function ChatPage() {
     enabled: !!selected && pipelineConfigured,
     staleTime: 8_000,
   });
-  const currentDeal = dealsQuery.data?.find((d) => d.itemId === currentPipelineItem?.id) ?? null;
+  // A negociação pode estar pendurada no card do funil OU na própria conversa
+  // (quando foi marcada sem card). A ordem de `chavesDaNegociacao` decide quem
+  // ganha se, por algum motivo, existirem as duas.
+  const chavesDoDesfecho = chavesDaNegociacao({
+    pipelineItemId: currentPipelineItem?.id,
+    conversationId: selected?.id,
+  });
+  const currentDeal =
+    chavesDoDesfecho
+      .map((chave) => dealsQuery.data?.find((d) => d.itemId === chave))
+      .find(Boolean) ?? null;
   const dealStatus: DealStatus = currentDeal?.status ?? "negotiating";
+  // Chave em que um desfecho novo será gravado. Nunca nula aqui: `selected`
+  // existe sempre que este cabeçalho está na tela.
+  const chaveDoDesfecho = chaveDaNegociacao({
+    pipelineItemId: currentPipelineItem?.id,
+    conversationId: selected?.id,
+  });
 
   const [confirmandoGanho, setConfirmandoGanho] = useState(false);
   const [askingLoss, setAskingLoss] = useState(false);
@@ -184,13 +201,14 @@ function ChatPage() {
     mutationFn: (dados: DadosGanho) =>
       doConfirmarGanho({
         data: {
-          itemId: currentPipelineItem!.id,
+          itemId: chaveDoDesfecho!,
           contactName: selected?.contactName ?? selected?.phone ?? "",
           crmContactId: selected?.contactId ?? null,
           phone: dados.phone,
           valor: dados.valor,
           realizadoEm: dados.realizadoEm,
           gerarCobranca: dados.gerarCobranca,
+          pagamentoRecebido: dados.pagamentoRecebido,
           unitId: selectedUnitId ?? undefined,
         },
       }),
@@ -214,7 +232,7 @@ function ChatPage() {
     mutationFn: (vars: { status: DealStatus; reason?: string }) =>
       doSaveStatus({
         data: {
-          itemId: currentPipelineItem!.id,
+          itemId: chaveDoDesfecho!,
           status: vars.status,
           lossReason: vars.reason,
           contactName: selected?.contactName ?? undefined,
@@ -436,10 +454,12 @@ function ChatPage() {
                   </DropdownMenu>
 
                   {/* Etapa e desfecho são coisas diferentes: a etapa diz onde a
-                      pessoa está, o desfecho diz como terminou. Só aparece
-                      quando já existe card no funil — sem ele não há o que
-                      marcar como ganho ou perdido. */}
-                  {currentPipelineItem && (
+                      pessoa está, o desfecho diz como terminou. Marcar o
+                      desfecho NÃO mexe na etapa nem cria card — sem card, a
+                      negociação é gravada com a chave da própria conversa
+                      (ver deal-key.ts), e a pessoa simplesmente não aparece no
+                      board. */}
+                  {chaveDoDesfecho && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button

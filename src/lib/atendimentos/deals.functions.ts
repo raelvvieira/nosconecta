@@ -187,6 +187,9 @@ export const saveDealStatus = createServerFn({ method: "POST" })
       /** Contato do CRM: é por ele que a Meta acha telefone e e-mail. */
       crmContactId?: string | null;
     }) => {
+      // Id do card no CRM, ou a chave da conversa quando não há card — mesma
+      // regra de `confirmarGanho` (ver deal-key.ts).
+      if (!input.itemId?.trim()) throw new Error("Negociação sem identificação.");
       if (input.status === "lost" && !input.lossReason?.trim()) {
         throw new Error("Informe o motivo da perda.");
       }
@@ -294,9 +297,17 @@ export const confirmarGanho = createServerFn({ method: "POST" })
       realizadoEm: string;
       procedureName?: string | null;
       gerarCobranca?: boolean;
+      /** Ganho com valor é receita concretizada na data do evento — por isso o
+       *  padrão é `true`. Desligado, vira uma cobrança em aberto (o caso do
+       *  tratamento que ainda será pago). */
+      pagamentoRecebido?: boolean;
       /** Só lido de fato pra admin — quem não é admin sempre cai na própria unidade. */
       unitId?: string;
     }) => {
+      // `itemId` é o id do card no CRM quando existe, ou a chave da conversa
+      // (`conv:<id>`, ver deal-key.ts) quando o ganho é marcado direto do chat
+      // sem card no funil. A coluna é `text` sem FK justamente por isso.
+      if (!input.itemId?.trim()) throw new Error("Negociação sem identificação.");
       if (!input.contactName?.trim()) throw new Error("Informe o nome do cliente.");
       if (!input.realizadoEm) throw new Error("Informe a data em que o atendimento foi realizado.");
       // Mesma regra da Agenda, pela mesma razão: zero é cortesia, vazio é
@@ -372,6 +383,12 @@ export const confirmarGanho = createServerFn({ method: "POST" })
         actual_revenue: data.valor,
         notes: "Registrado a partir do funil de atendimentos.",
         generate_financial: data.gerarCobranca ?? true,
+      }, {
+        // Ganho é sempre retroativo: o atendimento já aconteceu. Sem isto, um
+        // ganho confirmado hoje dispara "confirme sua consulta" no WhatsApp
+        // (a guarda `jaAconteceu` compara com `<`, e hoje não é passado).
+        skipConfirmation: true,
+        receberEm: (data.pagamentoRecebido ?? true) ? data.realizadoEm : null,
       });
       appointmentId = criado.id;
     }

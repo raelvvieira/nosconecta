@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { localDateStr } from "@/lib/date";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 
 export type PayableStatus = "all" | "paid" | "pending" | "overdue";
@@ -66,14 +67,14 @@ function sb() {
   );
 }
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = () => localDateStr();
 
 function resolveRange(from?: string, to?: string): { from: string; to: string } {
   if (from && to) return { from, to };
   const t = new Date();
   const f = new Date();
   f.setDate(f.getDate() - 29);
-  return { from: f.toISOString().slice(0, 10), to: t.toISOString().slice(0, 10) };
+  return { from: localDateStr(f), to: localDateStr(t) };
 }
 
 function previousRange(from: string, to: string): { from: string; to: string } {
@@ -84,7 +85,7 @@ function previousRange(from: string, to: string): { from: string; to: string } {
   prevTo.setDate(prevTo.getDate() - 1);
   const prevFrom = new Date(prevTo);
   prevFrom.setDate(prevFrom.getDate() - (days - 1));
-  return { from: prevFrom.toISOString().slice(0, 10), to: prevTo.toISOString().slice(0, 10) };
+  return { from: localDateStr(prevFrom), to: localDateStr(prevTo) };
 }
 
 const variation = (current: number, previous: number) => ({
@@ -160,6 +161,7 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
       paidCurRes,
       paidPrevRes,
       pendingInRangeRes,
+      pendingFutureRes,
       overdueAllRes,
       catAggRes,
       upcomingRes,
@@ -175,9 +177,16 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
       cu(supabase.from("financial_transactions").select("amount")
         .eq("owner_id", context.ownerId).eq("type", "payable").eq("status", "paid")
         .gte("paid_date", prev.from).lte("paid_date", prev.to)),
+      // Duas leituras diferentes de propósito: "Total previsto no período" é o
+      // que cai dentro do intervalo escolhido; "A pagar" é tudo que ainda vai
+      // vencer, independente do intervalo. Antes as duas saíam da mesma
+      // consulta, e como o intervalo termina hoje, "A pagar" só via o dia.
       cu(supabase.from("financial_transactions").select("amount,due_date,status")
         .eq("owner_id", context.ownerId).eq("type", "payable").in("status", ["pending", "overdue"])
         .gte("due_date", range.from).lte("due_date", range.to)),
+      cu(supabase.from("financial_transactions").select("amount,due_date,status")
+        .eq("owner_id", context.ownerId).eq("type", "payable").in("status", ["pending", "overdue"])
+        .gte("due_date", today)),
       cu(supabase.from("financial_transactions").select("amount,due_date,status")
         .eq("owner_id", context.ownerId).eq("type", "payable").in("status", ["pending", "overdue"])),
       cu(supabase.from("financial_transactions")
@@ -201,15 +210,16 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
         .eq("owner_id", context.ownerId).eq("type", "payable").not("supplier_name", "is", null)),
     ]);
 
-    const errs = [listRes, paidCurRes, paidPrevRes, pendingInRangeRes, overdueAllRes, catAggRes, upcomingRes, recurringRes, accountsRes, categoriesRes, suppliersRes];
+    const errs = [listRes, paidCurRes, paidPrevRes, pendingInRangeRes, pendingFutureRes, overdueAllRes, catAggRes, upcomingRes, recurringRes, accountsRes, categoriesRes, suppliersRes];
     for (const r of errs) if ((r as any).error) throw (r as any).error;
 
     const paidCurrent = ((paidCurRes.data ?? []) as any[]).reduce((a, r) => a + Number(r.amount), 0);
     const paidPrevious = ((paidPrevRes.data ?? []) as any[]).reduce((a, r) => a + Number(r.amount), 0);
 
     const pendingRows = (pendingInRangeRes.data ?? []) as any[];
-    const toPayTotal = pendingRows.filter(r => r.status === "pending" && r.due_date >= today).reduce((a, r) => a + Number(r.amount), 0);
-    const toPayCount = pendingRows.filter(r => r.status === "pending" && r.due_date >= today).length;
+    const pendingFuture = (pendingFutureRes.data ?? []) as any[];
+    const toPayTotal = pendingFuture.reduce((a, r) => a + Number(r.amount), 0);
+    const toPayCount = pendingFuture.length;
 
     const allUnpaid = (overdueAllRes.data ?? []) as any[];
     const overdueCurrent = allUnpaid
@@ -313,7 +323,7 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
 function addMonths(dateStr: string, months: number): string {
   const d = new Date(dateStr + "T00:00:00");
   d.setMonth(d.getMonth() + months);
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 }
 
 export const createPayable = createServerFn({ method: "POST" })

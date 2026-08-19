@@ -11,13 +11,8 @@ import {
   Users,
 } from "lucide-react";
 import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
-import {
-  appointments,
-  attentionItems,
-  AGENDA_TODAY_COUNT,
-  AGENDA_TODAY_DETAILS,
-  PENDING_CONFIRMATIONS_COUNT,
-} from "@/components/home/mock-data";
+import type { HomeData } from "@/components/home/home-data";
+import { formatBRL } from "@/lib/finance/format";
 import { useGreetingUser } from "@/components/home/use-greeting-user";
 
 const GRADIENT = "var(--gradient-primary)";
@@ -69,62 +64,64 @@ function Header() {
 
 // ─── Summary cards carousel ───────────────────────────────────────────────────
 
-const SUMMARY_CARDS = [
-  {
-    icon: CalendarDays,
-    iconBg: "color-mix(in oklab, var(--pink) 12%, transparent)",
-    iconColor: "var(--pink)",
-    title: "Agenda de hoje",
-    value: String(AGENDA_TODAY_COUNT),
-    valueColor: "var(--foreground)",
-    subtitle: "atendimentos",
-    details: AGENDA_TODAY_DETAILS,
-    action: "Ver agenda",
-    actionColor: "var(--pink)",
-  },
-  {
-    icon: Users,
-    iconBg: "color-mix(in oklab, var(--violet) 12%, transparent)",
-    iconColor: "var(--violet)",
-    title: "Confirmações pendentes",
-    value: String(PENDING_CONFIRMATIONS_COUNT),
-    valueColor: "var(--foreground)",
-    subtitle: "pacientes aguardando",
-    details: [],
-    action: "Confirmar agora",
-    actionColor: "var(--violet)",
-  },
-  {
-    icon: DollarSign,
-    iconBg: "rgba(34,197,94,0.12)",
-    iconColor: "var(--success)",
-    title: "Recebimentos de hoje",
-    value: "R$ 8.200",
-    valueColor: "var(--success)",
-    subtitle: "a receber hoje",
-    details: [],
-    action: "Ver recebimentos",
-    actionColor: "var(--success)",
-  },
-  {
-    icon: AlertTriangle,
-    iconBg: "rgba(239,68,68,0.10)",
-    iconColor: "var(--danger)",
-    title: "Alertas",
-    value: "3",
-    valueColor: "var(--foreground)",
-    subtitle: "itens",
-    details: [],
-    action: "Ver alertas",
-    actionColor: "var(--danger)",
-  },
-] as const;
+function summaryCards(dados: HomeData) {
+  return [
+    {
+      icon: CalendarDays,
+      iconBg: "color-mix(in oklab, var(--pink) 12%, transparent)",
+      iconColor: "var(--pink)",
+      title: "Agenda de hoje",
+      value: String(dados.agendaHoje.total),
+      valueColor: "var(--foreground)",
+      subtitle: "atendimentos",
+      action: "Ver agenda",
+      actionColor: "var(--pink)",
+      to: "/agenda" as const,
+    },
+    {
+      icon: Users,
+      iconBg: "color-mix(in oklab, var(--violet) 12%, transparent)",
+      iconColor: "var(--violet)",
+      title: "Confirmações pendentes",
+      value: String(dados.confirmacoesPendentes),
+      valueColor: "var(--foreground)",
+      subtitle: "pacientes aguardando",
+      action: "Confirmar agora",
+      actionColor: "var(--violet)",
+      to: "/agenda" as const,
+    },
+    {
+      icon: DollarSign,
+      iconBg: "rgba(34,197,94,0.12)",
+      iconColor: "var(--success)",
+      title: "Recebido hoje",
+      value: formatBRL(dados.recebidoHoje),
+      valueColor: "var(--success)",
+      subtitle: "entrou no caixa hoje",
+      action: "Ver recebimentos",
+      actionColor: "var(--success)",
+      to: "/recebimentos" as const,
+    },
+    {
+      icon: AlertTriangle,
+      iconBg: "rgba(239,68,68,0.10)",
+      iconColor: "var(--danger)",
+      title: "Alertas",
+      value: String(dados.alertas.total),
+      valueColor: "var(--foreground)",
+      subtitle: dados.alertas.valorEmAtraso > 0 ? `${formatBRL(dados.alertas.valorEmAtraso)} em atraso` : "itens",
+      action: "Ver recebimentos",
+      actionColor: "var(--danger)",
+      to: "/recebimentos" as const,
+    },
+  ];
+}
 
-function SummaryGrid() {
+function SummaryGrid({ dados }: { dados: HomeData }) {
   return (
     <div style={{ padding: "28px 24px 0 24px" }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-        {SUMMARY_CARDS.map((card, i) => (
+        {summaryCards(dados).map((card, i) => (
           <div
             key={i}
             style={{ ...cardStyle, minWidth: 0, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}
@@ -156,7 +153,7 @@ function SummaryGrid() {
 
 // ─── Next appointments ────────────────────────────────────────────────────────
 
-function NextAppointments() {
+function NextAppointments({ dados }: { dados: HomeData }) {
   return (
     <div style={{ padding: "28px 24px 0 24px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -169,10 +166,15 @@ function NextAppointments() {
       </div>
 
       <div style={{ ...cardStyle, overflow: "hidden" }}>
-        {appointments.map((appt, i) => (
+        {dados.proximos.length === 0 && (
+          <p style={{ padding: "18px 16px", margin: 0, fontSize: "0.875rem", color: "var(--muted-foreground)" }}>
+            Nenhum atendimento pendente para o resto de hoje.
+          </p>
+        )}
+        {dados.proximos.map((appt, i) => (
           <div
-            key={i}
-            style={{ height: 74, display: "flex", alignItems: "center", padding: "0 14px", gap: 12, borderBottom: i < appointments.length - 1 ? "1px solid var(--surface-muted)" : "none" }}
+            key={appt.id}
+            style={{ height: 74, display: "flex", alignItems: "center", padding: "0 14px", gap: 12, borderBottom: i < dados.proximos.length - 1 ? "1px solid var(--surface-muted)" : "none" }}
           >
             {/* Time + accent bar */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, width: 70, flexShrink: 0 }}>
@@ -201,11 +203,11 @@ function NextAppointments() {
             <div
               style={{
                 height: 26, paddingInline: 10, borderRadius: 999, fontSize: "0.6875rem", fontWeight: 600, display: "flex", alignItems: "center", flexShrink: 0,
-                background: appt.status === "Confirmado" ? "rgba(34,197,94,0.12)" : "rgba(249,115,22,0.12)",
-                color: appt.status === "Confirmado" ? "var(--success)" : "var(--warning)",
+                background: appt.confirmado ? "rgba(34,197,94,0.12)" : "rgba(249,115,22,0.12)",
+                color: appt.confirmado ? "var(--success)" : "var(--warning)",
               }}
             >
-              {appt.status}
+              {appt.confirmado ? "Confirmado" : "Pendente"}
             </div>
 
             <ChevronRight style={{ width: 15, height: 15, color: "var(--foreground-subtle)", flexShrink: 0 }} strokeWidth={2} />
@@ -293,36 +295,32 @@ function QuickActions() {
 
 // ─── Attention section ────────────────────────────────────────────────────────
 
-function HighlightedText({ text, highlight, color }: { text: string; highlight: string; color: string }) {
-  const parts = text.split(highlight);
-  return (
-    <span>
-      {parts[0]}
-      <span style={{ color, fontWeight: 700 }}>{highlight}</span>
-      {parts[1]}
-    </span>
-  );
-}
-
-function AttentionSection() {
+function AttentionSection({ dados }: { dados: HomeData }) {
+  const navigate = useNavigate();
   return (
     <div style={{ padding: "28px 24px 0 24px" }}>
       <h2 style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--foreground)", margin: "0 0 12px" }}>
         Precisa de atenção
       </h2>
       <div style={{ ...cardStyle, overflow: "hidden" }}>
-        {attentionItems.map((item, i) => (
+        {dados.atencao.length === 0 && (
+          <p style={{ padding: "18px 16px", margin: 0, fontSize: "0.875rem", color: "var(--muted-foreground)" }}>
+            Nada pendente por aqui.
+          </p>
+        )}
+        {dados.atencao.map((item, i) => (
           <button
             key={i}
             type="button"
             className="press"
-            style={{ width: "100%", height: 58, display: "flex", alignItems: "center", padding: "0 16px", gap: 12, borderBottom: i < attentionItems.length - 1 ? "1px solid var(--surface-muted)" : "none", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+            onClick={() => navigate({ to: item.to })}
+            style={{ width: "100%", height: 58, display: "flex", alignItems: "center", padding: "0 16px", gap: 12, borderBottom: i < dados.atencao.length - 1 ? "1px solid var(--surface-muted)" : "none", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
           >
             <div style={{ width: 36, height: 36, borderRadius: 999, background: item.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <item.icon style={{ width: 16, height: 16, color: item.color }} strokeWidth={1.75} />
             </div>
             <span style={{ flex: 1, fontSize: "0.875rem", color: "var(--foreground-secondary)", lineHeight: "20px" }}>
-              <HighlightedText text={item.label} highlight={item.highlight} color={item.color} />
+              {item.label}
             </span>
             <ChevronRight style={{ width: 15, height: 15, color: "var(--foreground-subtle)", flexShrink: 0 }} strokeWidth={2} />
           </button>
@@ -334,7 +332,7 @@ function AttentionSection() {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export function MobileHome() {
+export function MobileHome({ dados }: { dados: HomeData }) {
   useRegisterMobileFab(null);
 
   return (
@@ -346,10 +344,10 @@ export function MobileHome() {
       }}
     >
       <Header />
-      <SummaryGrid />
-      <NextAppointments />
+      <SummaryGrid dados={dados} />
+      <NextAppointments dados={dados} />
       <QuickActions />
-      <AttentionSection />
+      <AttentionSection dados={dados} />
     </div>
   );
 }

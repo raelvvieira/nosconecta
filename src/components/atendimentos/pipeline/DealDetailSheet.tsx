@@ -175,6 +175,7 @@ export function DealDetailSheet({
           valor: dados.valor,
           realizadoEm: dados.realizadoEm,
           gerarCobranca: dados.gerarCobranca,
+          pagamentoRecebido: dados.pagamentoRecebido,
           unitId: selectedUnitId ?? undefined,
         },
       }),
