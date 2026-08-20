@@ -107,3 +107,68 @@ export const TRIGGERS_SEM_CONTATO_GARANTIDO: SystemEvent[] = [
   "receivable.paid",
   "pipeline.stage_changed",
 ];
+
+// ── Status de execução ───────────────────────────────────────────────────────
+//
+// O executor grava um destes em `automation_runs` a cada tentativa (ver
+// atendimento-automations/index.ts). Traduzir aqui, e não na tela, é o que
+// permite adicionar um status novo lá e o painel já saber o que dizer — ou,
+// não sabendo, mostrar o valor cru em vez de mentir.
+
+export type TomDaExecucao = "ok" | "erro" | "pulado" | "espera" | "caminho";
+
+export const EXECUCAO: Record<string, { tom: TomDaExecucao; titulo: string; explica?: string }> = {
+  sent: { tom: "ok", titulo: "Enviada" },
+  failed: { tom: "erro", titulo: "Falhou" },
+  deferred: { tom: "espera", titulo: "Agendada para depois", explica: "A automação tem uma espera antes desta ação." },
+  deferred_outside_window: {
+    tom: "espera",
+    titulo: "Adiada para a janela de horário",
+    explica: "O evento caiu fora do horário configurado; a ação roda na próxima abertura.",
+  },
+  skipped_outside_window: {
+    tom: "pulado",
+    titulo: "Fora da janela de horário",
+    explica: "O evento caiu fora do horário configurado, e a automação está como \"não enviar\" nesse caso.",
+  },
+  skipped_no_contact: {
+    tom: "pulado",
+    titulo: "Sem contato para enviar",
+    explica:
+      "O evento chegou sem paciente vinculado — é o que acontece quando o nome foi digitado à mão em vez de escolhido da base de pacientes.",
+  },
+  skipped_daily_limit: {
+    tom: "pulado",
+    titulo: "Cota diária atingida",
+    explica: "O limite de mensagens do dia já tinha sido usado por campanhas, disparos ou outras automações.",
+  },
+  skipped_missing_var: {
+    tom: "pulado",
+    titulo: "Faltou dado para a mensagem",
+    explica:
+      "Uma variável da mensagem ficou sem valor. A mensagem não sai pela metade: \"confirmado para o dia  às \" é pior do que não mandar.",
+  },
+  skipped_depth_limit: {
+    tom: "pulado",
+    titulo: "Encadeamento longo demais",
+    explica: "Uma automação disparou outra além do limite de encadeamento.",
+  },
+};
+
+/** `branch_sim`, `branch_nao`, `branch_a`… não são resultado: são o rastro de
+ *  qual caminho o fluxo tomou numa condição ou num randomizador. Aparecem
+ *  recuados no painel para não parecerem falha. */
+export function ehCaminho(status: string): boolean {
+  return status.startsWith("branch_");
+}
+
+export function rotuloDaExecucao(status: string): { tom: TomDaExecucao; titulo: string; explica?: string } {
+  if (ehCaminho(status)) {
+    const ramo = status.slice("branch_".length);
+    const nome = ramo === "sim" ? "Sim" : ramo === "nao" ? "Não" : ramo === "nenhum" ? "nenhum ramo" : ramo.toUpperCase();
+    return { tom: "caminho", titulo: `Seguiu por "${nome}"` };
+  }
+  // Status desconhecido mostra o valor cru: inventar um rótulo bonito para algo
+  // que não sabemos o que é seria pior do que admitir que não sabemos.
+  return EXECUCAO[status] ?? { tom: "pulado", titulo: status };
+}

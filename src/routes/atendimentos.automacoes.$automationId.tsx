@@ -17,7 +17,7 @@ import {
   type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Plus, X } from "lucide-react";
+import { History, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -42,6 +42,8 @@ import {
   EscolherCardDialog,
   EscolherGatilhoDialog,
 } from "@/components/atendimentos/automations/AutomationDialogs";
+import { PainelExecucoes } from "@/components/atendimentos/automations/PainelExecucoes";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   getAutomation,
   saveAutomation,
@@ -148,6 +150,7 @@ function Editor() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>(GRAFO_NOVO.nodes.map(paraFlow));
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
+  const [execucoes, setExecucoes] = useState(false);
   const [gatilhoDialog, setGatilhoDialog] = useState(false);
   const [filtroDialog, setFiltroDialog] = useState(false);
   const [janelaDialog, setJanelaDialog] = useState(false);
@@ -364,6 +367,20 @@ function Editor() {
           <Switch checked={ativa} onCheckedChange={setAtiva} />
           <span className="hidden sm:inline">{ativa ? "Ativa" : "Pausada"}</span>
         </label>
+        {/* "Por que não mandou?" precisava de banco até agora. O executor já
+            registrava o motivo de cada tentativa; faltava onde ler. Só existe
+            para automação salva — a nova ainda não rodou nenhuma vez. */}
+        {!ehNova && (
+          <Button
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => setExecucoes(true)}
+            aria-label="Ver execuções desta automação"
+          >
+            <History className="h-4 w-4" />
+            <span className="hidden sm:inline">Execuções</span>
+          </Button>
+        )}
         {/* Criar card é daqui, não de dentro dos cards: lá o "+" era o ponto de
             saída da linha, e as duas coisas no mesmo lugar confundiam. */}
         <Button
@@ -416,6 +433,20 @@ function Editor() {
           </ReactFlow>
         </EditorAcoesProvider>
       </div>
+
+      <Sheet open={execucoes} onOpenChange={setExecucoes}>
+        <SheetContent className="w-full sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>Execuções</SheetTitle>
+            <SheetDescription>
+              O que aconteceu a cada vez que o gatilho desta automação disparou.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-4">
+            <PainelExecucoes ruleId={automationId} />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <EscolherGatilhoDialog
         open={gatilhoDialog}
