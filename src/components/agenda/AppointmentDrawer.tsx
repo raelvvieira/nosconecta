@@ -24,7 +24,7 @@ import { STATUS_LABEL, TYPE_LABEL } from "./appointment-utils";
 import { NOTIFICATION_KINDS, NotificationRow } from "./notification-utils";
 import { ConfirmCompletion } from "./ConfirmCompletion";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
-import { durationBetween, endTimeFrom } from "@/lib/date";
+import { localDateStr, durationBetween, endTimeFrom } from "@/lib/date";
 
 interface Props {
   open: boolean;
@@ -107,7 +107,7 @@ export function AppointmentDrawer({
     professionalName: appointment?.professionalName ?? "",
     roomId: appointment?.roomId ?? "",
     roomName: appointment?.roomName ?? "",
-    date: appointment?.date ?? defaultDate ?? new Date().toISOString().slice(0, 10),
+    date: appointment?.date ?? defaultDate ?? localDateStr(),
     startTime: appointment?.startTime ?? "09:00",
     endTime: appointment?.endTime ?? "10:00",
     status: appointment?.status ?? "pending",
@@ -134,7 +134,7 @@ export function AppointmentDrawer({
       professionalName: appointment?.professionalName ?? "",
       roomId: appointment?.roomId ?? "",
       roomName: appointment?.roomName ?? "",
-      date: appointment?.date ?? defaultDate ?? new Date().toISOString().slice(0, 10),
+      date: appointment?.date ?? defaultDate ?? localDateStr(),
       startTime: appointment?.startTime ?? "09:00",
       endTime: appointment?.endTime ?? "10:00",
       status: appointment?.status ?? "pending",
@@ -280,7 +280,7 @@ export function AppointmentDrawer({
             <ConfirmCompletion
               expectedRevenue={form.expectedRevenue ?? 0}
               actualRevenue={form.status === "completed" ? (form.actualRevenue ?? 0) : null}
-              appointmentDate={form.date ?? new Date().toISOString().slice(0, 10)}
+              appointmentDate={form.date ?? localDateStr()}
               generateFinancial={form.generateFinancial ?? true}
               isPending={isSaving}
               onConfirm={({ valor, retornoEm, gerarCobranca }) => {

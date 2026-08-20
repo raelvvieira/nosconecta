@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 import { gravarTolerandoColunaAusente, semColuna } from "@/lib/schema-fallback";
-import { localDateStr } from "@/lib/date";
+import { clinicTodayStr, localDateStr } from "@/lib/date";
 import type {
   Appointment,
   AppointmentNotification,
@@ -333,7 +333,7 @@ export async function criarAgendamento(
   // Registrar um atendimento antigo — para ter o histórico no sistema — não
   // pode disparar "confirme sua consulta" de uma consulta de semana passada.
   // A regra mora aqui, e não na tela, porque quatro telas criam agendamento.
-  const jaAconteceu = String(row.date) < new Date().toISOString().slice(0, 10);
+  const jaAconteceu = String(row.date) < clinicTodayStr();
   if (!opcoes.skipConfirmation && !jaAconteceu) {
     const { triggerAppointmentNotification } = await import("@/lib/agenda/notifications.server");
     await triggerAppointmentNotification(inserted.id, "confirmation");
@@ -470,7 +470,7 @@ async function onStatusTransition(
       await createAppointmentReceivable(supabase, ownerId, row.unit_id, {
         amount: row.actual_revenue ?? 0,
         description: `${row.procedure_name || "Atendimento"} · ${row.patient_name}`,
-        dueDate: row.date ?? new Date().toISOString().slice(0, 10),
+        dueDate: row.date ?? clinicTodayStr(),
         patientId: row.patient_id,
         professionalId: row.professional_id ?? null,
         paidOn: receberEm ?? null,

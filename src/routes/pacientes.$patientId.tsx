@@ -9,6 +9,7 @@ import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
+import { localDateStr } from "@/lib/date";
 import {
   getPatientDetail,
   type CareEvent,
@@ -247,7 +248,7 @@ function Overview({ patient, onSchedule }: { patient: PatientDetail; onSchedule:
               {patient.nextAppointment ? (
                 <>
                   <p className="mt-1 text-xl font-semibold text-pink">
-                    {patient.nextAppointment.date === new Date().toISOString().slice(0, 10)
+                    {patient.nextAppointment.date === localDateStr()
                       ? "Hoje"
                       : formatDate(patient.nextAppointment.date)}
                     , {patient.nextAppointment.time}

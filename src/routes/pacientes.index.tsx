@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
+import { localDateStr } from "@/lib/date";
 import {
   getPatientsOverview,
   type PatientFilter,
@@ -77,7 +78,7 @@ const STATUS: Record<PatientStatus, { label: string; className: string }> = {
 
 function patientContext(patient: PatientSummary) {
   if (patient.nextAppointment) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateStr();
     const day =
       patient.nextAppointment.date === today
         ? "Hoje"

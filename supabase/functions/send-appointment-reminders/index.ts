@@ -13,6 +13,12 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+// ATENÇÃO ao mexer no cron desta função. `toISOString` devolve a data em UTC,
+// e isto só coincide com a data de Brasília porque o agendamento é
+// '0 11 * * *' — 11:00 UTC, 08:00 BRT, mesmo dia nos dois fusos. Rodar antes
+// das 03:00 UTC faria "amanhã" virar "hoje" e os lembretes de véspera sairiam
+// com um dia de atraso. Se o horário mudar, trocar por Intl.DateTimeFormat
+// com timeZone "America/Sao_Paulo", como em whatsapp-inbound-webhook.
 function dateStr(offsetDays: number): string {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() + offsetDays);

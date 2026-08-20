@@ -14,8 +14,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { markReceivableReceived } from "@/lib/finance/receivables.functions";
+import { localDateStr } from "@/lib/date";
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
 
 type Opt = { id: string; name: string };
 
@@ -31,12 +31,12 @@ export function RegisterReceiptDialog({
   const mark = useServerFn(markReceivableReceived);
   const [accountId, setAccountId] = useState("");
   const [method, setMethod] = useState("pix");
-  const [date, setDate] = useState(todayStr());
+  const [date, setDate] = useState(localDateStr());
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
     if (open) {
-      setAccountId(""); setMethod("pix"); setDate(todayStr()); setNotes("");
+      setAccountId(""); setMethod("pix"); setDate(localDateStr()); setNotes("");
     }
   }, [open]);
 

@@ -3,6 +3,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { DateRange } from "react-day-picker";
+import { localDateStr } from "@/lib/date";
 
 export interface DateRangePickerProps {
   from?: string;
@@ -17,7 +18,7 @@ const fmt = (d?: string) => {
   return x.toLocaleDateString("pt-BR");
 };
 
-const toIso = (d?: Date) => (d ? d.toISOString().slice(0, 10) : undefined);
+const toIso = (d?: Date) => (d ? localDateStr(d) : undefined);
 
 export function DateRangePicker({ from, to, onChange, className }: DateRangePickerProps) {
   const selected: DateRange | undefined =

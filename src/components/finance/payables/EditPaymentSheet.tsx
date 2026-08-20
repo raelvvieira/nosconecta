@@ -18,8 +18,8 @@ import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { updatePayable, type PayableRow } from "@/lib/finance/payables.functions";
 import { listSuppliers } from "@/lib/finance/suppliers.functions";
 import { parseBRLInput } from "@/lib/finance/format";
+import { localDateStr } from "@/lib/date";
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
 
 type Status = "pending" | "paid" | "overdue" | "cancelled";
 
@@ -60,7 +60,7 @@ export function EditPaymentSheet({
   const [amount, setAmount] = useState<string>("");
   const [accountId, setAccountId] = useState<string>("");
   const [method, setMethod] = useState<string>("pix");
-  const [dueDate, setDueDate] = useState<string>(todayStr());
+  const [dueDate, setDueDate] = useState<string>(localDateStr());
   const [status, setStatus] = useState<Status>("pending");
   const [paidDate, setPaidDate] = useState<string>("");
   const [notes, setNotes] = useState("");
@@ -96,7 +96,7 @@ export function EditPaymentSheet({
           payment_method: method,
           notes: notes || null,
           status,
-          paid_date: status === "paid" ? paidDate || todayStr() : null,
+          paid_date: status === "paid" ? paidDate || localDateStr() : null,
         },
       });
     },

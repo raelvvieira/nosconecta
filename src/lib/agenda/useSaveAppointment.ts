@@ -7,6 +7,7 @@ import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { useAgendaCatalog } from "@/lib/agenda/useAppointmentForm";
 import type { Appointment } from "@/components/agenda/types";
+import { localDateStr } from "@/lib/date";
 
 /**
  * Payload completo de um agendamento, do jeito que o servidor espera.
@@ -17,7 +18,7 @@ import type { Appointment } from "@/components/agenda/types";
  * mesmo motivo que o formulário passa.
  */
 export function appointmentPayload(data: Partial<Appointment>, patientId: string | null) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateStr();
   return {
     patientId: patientId ?? null,
     patientName: data.patientName ?? "",

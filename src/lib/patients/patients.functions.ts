@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 import { normalizeBrazilianPhone } from "@/lib/atendimentos/phone";
+import { clinicTodayStr } from "@/lib/date";
 
 // Empurra o paciente pro CRM (fonte da verdade é sempre o paciente, nunca o
 // contrário). Best-effort: se o CRM estiver fora do ar ou a clínica ainda
@@ -147,7 +148,7 @@ function effectiveStatus(row: any, overdueAmount: number): PatientStatus {
 
 function buildSummary(row: any, transactions: any[]): PatientSummary {
   const patientTransactions = transactions.filter((item) => item.patient_id === row.id);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = clinicTodayStr();
   const overdueAmount = patientTransactions
     .filter(
       (item) =>

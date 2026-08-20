@@ -18,8 +18,8 @@ import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { createReceivable } from "@/lib/finance/receivables.functions";
 import { formatBRL, parseBRLInput } from "@/lib/finance/format";
 import { useUnitSelection } from "@/lib/settings/unit-context";
+import { localDateStr } from "@/lib/date";
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
 
 type Opt = { id: string; name: string };
 
@@ -47,7 +47,7 @@ export function NewReceivableSheet({
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState("");
   const [method, setMethod] = useState("pix");
-  const [dueDate, setDueDate] = useState(todayStr());
+  const [dueDate, setDueDate] = useState(localDateStr());
   const [markReceivedNow, setMarkReceivedNow] = useState(false);
   const [installmentsOn, setInstallmentsOn] = useState(false);
   const [installments, setInstallments] = useState(2);
@@ -64,7 +64,7 @@ export function NewReceivableSheet({
 
   const reset = () => {
     setPatientId(""); setCategoryId(""); setDescription(""); setProfessionalId(""); setAmount("");
-    setAccountId(""); setMethod("pix"); setDueDate(todayStr()); setMarkReceivedNow(false);
+    setAccountId(""); setMethod("pix"); setDueDate(localDateStr()); setMarkReceivedNow(false);
     setInstallmentsOn(false); setInstallments(2); setRecurring(false);
     setRecurrenceType("monthly"); setNotes("");
   };

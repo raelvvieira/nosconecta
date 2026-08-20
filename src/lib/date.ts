@@ -14,12 +14,38 @@ export function localDateStr(d: Date = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** "YYYY-MM-DD" no fuso da clínica, para código que roda no SERVIDOR.
+ *
+ *  `localDateStr` usa o fuso de quem executa — o que é certo no navegador da
+ *  recepcionista e errado no Worker, que roda em UTC. Ali "hoje" adianta um dia
+ *  às 21:00 de Brasília, e isso não é teórico: é o que decide se um
+ *  recebimento vence hoje ou já está atrasado.
+ *
+ *  `en-CA` porque é o locale cujo formato de data já é YYYY-MM-DD — mesma
+ *  técnica usada na Edge Function de automações, que precisa da mesma resposta
+ *  em outro runtime. */
+const fmtDataClinica = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Sao_Paulo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+export function clinicTodayStr(d: Date = new Date()): string {
+  return fmtDataClinica.format(d);
+}
+
 /** Soma meses preservando o dia; 31/01 + 1 mês cai em 03/03 nos anos comuns,
  *  que é o comportamento nativo do Date e o mesmo já usado no financeiro. */
 export function addMonths(dateStr: string, months: number): string {
   const d = new Date(dateStr + "T00:00:00");
   d.setMonth(d.getMonth() + months);
-  return d.toISOString().slice(0, 10);
+  // `localDateStr` e não `toISOString`: a data foi construída à meia-noite
+  // LOCAL, e converter para UTC devolve o dia anterior em qualquer fuso
+  // positivo. No Brasil dava certo por sorte — a meia-noite local vira 03:00Z
+  // do mesmo dia —, o que é exatamente o tipo de acerto que some quando
+  // alguém abre o sistema de outro fuso.
+  return localDateStr(d);
 }
 
 /** "09:00" → 540 */

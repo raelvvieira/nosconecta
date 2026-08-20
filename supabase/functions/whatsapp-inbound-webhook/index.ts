@@ -114,7 +114,17 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, matched: false, reason: "paciente não encontrado" }));
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    // Fuso da clínica, não UTC: esta função roda quando o paciente responde,
+    // a qualquer hora. Às 21:00 de Brasília o "hoje" em UTC já é amanhã, e o
+    // gte() abaixo passaria por cima de um agendamento de hoje à noite.
+    // en-CA porque seu formato de data já é YYYY-MM-DD (mesma técnica de
+    // atendimento-automations/index.ts e de src/lib/date.ts).
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
     const { data: appt } = await supabase
       .from("appointments")
       .select("id, status")

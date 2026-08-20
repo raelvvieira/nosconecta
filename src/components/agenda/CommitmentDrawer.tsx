@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { durationBetween, endTimeFrom } from "@/lib/date";
+import { localDateStr, durationBetween, endTimeFrom } from "@/lib/date";
 import type { BlockedTime, Professional, Room } from "./types";
 
 /**
@@ -55,7 +55,7 @@ export function CommitmentDrawer({
     id: commitment?.id,
     professionalId: commitment?.professionalId ?? "",
     roomId: commitment?.roomId ?? "",
-    date: commitment?.date ?? defaultDate ?? new Date().toISOString().slice(0, 10),
+    date: commitment?.date ?? defaultDate ?? localDateStr(),
     startTime: commitment?.startTime ?? "12:00",
     endTime: commitment?.endTime ?? "13:00",
     reason: commitment?.reason ?? "Almoço",

@@ -20,8 +20,8 @@ import { createPayable } from "@/lib/finance/payables.functions";
 import { listSuppliers } from "@/lib/finance/suppliers.functions";
 import { formatBRL, parseBRLInput } from "@/lib/finance/format";
 import { useUnitSelection } from "@/lib/settings/unit-context";
+import { localDateStr } from "@/lib/date";
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
 
 export function NewPaymentSheet({
   open,
@@ -59,7 +59,7 @@ export function NewPaymentSheet({
   const [amount, setAmount] = useState<string>("");
   const [accountId, setAccountId] = useState<string>("");
   const [method, setMethod] = useState<string>("pix");
-  const [dueDate, setDueDate] = useState<string>(todayStr());
+  const [dueDate, setDueDate] = useState<string>(localDateStr());
   const [paidDate, setPaidDate] = useState<string>("");
   const [markPaid, setMarkPaid] = useState(false);
   const [installmentsOn, setInstallmentsOn] = useState(false);
@@ -71,7 +71,7 @@ export function NewPaymentSheet({
 
   const reset = () => {
     setSupplier(""); setDescription(""); setCategoryId(""); setAmount("");
-    setAccountId(""); setMethod("pix"); setDueDate(todayStr()); setPaidDate("");
+    setAccountId(""); setMethod("pix"); setDueDate(localDateStr()); setPaidDate("");
     setMarkPaid(false); setInstallmentsOn(false); setInstallments(12); setDownPayment("");
     setRecurring(false); setRecurrenceType("monthly"); setNotes("");
   };
