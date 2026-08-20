@@ -88,9 +88,9 @@ function StatsCarousel({ appointments, date }: { appointments: Appointment[]; da
 
   const cards = [
     { icon: CalendarCheck, label: "Atendimentos Hoje", value: String(total), sub: "Total de agendamentos", bg: "color-mix(in oklab, var(--violet) 10%, transparent)", color: "var(--violet)" },
-    { icon: CheckCircle2, label: "Confirmados", value: String(confirmed), sub: pct(confirmed), bg: "rgba(34,197,94,0.10)", color: "var(--success)" },
+    { icon: CheckCircle2, label: "Confirmados", value: String(confirmed), sub: pct(confirmed), bg: "color-mix(in oklab, var(--success) 10%, transparent)", color: "var(--success)" },
     { icon: Clock, label: "Pendentes", value: String(pending), sub: pct(pending), bg: "color-mix(in oklab, var(--coral) 10%, transparent)", color: "var(--coral)" },
-    { icon: UserX, label: "Faltas", value: String(missed), sub: pct(missed), bg: "rgba(239,68,68,0.10)", color: "var(--danger)" },
+    { icon: UserX, label: "Faltas", value: String(missed), sub: pct(missed), bg: "color-mix(in oklab, var(--danger) 10%, transparent)", color: "var(--danger)" },
   ];
 
   return (
@@ -99,7 +99,7 @@ function StatsCarousel({ appointments, date }: { appointments: Appointment[]; da
         <div
           key={c.label}
           className="bg-white p-4 flex flex-col gap-2"
-          style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
+          style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
         >
           <div className="h-9 w-9 rounded-xl grid place-items-center" style={{ background: c.bg }}>
             <c.icon style={{ color: c.color, width: 18, height: 18 }} strokeWidth={1.75} />
@@ -152,7 +152,7 @@ function DateSelector({ selectedDate, onDateChange }: { selectedDate: Date; onDa
               type="button"
               onClick={() => onDateChange(d)}
               className={cn(
-                "flex-1 min-w-[44px] flex flex-col items-center py-2.5 rounded-[18px] transition-[background-color,color,box-shadow]",
+                "flex-1 min-w-[44px] flex flex-col items-center py-2.5 rounded-xl transition-[background-color,color,box-shadow]",
                 !active && "bg-white",
               )}
               style={
@@ -190,12 +190,12 @@ function AppointmentCard({ appt, onClick }: { appt: Appointment; onClick: () => 
       type="button"
       onClick={onClick}
       className="w-full text-left bg-white p-4 flex items-center gap-3 active:scale-[0.985] transition-transform"
-      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
+      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
     >
       <div className="flex flex-col items-center shrink-0 w-12">
         <span className="text-sm font-bold text-foreground">{appt.startTime}</span>
         <span className="text-3xs text-muted-foreground">{appt.endTime}</span>
-        <div className="mt-1.5" style={{ width: 8, height: 8, borderRadius: 999, background: s.badge }} />
+        <div className="mt-1.5" style={{ width: 8, height: 8, borderRadius: 9999, background: s.badge }} />
       </div>
 
       <div
@@ -238,9 +238,9 @@ function BlockCard({ block }: { block: BlockedTime }) {
     <div
       className="w-full p-4 flex items-center gap-3"
       style={{
-        borderRadius: 20,
-        border: "1px solid rgba(148,163,184,0.20)",
-        background: "repeating-linear-gradient(135deg,rgba(148,163,184,0.08),rgba(148,163,184,0.08) 8px,rgba(148,163,184,0.14) 8px,rgba(148,163,184,0.14) 16px)",
+        borderRadius: "var(--radius-feature)",
+        border: "1px solid var(--divider)",
+        background: "repeating-linear-gradient(135deg,color-mix(in oklab, var(--foreground-subtle) 8%, transparent),color-mix(in oklab, var(--foreground-subtle) 8%, transparent) 8px,color-mix(in oklab, var(--foreground-subtle) 14%, transparent) 8px,color-mix(in oklab, var(--foreground-subtle) 14%, transparent) 16px)",
       }}
     >
       <div className="flex flex-col items-center shrink-0 w-12">
@@ -302,7 +302,7 @@ function MonthGrid({
   return (
     <div
       className="bg-white p-4"
-      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
+      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
     >
       <div className="flex items-center justify-between mb-3">
         <span className="text-base font-semibold text-foreground">{MONTHS_CAP[month]}, {year}</span>
@@ -348,7 +348,7 @@ function MonthGrid({
               </span>
               <div className="flex gap-0.5 h-1.5 mt-0.5">
                 {!isSelected && dots.map((c, idx) => (
-                  <div key={idx} style={{ width: 4, height: 4, borderRadius: 999, background: c }} />
+                  <div key={idx} style={{ width: 4, height: 4, borderRadius: 9999, background: c }} />
                 ))}
               </div>
             </button>
@@ -444,7 +444,7 @@ export function MobileAgenda({
         <button
           type="button"
           onClick={() => setFilterOpen(true)}
-          className="w-full flex items-center gap-2 px-4 h-11 rounded-[14px] bg-white border border-surface-muted text-foreground-secondary"
+          className="w-full flex items-center gap-2 px-4 h-11 rounded-lg bg-white border border-surface-muted text-foreground-secondary"
           style={{ boxShadow: "var(--shadow-2)" }}
         >
           <SlidersHorizontal className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
@@ -455,14 +455,14 @@ export function MobileAgenda({
         <DateSelector selectedDate={selectedDate} onDateChange={onDateChange} />
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-white p-1 rounded-[14px]" style={{ border: "1px solid var(--surface-muted)" }}>
+        <div className="flex gap-1 bg-white p-1 rounded-lg" style={{ border: "1px solid var(--surface-muted)" }}>
           {tabs.map((t) => (
             <button
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
               className={cn(
-                "flex-1 py-2 text-sm font-medium rounded-[10px] transition-colors",
+                "flex-1 py-2 text-sm font-medium rounded-sm transition-colors",
                 tab === t.id ? "text-pink" : "text-muted-foreground",
               )}
               style={tab === t.id ? { background: "color-mix(in oklab, var(--pink) 12%, transparent)" } : {}}

@@ -10,7 +10,7 @@ export function PhonePreview({ content, mediaUrl }: { content: string; mediaUrl:
       <p className="mb-2 text-center text-3xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         Preview
       </p>
-      <div className="overflow-hidden rounded-[32px] border-[6px] border-foreground bg-[#ECE5DD] shadow-soft">
+      <div className="overflow-hidden rounded-4xl border-[6px] border-foreground bg-[#ECE5DD] shadow-soft">
         <div className="flex items-center gap-2 bg-gradient-primary px-3 py-2.5">
           <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/20 text-white">
             <MessageCircle className="h-3.5 w-3.5" />

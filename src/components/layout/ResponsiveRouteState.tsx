@@ -48,7 +48,7 @@ export function ResponsiveRouteState({
       {!semSidebar && <Sidebar />}
       <main className="flex min-h-dvh flex-1 items-center justify-center px-5 pb-nav pt-20 lg:min-h-0 lg:px-10 lg:pb-10 lg:pt-10">
         <section className="surface-card w-full max-w-[520px] px-6 py-8 text-center sm:px-10 sm:py-10">
-          <span className="mx-auto grid h-14 w-14 place-items-center rounded-[20px] bg-coral-soft text-coral">
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-coral-soft text-coral">
             <AlertCircle className="h-6 w-6" />
           </span>
           <p className="mt-5 text-xs font-semibold uppercase tracking-[0.14em] text-pink">

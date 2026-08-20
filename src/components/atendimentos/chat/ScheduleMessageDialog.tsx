@@ -130,7 +130,7 @@ export function ScheduleMessageDialog({
               onChange={(e) => setText(e.target.value)}
               placeholder="Escreva a mensagem que será enviada"
               rows={4}
-              className="mt-1.5 resize-none rounded-[16px]"
+              className="mt-1.5 resize-none rounded-xl"
             />
           </div>
 
@@ -142,7 +142,7 @@ export function ScheduleMessageDialog({
               value={when}
               min={minDateTimeLocal()}
               onChange={(e) => setWhen(e.target.value)}
-              className="mt-1.5 h-11 rounded-[16px]"
+              className="mt-1.5 h-11 rounded-xl"
             />
           </div>
 

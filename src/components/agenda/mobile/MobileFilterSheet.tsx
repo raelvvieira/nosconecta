@@ -14,7 +14,7 @@ interface Props {
 }
 
 const selectCls =
-  "w-full text-sm border border-surface-muted rounded-[14px] px-3 py-3 text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-pink/30";
+  "w-full text-sm border border-surface-muted rounded-lg px-3 py-3 text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-pink/30";
 
 export function MobileFilterSheet({ open, filters, professionals, rooms, onClose, onApply }: Props) {
   const [draft, setDraft] = useState<AgendaFilters>(filters);
@@ -91,12 +91,12 @@ export function MobileFilterSheet({ open, filters, professionals, rooms, onClose
           </div>
 
           <div className="flex gap-3 pt-2">
-            <Button variant="outline" onClick={clear} className="flex-1 h-12 rounded-[14px] border-surface-muted">
+            <Button variant="outline" onClick={clear} className="flex-1 h-12 rounded-lg border-surface-muted">
               Limpar filtros
             </Button>
             <Button
               onClick={() => { onApply(draft); onClose(); }}
-              className="flex-1 h-12 rounded-[14px] text-white font-semibold"
+              className="flex-1 h-12 rounded-lg text-white font-semibold"
               style={{ background: "var(--gradient-primary)" }}
             >
               Aplicar filtros

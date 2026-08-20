@@ -213,7 +213,7 @@ export function AppointmentDrawer({
 
       {/* Modal */}
       <div
-        className="relative flex max-h-[90dvh] w-full max-w-[480px] flex-col overflow-hidden rounded-[24px] bg-white"
+        className="relative flex max-h-[90dvh] w-full max-w-[480px] flex-col overflow-hidden rounded-3xl bg-white"
         style={{ boxShadow: "var(--shadow-4)" }}
       >
         {/* Header */}

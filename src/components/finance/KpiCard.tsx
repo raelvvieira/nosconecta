@@ -34,13 +34,18 @@ export function KpiCard({
   return (
     <div
       className={cn(
-        "surface-card p-4 md:p-6 flex flex-col gap-3 md:gap-5 transition-shadow hover:shadow-lg",
-        highlight && "ring-1 ring-primary/20 bg-gradient-to-br from-card to-violet-soft/30",
+        "flex flex-col gap-3 p-4 transition-shadow md:gap-5 md:p-6",
+        // Destaque por ELEVAÇÃO, não por tinta: era um degradê violeta por
+        // baixo do cartão, que é decoração — e a marca do sistema é
+        // rosa-coral, então o realce puxava para uma cor que não é dela.
+        // Subir um degrau de raio e de sombra diz "leia este primeiro" sem
+        // gastar cor nenhuma.
+        highlight ? "feature-card hover:shadow-3" : "surface-card hover:shadow-2",
       )}
     >
       {/* Mobile: icon + label row; Desktop: icon + (label + value column) */}
       <div className="flex items-start gap-3 md:gap-4">
-        <div className={cn("h-9 w-9 md:h-12 md:w-12 rounded-xl md:rounded-2xl grid place-items-center shrink-0", styles.iconBg)}>
+        <div className={cn("h-9 w-9 md:h-12 md:w-12 rounded-md md:rounded-lg grid place-items-center shrink-0", styles.iconBg)}>
           <Icon className={cn("h-4 w-4 md:h-5 md:w-5", styles.iconText)} strokeWidth={2} />
         </div>
         {/* Desktop only: label + value stacked next to icon */}
@@ -53,7 +58,7 @@ export function KpiCard({
       </div>
 
       {/* Mobile only: value full width */}
-      <p className="md:hidden text-sm font-semibold tabular-nums leading-none">{value}</p>
+      <p className="md:hidden text-xl font-semibold tabular-nums">{value}</p>
 
       <div className="flex items-center justify-between text-xs">
         {deltaPct !== undefined ? (

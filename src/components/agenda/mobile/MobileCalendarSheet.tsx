@@ -102,7 +102,7 @@ export function MobileCalendarSheet({ open, selectedDate, appointments, onClose,
                     {day}
                   </span>
                   {count > 0 && !isSelected && (
-                    <div style={{ width: 4, height: 4, borderRadius: 999, background: "var(--pink)", marginTop: 2 }} />
+                    <div style={{ width: 4, height: 4, borderRadius: 9999, background: "var(--pink)", marginTop: 2 }} />
                   )}
                 </button>
               );

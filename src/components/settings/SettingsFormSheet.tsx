@@ -285,7 +285,7 @@ export function SettingsFormSheet({ open, section, item, units, isAdmin, onOpenC
             </Field>
           )}
 
-          <label className="flex items-center justify-between rounded-[20px] border border-border bg-muted/30 px-4 py-3">
+          <label className="flex items-center justify-between rounded-2xl border border-border bg-muted/30 px-4 py-3">
             <span>
               <span className="block text-sm font-semibold">Ativo</span>
               <span className="block text-xs text-muted-foreground">

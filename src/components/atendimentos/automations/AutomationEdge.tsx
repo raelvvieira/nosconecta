@@ -34,7 +34,7 @@ export function DeletableEdge({
         id={id}
         path={path}
         markerEnd={markerEnd}
-        style={{ stroke: "#f0668a", strokeWidth: 1.5, strokeDasharray: "4 4" }}
+        style={{ stroke: "var(--pink)", strokeWidth: 1.5, strokeDasharray: "4 4" }}
       />
       <EdgeLabelRenderer>
         <button

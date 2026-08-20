@@ -67,7 +67,7 @@ export function WhatsappConnectionCard({ dailyUsage }: { dailyUsage?: { limit: n
         <button
           type="button"
           onClick={() => setSheetOpen(true)}
-          className="flex items-center justify-center gap-2 rounded-[16px] bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          className="flex items-center justify-center gap-2 rounded-xl bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
         >
           <RefreshCw className="h-4 w-4" />
           {config.cta}

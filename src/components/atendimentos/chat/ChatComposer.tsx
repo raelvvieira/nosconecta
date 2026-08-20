@@ -348,7 +348,7 @@ export function ChatComposer({
           }}
           placeholder={isPrivate ? "Escreva uma nota interna" : "Escreva uma mensagem"}
           rows={1}
-          className="max-h-32 min-h-11 flex-1 resize-none rounded-[16px] bg-white"
+          className="max-h-32 min-h-11 flex-1 resize-none rounded-xl bg-white"
         />
 
         {/* IA e áudio */}
@@ -382,7 +382,7 @@ export function ChatComposer({
         <Button
           type="submit"
           size="icon"
-          className="h-11 w-11 shrink-0 rounded-[16px] bg-gradient-primary text-white"
+          className="h-11 w-11 shrink-0 rounded-xl bg-gradient-primary text-white"
           disabled={!canSend}
           aria-label={isPrivate ? "Salvar nota" : "Enviar"}
         >

@@ -88,7 +88,7 @@ function CadastroEquipePage() {
     <div className="min-h-dvh w-full bg-surface-subtle flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-[440px]">
         <div className="flex flex-col items-center mb-8">
-          <div className="h-14 w-14 rounded-[20px] bg-gradient-primary grid place-items-center shadow-soft mb-4">
+          <div className="h-14 w-14 rounded-2xl bg-gradient-primary grid place-items-center shadow-soft mb-4">
             <Sparkles className="h-7 w-7 text-white" strokeWidth={2} />
           </div>
           <h1 className="text-2xl font-semibold">NÓS Conecta</h1>

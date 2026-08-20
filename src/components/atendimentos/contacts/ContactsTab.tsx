@@ -325,7 +325,7 @@ export function ContactsTab({
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar por nome ou número"
-          className="h-12 rounded-[18px] bg-white pl-11 shadow-soft"
+          className="h-12 rounded-xl bg-white pl-11 shadow-soft"
         />
       </div>
 

@@ -633,7 +633,7 @@ export function Sidebar() {
           // 8 e a ilha não descola demais da borda.
           bottom: 8,
           height: 68,
-          borderRadius: 24,
+          borderRadius: "var(--radius-island)",
           // O fundo vem do utilitário `material-bar` (vidro fosco, com volta
           // para superfície sólida quando o sistema pede menos transparência).
           boxShadow: "var(--shadow-3)",
@@ -674,7 +674,7 @@ export function Sidebar() {
                   style={{
                     width: 30,
                     height: 30,
-                    borderRadius: 999,
+                    borderRadius: 9999,
                     background: active ? "var(--coral-soft)" : "transparent",
                     display: "flex",
                     alignItems: "center",
@@ -756,7 +756,7 @@ export function Sidebar() {
               style={{
                 width: 56,
                 height: 56,
-                borderRadius: 999,
+                borderRadius: 9999,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -795,7 +795,7 @@ export function Sidebar() {
                     style={{
                       width: 30,
                       height: 30,
-                      borderRadius: 999,
+                      borderRadius: 9999,
                       background: "transparent",
                       display: "flex",
                       alignItems: "center",
@@ -907,7 +907,7 @@ export function Sidebar() {
                         style={{
                           width: 30,
                           height: 30,
-                          borderRadius: 999,
+                          borderRadius: 9999,
                           background: active ? "var(--coral-soft)" : "transparent",
                           display: "flex",
                           alignItems: "center",
@@ -1050,7 +1050,7 @@ export function Sidebar() {
           right: 16,
           width: 52,
           height: 52,
-          borderRadius: 17,
+          borderRadius: "var(--radius-card)",
           background: "var(--card)",
           border: "1px solid var(--surface-muted)",
           boxShadow: "var(--shadow-2)",

@@ -259,7 +259,7 @@ function PipelinePage() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Buscar por nome ou telefone"
-                className="h-10 rounded-[16px] bg-white pl-10"
+                className="h-10 rounded-xl bg-white pl-10"
               />
             </div>
             {/* Sem isso, ganhos e perdidos entopem o board com o tempo. */}
@@ -286,7 +286,7 @@ function PipelinePage() {
         {!configured ? (
           <div className="flex flex-1 items-center justify-center px-4 pb-10 sm:px-6 lg:px-10">
             <section className="surface-card w-full max-w-[440px] px-6 py-8 text-center sm:px-10 sm:py-10">
-              <span className="mx-auto grid h-14 w-14 place-items-center rounded-[20px] bg-coral-soft text-coral">
+              <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-coral-soft text-coral">
                 <Workflow className="h-6 w-6" />
               </span>
               <h2 className="mt-5 text-xl font-semibold">Criar o pipeline</h2>
@@ -298,7 +298,7 @@ function PipelinePage() {
                 value={pipelineNameInput}
                 onChange={(e) => setPipelineNameInput(e.target.value)}
                 placeholder="Nome do pipeline"
-                className="mx-auto mt-5 h-11 max-w-xs rounded-[16px] bg-white text-center"
+                className="mx-auto mt-5 h-11 max-w-xs rounded-xl bg-white text-center"
               />
               <Button
                 className="mt-4 gap-2 bg-gradient-primary text-white"

@@ -17,48 +17,48 @@ export const TYPE_LABEL: Record<AppointmentType, string> = {
   emergency: "Emergência",
 };
 
+/**
+ * Cor do bloco de agendamento por situação.
+ *
+ * Era uma paleta paralela em hex e rgba — verde `#22C55E`, roxo `#8B7CFF`,
+ * laranja `#FF8A4C` — que não é a do resto do app: a agenda ficava com um
+ * verde e um roxo próprios, ao lado de telas usando `--success` e `--violet`.
+ * Agora sai tudo dos mesmos tokens de status.
+ *
+ * `color-mix` no fundo e na borda em vez de rgba fixo: assim, mexer no token
+ * de status acerta o bloco da agenda junto, em vez de deixá-lo para trás.
+ */
 export function statusStyle(status: AppointmentStatus): {
   bg: string;
   border: string;
   badge: string;
   text: string;
 } {
+  const doToken = (token: string) => ({
+    bg: `color-mix(in oklab, var(${token}) 9%, transparent)`,
+    border: `color-mix(in oklab, var(${token}) 20%, transparent)`,
+    badge: `var(${token})`,
+    // Texto sobre o fundo claro: uma versão bem escurecida do próprio status,
+    // porque o token puro sobre 9% de si mesmo não alcança contraste de leitura.
+    text: `color-mix(in oklab, var(${token}) 72%, var(--foreground))`,
+  });
+
   switch (status) {
     case "confirmed":
     case "completed":
-      return {
-        bg: "rgba(34,197,94,0.08)",
-        border: "rgba(34,197,94,0.18)",
-        badge: "#22C55E",
-        text: "#166534",
-      };
+      return doToken("--success");
     case "in_progress":
-      return {
-        bg: "rgba(139,124,255,0.10)",
-        border: "rgba(139,124,255,0.20)",
-        badge: "#8B7CFF",
-        text: "#4B32C3",
-      };
+      return doToken("--violet");
     case "pending":
-      return {
-        bg: "rgba(255,138,76,0.10)",
-        border: "rgba(255,138,76,0.20)",
-        badge: "#FF8A4C",
-        text: "#92400E",
-      };
+      return doToken("--warning");
     case "missed":
-      return {
-        bg: "rgba(239,68,68,0.08)",
-        border: "rgba(239,68,68,0.18)",
-        badge: "#EF4444",
-        text: "#991B1B",
-      };
+      return doToken("--danger");
     case "cancelled":
       return {
-        bg: "rgba(148,163,184,0.08)",
-        border: "rgba(148,163,184,0.18)",
-        badge: "#94A3B8",
-        text: "#475569",
+        bg: "var(--surface-muted)",
+        border: "var(--divider)",
+        badge: "var(--foreground-subtle)",
+        text: "var(--muted-foreground)",
       };
   }
 }

@@ -38,11 +38,12 @@ export interface HomeData {
   atencao: HomeAttentionItem[];
 }
 
-/** Mesmo trio de cores que o mock usava, agora só como enfeite rotativo. */
+/** Enfeite rotativo dos avatares da lista de hoje, em token — eram três hex
+ *  soltos, herdados dos dados de exemplo, que não acompanhavam a paleta. */
 const ACENTOS = [
-  { accentColor: "#FF5F7E", avatarBg: "rgba(255,95,126,0.12)" },
-  { accentColor: "#8B5CF6", avatarBg: "rgba(139,92,246,0.12)" },
-  { accentColor: "#22C55E", avatarBg: "rgba(34,197,94,0.12)" },
+  { accentColor: "var(--pink)", avatarBg: "var(--pink-soft)" },
+  { accentColor: "var(--violet)", avatarBg: "var(--violet-soft)" },
+  { accentColor: "var(--success)", avatarBg: "var(--success-soft)" },
 ];
 
 function iniciais(nome: string): string {
@@ -73,8 +74,8 @@ export function montarDadosHome(finance: OverviewData, hoje: HomeToday): HomeDat
   if (finance.kpis.overdue.total > 0) {
     atencao.push({
       icon: DollarSign,
-      color: "#EF4444",
-      bg: "rgba(239,68,68,0.10)",
+      color: "var(--danger)",
+      bg: "var(--danger-soft)",
       label: `${formatBRL(finance.kpis.overdue.total)} em recebimentos atrasados`,
       to: "/recebimentos",
     });
@@ -82,8 +83,8 @@ export function montarDadosHome(finance: OverviewData, hoje: HomeToday): HomeDat
   if (vencemAmanha.length > 0) {
     atencao.push({
       icon: CalendarDays,
-      color: "#F97316",
-      bg: "rgba(249,115,22,0.10)",
+      color: "var(--warning)",
+      bg: "var(--warning-soft)",
       label: `${vencemAmanha.length} ${vencemAmanha.length === 1 ? "pagamento vence" : "pagamentos vencem"} amanhã`,
       to: "/pagamentos",
     });
@@ -91,8 +92,8 @@ export function montarDadosHome(finance: OverviewData, hoje: HomeToday): HomeDat
   if (hoje.pending > 0) {
     atencao.push({
       icon: AlertTriangle,
-      color: "#2F80ED",
-      bg: "rgba(47,128,237,0.10)",
+      color: "var(--info)",
+      bg: "var(--info-soft)",
       label: `${hoje.pending} ${hoje.pending === 1 ? "atendimento de hoje sem confirmação" : "atendimentos de hoje sem confirmação"}`,
       to: "/agenda",
     });

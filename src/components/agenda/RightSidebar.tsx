@@ -45,7 +45,7 @@ function MiniCalendar({
   return (
     <div
       className="bg-white p-4"
-      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
+      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
     >
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-semibold text-foreground">
@@ -103,7 +103,7 @@ function MiniCalendar({
                 {day}
               </span>
               {has && !isSelected && (
-                <div style={{ width: 3, height: 3, borderRadius: 999, background: "var(--pink)", marginTop: 1 }} />
+                <div style={{ width: 3, height: 3, borderRadius: 9999, background: "var(--pink)", marginTop: 1 }} />
               )}
             </button>
           );
@@ -127,7 +127,7 @@ function UpcomingAppointmentsCard({ appointments, selectedDate }: { appointments
   return (
     <div
       className="bg-white p-4"
-      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
+      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
     >
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-semibold text-foreground">Próximos atendimentos</span>
@@ -162,7 +162,7 @@ function UpcomingAppointmentsCard({ appointments, selectedDate }: { appointments
                   style={{
                     width: 8,
                     height: 8,
-                    borderRadius: 999,
+                    borderRadius: 9999,
                     background: s.badge,
                     marginTop: 4,
                     flexShrink: 0,
@@ -183,7 +183,7 @@ function WaitingListCard({ items }: { items: WaitingListItem[] }) {
   return (
     <div
       className="bg-white p-4"
-      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
+      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
     >
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-semibold text-foreground">Lista de Espera</span>
@@ -247,7 +247,7 @@ function QuickFiltersCard({
   return (
     <div
       className="bg-white p-4"
-      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
+      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
     >
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-semibold text-foreground">Filtros rápidos</span>

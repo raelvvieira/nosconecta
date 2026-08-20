@@ -339,7 +339,7 @@ function RecebimentosPage() {
                     />
                     <Tooltip
                       contentStyle={{
-                        borderRadius: 12,
+                        borderRadius: "var(--radius-control)",
                         border: "1px solid var(--border)",
                         background: "var(--card)",
                       }}
@@ -563,7 +563,7 @@ function RecebimentosPage() {
               <div className="-mx-1 hidden overflow-x-auto lg:block">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs text-muted-foreground border-b">
+                    <tr className="border-b text-left text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                       <th className="py-3 px-3 w-8">
                         <Checkbox
                           checked={rows.length > 0 && rows.every((r) => selected.has(r.id))}
@@ -578,7 +578,7 @@ function RecebimentosPage() {
                       <th className="py-3 pr-4">Paciente</th>
                       <th className="py-3 pr-4">Procedimento</th>
                       <th className="py-3 pr-4">Profissional</th>
-                      <th className="py-3 pr-4">Valor</th>
+                      <th className="py-3 pr-4 text-right">Valor</th>
                       <th className="py-3 pr-4">Vencimento</th>
                       <th className="py-3 pr-4">Status</th>
                       <th className="py-3 pr-4">Forma de Pagamento</th>
@@ -637,7 +637,7 @@ function RecebimentosPage() {
                           <td className="py-3 pr-4 text-muted-foreground">
                             {r.professional_name ?? "—"}
                           </td>
-                          <td className="py-3 pr-4 tabular-nums font-medium">
+                          <td className="py-3 pr-4 text-right tabular-nums font-medium">
                             {formatBRL(r.amount)}
                           </td>
                           <td

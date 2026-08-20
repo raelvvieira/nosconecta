@@ -327,6 +327,22 @@
     touch-action: manipulation;
   }
 
+  /* Piso de foco visível.
+     São 133 `<button>` escritos à mão no projeto, com classes próprias, e a
+     maioria sem nenhum estilo de foco — quem navega por teclado não via onde
+     estava. Converter os 133 um a um seria uma varredura grande e arriscada
+     em componentes de layout bem específico (célula de calendário, item de
+     conversa, nó do canvas).
+
+     `:where()` zera a especificidade de propósito: isto é um PISO, não um
+     teto. Qualquer componente que declare o próprio foco continua ganhando —
+     inclusive os que pedem `focus-visible:outline-none` para desenhar um anel
+     em vez do contorno. O que muda é que agora ninguém fica sem nada. */
+  :where(button, a[href], [role="button"], [role="tab"], summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }

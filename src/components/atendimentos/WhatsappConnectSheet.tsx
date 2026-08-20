@@ -85,7 +85,7 @@ export function WhatsappConnectSheet({
         <div className="mt-2 text-center">
           <span
             className={cn(
-              "mx-auto grid h-14 w-14 place-items-center rounded-[20px]",
+              "mx-auto grid h-14 w-14 place-items-center rounded-2xl",
               connected ? "bg-success-soft text-success" : "bg-coral-soft text-coral",
             )}
           >
@@ -126,7 +126,7 @@ export function WhatsappConnectSheet({
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
               placeholder="Número com DDD, sem o 0 (ex.: 48 98419-5309)"
-              className="mx-auto mt-5 h-11 rounded-[16px] bg-white text-center"
+              className="mx-auto mt-5 h-11 rounded-xl bg-white text-center"
             />
           )}
 

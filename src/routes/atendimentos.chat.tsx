@@ -339,7 +339,7 @@ function ChatPage() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="h-11 rounded-[16px] bg-white pl-11 shadow-soft"
+              className="h-11 rounded-xl bg-white pl-11 shadow-soft"
               placeholder="Buscar conversa"
             />
           </div>

@@ -24,7 +24,7 @@ function StatCard({
   return (
     <div
       className="bg-white flex flex-col gap-3 p-5"
-      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
+      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
     >
       <div className="flex items-start gap-3">
         <div
@@ -69,7 +69,7 @@ export function AgendaStatsCards({ appointments, date }: Props) {
         label="Confirmados"
         value={confirmed}
         sub={pct(confirmed)}
-        iconBg="rgba(34,197,94,0.10)"
+        iconBg="color-mix(in oklab, var(--success) 10%, transparent)"
         iconColor="var(--success)"
       />
       <StatCard
@@ -85,7 +85,7 @@ export function AgendaStatsCards({ appointments, date }: Props) {
         label="Faltas"
         value={missed}
         sub={pct(missed)}
-        iconBg="rgba(239,68,68,0.10)"
+        iconBg="color-mix(in oklab, var(--danger) 10%, transparent)"
         iconColor="var(--danger)"
       />
     </div>

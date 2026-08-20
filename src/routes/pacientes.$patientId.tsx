@@ -166,7 +166,7 @@ function PatientDetailPage() {
         </section>
 
         {(patient.allergyNotes || patient.overdueAmount > 0) && (
-          <section className="mt-5 flex flex-col gap-3 rounded-[22px] border border-warning/25 bg-warning-soft/45 px-4 py-4 text-sm sm:flex-row sm:items-center">
+          <section className="mt-5 flex flex-col gap-3 rounded-2xl border border-warning/25 bg-warning-soft/45 px-4 py-4 text-sm sm:flex-row sm:items-center">
             <div className="flex items-center gap-2 font-semibold text-warning">
               <AlertTriangle className="h-5 w-5" /> Atenção
             </div>

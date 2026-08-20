@@ -14,342 +14,302 @@ import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
 import type { HomeData } from "@/components/home/home-data";
 import { formatBRL } from "@/lib/finance/format";
 import { useGreetingUser } from "@/components/home/use-greeting-user";
+import { cn } from "@/lib/utils";
 
-const GRADIENT = "var(--gradient-primary)";
+// Esta tela era escrita em estilo inline linha a linha — 53 blocos de `style`,
+// com raio, sombra, cor e tamanho de texto cravados um a um. Era o lugar do
+// app onde o design mais escapava do sistema, e onde qualquer ajuste de token
+// simplesmente não chegava.
+//
+// Mesmo conteúdo, mesmas ações, mesmos destinos: o que muda é que agora ela
+// usa os cartões, a escala tipográfica e os tokens do resto do app.
 
-// ─── Card styles ──────────────────────────────────────────────────────────────
-
-const cardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.94)",
-  border: "1px solid var(--surface-muted)",
-  borderRadius: 22,
-  boxShadow: "var(--shadow-2)",
-};
-
-// ─── Header ───────────────────────────────────────────────────────────────────
-
-function Header() {
+function Cabecalho() {
   const { firstName, initial, greeting } = useGreetingUser();
   return (
-    <div style={{ padding: "calc(env(safe-area-inset-top) + 52px) 24px 0 24px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-      <div style={{ minWidth: 0 }}>
-        {/* 31px para 27px de corpo (1,15): título grande pede leading
-            apertado, senão a saudação que quebra em duas linhas se desfaz. */}
-        <h1 style={{ fontSize: "1.5rem", lineHeight: "31px", fontWeight: 700, letterSpacing: "-0.03em", color: "var(--foreground)", margin: 0 }}>
-          {greeting}{firstName ? `, ${firstName}` : ""}
+    <header className="flex items-start justify-between gap-3 px-6 pt-[calc(env(safe-area-inset-top)+52px)]">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-foreground">
+          {greeting}
+          {firstName ? `, ${firstName}` : ""}
         </h1>
-        <p style={{ fontSize: "0.875rem", lineHeight: "22px", fontWeight: 400, color: "var(--muted-foreground)", marginTop: 4 }}>
-          Resumo da clínica hoje
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">Resumo da clínica hoje</p>
       </div>
-      <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
-        <button
-          type="button"
-          style={{ position: "relative", width: 52, height: 52, borderRadius: 17, background: "var(--card)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)", display: "flex", alignItems: "center", justifyContent: "center" }}
+      <div className="flex shrink-0 gap-2.5">
+        {/* Eram um botão e um bloco sem ação nenhuma. Agora levam aonde a
+            informação de fato mora — sino para as notificações, inicial para a
+            conta —, em vez de parecerem clicáveis e não fazerem nada. */}
+        <Link
+          to="/configuracoes/notificacoes"
           aria-label="Notificações"
+          className="press relative grid h-[52px] w-[52px] place-items-center rounded-xl border border-surface-muted bg-card shadow-2"
         >
-          <Bell style={{ width: 21, height: 21, color: "var(--foreground)" }} strokeWidth={1.75} />
-          <span style={{ position: "absolute", top: 10, right: 10, width: 8, height: 8, background: "var(--danger)", borderRadius: 999, border: "2px solid white" }} />
-        </button>
-        <div
-          style={{ width: 52, height: 52, borderRadius: 17, background: GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", border: "3px solid var(--card)", boxShadow: "var(--shadow-2)", color: "white", fontSize: "1.125rem", fontWeight: 700 }}
-          aria-label="Perfil"
+          <Bell className="h-[21px] w-[21px] text-foreground" strokeWidth={1.75} />
+        </Link>
+        <Link
+          to="/configuracoes"
+          aria-label="Conta"
+          className="press grid h-[52px] w-[52px] place-items-center rounded-xl border-[3px] border-card bg-gradient-primary text-lg font-bold text-white shadow-2"
         >
           {initial}
-        </div>
+        </Link>
       </div>
-    </div>
+    </header>
   );
 }
 
-// ─── Summary cards carousel ───────────────────────────────────────────────────
-
-function summaryCards(dados: HomeData) {
+function cartoesResumo(dados: HomeData) {
   return [
     {
       icon: CalendarDays,
-      iconBg: "color-mix(in oklab, var(--pink) 12%, transparent)",
-      iconColor: "var(--pink)",
+      iconClass: "bg-pink-soft text-pink",
       title: "Agenda de hoje",
       value: String(dados.agendaHoje.total),
-      valueColor: "var(--foreground)",
+      valueClass: "text-foreground",
       subtitle: "atendimentos",
       action: "Ver agenda",
-      actionColor: "var(--pink)",
+      actionClass: "text-pink",
       to: "/agenda" as const,
     },
     {
       icon: Users,
-      iconBg: "color-mix(in oklab, var(--violet) 12%, transparent)",
-      iconColor: "var(--violet)",
+      iconClass: "bg-violet-soft text-violet",
       title: "Confirmações pendentes",
       value: String(dados.confirmacoesPendentes),
-      valueColor: "var(--foreground)",
+      valueClass: "text-foreground",
       subtitle: "pacientes aguardando",
       action: "Confirmar agora",
-      actionColor: "var(--violet)",
+      actionClass: "text-violet",
       to: "/agenda" as const,
     },
     {
       icon: DollarSign,
-      iconBg: "rgba(34,197,94,0.12)",
-      iconColor: "var(--success)",
+      iconClass: "bg-success-soft text-success",
       title: "Recebido hoje",
       value: formatBRL(dados.recebidoHoje),
-      valueColor: "var(--success)",
+      valueClass: "text-success",
       subtitle: "entrou no caixa hoje",
       action: "Ver recebimentos",
-      actionColor: "var(--success)",
+      actionClass: "text-success",
       to: "/recebimentos" as const,
     },
     {
       icon: AlertTriangle,
-      iconBg: "rgba(239,68,68,0.10)",
-      iconColor: "var(--danger)",
+      iconClass: "bg-danger-soft text-danger",
       title: "Alertas",
       value: String(dados.alertas.total),
-      valueColor: "var(--foreground)",
-      subtitle: dados.alertas.valorEmAtraso > 0 ? `${formatBRL(dados.alertas.valorEmAtraso)} em atraso` : "itens",
+      valueClass: "text-foreground",
+      subtitle:
+        dados.alertas.valorEmAtraso > 0
+          ? `${formatBRL(dados.alertas.valorEmAtraso)} em atraso`
+          : "itens",
       action: "Ver recebimentos",
-      actionColor: "var(--danger)",
+      actionClass: "text-danger",
       to: "/recebimentos" as const,
     },
   ];
 }
 
-function SummaryGrid({ dados }: { dados: HomeData }) {
+function Resumo({ dados }: { dados: HomeData }) {
   return (
-    <div style={{ padding: "28px 24px 0 24px" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-        {summaryCards(dados).map((card, i) => (
-          <div
-            key={i}
-            style={{ ...cardStyle, minWidth: 0, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}
-          >
-            {/* Icon + label row */}
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 12, background: card.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <card.icon style={{ color: card.iconColor, width: 18, height: 18 }} strokeWidth={1.75} />
-              </div>
-              <p style={{ fontSize: "0.6875rem", color: "var(--muted-foreground)", lineHeight: "15px", margin: 0, paddingTop: 2, minWidth: 0 }}>{card.title}</p>
-            </div>
-
-            {/* Value */}
-            <div style={{ minWidth: 0 }}>
-              <p style={{ fontSize: "1.25rem", fontWeight: 700, color: card.valueColor, letterSpacing: "-0.02em", margin: 0, lineHeight: "24px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{card.value}</p>
-              <p style={{ fontSize: "0.6875rem", color: "var(--foreground-subtle)", margin: "2px 0 0" }}>{card.subtitle}</p>
-            </div>
-
-            {/* Footer action */}
-            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: card.actionColor, marginTop: "auto" }}>
-              {card.action} →
+    <div className="grid grid-cols-2 gap-3 px-6 pt-7">
+      {cartoesResumo(dados).map((card) => (
+        <Link
+          key={card.title}
+          to={card.to}
+          className="press surface-card flex min-w-0 flex-col gap-2.5 p-4"
+        >
+          <div className="flex items-start gap-2.5">
+            <span
+              className={cn(
+                "grid h-9 w-9 shrink-0 place-items-center rounded-md",
+                card.iconClass,
+              )}
+            >
+              <card.icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
             </span>
+            <p className="min-w-0 pt-0.5 text-2xs text-muted-foreground">{card.title}</p>
           </div>
-        ))}
-      </div>
+          <div className="min-w-0">
+            <p className={cn("truncate text-xl font-bold tabular-nums", card.valueClass)}>
+              {card.value}
+            </p>
+            <p className="mt-0.5 text-2xs text-foreground-subtle">{card.subtitle}</p>
+          </div>
+          <span className={cn("mt-auto text-xs font-semibold", card.actionClass)}>
+            {card.action} →
+          </span>
+        </Link>
+      ))}
     </div>
   );
 }
 
-// ─── Next appointments ────────────────────────────────────────────────────────
-
-function NextAppointments({ dados }: { dados: HomeData }) {
+function ProximosAtendimentos({ dados }: { dados: HomeData }) {
   return (
-    <div style={{ padding: "28px 24px 0 24px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <h2 style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--foreground)", margin: 0 }}>
-          Próximos atendimentos
-        </h2>
-        <Link to="/agenda" style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--pink)", textDecoration: "none" }}>
+    <section className="px-6 pt-7">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-xl font-bold text-foreground">Próximos atendimentos</h2>
+        <Link to="/agenda" className="text-sm font-semibold text-pink">
           Ver todos
         </Link>
       </div>
 
-      <div style={{ ...cardStyle, overflow: "hidden" }}>
-        {dados.proximos.length === 0 && (
-          <p style={{ padding: "18px 16px", margin: 0, fontSize: "0.875rem", color: "var(--muted-foreground)" }}>
+      <div className="surface-card overflow-hidden">
+        {dados.proximos.length === 0 ? (
+          <p className="px-4 py-5 text-sm text-muted-foreground">
             Nenhum atendimento pendente para o resto de hoje.
           </p>
+        ) : (
+          dados.proximos.map((appt, i) => (
+            <div
+              key={appt.id}
+              className={cn(
+                "flex h-[74px] items-center gap-3 px-3.5",
+                i < dados.proximos.length - 1 && "border-b border-surface-muted",
+              )}
+            >
+              <div className="flex w-[70px] shrink-0 items-center gap-2">
+                <span
+                  className="h-7 w-[3px] shrink-0 rounded-full"
+                  style={{ background: appt.accentColor }}
+                />
+                <span className="text-sm font-bold tabular-nums text-foreground">{appt.time}</span>
+              </div>
+              <span
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold"
+                style={{ background: appt.avatarBg, color: appt.accentColor }}
+              >
+                {appt.initials}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-foreground">{appt.patient}</p>
+                <p className="truncate text-xs text-muted-foreground">{appt.procedure}</p>
+              </div>
+              <span
+                className={cn(
+                  "flex h-[26px] shrink-0 items-center rounded-full px-2.5 text-2xs font-semibold",
+                  appt.confirmado ? "bg-success-soft text-success" : "bg-warning-soft text-warning",
+                )}
+              >
+                {appt.confirmado ? "Confirmado" : "Pendente"}
+              </span>
+              <ChevronRight className="h-[15px] w-[15px] shrink-0 text-foreground-subtle" strokeWidth={2} />
+            </div>
+          ))
         )}
-        {dados.proximos.map((appt, i) => (
-          <div
-            key={appt.id}
-            style={{ height: 74, display: "flex", alignItems: "center", padding: "0 14px", gap: 12, borderBottom: i < dados.proximos.length - 1 ? "1px solid var(--surface-muted)" : "none" }}
-          >
-            {/* Time + accent bar */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, width: 70, flexShrink: 0 }}>
-              <div style={{ width: 3, height: 28, borderRadius: 999, background: appt.accentColor, flexShrink: 0 }} />
-              <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--foreground)" }}>{appt.time}</span>
-            </div>
-
-            {/* Avatar */}
-            <div
-              style={{ width: 40, height: 40, borderRadius: 999, background: appt.avatarBg, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "0.875rem", color: appt.accentColor, flexShrink: 0 }}
-            >
-              {appt.initials}
-            </div>
-
-            {/* Info */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--foreground)", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {appt.patient}
-              </p>
-              <p style={{ fontSize: "0.75rem", color: "var(--muted-foreground)", margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {appt.procedure}
-              </p>
-            </div>
-
-            {/* Status badge */}
-            <div
-              style={{
-                height: 26, paddingInline: 10, borderRadius: 999, fontSize: "0.6875rem", fontWeight: 600, display: "flex", alignItems: "center", flexShrink: 0,
-                background: appt.confirmado ? "rgba(34,197,94,0.12)" : "rgba(249,115,22,0.12)",
-                color: appt.confirmado ? "var(--success)" : "var(--warning)",
-              }}
-            >
-              {appt.confirmado ? "Confirmado" : "Pendente"}
-            </div>
-
-            <ChevronRight style={{ width: 15, height: 15, color: "var(--foreground-subtle)", flexShrink: 0 }} strokeWidth={2} />
-          </div>
-        ))}
       </div>
-    </div>
+    </section>
   );
 }
 
-// ─── Quick actions ────────────────────────────────────────────────────────────
-
-function QuickActions() {
+function AcoesRapidas() {
   const navigate = useNavigate();
-
-  const actions = [
+  const acoes = [
     {
       label: "Novo\nagendamento",
       icon: CalendarDays,
-      isPrimary: true,
-      containerStyle: { background: GRADIENT, boxShadow: "var(--shadow-brand)" } as React.CSSProperties,
-      iconBg: "rgba(255,255,255,0.20)",
-      iconColor: "var(--card)",
-      textColor: "var(--card)",
+      principal: true,
+      iconClass: "bg-white/20 text-white",
       onClick: () => navigate({ to: "/agenda" }),
     },
     {
       label: "Novo\npaciente",
       icon: UserPlus,
-      isPrimary: false,
-      containerStyle: { ...cardStyle } as React.CSSProperties,
-      iconBg: "color-mix(in oklab, var(--violet) 12%, transparent)",
-      iconColor: "var(--violet)",
-      textColor: "var(--foreground)",
+      principal: false,
+      iconClass: "bg-violet-soft text-violet",
       onClick: () => navigate({ to: "/pacientes", search: { status: "all" } }),
     },
     {
       label: "Registrar\nrecebimento",
       icon: ArrowDownCircle,
-      isPrimary: false,
-      containerStyle: { ...cardStyle } as React.CSSProperties,
-      iconBg: "rgba(34,197,94,0.12)",
-      iconColor: "var(--success)",
-      textColor: "var(--foreground)",
+      principal: false,
+      iconClass: "bg-success-soft text-success",
       onClick: () => navigate({ to: "/recebimentos" }),
     },
     {
       label: "Novo\npagamento",
       icon: CreditCard,
-      isPrimary: false,
-      containerStyle: { ...cardStyle } as React.CSSProperties,
-      iconBg: "rgba(249,115,22,0.12)",
-      iconColor: "var(--warning)",
-      textColor: "var(--foreground)",
+      principal: false,
+      iconClass: "bg-warning-soft text-warning",
       onClick: () => navigate({ to: "/pagamentos" }),
     },
   ];
 
   return (
-    <div style={{ padding: "28px 24px 0 24px" }}>
-      <h2 style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--foreground)", margin: "0 0 12px" }}>
-        Ações rápidas
-      </h2>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-        {actions.map((a, i) => (
+    <section className="px-6 pt-7">
+      <h2 className="mb-3 text-xl font-bold text-foreground">Ações rápidas</h2>
+      <div className="grid grid-cols-2 gap-3">
+        {acoes.map((a) => (
           <button
-            key={i}
+            key={a.label}
             type="button"
-            className="press"
+            className={cn(
+              "press flex h-[86px] min-w-0 cursor-pointer items-center gap-3.5 rounded-2xl px-4 text-left",
+              a.principal
+                ? "bg-gradient-primary text-white shadow-brand"
+                : "surface-card text-foreground",
+            )}
             onClick={a.onClick}
-            style={{ height: 86, minWidth: 0, borderRadius: 22, padding: "0 16px", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", border: "none", ...a.containerStyle }}
           >
-            <div style={{ width: 44, height: 44, borderRadius: 14, background: a.iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <a.icon style={{ width: 20, height: 20, color: a.iconColor }} strokeWidth={1.75} />
-            </div>
-            <span style={{ fontSize: "0.875rem", fontWeight: 700, lineHeight: "20px", color: a.textColor, textAlign: "left", whiteSpace: "pre-line", minWidth: 0, overflow: "hidden" }}>
+            <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-lg", a.iconClass)}>
+              <a.icon className="h-5 w-5" strokeWidth={1.75} />
+            </span>
+            <span className="min-w-0 overflow-hidden whitespace-pre-line text-sm font-bold">
               {a.label}
             </span>
           </button>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
-// ─── Attention section ────────────────────────────────────────────────────────
-
-function AttentionSection({ dados }: { dados: HomeData }) {
+function PrecisaAtencao({ dados }: { dados: HomeData }) {
   const navigate = useNavigate();
   return (
-    <div style={{ padding: "28px 24px 0 24px" }}>
-      <h2 style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--foreground)", margin: "0 0 12px" }}>
-        Precisa de atenção
-      </h2>
-      <div style={{ ...cardStyle, overflow: "hidden" }}>
-        {dados.atencao.length === 0 && (
-          <p style={{ padding: "18px 16px", margin: 0, fontSize: "0.875rem", color: "var(--muted-foreground)" }}>
-            Nada pendente por aqui.
-          </p>
+    <section className="px-6 pt-7">
+      <h2 className="mb-3 text-xl font-bold text-foreground">Precisa de atenção</h2>
+      <div className="surface-card overflow-hidden">
+        {dados.atencao.length === 0 ? (
+          <p className="px-4 py-5 text-sm text-muted-foreground">Nada pendente por aqui.</p>
+        ) : (
+          dados.atencao.map((item, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => navigate({ to: item.to })}
+              className={cn(
+                "press flex h-[58px] w-full cursor-pointer items-center gap-3 px-4 text-left",
+                i < dados.atencao.length - 1 && "border-b border-surface-muted",
+              )}
+            >
+              <span
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full"
+                style={{ background: item.bg }}
+              >
+                <item.icon className="h-4 w-4" style={{ color: item.color }} strokeWidth={1.75} />
+              </span>
+              <span className="flex-1 text-sm text-foreground-secondary">{item.label}</span>
+              <ChevronRight className="h-[15px] w-[15px] shrink-0 text-foreground-subtle" strokeWidth={2} />
+            </button>
+          ))
         )}
-        {dados.atencao.map((item, i) => (
-          <button
-            key={i}
-            type="button"
-            className="press"
-            onClick={() => navigate({ to: item.to })}
-            style={{ width: "100%", height: 58, display: "flex", alignItems: "center", padding: "0 16px", gap: 12, borderBottom: i < dados.atencao.length - 1 ? "1px solid var(--surface-muted)" : "none", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
-          >
-            <div style={{ width: 36, height: 36, borderRadius: 999, background: item.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <item.icon style={{ width: 16, height: 16, color: item.color }} strokeWidth={1.75} />
-            </div>
-            <span style={{ flex: 1, fontSize: "0.875rem", color: "var(--foreground-secondary)", lineHeight: "20px" }}>
-              {item.label}
-            </span>
-            <ChevronRight style={{ width: 15, height: 15, color: "var(--foreground-subtle)", flexShrink: 0 }} strokeWidth={2} />
-          </button>
-        ))}
       </div>
-    </div>
+    </section>
   );
 }
-
-// ─── Main export ──────────────────────────────────────────────────────────────
 
 export function MobileHome({ dados }: { dados: HomeData }) {
   useRegisterMobileFab(null);
 
   return (
-    <div
-      className="lg:hidden flex-1 min-w-0 w-full overflow-x-hidden overflow-y-auto custom-scroll"
-      style={{
-        background: "radial-gradient(circle at top right, color-mix(in oklab, var(--pink) 6%, transparent), transparent 32%), var(--surface)",
-        // Mesmo respiro das outras telas: a ilha inferior ocupa 76px mais o
-        // inset da barra de gestos, que o 110 fixo ignorava.
-        paddingBottom: "calc(96px + env(safe-area-inset-bottom))",
-      }}
-    >
-      <Header />
-      <SummaryGrid dados={dados} />
-      <NextAppointments dados={dados} />
-      <QuickActions />
-      <AttentionSection dados={dados} />
+    <div className="app-bg custom-scroll w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-nav lg:hidden">
+      <Cabecalho />
+      <Resumo dados={dados} />
+      <ProximosAtendimentos dados={dados} />
+      <AcoesRapidas />
+      <PrecisaAtencao dados={dados} />
     </div>
   );
 }

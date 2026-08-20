@@ -197,7 +197,7 @@ export function WeeklyCalendar({
   return (
     <div
       className="bg-white flex flex-col"
-      style={{ borderRadius: 20, border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
+      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
     >
       {/* Top bar */}
       <div className="flex flex-col gap-3 p-4 border-b border-surface-muted">
@@ -382,7 +382,7 @@ export function WeeklyCalendar({
                             alignItems: "center",
                           }}
                         >
-                          <div style={{ width: 7, height: 7, borderRadius: 999, background: "var(--pink)", marginLeft: -3.5 }} />
+                          <div style={{ width: 7, height: 7, borderRadius: 9999, background: "var(--pink)", marginLeft: -3.5 }} />
                           <div style={{ flex: 1, height: 2, background: "var(--pink)" }} />
                         </div>
                       )}
@@ -420,9 +420,9 @@ export function WeeklyCalendar({
                             height: Math.max(apptHeight(b.startTime, b.endTime), 28),
                             touchAction: onMove ? "none" : undefined,
                             cursor: onMove ? "grab" : undefined,
-                            background: "repeating-linear-gradient(135deg,rgba(148,163,184,0.08),rgba(148,163,184,0.08) 8px,rgba(148,163,184,0.14) 8px,rgba(148,163,184,0.14) 16px)",
-                            border: "1px solid rgba(148,163,184,0.20)",
-                            borderRadius: 10,
+                            background: "repeating-linear-gradient(135deg,color-mix(in oklab, var(--foreground-subtle) 8%, transparent),color-mix(in oklab, var(--foreground-subtle) 8%, transparent) 8px,color-mix(in oklab, var(--foreground-subtle) 14%, transparent) 8px,color-mix(in oklab, var(--foreground-subtle) 14%, transparent) 16px)",
+                            border: "1px solid var(--divider)",
+                            borderRadius: "var(--radius-chip)",
                             padding: "4px 8px",
                             display: "flex",
                             alignItems: "center",
@@ -462,7 +462,7 @@ export function WeeklyCalendar({
                               height: Math.max(apptHeight(appt.startTime, appt.endTime), 32),
                               background: s.bg,
                               border: `1px solid ${s.border}`,
-                              borderRadius: 10,
+                              borderRadius: "var(--radius-chip)",
                               padding: "4px 8px",
                               textAlign: "left",
                               // `touch-action: none` é o que deixa o dedo
@@ -505,7 +505,7 @@ export function WeeklyCalendar({
                                 style={{
                                   width: 7,
                                   height: 7,
-                                  borderRadius: 999,
+                                  borderRadius: 9999,
                                   background: s.badge,
                                 }}
                               />
@@ -532,7 +532,7 @@ export function WeeklyCalendar({
               ] as [string, string][]
             ).map(([label, color]) => (
               <div key={label} className="flex items-center gap-1.5">
-                <div style={{ width: 8, height: 8, borderRadius: 999, background: color }} />
+                <div style={{ width: 8, height: 8, borderRadius: 9999, background: color }} />
                 <span className="text-2xs text-muted-foreground">{label}</span>
               </div>
             ))}

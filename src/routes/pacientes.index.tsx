@@ -136,12 +136,12 @@ function PatientsPage() {
               aria-label="Buscar pacientes"
               value={search.q ?? ""}
               onChange={(event) => setSearch({ q: event.target.value || undefined })}
-              className="h-14 rounded-[20px] bg-white pl-12 text-sm shadow-soft"
+              className="h-14 rounded-2xl bg-white pl-12 text-sm shadow-soft"
               placeholder="Buscar por nome, telefone ou CPF"
             />
           </div>
           <Button
-            className="h-14 gap-2 rounded-[20px] bg-gradient-primary text-white lg:hidden"
+            className="h-14 gap-2 rounded-2xl bg-gradient-primary text-white lg:hidden"
             onClick={() => setFormOpen(true)}
           >
             <UserPlus className="h-5 w-5" /> Novo paciente

@@ -272,7 +272,7 @@ function PagamentosPage() {
                   from={search.from}
                   to={search.to}
                   onChange={(r) => setSearch({ from: r.from, to: r.to, page: 1 })}
-                  className="h-11 px-4 rounded-[14px] border-input bg-white"
+                  className="h-11 px-4 rounded-lg border-input bg-white"
                 />
               </FilterField>
               <FilterField label="Categoria">
@@ -405,7 +405,7 @@ function PagamentosPage() {
             <div className="-mx-2 hidden overflow-x-auto lg:block">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-2xs uppercase tracking-wider text-muted-foreground">
+                  <tr className="border-b text-left text-2xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                     <th className="py-3 px-3 w-8 font-medium">
                       <Checkbox
                         checked={rows.length > 0 && rows.every((r) => selected.has(r.id))}
@@ -417,14 +417,14 @@ function PagamentosPage() {
                         }}
                       />
                     </th>
-                    <th className="py-3 pr-4 font-medium">Vencimento</th>
-                    <th className="py-3 pr-4 font-medium">Fornecedor</th>
-                    <th className="py-3 pr-4 font-medium">Categoria</th>
-                    <th className="py-3 pr-4 font-medium">Conta</th>
-                    <th className="py-3 pr-4 font-medium">Valor</th>
-                    <th className="py-3 pr-4 font-medium">Status</th>
-                    <th className="py-3 pr-4 font-medium">Método</th>
-                    <th className="py-3 pr-4 font-medium text-right">Ações</th>
+                    <th className="py-3 pr-4">Vencimento</th>
+                    <th className="py-3 pr-4">Fornecedor</th>
+                    <th className="py-3 pr-4">Categoria</th>
+                    <th className="py-3 pr-4">Conta</th>
+                    <th className="py-3 pr-4 text-right">Valor</th>
+                    <th className="py-3 pr-4">Status</th>
+                    <th className="py-3 pr-4">Método</th>
+                    <th className="py-3 pr-4 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -488,7 +488,7 @@ function PagamentosPage() {
                           {t.category_name && <Badge variant="default">{t.category_name}</Badge>}
                         </td>
                         <td className="pr-4 text-muted-foreground">{t.account_name ?? "—"}</td>
-                        <td className="pr-4 tabular-nums font-semibold">{formatBRL(t.amount)}</td>
+                        <td className="pr-4 text-right tabular-nums font-semibold">{formatBRL(t.amount)}</td>
                         <td className="pr-4">
                           <Badge variant={STATUS_BADGE[status]}>{STATUS_LABEL[status]}</Badge>
                         </td>

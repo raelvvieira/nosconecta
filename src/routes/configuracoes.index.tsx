@@ -172,7 +172,7 @@ function SettingsRegistryPage() {
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="h-12 rounded-[18px] bg-white pl-11 shadow-soft"
+          className="h-12 rounded-xl bg-white pl-11 shadow-soft"
           placeholder={`Buscar ${label.toLocaleLowerCase("pt-BR")}`}
         />
       </div>

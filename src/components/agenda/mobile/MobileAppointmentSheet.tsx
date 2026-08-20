@@ -116,7 +116,7 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
 
           {/* Info */}
           <div
-            className="bg-white rounded-[20px] px-4 divide-y divide-surface-muted"
+            className="bg-white rounded-2xl px-4 divide-y divide-surface-muted"
             style={{ border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
           >
             <InfoRow icon={Clock} label="Data e horário" value={`${a.date.split("-").reverse().join("/")} · ${a.startTime} – ${a.endTime}`} />
@@ -129,7 +129,7 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
 
           {/* Confirmação e lembretes (Brevo) */}
           <div
-            className="bg-white rounded-[20px] px-4 py-1 divide-y divide-surface-muted"
+            className="bg-white rounded-2xl px-4 py-1 divide-y divide-surface-muted"
             style={{ border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
           >
             {NOTIFICATION_KINDS.map((k) => (
@@ -149,7 +149,7 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
                 key={act.label}
                 type="button"
                 onClick={() => (act.onClick ? act.onClick() : act.status && setStatus(act.status))}
-                className="bg-white rounded-[16px] py-3 flex flex-col items-center gap-1.5 active:scale-[0.97] transition-transform"
+                className="bg-white rounded-xl py-3 flex flex-col items-center gap-1.5 active:scale-[0.97] transition-transform"
                 style={{ border: "1px solid var(--surface-muted)" }}
               >
                 <act.icon className="h-5 w-5" style={{ color: act.tone }} strokeWidth={1.75} />
@@ -160,7 +160,7 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
 
           <Button
             onClick={() => { onEdit(a); onClose(); }}
-            className="w-full h-12 rounded-[14px] text-white font-semibold gap-2"
+            className="w-full h-12 rounded-lg text-white font-semibold gap-2"
             style={{ background: "var(--gradient-primary)" }}
           >
             <Pencil className="h-4 w-4" /> Editar agendamento

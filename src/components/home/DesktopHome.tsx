@@ -108,7 +108,7 @@ export function DesktopHome({ dados }: { dados: HomeData }) {
               <span
                 className="text-2xs font-semibold px-2.5 py-1 rounded-full shrink-0"
                 style={{
-                  background: appt.confirmado ? "rgba(34,197,94,0.12)" : "rgba(249,115,22,0.12)",
+                  background: appt.confirmado ? "color-mix(in oklab, var(--success) 12%, transparent)" : "color-mix(in oklab, var(--warning) 12%, transparent)",
                   color: appt.confirmado ? "var(--success)" : "var(--warning)",
                 }}
               >
