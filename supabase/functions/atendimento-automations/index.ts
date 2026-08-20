@@ -10,7 +10,8 @@
 // segredo. Só a EXECUÇÃO passa por aqui, porque as ações reais precisam da
 // service role / token do CRM.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { enviarWhatsapp } from "../_shared/whatsapp-send.ts";
+import { enviarWhatsapp, type AlvoDeEnvio } from "../_shared/whatsapp-send.ts";
+import { crmFetch } from "../_shared/crm-auth.ts";
 import { debitDailyUsage, getDailyUsage } from "../_shared/daily-quota.ts";
 import { pushToOwner } from "../_shared/push.ts";
 
@@ -25,6 +26,20 @@ const POR_TICK = 25;
 /** Fuso de referência da clínica. A Edge Function roda em UTC, mas a janela
  *  de horário que a clínica configurou é o relógio dela. */
 const TZ = "America/Sao_Paulo";
+
+/** Versão do motor de automações.
+ *
+ *  Existe para o editor conseguir responder uma pergunta que hoje não tem
+ *  resposta em lugar nenhum: "esta função está publicada?". Sem ela, uma
+ *  automação bem montada e um deploy que nunca aconteceu produzem exatamente
+ *  o mesmo sintoma — nada acontece e o histórico fica vazio.
+ *
+ *  A ausência é informativa nos dois sentidos: função não publicada devolve
+ *  404, e versão anterior a esta devolve "action desconhecida". São três
+ *  respostas distintas para três situações distintas.
+ *
+ *  Subir este número quando o executor mudar de forma que o app precise saber. */
+const VERSAO_MOTOR = 3;
 
 interface DispatchContext {
   entityId?: string | null;
@@ -382,11 +397,38 @@ async function enfileirar(
  *  upsert que garantirContatoCrm já usa (crm-contacts, action "upsert"),
  *  que só funciona com patientId (não aceita crmContactId direto). Sem
  *  patientId nem crmContactId, não tem pra quem mandar. */
+/** A conversa que este contato já tem, se tiver.
+ *
+ *  Sem isto, toda mensagem de automação entra pelo caminho "criar conversa" —
+ *  e quem já conversa com a clínica recebe o aviso numa thread nova, separada
+ *  do histórico. A aba Contatos já faz esse mesmo casamento por `contact.id`
+ *  para decidir por onde o disparo sai (ContactsTab.tsx, `conversaPorContato`);
+ *  aqui é a mesma ideia, só que consultada na hora do envio. */
+async function conversaDoContato(ownerId: string, contactId: string): Promise<string | null> {
+  try {
+    const res = await crmFetch(supabase, ownerId, "/api/v1/conversations");
+    const lista = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+    const achada = lista.find((c: any) => String(c?.contact?.id ?? "") === String(contactId));
+    return achada?.id ? String(achada.id) : null;
+  } catch {
+    // Falhar aqui não pode impedir o envio: sem conversa conhecida, o caminho
+    // de criar conversa continua valendo, que é o comportamento de antes.
+    return null;
+  }
+}
+
+// O tipo do alvo vem de `_shared/whatsapp-send.ts`, junto da função que o
+// consome — ver lá por que ele deixou de ser escrito à mão aqui.
 async function resolverContatoParaEnvio(
   ownerId: string,
   ctx: DispatchContext,
-): Promise<{ contactId: string; conversationId: null } | null> {
-  if (ctx.crmContactId) return { contactId: ctx.crmContactId, conversationId: null };
+): Promise<AlvoDeEnvio | null> {
+  if (ctx.crmContactId) {
+    return {
+      contact_id: ctx.crmContactId,
+      conversation_id: await conversaDoContato(ownerId, ctx.crmContactId),
+    };
+  }
   if (!ctx.patientId) return null;
 
   const { data: paciente } = await supabase
@@ -396,7 +438,12 @@ async function resolverContatoParaEnvio(
     .eq("owner_id", ownerId)
     .maybeSingle();
   if (!paciente) return null;
-  if (paciente.crm_contact_id) return { contactId: paciente.crm_contact_id, conversationId: null };
+  if (paciente.crm_contact_id) {
+    return {
+      contact_id: paciente.crm_contact_id,
+      conversation_id: await conversaDoContato(ownerId, paciente.crm_contact_id),
+    };
+  }
   if (!paciente.phone) return null;
 
   const url = Deno.env.get("SUPABASE_URL")!;
@@ -413,7 +460,9 @@ async function resolverContatoParaEnvio(
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok || !json?.contactId) return null;
-  return { contactId: String(json.contactId), conversationId: null };
+  // Contato acabou de ser criado no CRM: não existe conversa anterior para
+  // reaproveitar, e o caminho de criar conversa é o certo aqui.
+  return { contact_id: String(json.contactId), conversation_id: null };
 }
 
 /** URL de webhook só pode sair pra internet pública por HTTPS — guarda
@@ -635,6 +684,21 @@ async function percorrerGrafo(
       });
       const handle = passou ? "sim" : "nao";
       atualId = saidasDe(node.id).find((e) => e.sourceHandle === handle)?.target ?? null;
+      // Decidir e não ter para onde ir é o fim mais confuso que existe: do lado
+      // de fora parece que a automação simplesmente não rodou. Fica registrado
+      // qual ramo ficou solto, que é o conserto a fazer no editor.
+      if (!atualId) {
+        await logRun({
+          owner_id: ownerId,
+          rule_id: regra.id,
+          rule_name: regra.name,
+          trigger_event: regra.trigger_event,
+          action_type: "condition",
+          status: "branch_dead_end",
+          error: `O ramo "${passou ? "Sim" : "Não"}" não está ligado a nenhum card.`,
+          run_id: runId,
+        });
+      }
       continue;
     }
 
@@ -650,6 +714,18 @@ async function percorrerGrafo(
         run_id: runId,
       });
       atualId = escolhida?.target ?? null;
+      if (!atualId) {
+        await logRun({
+          owner_id: ownerId,
+          rule_id: regra.id,
+          rule_name: regra.name,
+          trigger_event: regra.trigger_event,
+          action_type: "randomizer",
+          status: "branch_dead_end",
+          error: "A saída sorteada não está ligada a nenhum card.",
+          run_id: runId,
+        });
+      }
       continue;
     }
 
@@ -729,7 +805,23 @@ async function handleDispatch(
   }
 
   const matching = (regras ?? []).filter((r: any) => matchesConditions(r.trigger_conditions ?? {}, ctx));
-  if (!matching.length) return { ok: true, skipped: "nenhuma automação corresponde", executed: 0 };
+  if (!matching.length) {
+    // Só registra quando EXISTE regra ativa pra este gatilho e o filtro barrou.
+    // Clínica sem automação nenhuma não pode ganhar uma linha a cada
+    // agendamento — viraria ruído e o histórico deixaria de servir pra nada.
+    if ((regras ?? []).length) {
+      await logRun({
+        owner_id: ownerId,
+        rule_id: null,
+        rule_name: "-",
+        trigger_event: systemEvent,
+        action_type: "-",
+        status: "skipped_no_rule",
+        error: "O evento aconteceu, mas o filtro do acionamento não bateu com ele.",
+      }).catch(() => null);
+    }
+    return { ok: true, skipped: "nenhuma automação corresponde", executed: 0 };
+  }
 
   const agora = new Date();
   for (const r of matching as any[]) {
@@ -737,7 +829,20 @@ async function handleDispatch(
     const grafo = grafoDaRegra(r);
     const raiz = grafo.nodes.find((n) => n.type === "trigger");
     const primeiro = grafo.edges.find((e) => e.source === (raiz?.id ?? "trigger"))?.target;
-    if (!primeiro) continue; // fluxo sem nada ligado ao gatilho
+    if (!primeiro) {
+      // Gatilho sem nada ligado nele. Do lado de fora é idêntico a "não rodou",
+      // e é um erro fácil de cometer: basta apagar a linha e salvar.
+      await logRun({
+        owner_id: ownerId,
+        rule_id: regra.id,
+        rule_name: regra.name,
+        trigger_event: systemEvent,
+        action_type: "-",
+        status: "skipped_no_flow",
+        error: "O acionamento não está ligado a nenhum card.",
+      }).catch(() => null);
+      continue;
+    }
     const janela: ScheduleWindow | null = r.schedule_window ?? null;
     const runId = crypto.randomUUID();
 
@@ -853,6 +958,13 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const { ownerId, action } = body as { ownerId?: string; action?: string };
+
+    // `version` não depende de dono nem toca no banco: é só a prova de vida.
+    if (action === "version") {
+      return new Response(JSON.stringify({ ok: true, version: VERSAO_MOTOR }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
 
     // `tick` vem do cron e varre todos os donos — não tem ownerId.
     if (action === "tick") {

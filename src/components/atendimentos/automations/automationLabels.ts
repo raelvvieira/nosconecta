@@ -148,6 +148,17 @@ export const EXECUCAO: Record<string, { tom: TomDaExecucao; titulo: string; expl
     explica:
       "Uma variável da mensagem ficou sem valor. A mensagem não sai pela metade: \"confirmado para o dia  às \" é pior do que não mandar.",
   },
+  skipped_no_rule: {
+    tom: "pulado",
+    titulo: "Nenhuma automação bateu",
+    explica:
+      "O evento aconteceu, mas o filtro do acionamento não bateu com ele. Confira as condições do card de acionamento.",
+  },
+  skipped_no_flow: {
+    tom: "erro",
+    titulo: "Acionamento sem nada ligado",
+    explica: "O card de acionamento não está conectado a nenhum outro card, então não há o que executar.",
+  },
   skipped_depth_limit: {
     tom: "pulado",
     titulo: "Encadeamento longo demais",
@@ -159,10 +170,19 @@ export const EXECUCAO: Record<string, { tom: TomDaExecucao; titulo: string; expl
  *  qual caminho o fluxo tomou numa condição ou num randomizador. Aparecem
  *  recuados no painel para não parecerem falha. */
 export function ehCaminho(status: string): boolean {
-  return status.startsWith("branch_");
+  return status.startsWith("branch_") && status !== "branch_dead_end";
 }
 
 export function rotuloDaExecucao(status: string): { tom: TomDaExecucao; titulo: string; explica?: string } {
+  // Ramo solto não é rastro de caminho, é o fim do fluxo — aparece alinhado
+  // com os outros resultados, porque é ele que precisa de conserto.
+  if (status === "branch_dead_end") {
+    return {
+      tom: "erro",
+      titulo: "O caminho terminou sem ação",
+      explica: "A condição decidiu por um ramo que não está ligado a nenhum card, então o fluxo parou ali.",
+    };
+  }
   if (ehCaminho(status)) {
     const ramo = status.slice("branch_".length);
     const nome = ramo === "sim" ? "Sim" : ramo === "nao" ? "Não" : ramo === "nenhum" ? "nenhum ramo" : ramo.toUpperCase();

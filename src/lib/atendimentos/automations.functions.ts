@@ -470,3 +470,157 @@ export const getAutomationRuns = createServerFn({ method: "GET" })
       ranAt: r.ran_at,
     }));
   });
+
+/** Versão do executor que o app espera encontrar publicado.
+ *  Espelha `VERSAO_MOTOR` em atendimento-automations/index.ts — os dois
+ *  runtimes são separados, então o número é duplicado de propósito. */
+const VERSAO_ESPERADA = 3;
+
+export type EstadoDoMotor = "ok" | "desatualizado" | "ausente" | "indeterminado";
+
+export interface MotorDeAutomacoes {
+  estado: EstadoDoMotor;
+  versaoPublicada: number | null;
+  versaoEsperada: number;
+  detalhe: string | null;
+}
+
+/**
+ * O executor de automações está publicado?
+ *
+ * Sem isto, uma automação bem montada e um deploy que nunca aconteceu produzem
+ * exatamente o mesmo sintoma: nada acontece e o histórico fica vazio. Não havia
+ * como distinguir os dois de dentro do app.
+ *
+ * A resposta vem de três formas diferentes, e é isso que torna o diagnóstico
+ * possível: função no ar e atualizada responde a versão; versão anterior não
+ * conhece a ação `version` e recusa; função nunca publicada devolve 404.
+ */
+export const getAutomationEngineStatus = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .handler(async ({ context }): Promise<MotorDeAutomacoes> => {
+    const url = process.env.SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const base: MotorDeAutomacoes = {
+      estado: "indeterminado",
+      versaoPublicada: null,
+      versaoEsperada: VERSAO_ESPERADA,
+      detalhe: null,
+    };
+    if (!url || !serviceKey) return { ...base, detalhe: "Credenciais do Supabase ausentes no servidor." };
+
+    let res: Response;
+    try {
+      res = await fetch(`${url}/functions/v1/atendimento-automations`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
+        body: JSON.stringify({ ownerId: context.ownerId, action: "version" }),
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch {
+      // Rede ou tempo esgotado: não dá para afirmar que não está publicada.
+      return { ...base, detalhe: "Não foi possível falar com a função agora." };
+    }
+
+    if (res.status === 404) {
+      return { ...base, estado: "ausente", detalhe: "A função não está publicada no Supabase." };
+    }
+    const json: any = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      // Versão anterior a esta não conhece `version` e recusa com 400. Qualquer
+      // outra recusa também significa que o que está no ar não é esta versão.
+      return {
+        ...base,
+        estado: "desatualizado",
+        detalhe: String(json?.error ?? `A função respondeu ${res.status}.`),
+      };
+    }
+    const publicada = Number(json?.version ?? 0);
+    return {
+      estado: publicada >= VERSAO_ESPERADA ? "ok" : "desatualizado",
+      versaoPublicada: Number.isFinite(publicada) && publicada > 0 ? publicada : null,
+      versaoEsperada: VERSAO_ESPERADA,
+      detalhe: null,
+    };
+  });
+
+/**
+ * Avisos que NÃO impedem de salvar.
+ *
+ * A diferença para o validador de `saveAutomation` é de custo: lá ficam as
+ * falhas que quebram ou custam dinheiro (ciclo, ligação solta, duas entradas
+ * no mesmo card), e por isso recusam o save. Aqui ficam os fluxos que salvam
+ * e rodam, mas provavelmente não fazem o que a pessoa quis.
+ *
+ * O caso que motivou isto: uma condição com o ramo "Não" desconectado. O fluxo
+ * salva, a automação fica ativa, o evento chega — e quando a condição decide
+ * por esse lado, tudo simplesmente para, sem erro em lugar nenhum. Visto de
+ * fora é indistinguível de "a automação não rodou".
+ *
+ * Função pura de propósito: roda no cliente, na hora de salvar, sem ida ao
+ * servidor.
+ */
+export function avisosDoFluxo(nodes: AutomationNode[], edges: AutomationEdge[]): string[] {
+  const avisos: string[] = [];
+  const temSaida = (id: string, handle?: string) =>
+    edges.some((e) => e.source === id && (handle === undefined || e.sourceHandle === handle));
+
+  for (const n of nodes) {
+    if (n.type === "condition") {
+      const sim = temSaida(n.id, "sim");
+      const nao = temSaida(n.id, "nao");
+      if (!sim && !nao) {
+        avisos.push("Uma condição não leva a lugar nenhum: nem o ramo Sim nem o Não estão ligados.");
+      } else if (!sim || !nao) {
+        avisos.push(
+          `Na condição, o ramo "${sim ? "Não" : "Sim"}" não está ligado a nenhum card — quando ela cair para esse lado, o fluxo para sem fazer nada.`,
+        );
+      }
+      continue;
+    }
+    if (n.type === "randomizer" && !temSaida(n.id)) {
+      avisos.push("Um randomizador não tem nenhuma saída ligada.");
+      continue;
+    }
+  }
+
+  // Card que o acionamento não alcança nunca roda. Alcançabilidade e não
+  // "tem ligação de entrada": um par de cards ligados entre si, mas solto do
+  // gatilho, passa no segundo teste e mesmo assim nunca executa.
+  const alcancados = new Set<string>();
+  const fila = nodes.filter((n) => n.type === "trigger").map((n) => n.id);
+  while (fila.length) {
+    const atual = fila.shift()!;
+    if (alcancados.has(atual)) continue;
+    alcancados.add(atual);
+    for (const e of edges) if (e.source === atual) fila.push(e.target);
+  }
+  const soltos = nodes.filter((n) => !alcancados.has(n.id)).length;
+  if (soltos > 0) {
+    avisos.push(
+      soltos === 1
+        ? "Há 1 card sem ligação com o acionamento — ele não vai rodar."
+        : `Há ${soltos} cards sem ligação com o acionamento — eles não vão rodar.`,
+    );
+  }
+
+  // Condição que só protege o que a ação já protege sozinha. Não é erro — mas
+  // é ela que costuma criar o ramo solto acima, então vale dizer.
+  const soParaWhatsapp = nodes.some(
+    (n) =>
+      n.type === "condition" &&
+      n.data?.field === "hasContact" &&
+      edges.some(
+        (e) =>
+          e.source === n.id &&
+          nodes.find((alvo) => alvo.id === e.target)?.data?.action?.type === "send_whatsapp",
+      ),
+  );
+  if (soParaWhatsapp) {
+    avisos.push(
+      'A condição "Tem paciente vinculado" é opcional aqui: o envio de WhatsApp já é pulado sozinho quando não há contato, e o motivo fica registrado em Execuções.',
+    );
+  }
+
+  return [...new Set(avisos)];
+}

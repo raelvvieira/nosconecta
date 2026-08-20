@@ -43,8 +43,10 @@ import {
   EscolherGatilhoDialog,
 } from "@/components/atendimentos/automations/AutomationDialogs";
 import { PainelExecucoes } from "@/components/atendimentos/automations/PainelExecucoes";
+import { PainelProntidao } from "@/components/atendimentos/automations/PainelProntidao";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
+  avisosDoFluxo,
   getAutomation,
   saveAutomation,
   type AutomationAction,
@@ -284,22 +286,31 @@ function Editor() {
     [edges, removerLigacao],
   );
 
+  // Sanitiza: só o que é config. `node.data` vai inteiro pro banco, e o React
+  // Flow enfia `measured`, `selected`, `dragging`, `width`… ali.
+  //
+  // Fica fora do `mutationFn` porque o mesmo grafo limpo alimenta os avisos
+  // depois de salvar — e conferir o desenho a partir de duas versões dele
+  // seria a maneira mais fácil de os dois discordarem.
+  const grafoLimpo = useMemo(() => {
+    const nodesLimpos: RegraNode[] = nodes.map((n) => ({
+      id: n.id,
+      type: n.type as RegraNode["type"],
+      position: n.position,
+      data: dadosDoNo(n),
+    }));
+    const edgesLimpas: RegraEdge[] = edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      sourceHandle: e.sourceHandle ?? null,
+    }));
+    return { nodesLimpos, edgesLimpas };
+  }, [nodes, edges]);
+
   const saveMutation = useMutation({
     mutationFn: () => {
-      // Sanitiza: só o que é config. `node.data` vai inteiro pro banco, e o
-      // React Flow enfia `measured`, `selected`, `dragging`, `width`… ali.
-      const nodesLimpos: RegraNode[] = nodes.map((n) => ({
-        id: n.id,
-        type: n.type as RegraNode["type"],
-        position: n.position,
-        data: dadosDoNo(n),
-      }));
-      const edgesLimpas: RegraEdge[] = edges.map((e) => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        sourceHandle: e.sourceHandle ?? null,
-      }));
+      const { nodesLimpos, edgesLimpas } = grafoLimpo;
       return doSave({
         data: {
           id: ehNova ? undefined : automationId,
@@ -315,25 +326,13 @@ function Editor() {
     },
     onSuccess: () => {
       toast.success(ehNova ? "Automação criada" : "Automação salva");
-      // Card solto salva, mas nunca roda: agora que card novo nasce
-      // desconectado, esquecer de ligar é fácil demais para passar calado. É
-      // aviso, não bloqueio — montar o fluxo aos poucos é legítimo.
-      const alcancados = new Set<string>();
-      const fila = nodes.filter((n) => n.type === "trigger").map((n) => n.id);
-      while (fila.length) {
-        const atual = fila.shift()!;
-        if (alcancados.has(atual)) continue;
-        alcancados.add(atual);
-        for (const e of edges) if (e.source === atual) fila.push(e.target);
-      }
-      const soltos = nodes.filter((n) => !alcancados.has(n.id)).length;
-      if (soltos > 0) {
-        toast.warning(
-          soltos === 1
-            ? "Há 1 card sem ligação com o acionamento — ele não vai rodar."
-            : `Há ${soltos} cards sem ligação com o acionamento — eles não vão rodar.`,
-          { duration: 7000 },
-        );
+      // Fluxo que salva e roda, mas provavelmente não faz o que se quis: ramo
+      // de condição solto, card que o acionamento não alcança, condição
+      // redundante. Aviso e não bloqueio — montar o fluxo aos poucos é
+      // legítimo. A lista vive em `avisosDoFluxo` porque é a mesma pergunta
+      // que o histórico de execuções responde depois, só que antes.
+      for (const aviso of avisosDoFluxo(grafoLimpo.nodesLimpos, grafoLimpo.edgesLimpas)) {
+        toast.warning(aviso, { duration: 8000 });
       }
       queryClient.invalidateQueries({ queryKey: ["automations"] });
       queryClient.invalidateQueries({ queryKey: ["automation", automationId] });
@@ -341,6 +340,14 @@ function Editor() {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  // O painel de prontidão só cobra WhatsApp conectado quando o fluxo de fato
+  // manda mensagem: automação que só move etapa ou chama webhook não depende
+  // disso, e cobrar seria ruído.
+  const mandaWhatsapp = useMemo(
+    () => nodes.some((n) => dadosDoNo(n).action?.type === "send_whatsapp"),
+    [nodes],
+  );
 
   const acaoAtual = acaoDialog
     ? (dadosDoNo(nodes.find((n) => n.id === acaoDialog.nodeId)).action ?? null)
@@ -442,7 +449,10 @@ function Editor() {
               O que aconteceu a cada vez que o gatilho desta automação disparou.
             </SheetDescription>
           </SheetHeader>
-          <div className="mt-4">
+          <div className="mt-4 space-y-4">
+            {/* A prontidão vem ANTES do histórico: é a pergunta que se responde
+                sem precisar provocar o gatilho. */}
+            <PainelProntidao mandaWhatsapp={mandaWhatsapp} />
             <PainelExecucoes ruleId={automationId} />
           </div>
         </SheetContent>

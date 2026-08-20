@@ -7,11 +7,27 @@
 // importado por mais de uma função e cada uma tem o seu.
 import { crmFetch } from "./crm-auth.ts";
 
+/** Para quem a mensagem vai.
+ *
+ *  Exportado — e não escrito à mão em cada chamador — porque foi exatamente aí
+ *  que uma automação silenciosa nasceu: `atendimento-automations` montava o
+ *  objeto em camelCase (`contact_id` virava `contactId`), o campo saía
+ *  `undefined`, o JSON.stringify descartava e a chamada ia ao CRM sem contato
+ *  nenhum. O disparo de campanhas nunca sofreu porque passa a linha de
+ *  `whatsapp_broadcast_targets` direto, cujas colunas já têm estes nomes.
+ *
+ *  As Edge Functions rodam em Deno e ficam fora do `bunx tsc` do projeto, que
+ *  cobre só `src/` — então aqui o nome único é a única defesa que existe. */
+export interface AlvoDeEnvio {
+  conversation_id: string | null;
+  contact_id: string;
+}
+
 /** Manda uma mensagem, devolvendo por qual caminho saiu. */
 export async function enviarWhatsapp(
   supabase: any,
   ownerId: string,
-  alvo: { conversation_id: string | null; contact_id: string },
+  alvo: AlvoDeEnvio,
   message: string,
 ): Promise<{ via: string }> {
   if (alvo.conversation_id) {
