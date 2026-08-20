@@ -22,10 +22,7 @@ function StatCard({
   iconColor: string;
 }) {
   return (
-    <div
-      className="bg-white flex flex-col gap-3 p-5"
-      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
-    >
+    <div className="surface-card flex flex-col gap-3 p-5">
       <div className="flex items-start gap-3">
         <div
           className="h-10 w-10 rounded-xl grid place-items-center shrink-0"

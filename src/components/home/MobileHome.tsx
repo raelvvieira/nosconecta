@@ -42,7 +42,7 @@ function Cabecalho() {
         <Link
           to="/configuracoes/notificacoes"
           aria-label="Notificações"
-          className="press relative grid h-[52px] w-[52px] place-items-center rounded-xl border border-surface-muted bg-card shadow-2"
+          className="press relative grid h-[52px] w-[52px] place-items-center rounded-xl border border-border bg-card shadow-2"
         >
           <Bell className="h-[21px] w-[21px] text-foreground" strokeWidth={1.75} />
         </Link>
@@ -166,7 +166,7 @@ function ProximosAtendimentos({ dados }: { dados: HomeData }) {
               key={appt.id}
               className={cn(
                 "flex h-[74px] items-center gap-3 px-3.5",
-                i < dados.proximos.length - 1 && "border-b border-surface-muted",
+                i < dados.proximos.length - 1 && "border-b border-border",
               )}
             >
               <div className="flex w-[70px] shrink-0 items-center gap-2">
@@ -281,7 +281,7 @@ function PrecisaAtencao({ dados }: { dados: HomeData }) {
               onClick={() => navigate({ to: item.to })}
               className={cn(
                 "press flex h-[58px] w-full cursor-pointer items-center gap-3 px-4 text-left",
-                i < dados.atencao.length - 1 && "border-b border-surface-muted",
+                i < dados.atencao.length - 1 && "border-b border-border",
               )}
             >
               <span

@@ -55,14 +55,14 @@ export function MobileCalendarSheet({ open, selectedDate, appointments, onClose,
               <button
                 type="button"
                 onClick={() => setCursor(new Date(year, month - 1, 1))}
-                className="h-9 w-9 grid place-items-center rounded-xl bg-white border border-surface-muted text-muted-foreground"
+                className="h-9 w-9 grid place-items-center rounded-xl bg-white border border-border text-muted-foreground"
               >
                 <ChevronLeft className="h-4 w-4" strokeWidth={2} />
               </button>
               <button
                 type="button"
                 onClick={() => setCursor(new Date(year, month + 1, 1))}
-                className="h-9 w-9 grid place-items-center rounded-xl bg-white border border-surface-muted text-muted-foreground"
+                className="h-9 w-9 grid place-items-center rounded-xl bg-white border border-border text-muted-foreground"
               >
                 <ChevronRight className="h-4 w-4" strokeWidth={2} />
               </button>

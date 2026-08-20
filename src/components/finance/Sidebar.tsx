@@ -1052,7 +1052,7 @@ export function Sidebar() {
           height: 52,
           borderRadius: "var(--radius-card)",
           background: "var(--card)",
-          border: "1px solid var(--surface-muted)",
+          border: "1px solid var(--border)",
           boxShadow: "var(--shadow-2)",
         }}
         aria-label="Home"

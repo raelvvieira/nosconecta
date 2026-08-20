@@ -101,7 +101,7 @@ export function CommitmentDrawer({
         className="w-full max-w-[420px] bg-white flex flex-col overflow-hidden"
         style={{ boxShadow: "var(--shadow-3)" }}
       >
-        <div className="flex items-center justify-between px-6 py-5 border-b border-surface-muted">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-border">
           <h2 className="text-lg font-semibold text-foreground">
             {isEdit ? "Compromisso" : "Novo Compromisso"}
           </h2>
@@ -136,7 +136,7 @@ export function CommitmentDrawer({
           <div className="space-y-2">
             <Label className="text-sm text-foreground-secondary">Motivo *</Label>
             <select
-              className="w-full text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
+              className="w-full text-sm border border-border rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
               value={motivoLivre ? OUTRO : form.reason}
               onChange={(e) => {
                 if (e.target.value === OUTRO) {
@@ -161,7 +161,7 @@ export function CommitmentDrawer({
                 placeholder="Descreva o compromisso"
                 value={form.reason ?? ""}
                 onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
-                className="rounded-xl border-surface-muted"
+                className="rounded-xl border-border"
               />
             )}
           </div>
@@ -169,7 +169,7 @@ export function CommitmentDrawer({
           <div className="space-y-2">
             <Label className="text-sm text-foreground-secondary">Profissional *</Label>
             <select
-              className="w-full text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
+              className="w-full text-sm border border-border rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
               value={form.professionalId}
               onChange={(e) => setForm((f) => ({ ...f, professionalId: e.target.value }))}
             >
@@ -185,7 +185,7 @@ export function CommitmentDrawer({
           <div className="space-y-2">
             <Label className="text-sm text-foreground-secondary">Sala</Label>
             <select
-              className="w-full text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
+              className="w-full text-sm border border-border rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
               value={form.roomId}
               onChange={(e) => setForm((f) => ({ ...f, roomId: e.target.value }))}
             >
@@ -204,7 +204,7 @@ export function CommitmentDrawer({
               type="date"
               value={form.date}
               onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-              className="rounded-xl border-surface-muted"
+              className="rounded-xl border-border"
             />
           </div>
 
@@ -224,14 +224,14 @@ export function CommitmentDrawer({
                     endTime: endTimeFrom(e.target.value, duracao),
                   }))
                 }
-                className="w-full min-w-0 rounded-xl border-surface-muted"
+                className="w-full min-w-0 rounded-xl border-border"
               />
             </div>
             {/* Mesma troca da consulta: duração no lugar do horário de fim. */}
             <div className="min-w-0 space-y-2">
               <Label className="text-sm text-foreground-secondary">Duração (min)</Label>
               <select
-                className="w-full text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
+                className="w-full text-sm border border-border rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
                 value={duracao}
                 onChange={(e) =>
                   setForm((f) => ({
@@ -250,7 +250,7 @@ export function CommitmentDrawer({
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-surface-muted flex gap-3">
+        <div className="px-6 py-4 border-t border-border flex gap-3">
           {isEdit && onDelete && (
             <Button
               variant="outline"

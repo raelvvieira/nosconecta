@@ -98,8 +98,7 @@ function StatsCarousel({ appointments, date }: { appointments: Appointment[]; da
       {cards.map((c) => (
         <div
           key={c.label}
-          className="bg-white p-4 flex flex-col gap-2"
-          style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
+          className="surface-card p-4 flex flex-col gap-2"
         >
           <div className="h-9 w-9 rounded-xl grid place-items-center" style={{ background: c.bg }}>
             <c.icon style={{ color: c.color, width: 18, height: 18 }} strokeWidth={1.75} />
@@ -158,7 +157,7 @@ function DateSelector({ selectedDate, onDateChange }: { selectedDate: Date; onDa
               style={
                 active
                   ? { background: "var(--gradient-primary)", color: "var(--primary-foreground)", boxShadow: "var(--shadow-brand)" }
-                  : { border: "1px solid var(--surface-muted)", color: "var(--foreground-secondary)" }
+                  : { border: "1px solid var(--border)", color: "var(--foreground-secondary)" }
               }
             >
               <span className={cn("text-2xs font-medium", active ? "text-white/90" : "text-muted-foreground")}>
@@ -189,8 +188,7 @@ function AppointmentCard({ appt, onClick }: { appt: Appointment; onClick: () => 
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left bg-white p-4 flex items-center gap-3 active:scale-[0.985] transition-transform"
-      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
+      className="w-full text-left surface-card p-4 flex items-center gap-3 active:scale-[0.985] transition-transform"
     >
       <div className="flex flex-col items-center shrink-0 w-12">
         <span className="text-sm font-bold text-foreground">{appt.startTime}</span>
@@ -300,17 +298,14 @@ function MonthGrid({
   };
 
   return (
-    <div
-      className="bg-white p-4"
-      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
-    >
+    <div className="surface-card p-4">
       <div className="flex items-center justify-between mb-3">
         <span className="text-base font-semibold text-foreground">{MONTHS_CAP[month]}, {year}</span>
         <div className="flex gap-2">
-          <button type="button" onClick={() => setCursor(new Date(year, month - 1, 1))} className="h-8 w-8 grid place-items-center rounded-lg border border-surface-muted text-muted-foreground">
+          <button type="button" onClick={() => setCursor(new Date(year, month - 1, 1))} className="h-8 w-8 grid place-items-center rounded-lg border border-border text-muted-foreground">
             <ChevronLeft className="h-4 w-4" strokeWidth={2} />
           </button>
-          <button type="button" onClick={() => setCursor(new Date(year, month + 1, 1))} className="h-8 w-8 grid place-items-center rounded-lg border border-surface-muted text-muted-foreground">
+          <button type="button" onClick={() => setCursor(new Date(year, month + 1, 1))} className="h-8 w-8 grid place-items-center rounded-lg border border-border text-muted-foreground">
             <ChevronRight className="h-4 w-4" strokeWidth={2} />
           </button>
         </div>
@@ -444,7 +439,7 @@ export function MobileAgenda({
         <button
           type="button"
           onClick={() => setFilterOpen(true)}
-          className="w-full flex items-center gap-2 px-4 h-11 rounded-lg bg-white border border-surface-muted text-foreground-secondary"
+          className="w-full flex items-center gap-2 px-4 h-11 rounded-lg bg-white border border-border text-foreground-secondary"
           style={{ boxShadow: "var(--shadow-2)" }}
         >
           <SlidersHorizontal className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
@@ -455,7 +450,7 @@ export function MobileAgenda({
         <DateSelector selectedDate={selectedDate} onDateChange={onDateChange} />
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-white p-1 rounded-lg" style={{ border: "1px solid var(--surface-muted)" }}>
+        <div className="flex gap-1 bg-white p-1 rounded-lg" style={{ border: "1px solid var(--border)" }}>
           {tabs.map((t) => (
             <button
               key={t.id}

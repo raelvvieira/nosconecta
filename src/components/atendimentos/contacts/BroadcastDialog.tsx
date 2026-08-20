@@ -125,7 +125,7 @@ export function BroadcastDialog({
                 data-disparo-ritmo=""
                 value={ritmo}
                 onChange={(e) => setRitmo(Number(e.target.value))}
-                className="w-full min-w-0 rounded-xl border border-surface-muted bg-white px-3 py-2 text-sm"
+                className="w-full min-w-0 rounded-xl border border-border bg-white px-3 py-2 text-sm"
               >
                 {RITMOS.map((r) => (
                   <option key={r.valor} value={r.valor}>

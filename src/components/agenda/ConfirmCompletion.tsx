@@ -134,7 +134,7 @@ export function ConfirmCompletion({
             value={dataManual}
             min={appointmentDate}
             onChange={(e) => setDataManual(e.target.value)}
-            className="rounded-xl border-surface-muted bg-white"
+            className="rounded-xl border-border bg-white"
           />
         )}
 
@@ -213,7 +213,7 @@ export function ConfirmCompletion({
           setValor(e.target.value);
           if (erro) setErro(null);
         }}
-        className="rounded-xl border-surface-muted bg-white"
+        className="rounded-xl border-border bg-white"
       />
       {erro ? (
         <p className="text-2xs text-danger">{erro}</p>

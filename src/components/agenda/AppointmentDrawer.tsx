@@ -218,7 +218,7 @@ export function AppointmentDrawer({
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-6 py-5 border-b border-surface-muted"
+          className="flex items-center justify-between px-6 py-5 border-b border-border"
           style={{
             background:
               "linear-gradient(135deg,color-mix(in oklab, var(--pink) 6%, transparent) 0%,color-mix(in oklab, var(--coral) 4%, transparent) 100%)",
@@ -322,7 +322,7 @@ export function AppointmentDrawer({
                     value={form.patientName ?? ""}
                     onChange={(e) => setForm((f) => ({ ...f, patientName: e.target.value }))}
                     placeholder="Nome completo do paciente"
-                    className="rounded-xl border-surface-muted"
+                    className="rounded-xl border-border"
                   />
                   {/* `relative tap-44` porque o texto sozinho dá 16px de alvo,
                       bem abaixo do mínimo que o resto do app já respeita. */}
@@ -341,7 +341,7 @@ export function AppointmentDrawer({
                   onChange={({ id, name }) =>
                     setForm((f) => ({ ...f, patientId: id, patientName: name }))
                   }
-                  className="rounded-xl border-surface-muted"
+                  className="rounded-xl border-border"
                 />
               )}
             </div>
@@ -372,7 +372,7 @@ export function AppointmentDrawer({
                 rows={2}
                 value={form.notes}
                 onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                className="rounded-xl border-surface-muted resize-none"
+                className="rounded-xl border-border resize-none"
               />
             </div>
           </section>
@@ -397,7 +397,7 @@ export function AppointmentDrawer({
               <div className="space-y-2">
                 <Label className="text-sm text-foreground-secondary">Tipo</Label>
                 <select
-                  className="w-full text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-pink/30"
+                  className="w-full text-sm border border-border rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-pink/30"
                   value={form.type}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, type: e.target.value as AppointmentType }))
@@ -470,7 +470,7 @@ export function AppointmentDrawer({
                   type="date"
                   value={form.date}
                   onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                  className="w-full min-w-0 rounded-xl border-surface-muted"
+                  className="w-full min-w-0 rounded-xl border-border"
                 />
               </div>
               <div className="min-w-0 space-y-2">
@@ -479,7 +479,7 @@ export function AppointmentDrawer({
                   type="time"
                   value={form.startTime}
                   onChange={(e) => mudarInicio(e.target.value)}
-                  className="w-full min-w-0 rounded-xl border-surface-muted"
+                  className="w-full min-w-0 rounded-xl border-border"
                 />
               </div>
               {/* Duração no lugar do horário de fim. O fim vira consequência,
@@ -490,7 +490,7 @@ export function AppointmentDrawer({
               <div className="min-w-0 space-y-2">
                 <Label className="text-sm text-foreground-secondary">Duração (min)</Label>
                 <select
-                  className="w-full min-w-0 text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
+                  className="w-full min-w-0 text-sm border border-border rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
                   value={duracao}
                   onChange={(e) => mudarDuracao(Number(e.target.value))}
                 >
@@ -506,7 +506,7 @@ export function AppointmentDrawer({
               <div className="col-span-2 min-w-0 space-y-2 sm:col-span-1">
                 <Label className="text-sm text-foreground-secondary">Status</Label>
                 <select
-                  className="w-full min-w-0 text-sm border border-surface-muted rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
+                  className="w-full min-w-0 text-sm border border-border rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
                   value={form.status}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, status: e.target.value as AppointmentStatus }))
@@ -537,7 +537,7 @@ export function AppointmentDrawer({
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Confirmação e Lembretes
               </h3>
-              <div className="rounded-xl border border-surface-muted divide-y divide-surface-muted px-3">
+              <div className="rounded-xl border border-border divide-y divide-surface-muted px-3">
                 {NOTIFICATION_KINDS.map((k) => (
                   <NotificationRow
                     key={k.value}
@@ -558,7 +558,7 @@ export function AppointmentDrawer({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-surface-muted flex gap-3">
+        <div className="px-6 py-4 border-t border-border flex gap-3">
           <Button variant="outline" onClick={onClose} className="flex-1 rounded-xl">
             Cancelar
           </Button>

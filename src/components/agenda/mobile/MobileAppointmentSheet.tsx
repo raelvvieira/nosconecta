@@ -117,7 +117,7 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
           {/* Info */}
           <div
             className="bg-white rounded-2xl px-4 divide-y divide-surface-muted"
-            style={{ border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
+            style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-2)" }}
           >
             <InfoRow icon={Clock} label="Data e horário" value={`${a.date.split("-").reverse().join("/")} · ${a.startTime} – ${a.endTime}`} />
             <InfoRow icon={Stethoscope} label="Tipo" value={TYPE_LABEL[a.type]} />
@@ -130,7 +130,7 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
           {/* Confirmação e lembretes (Brevo) */}
           <div
             className="bg-white rounded-2xl px-4 py-1 divide-y divide-surface-muted"
-            style={{ border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-2)" }}
+            style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-2)" }}
           >
             {NOTIFICATION_KINDS.map((k) => (
               <NotificationRow
@@ -150,7 +150,7 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
                 type="button"
                 onClick={() => (act.onClick ? act.onClick() : act.status && setStatus(act.status))}
                 className="bg-white rounded-xl py-3 flex flex-col items-center gap-1.5 active:scale-[0.97] transition-transform"
-                style={{ border: "1px solid var(--surface-muted)" }}
+                style={{ border: "1px solid var(--border)" }}
               >
                 <act.icon className="h-5 w-5" style={{ color: act.tone }} strokeWidth={1.75} />
                 <span className="text-2xs font-medium text-foreground-secondary">{act.label}</span>

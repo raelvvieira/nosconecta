@@ -145,7 +145,7 @@ export function ConfirmarGanho({
               value={fone}
               onChange={(e) => setFone(e.target.value)}
               placeholder="+55 (48) 98419-5309"
-              className="w-full min-w-0 rounded-xl border-surface-muted font-mono"
+              className="w-full min-w-0 rounded-xl border-border font-mono"
             />
             <p className="text-2xs leading-4 text-muted-foreground">
               {fone.trim()
@@ -170,7 +170,7 @@ export function ConfirmarGanho({
                   setValor(e.target.value);
                   if (erro) setErro(null);
                 }}
-                className="w-full min-w-0 rounded-xl border-surface-muted"
+                className="w-full min-w-0 rounded-xl border-border"
               />
             </div>
             <div className="min-w-0 space-y-2">
@@ -186,7 +186,7 @@ export function ConfirmarGanho({
                   setData(e.target.value);
                   if (erro) setErro(null);
                 }}
-                className="w-full min-w-0 rounded-xl border-surface-muted"
+                className="w-full min-w-0 rounded-xl border-border"
               />
             </div>
           </div>

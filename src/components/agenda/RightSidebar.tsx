@@ -43,10 +43,7 @@ function MiniCalendar({
   };
 
   return (
-    <div
-      className="bg-white p-4"
-      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
-    >
+    <div className="surface-card p-4">
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-semibold text-foreground">
           {MONTHS_PT[month]}, {year}
@@ -125,10 +122,7 @@ function UpcomingAppointmentsCard({ appointments, selectedDate }: { appointments
     .slice(0, 4);
 
   return (
-    <div
-      className="bg-white p-4"
-      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
-    >
+    <div className="surface-card p-4">
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-semibold text-foreground">Próximos atendimentos</span>
         <button type="button" className="text-xs font-medium" style={{ color: "var(--pink)" }}>
@@ -181,10 +175,7 @@ function UpcomingAppointmentsCard({ appointments, selectedDate }: { appointments
 
 function WaitingListCard({ items }: { items: WaitingListItem[] }) {
   return (
-    <div
-      className="bg-white p-4"
-      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
-    >
+    <div className="surface-card p-4">
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-semibold text-foreground">Lista de Espera</span>
         <button type="button" className="text-xs font-medium" style={{ color: "var(--pink)" }}>
@@ -245,10 +236,7 @@ function QuickFiltersCard({
   const hasFilters = filters.professionalId || filters.roomId || filters.type || filters.status;
 
   return (
-    <div
-      className="bg-white p-4"
-      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
-    >
+    <div className="surface-card p-4">
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-semibold text-foreground">Filtros rápidos</span>
         {hasFilters && (
@@ -259,7 +247,7 @@ function QuickFiltersCard({
       </div>
       <div className="space-y-2">
         <select
-          className="w-full text-xs border border-surface-muted rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
+          className="w-full text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
           value={filters.professionalId}
           onChange={(e) => onFiltersChange({ ...filters, professionalId: e.target.value })}
         >
@@ -267,7 +255,7 @@ function QuickFiltersCard({
           {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <select
-          className="w-full text-xs border border-surface-muted rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
+          className="w-full text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
           value={filters.roomId}
           onChange={(e) => onFiltersChange({ ...filters, roomId: e.target.value })}
         >
@@ -275,7 +263,7 @@ function QuickFiltersCard({
           {rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
         <select
-          className="w-full text-xs border border-surface-muted rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
+          className="w-full text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
           value={filters.type}
           onChange={(e) => onFiltersChange({ ...filters, type: e.target.value })}
         >
@@ -287,7 +275,7 @@ function QuickFiltersCard({
           <option value="emergency">Emergência</option>
         </select>
         <select
-          className="w-full text-xs border border-surface-muted rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
+          className="w-full text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
           value={filters.status}
           onChange={(e) => onFiltersChange({ ...filters, status: e.target.value })}
         >

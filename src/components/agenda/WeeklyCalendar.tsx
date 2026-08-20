@@ -195,12 +195,9 @@ export function WeeklyCalendar({
       : `${selectedDate.getDate()} de ${MONTHS_PT[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
 
   return (
-    <div
-      className="bg-white flex flex-col"
-      style={{ borderRadius: "var(--radius-feature)", border: "1px solid var(--surface-muted)", boxShadow: "var(--shadow-1)" }}
-    >
+    <div className="surface-card flex flex-col">
       {/* Top bar */}
-      <div className="flex flex-col gap-3 p-4 border-b border-surface-muted">
+      <div className="flex flex-col gap-3 p-4 border-b border-border">
         {/* View tabs */}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-1 bg-surface rounded-xl p-1">
@@ -225,7 +222,7 @@ export function WeeklyCalendar({
           {/* Filters */}
           <div className="flex items-center gap-2">
             <select
-              className="text-xs border border-surface-muted rounded-xl px-3 py-1.5 text-muted-foreground bg-white focus:outline-none"
+              className="text-xs border border-border rounded-xl px-3 py-1.5 text-muted-foreground bg-white focus:outline-none"
               value={filters.professionalId}
               onChange={(e) => onFiltersChange({ ...filters, professionalId: e.target.value })}
             >
@@ -233,7 +230,7 @@ export function WeeklyCalendar({
               {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
             <select
-              className="text-xs border border-surface-muted rounded-xl px-3 py-1.5 text-muted-foreground bg-white focus:outline-none"
+              className="text-xs border border-border rounded-xl px-3 py-1.5 text-muted-foreground bg-white focus:outline-none"
               value={filters.roomId}
               onChange={(e) => onFiltersChange({ ...filters, roomId: e.target.value })}
             >
@@ -242,7 +239,7 @@ export function WeeklyCalendar({
             </select>
             <button
               type="button"
-              className="h-8 w-8 grid place-items-center rounded-xl border border-surface-muted text-muted-foreground hover:bg-surface transition-colors"
+              className="h-8 w-8 grid place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface transition-colors"
             >
               <Settings2 className="h-4 w-4" strokeWidth={1.75} />
             </button>
@@ -254,7 +251,7 @@ export function WeeklyCalendar({
           <button
             type="button"
             onClick={() => navigateWeek(-1)}
-            className="h-8 w-8 grid place-items-center rounded-xl border border-surface-muted text-muted-foreground hover:bg-surface transition-colors"
+            className="h-8 w-8 grid place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface transition-colors"
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={2} />
           </button>
@@ -268,7 +265,7 @@ export function WeeklyCalendar({
           <button
             type="button"
             onClick={() => navigateWeek(1)}
-            className="h-8 w-8 grid place-items-center rounded-xl border border-surface-muted text-muted-foreground hover:bg-surface transition-colors"
+            className="h-8 w-8 grid place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface transition-colors"
           >
             <ChevronRight className="h-4 w-4" strokeWidth={2} />
           </button>
@@ -284,7 +281,7 @@ export function WeeklyCalendar({
       {view !== "month" && (
         <>
           {/* Day headers */}
-          <div className="flex border-b border-surface-muted">
+          <div className="flex border-b border-border">
             <div className="w-16 shrink-0" />
             {displayDays.map((day) => {
               const ds = toDateStr(day);
@@ -351,7 +348,7 @@ export function WeeklyCalendar({
                       // dedo está para descobrir a data de destino.
                       data-day={ds}
                       className="flex-1 relative min-w-0"
-                      style={{ borderLeft: "1px solid var(--surface-muted)" }}
+                      style={{ borderLeft: "1px solid var(--border)" }}
                     >
                       {/* Hour lines */}
                       {HOURS.map((h) => (
@@ -363,7 +360,7 @@ export function WeeklyCalendar({
                             left: 0,
                             right: 0,
                             height: HOUR_HEIGHT,
-                            borderTop: "1px solid var(--surface-muted)",
+                            borderTop: "1px solid var(--border)",
                             background: isToday ? "color-mix(in oklab, var(--pink) 1.5%, transparent)" : undefined,
                           }}
                         />
@@ -521,7 +518,7 @@ export function WeeklyCalendar({
           </div>
 
           {/* Legend */}
-          <div className="flex flex-wrap items-center gap-3 p-4 border-t border-surface-muted">
+          <div className="flex flex-wrap items-center gap-3 p-4 border-t border-border">
             {(
               [
                 ["Confirmado", "var(--success)"],
