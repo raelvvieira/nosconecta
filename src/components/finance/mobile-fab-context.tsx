@@ -1,31 +1,37 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
 
 export type MobileFabAction = {
   label: string;
   onClick: () => void;
 };
 
-export type MobileNavAction = {
-  label: string;
-  icon: LucideIcon;
-  onClick: () => void;
-};
+/** Handlers das ações da ilha, por id.
+ *
+ *  Antes a página registrava rótulo, ícone E ação juntos, e a ilha desenhava o
+ *  que chegasse. Só que a ilha também é desenhada durante o carregamento da
+ *  rota, quando a página ainda não montou: a lista vinha vazia e a barra
+ *  aparecia com o "+" sozinho, encostado na borda — a tela "errada" que
+ *  aparecia antes da certa.
+ *
+ *  A forma (quais botões, com que rótulo e ícone) é fixa por rota e agora mora
+ *  em `destinos.ts`. Daqui viaja só o que de fato pertence à página: o que
+ *  acontece ao tocar. Sem handler, o botão é desenhado igual e desabilitado. */
+export type IlhaHandlers = Record<string, () => void>;
 
 type Ctx = {
   fab: MobileFabAction | null;
   setFab: (a: MobileFabAction | null) => void;
-  navActions: MobileNavAction[];
-  setNavActions: (a: MobileNavAction[]) => void;
+  handlers: IlhaHandlers;
+  setHandlers: (h: IlhaHandlers) => void;
 };
 
 const MobileFabContext = createContext<Ctx | null>(null);
 
 export function MobileFabProvider({ children }: { children: ReactNode }) {
   const [fab, setFab] = useState<MobileFabAction | null>(null);
-  const [navActions, setNavActions] = useState<MobileNavAction[]>([]);
+  const [handlers, setHandlers] = useState<IlhaHandlers>({});
   return (
-    <MobileFabContext.Provider value={{ fab, setFab, navActions, setNavActions }}>
+    <MobileFabContext.Provider value={{ fab, setFab, handlers, setHandlers }}>
       {children}
     </MobileFabContext.Provider>
   );
@@ -61,31 +67,31 @@ export function useRegisterMobileFab(action: MobileFabAction | null) {
 }
 
 /**
- * Register secondary nav actions to be rendered alongside the FAB on the
- * mobile tab bar (used by pages like Agenda that need extra buttons there).
- * Unregisters on unmount.
+ * Liga os handlers das ações que a ilha inferior desenha para esta rota.
+ * As chaves são os ids declarados em `destinos.ts`. Desliga ao desmontar.
  */
-export function useRegisterMobileNavActions(actions: MobileNavAction[] | null) {
+export function useRegisterIlhaHandlers(handlers: IlhaHandlers) {
   const ctx = useContext(MobileFabContext);
-  const ref = useRef(actions);
-  ref.current = actions;
+  const ref = useRef(handlers);
+  ref.current = handlers;
 
-  // Stable wrapped actions: icons stay the same identity; only onClick is wrapped.
-  const key = actions?.map((a) => a.label).join("|") ?? "";
+  // As chaves são estáveis por rota; só as funções mudam a cada render. Por
+  // isso o efeito depende das CHAVES e o despacho passa pelo ref — assim o
+  // contexto não é reescrito a cada render da página.
+  const chaves = Object.keys(handlers).sort().join("|");
 
   useEffect(() => {
     if (!ctx) return;
-    if (!actions || actions.length === 0) {
-      ctx.setNavActions([]);
+    if (!chaves) {
+      ctx.setHandlers({});
       return;
     }
-    const wrapped = actions.map((a, i) => ({
-      label: a.label,
-      icon: a.icon,
-      onClick: () => ref.current?.[i]?.onClick(),
-    }));
-    ctx.setNavActions(wrapped);
-    return () => ctx.setNavActions([]);
+    const estaveis: IlhaHandlers = {};
+    for (const k of chaves.split("|")) {
+      estaveis[k] = () => ref.current?.[k]?.();
+    }
+    ctx.setHandlers(estaveis);
+    return () => ctx.setHandlers({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [chaves]);
 }

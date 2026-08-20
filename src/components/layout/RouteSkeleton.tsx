@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 // A barra lateral é a de verdade, não um bloco cinza. Ela não depende de
 // dado nenhum e continua navegável durante o carregamento.
 
-type Shape = "kpis" | "list" | "board" | "calendar";
+type Shape = "kpis" | "list" | "board" | "calendar" | "agenda";
 
 function Line({ className }: { className?: string }) {
   return <Skeleton className={className ?? "h-4 w-full"} />;
@@ -60,8 +60,8 @@ function ShapeBody({ shape }: { shape: Shape }) {
     );
   }
 
-  if (shape === "calendar") {
-    return (
+  if (shape === "calendar" || shape === "agenda") {
+    const grade = (
       <div className="surface-card overflow-hidden p-4 md:p-5">
         <div className="grid grid-cols-7 gap-2">
           {Array.from({ length: 35 }, (_, i) => (
@@ -69,6 +69,39 @@ function ShapeBody({ shape }: { shape: Shape }) {
           ))}
         </div>
       </div>
+    );
+    if (shape === "calendar") return grade;
+
+    // A Agenda tem DUAS telas, e o esqueleto precisa prometer a que vai chegar.
+    // Antes era a grade nos dois tamanhos — mas no celular a Agenda não é uma
+    // grade: é uma fileira de indicadores, os filtros, a faixa de dias e uma
+    // lista. Prometer a grade e entregar a lista transforma a troca num salto,
+    // que é o contrário do que este componente existe para fazer.
+    return (
+      <>
+        <div className="hidden lg:block">{grade}</div>
+        <div className="space-y-5 lg:hidden">
+          <div className="grid grid-cols-2 gap-3">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="surface-card space-y-2 p-4">
+                <Skeleton className="h-9 w-9 rounded-md" />
+                <Line className="h-3 w-24" />
+                <Line className="h-6 w-10" />
+              </div>
+            ))}
+          </div>
+          <Skeleton className="h-12 w-full rounded-xl" />
+          <div className="flex gap-2">
+            {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+              <Skeleton key={i} className="h-14 flex-1 rounded-xl" />
+            ))}
+          </div>
+          <Skeleton className="h-11 w-full rounded-xl" />
+          <div className="surface-card divide-y divide-border overflow-hidden">
+            {[0, 1, 2, 3].map((i) => <RowBlock key={i} />)}
+          </div>
+        </div>
+      </>
     );
   }
 

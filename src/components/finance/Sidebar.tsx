@@ -1,28 +1,11 @@
 import {
-  LayoutGrid,
-  ArrowDownCircle,
-  ArrowUpCircle,
-  TrendingUp,
-  Percent,
-  Settings,
+  Home,
   LogOut,
   Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
-  Calendar,
-  Wallet,
-  ChevronLeft,
-  CalendarDays,
-  Home,
-  Users,
   MoreHorizontal,
-  MessageCircle,
-  Workflow,
-  Megaphone,
-  Bot,
-  LayoutDashboard,
-  type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -34,80 +17,26 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/u
 import { UnitSwitcher } from "@/components/settings/UnitSwitcher";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { supabase } from "@/integrations/supabase/client";
+import { CabecalhoDeSecao } from "@/components/layout/CabecalhoDeSecao";
+import { ItemDeMenu } from "@/components/layout/ItemDeMenu";
+import { BotaoDaIlha, LinkDaIlha } from "@/components/layout/ItemDaIlha";
+import {
+  ACOES_DA_AGENDA,
+  GRUPOS_DO_MAIS,
+  ITENS_ATENDIMENTOS,
+  ITENS_FINANCEIRO,
+  MODULOS,
+  SUBMENUS,
+  navegaveis,
+  type ItemDoMenu,
+} from "@/components/layout/destinos";
 
-type FinanceItem = {
-  label: string;
-  icon: LucideIcon;
-  to: "/financeiro" | "/recebimentos" | "/pagamentos" | "/planejamento" | "/comissoes";
-};
+// As listas de destino (módulos, itens do financeiro, itens de atendimentos e
+// os grupos da gaveta "Mais") moravam aqui, cada uma declarada por conta
+// própria. Agora vêm de `destinos.ts` — ver o comentário de lá sobre o ícone da
+// Agenda, que era o sintoma visível dessa duplicação.
 
-const financeItems: FinanceItem[] = [
-  { label: "Visão Geral", icon: LayoutGrid, to: "/financeiro" },
-  { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" },
-  { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" },
-  { label: "Planejamento", icon: TrendingUp, to: "/planejamento" },
-  { label: "Comissões", icon: Percent, to: "/comissoes" },
-];
-
-type AtendimentosItem = {
-  label: string;
-  icon: LucideIcon;
-  to:
-    | "/atendimentos"
-    | "/atendimentos/chat"
-    | "/atendimentos/pipeline"
-    | "/atendimentos/campanhas"
-    | "/atendimentos/automacoes";
-};
-
-const atendimentosItems: AtendimentosItem[] = [
-  { label: "Dashboard", icon: LayoutDashboard, to: "/atendimentos" },
-  { label: "Chat", icon: MessageCircle, to: "/atendimentos/chat" },
-  { label: "Pipeline", icon: Workflow, to: "/atendimentos/pipeline" },
-  { label: "Campanhas", icon: Megaphone, to: "/atendimentos/campanhas" },
-  { label: "Automação", icon: Bot, to: "/atendimentos/automacoes" },
-];
-
-// Espelha a estrutura do menu lateral do desktop pro painel "Mais" do
-// celular. Só entram rotas que existem de verdade — no desktop há itens
-// desabilitados (ex.: Comissões), que aqui só confundiriam.
-const MOBILE_MENU_GROUPS: {
-  label: string;
-  items: { label: string; icon: LucideIcon; to: string }[];
-}[] = [
-  {
-    label: "Módulos",
-    items: [
-      { label: "Início", icon: Home, to: "/inicio" },
-      { label: "Agenda", icon: CalendarDays, to: "/agenda" },
-      { label: "Pacientes", icon: Users, to: "/pacientes" },
-      { label: "Configurações", icon: Settings, to: "/configuracoes" },
-    ],
-  },
-  {
-    label: "Atendimentos",
-    items: [
-      { label: "Dashboard", icon: LayoutDashboard, to: "/atendimentos" },
-      { label: "Chat", icon: MessageCircle, to: "/atendimentos/chat" },
-      { label: "Pipeline", icon: Workflow, to: "/atendimentos/pipeline" },
-      { label: "Campanhas", icon: Megaphone, to: "/atendimentos/campanhas" },
-      { label: "Automação", icon: Bot, to: "/atendimentos/automacoes" },
-    ],
-  },
-  {
-    label: "Financeiro",
-    items: [
-      { label: "Visão Geral", icon: LayoutGrid, to: "/financeiro" },
-      { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" },
-      { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" },
-      { label: "Planejamento", icon: TrendingUp, to: "/planejamento" },
-    ],
-  },
-];
-
-const REAL_ROUTES = new Set(["/financeiro", "/pagamentos", "/recebimentos", "/planejamento"]);
-const FINANCE_PATHS = new Set(["/financeiro", "/recebimentos", "/pagamentos", "/planejamento", "/comissoes"]);
-const AGENDA_PATHS = new Set(["/agenda"]);
+const FINANCE_PATHS = new Set(ITENS_FINANCEIRO.map((i) => i.to));
 const isPatientsPath = (pathname: string) =>
   pathname === "/pacientes" || pathname.startsWith("/pacientes/");
 const isSettingsPath = (pathname: string) => pathname.startsWith("/configuracoes");
@@ -132,35 +61,51 @@ export function Sidebar() {
   const [moreOpen, setMoreOpen] = useState(false);
   const fabCtx = useMobileFab();
   const fab = fabCtx?.fab ?? null;
-  const navActions = fabCtx?.navActions ?? [];
+  const handlers = fabCtx?.handlers ?? {};
   const { isAdmin, units } = useUnitSelection();
 
   const collapsed = !aberto;
 
-  const inFinance = useMemo(
-    () =>
-      FINANCE_PATHS.has(pathname) ||
-      financeItems.some((i) => pathname.startsWith(i.to)),
-    [pathname],
-  );
-  const inAgenda = useMemo(() => AGENDA_PATHS.has(pathname), [pathname]);
+  const inFinance = useMemo(() => FINANCE_PATHS.has(pathname), [pathname]);
+  const inAgenda = useMemo(() => pathname === "/agenda", [pathname]);
   const inPatients = useMemo(() => isPatientsPath(pathname), [pathname]);
   const inSettings = useMemo(() => isSettingsPath(pathname), [pathname]);
-  const inInicio = useMemo(() => pathname === "/inicio", [pathname]);
   const inAtendimentos = useMemo(() => isAtendimentosPath(pathname), [pathname]);
 
-  type SidebarView = "modules" | "financeiro" | "agenda" | "atendimentos";
-  const [view, setView] = useState<SidebarView>(
-    inFinance ? "financeiro" : inAgenda ? "agenda" : inAtendimentos ? "atendimentos" : "modules",
-  );
+  // Qual seção o menu mostra é DERIVADO da rota, não guardado em estado e
+  // sincronizado por efeito. O efeito rodava depois da pintura, então trocar de
+  // página desenhava um quadro com a seção anterior antes de se corrigir — é
+  // parte do "abre errado e depois arruma".
+  //
+  // Só existe submenu para módulo com mais de uma página. A Agenda tinha um
+  // submenu de UM item: entrar nela trocava a lista de módulos por "‹ Módulos"
+  // + "AGENDA" + um link para a própria Agenda. Era isso que empurrava o rótulo
+  // uma linha para baixo, sem entregar navegação nenhuma em troca.
+  const secaoDaRota = inFinance ? "financeiro" : inAtendimentos ? "atendimentos" : null;
 
-  // Switch view automatically when the route changes
-  useEffect(() => {
-    if (inPatients || inSettings || inInicio) setView("modules");
-    else if (inFinance) setView("financeiro");
-    else if (inAgenda) setView("agenda");
-    else if (inAtendimentos) setView("atendimentos");
-  }, [inFinance, inAgenda, inPatients, inSettings, inInicio, inAtendimentos]);
+  // O "‹ Módulos" é um desvio momentâneo: vale enquanto a pessoa não sai da
+  // seção. Guardar a rota em que o desvio foi pedido (e não um booleano) é o
+  // que faz ele expirar sozinho ao navegar, sem nenhum efeito para limpá-lo.
+  const [rotaDoDesvio, setRotaDoDesvio] = useState<string | null>(null);
+  const setVoltouAosModulos = (v: boolean) => setRotaDoDesvio(v ? pathname : null);
+  const submenu = rotaDoDesvio === pathname || !secaoDaRota ? null : SUBMENUS[secaoDaRota];
+
+  // Duas leituras de "ativo", porque a pergunta é diferente em cada lista.
+  //
+  // Na lista de MÓDULOS, "Financeiro" está ativo em qualquer tela financeira —
+  // é o módulo inteiro que está aceso. Já DENTRO do módulo, "Visão Geral" só
+  // acende na Visão Geral, senão o submenu inteiro apareceria aceso de uma vez.
+  const moduloAtivo = (destino: ItemDoMenu) => {
+    if (destino.to === "/pacientes") return inPatients;
+    if (destino.to === "/configuracoes") return inSettings;
+    if (destino.to === "/atendimentos") return inAtendimentos;
+    if (destino.to === "/financeiro") return inFinance;
+    return pathname === destino.to;
+  };
+  const itemAtivo = (destino: ItemDoMenu) =>
+    destino.to === "/atendimentos" || destino.to === "/financeiro"
+      ? pathname === destino.to
+      : pathname === destino.to || pathname.startsWith(`${destino.to}/`);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -219,20 +164,6 @@ export function Sidebar() {
     );
   };
 
-  // Module-level items (primary menu)
-  const modules: {
-    label: string;
-    icon: LucideIcon;
-    to: "/inicio" | "/agenda" | "/pacientes" | "/atendimentos" | "/configuracoes" | "/financeiro";
-    disabled?: boolean;
-  }[] = [
-    { label: "Início", icon: Home, to: "/inicio" },
-    { label: "Agenda", icon: Calendar, to: "/agenda" },
-    { label: "Pacientes", icon: Users, to: "/pacientes" },
-    { label: "Atendimentos", icon: MessageCircle, to: "/atendimentos" },
-    { label: "Financeiro", icon: Wallet, to: "/financeiro" },
-    { label: "Configurações", icon: Settings, to: "/configuracoes" },
-  ];
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -337,216 +268,26 @@ export function Sidebar() {
             collapsed ? "items-center" : "items-stretch",
           )}
         >
-          {view === "agenda" ? (
-            <>
-              {maybeTooltip(
-                <button
-                  type="button"
-                  onClick={() => setView("modules")}
-                  className={cn(
-                    "press flex items-center rounded-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                    collapsed ? "h-10 w-10 justify-center" : "h-9 w-full px-3 gap-2 mb-1",
-                  )}
-                  aria-label="Voltar aos módulos"
-                >
-                  <ChevronLeft className="h-[16px] w-[16px] shrink-0" strokeWidth={2} />
-                  {!collapsed && <span className="text-xs font-medium">Módulos</span>}
-                </button>,
-                "Voltar aos módulos",
-              )}
+          {/* Uma vista, um cabeçalho, uma lista.
+              Antes havia quatro blocos escritos à mão aqui, com o botão
+              "voltar" repetido palavra por palavra em três deles — e foi assim
+              que o ícone da Agenda acabou sendo `Calendar` na lista de módulos
+              e `CalendarDays` dentro do módulo. */}
+          <CabecalhoDeSecao
+            titulo={submenu ? submenu.titulo : "Módulos"}
+            collapsed={collapsed}
+            onVoltar={submenu ? () => setVoltouAosModulos(true) : undefined}
+          />
 
-              {!collapsed && (
-                <span className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
-                  Agenda
-                </span>
-              )}
-
-              {maybeTooltip(
-                <Link
-                  to="/agenda"
-                  className={cn(
-                    "press flex items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                    collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
-                    pathname === "/agenda"
-                      ? "bg-foreground text-white"
-                      : "text-muted-foreground hover:bg-surface-subtle hover:text-foreground",
-                  )}
-                  aria-label="Agenda"
-                  aria-current={pathname === "/agenda" ? "page" : undefined}
-                >
-                  <CalendarDays className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-                  {!collapsed && <span className="text-sm font-medium truncate">Agenda</span>}
-                </Link>,
-                "Agenda",
-              )}
-            </>
-          ) : view === "modules" ? (
-            <>
-              {!collapsed && (
-                <span className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
-                  Módulos
-                </span>
-              )}
-              {modules.map((m) => {
-                const active =
-                  m.to === "/pacientes"
-                    ? inPatients
-                    : m.to === "/configuracoes"
-                      ? inSettings
-                      : m.to === "/atendimentos"
-                        ? inAtendimentos
-                        : pathname === m.to;
-                const className = cn(
-                  "press flex items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                  collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
-                  active
-                    ? "bg-foreground text-white"
-                    : m.disabled
-                      ? "text-muted-foreground opacity-40 cursor-not-allowed"
-                      : "text-foreground hover:bg-surface-subtle",
-                );
-                const inner = (
-                  <>
-                    <m.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-                    {!collapsed && <span className="text-sm font-medium truncate">{m.label}</span>}
-                  </>
-                );
-                return (
-                  <div key={m.label}>
-                    {maybeTooltip(
-                      <Link
-                        to={m.to}
-                        className={className}
-                        aria-label={m.label}
-                        aria-current={active ? "page" : undefined}
-                      >
-                        {inner}
-                      </Link>,
-                      m.label,
-                    )}
-                  </div>
-                );
-              })}
-            </>
-          ) : view === "atendimentos" ? (
-            <>
-              {/* Back to modules */}
-              {maybeTooltip(
-                <button
-                  type="button"
-                  onClick={() => setView("modules")}
-                  className={cn(
-                    "press flex items-center rounded-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                    collapsed ? "h-10 w-10 justify-center" : "h-9 w-full px-3 gap-2 mb-1",
-                  )}
-                  aria-label="Voltar aos módulos"
-                >
-                  <ChevronLeft className="h-[16px] w-[16px] shrink-0" strokeWidth={2} />
-                  {!collapsed && <span className="text-xs font-medium">Módulos</span>}
-                </button>,
-                "Voltar aos módulos",
-              )}
-
-              {!collapsed && (
-                <span className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
-                  Atendimentos
-                </span>
-              )}
-
-              {atendimentosItems.map((it) => {
-                const active = it.to === "/atendimentos" ? pathname === it.to : pathname.startsWith(it.to);
-                const className = cn(
-                  "press flex items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                  collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
-                  active
-                    ? "bg-foreground text-white"
-                    : "text-muted-foreground hover:bg-surface-subtle hover:text-foreground",
-                );
-                const inner = (
-                  <>
-                    <it.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-                    {!collapsed && <span className="text-sm font-medium truncate">{it.label}</span>}
-                  </>
-                );
-                return (
-                  <div key={it.label}>
-                    {maybeTooltip(
-                      <Link
-                        to={it.to}
-                        className={className}
-                        aria-label={it.label}
-                        aria-current={active ? "page" : undefined}
-                      >
-                        {inner}
-                      </Link>,
-                      it.label,
-                    )}
-                  </div>
-                );
-              })}
-            </>
-          ) : (
-            <>
-              {/* Back to modules */}
-              {maybeTooltip(
-                <button
-                  type="button"
-                  onClick={() => setView("modules")}
-                  className={cn(
-                    "press flex items-center rounded-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                    collapsed ? "h-10 w-10 justify-center" : "h-9 w-full px-3 gap-2 mb-1",
-                  )}
-                  aria-label="Voltar aos módulos"
-                >
-                  <ChevronLeft className="h-[16px] w-[16px] shrink-0" strokeWidth={2} />
-                  {!collapsed && <span className="text-xs font-medium">Módulos</span>}
-                </button>,
-                "Voltar aos módulos",
-              )}
-
-              {!collapsed && (
-                <span className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1">
-                  Financeiro
-                </span>
-              )}
-
-              {financeItems.map((it) => {
-                const active = pathname === it.to || pathname.startsWith(it.to);
-                const isReal = REAL_ROUTES.has(it.to);
-                const className = cn(
-                  "press flex items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                  collapsed ? "h-12 w-12 justify-center" : "h-12 w-full px-3 gap-3",
-                  active
-                    ? "bg-foreground text-white"
-                    : "text-muted-foreground hover:bg-surface-subtle hover:text-foreground",
-                  !isReal && "opacity-40 cursor-not-allowed",
-                );
-                const inner = (
-                  <>
-                    <it.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-                    {!collapsed && <span className="text-sm font-medium truncate">{it.label}</span>}
-                  </>
-                );
-                const trigger = isReal ? (
-                  // "/comissoes" is a placeholder nav entry with no real route
-                  // yet; isReal already gates it out of this branch at runtime.
-                  <Link
-                    to={it.to as "/" | "/recebimentos" | "/pagamentos" | "/planejamento"}
-                    className={className}
-                    aria-label={it.label}
-                    aria-current={active ? "page" : undefined}
-                  >
-                    {inner}
-                  </Link>
-                ) : (
-                  <button type="button" className={className} disabled aria-label={it.label}>
-                    {inner}
-                  </button>
-                );
-                return <div key={it.label}>{maybeTooltip(trigger, it.label)}</div>;
-              })}
-            </>
-          )}
+          {(submenu ? submenu.itens : MODULOS).map((destino) => (
+            <div key={destino.to}>
+              <ItemDeMenu
+                destino={destino}
+                ativo={submenu ? itemAtivo(destino) : moduloAtivo(destino)}
+                collapsed={collapsed}
+              />
+            </div>
+          ))}
         </nav>
 
         {/* Footer (pinned bottom) */}
@@ -621,9 +362,14 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* Mobile bottom navigation — premium floating card with central FAB */}
+      {/* Ilha inferior do celular.
+          Uma peça só. Antes havia três blocos escritos à mão aqui — o do
+          financeiro, o da agenda e o de início/pacientes/configurações — e eles
+          tinham divergido em tudo que dá para perceber usando: transição,
+          estado ativo e, principalmente, a largura de cada item. */}
       <nav
-        className="nav-island-mobile lg:hidden fixed z-50 flex items-center justify-between material-bar"
+        aria-label="Navegação"
+        className="nav-island-mobile lg:hidden fixed z-50 flex items-center justify-center material-bar"
         style={{
           left: 16,
           right: 16,
@@ -640,114 +386,17 @@ export function Sidebar() {
           border: "1px solid var(--border)",
           paddingLeft: 6,
           paddingRight: 6,
+          gap: 2,
           marginBottom: "env(safe-area-inset-bottom)",
         }}
       >
         {(() => {
-          const navItems = [
-            { label: "Financeiro", icon: LayoutGrid, to: "/financeiro" as const },
-            { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" as const },
-            { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" as const },
-            { label: "Planejamento", icon: TrendingUp, to: "/planejamento" as const },
-          ];
-          const left = navItems.slice(0, 2);
-          const right = navItems.slice(2);
-
-          const renderItem = (item: (typeof navItems)[number]) => {
-            const active = pathname === item.to || pathname.startsWith(item.to);
-            const isReal = REAL_ROUTES.has(item.to);
-
-            const inner = (
-              <span
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 3,
-                  paddingTop: 4,
-                  transition: "transform 0.25s ease",
-                }}
-              >
-                <span
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 9999,
-                    background: active ? "var(--coral-soft)" : "transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: "all 0.25s ease",
-                  }}
-                >
-                  <item.icon
-                    style={{
-                      width: 18,
-                      height: 18,
-                      color: active ? "var(--coral)" : "var(--muted-foreground)",
-                    }}
-                    strokeWidth={2}
-                  />
-                </span>
-                <span
-                  style={{
-                    fontFamily: "Inter, sans-serif",
-                    // Texto miúdo precisa de tracking POSITIVO para respirar;
-                    // o negativo (herdado do corpo) fechava as letras e é o
-                    // contrário do que o tamanho pede.
-                    fontSize: "0.625rem",
-                    fontWeight: 500,
-                    letterSpacing: "0.01em",
-                    lineHeight: 1,
-                    color: active ? "var(--coral)" : "var(--muted-foreground)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {item.label}
-                </span>
-              </span>
-            );
-
-            const wrapperStyle: React.CSSProperties = {
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minWidth: 0,
-            };
-
-            return isReal ? (
-              <Link
-                key={item.label}
-                to={item.to}
-                aria-label={item.label}
-                aria-current={active ? "page" : undefined}
-                className="press rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                style={wrapperStyle}
-              >
-                {inner}
-              </Link>
-            ) : (
-              <button
-                key={item.label}
-                type="button"
-                disabled
-                aria-label={item.label}
-                style={{ ...wrapperStyle, opacity: 0.4 }}
-              >
-                {inner}
-              </button>
-            );
-          };
-
-          const fabActive = !!fab || inAgenda;
-          const fabButton = (
+          const fabAtivo = !!fab;
+          const botaoFab = (
             <button
               type="button"
               onClick={() => fab?.onClick()}
-              disabled={!fabActive}
+              disabled={!fabAtivo}
               aria-label={fab?.label ?? "Adicionar"}
               // O deslocamento saiu do style inline e virou classe: inline
               // vence classe, e sem isso o `:active` não conseguiria compor a
@@ -763,227 +412,64 @@ export function Sidebar() {
                 color: "white",
                 flexShrink: 0,
                 border: "4px solid white",
-                opacity: fabActive ? 1 : 0.4,
+                opacity: fabAtivo ? 1 : 0.4,
               }}
             >
               <Plus style={{ width: 26, height: 26 }} strokeWidth={2.5} />
             </button>
           );
 
+          // Agenda: duas ações da própria tela, com o "+" no meio.
+          //
+          // A FORMA vem de `destinos.ts`, não da página. Antes a página
+          // registrava rótulo, ícone e ação juntos ao montar — e a ilha também
+          // é desenhada durante o carregamento da rota, quando a página ainda
+          // não montou. A lista chegava vazia e sobrava só o "+", encostado na
+          // borda esquerda pelo `justify-between`. Era a tela errada que
+          // aparecia antes da certa.
           if (inAgenda) {
-            const renderNav = (a: (typeof navActions)[number], key: string) => {
-              const wrapperStyle: React.CSSProperties = {
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                minWidth: 0,
-              };
-              const inner = (
-                <span
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 3,
-                    paddingTop: 4,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 30,
-                      height: 30,
-                      borderRadius: 9999,
-                      background: "transparent",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <a.icon style={{ width: 18, height: 18, color: "var(--muted-foreground)" }} strokeWidth={2} />
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: "Inter, sans-serif",
-                      fontSize: "0.625rem",
-                      fontWeight: 500,
-                      letterSpacing: "0.01em",
-                      lineHeight: 1,
-                      color: "var(--muted-foreground)",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {a.label}
-                  </span>
-                </span>
-              );
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={a.onClick}
-                  aria-label={a.label}
-                  className="press rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                  style={wrapperStyle}
-                >
-                  {inner}
-                </button>
-              );
-            };
-
-            const splitIndex = Math.ceil(navActions.length / 2);
-            const leftNav = navActions.slice(0, splitIndex);
-            const rightNav = navActions.slice(splitIndex);
-
+            const [esquerda, direita] = [ACOES_DA_AGENDA[0], ACOES_DA_AGENDA[1]];
             return (
               <>
-                {leftNav.map((a, i) => renderNav(a, `l-${i}`))}
-                {fabButton}
-                {rightNav.map((a, i) => renderNav(a, `r-${i}`))}
+                <BotaoDaIlha label={esquerda.label} icon={esquerda.icon} onClick={handlers[esquerda.id]} />
+                {botaoFab}
+                <BotaoDaIlha label={direita.label} icon={direita.icon} onClick={handlers[direita.id]} />
               </>
             );
           }
 
-          if (pathname === "/inicio" || inPatients || inSettings || inAtendimentos) {
-            // Dentro de um módulo com submenu, a barra mostra o submenu —
-            // espelha o que o menu lateral faz no desktop. Fora dele, mostra
-            // os módulos principais. "Mais" abre o resto em vez de ir direto
-            // pra Configurações, que escondia todas as outras opções.
-            const homeItems: {
-              label: string;
-              icon: LucideIcon;
-              to: string | null;
-              isReal: boolean;
-            }[] = inAtendimentos
-              ? [
-                  ...atendimentosItems.map((it) => ({
-                    label: it.label,
-                    icon: it.icon,
-                    to: it.to as string,
-                    isReal: true,
-                  })),
-                  { label: "Mais", icon: MoreHorizontal, to: null, isReal: true },
-                ]
-              : [
-                  { label: "Início", icon: Home, to: "/inicio", isReal: true },
-                  { label: "Agenda", icon: Calendar, to: "/agenda", isReal: true },
-                  { label: "Pacientes", icon: Users, to: "/pacientes", isReal: true },
-                  { label: "Financeiro", icon: Wallet, to: "/financeiro", isReal: true },
-                  { label: "Mais", icon: MoreHorizontal, to: null, isReal: true },
-                ];
-            const homeItemStyle: React.CSSProperties = {
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minWidth: 0,
-            };
-
+          // Dentro de um módulo com submenu, a barra mostra o submenu — espelha
+          // o que a ilha do desktop faz. Fora dele, mostra os módulos.
+          if (inFinance) {
+            const itens = ITENS_FINANCEIRO.filter((i) => !i.placeholder);
             return (
               <>
-                {homeItems.map((item) => {
-                  const active =
-                    item.to !== null &&
-                    (item.to === "/atendimentos"
-                      ? pathname === item.to
-                      : pathname === item.to ||
-                        (item.to === "/pacientes" && inPatients) ||
-                        (item.to.startsWith("/atendimentos/") && pathname.startsWith(item.to)));
-                  const iconEl = (
-                    <span
-                      style={{
-                        flex: 1,
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 3,
-                        paddingTop: 4,
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 30,
-                          height: 30,
-                          borderRadius: 9999,
-                          background: active ? "var(--coral-soft)" : "transparent",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          transition: "all 0.25s ease",
-                        }}
-                      >
-                        <item.icon
-                          style={{ width: 18, height: 18, color: active ? "var(--coral)" : "var(--muted-foreground)" }}
-                          strokeWidth={2}
-                        />
-                      </span>
-                      <span
-                        style={{
-                          fontFamily: "Inter, sans-serif",
-                          fontSize: "0.625rem",
-                          fontWeight: 500,
-                          letterSpacing: "0.01em",
-                          lineHeight: 1,
-                          color: active ? "var(--coral)" : "var(--muted-foreground)",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {item.label}
-                      </span>
-                    </span>
-                  );
-                  if (!item.to) {
-                    return (
-                      <button
-                        key={item.label}
-                        type="button"
-                        onClick={() => setMoreOpen(true)}
-                        aria-label="Mais opções"
-                        className="press rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                        style={homeItemStyle}
-                      >
-                        {iconEl}
-                      </button>
-                    );
-                  }
-                  if (!item.isReal) {
-                    return (
-                      <button
-                        key={item.label}
-                        type="button"
-                        disabled
-                        aria-label={item.label}
-                        style={{ ...homeItemStyle, opacity: 0.4 }}
-                      >
-                        {iconEl}
-                      </button>
-                    );
-                  }
-                  return (
-                    <Link
-                      key={item.label}
-                      to={item.to}
-                      aria-label={item.label}
-                      aria-current={active ? "page" : undefined}
-                      className="press rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                      style={homeItemStyle}
-                    >
-                      {iconEl}
-                    </Link>
-                  );
-                })}
+                {itens.slice(0, 2).map((d) => (
+                  <LinkDaIlha key={d.to} to={d.to} label={d.label} icon={d.icon} ativo={itemAtivo(d)} />
+                ))}
+                {botaoFab}
+                {itens.slice(2).map((d) => (
+                  <LinkDaIlha key={d.to} to={d.to} label={d.label} icon={d.icon} ativo={itemAtivo(d)} />
+                ))}
               </>
             );
           }
 
+          const itens = inAtendimentos
+            ? ITENS_ATENDIMENTOS
+            : MODULOS.filter((m) => m.to !== "/configuracoes" && m.to !== "/atendimentos");
           return (
             <>
-              {left.map(renderItem)}
-              {fabButton}
-              {right.map(renderItem)}
+              {itens.map((d) => (
+                <LinkDaIlha
+                  key={d.to}
+                  to={d.to}
+                  label={d.label}
+                  icon={d.icon}
+                  ativo={inAtendimentos ? itemAtivo(d) : moduloAtivo(d)}
+                />
+              ))}
+              <BotaoDaIlha label="Mais" icon={MoreHorizontal} onClick={() => setMoreOpen(true)} />
             </>
           );
         })()}
@@ -1000,13 +486,13 @@ export function Sidebar() {
           </DrawerHeader>
 
           <div className="mt-2 space-y-5 px-4 pb-4">
-            {MOBILE_MENU_GROUPS.map((group) => (
+            {GRUPOS_DO_MAIS.map((group) => (
               <div key={group.label}>
                 <p className="px-1 text-3xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {group.label}
                 </p>
                 <div className="mt-1.5 space-y-0.5">
-                  {group.items.map((item) => {
+                  {navegaveis(group.itens).map((item) => {
                     const active =
                       item.to === "/atendimentos" || item.to === "/pacientes"
                         ? pathname === item.to

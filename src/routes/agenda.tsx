@@ -59,7 +59,7 @@ export const Route = createFileRoute("/agenda")({
   validateSearch: agendaSearchSchema,
   loader: ({ context }) =>
     context.queryClient.ensureQueryData(agendaOverviewOpts(getAgendaOverview as any)),
-  pendingComponent: () => <RouteSkeleton shape="calendar" />,
+  pendingComponent: () => <RouteSkeleton shape="agenda" />,
   // 150ms evita o piscar em navegação instantânea; 400ms de mínimo
   // evita que o esqueleto apareça e suma num susto.
   pendingMs: 150,

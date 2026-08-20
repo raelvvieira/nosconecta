@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useRegisterMobileFab, useRegisterMobileNavActions } from "@/components/finance/mobile-fab-context";
+import { useRegisterMobileFab, useRegisterIlhaHandlers } from "@/components/finance/mobile-fab-context";
 import {
   SlidersHorizontal,
   CalendarDays,
@@ -376,10 +376,14 @@ export function MobileAgenda({
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   useRegisterMobileFab({ label: "Novo Agendamento", onClick: onNewAppointment });
-  useRegisterMobileNavActions([
-    { label: "Compromisso", icon: Lock, onClick: onNewBlock },
-    { label: "Calendário", icon: CalendarDays, onClick: () => setCalendarOpen(true) },
-  ]);
+  // Só os handlers. Rótulo e ícone destes dois botões são fixos na rota da
+  // Agenda e ficam em `destinos.ts`, para a ilha conseguir desenhá-los antes
+  // desta tela montar — senão, durante o carregamento, a barra aparecia com o
+  // "+" sozinho encostado na borda.
+  useRegisterIlhaHandlers({
+    compromisso: onNewBlock,
+    calendario: () => setCalendarOpen(true),
+  });
 
   const selStr = toDateStr(selectedDate);
 
