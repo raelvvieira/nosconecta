@@ -135,7 +135,7 @@ function DateSelector({ selectedDate, onDateChange }: { selectedDate: Date; onDa
     <div className="flex items-center gap-1.5">
       <button
         type="button"
-        onClick={() => shiftWeek(-1)}
+        onClick={() => shiftWeek(-1)} aria-label="Semana anterior"
         className="h-10 w-7 shrink-0 grid place-items-center rounded-xl text-muted-foreground active:bg-surface-muted"
       >
         <ChevronLeft className="h-4 w-4" strokeWidth={2} />
@@ -171,7 +171,7 @@ function DateSelector({ selectedDate, onDateChange }: { selectedDate: Date; onDa
 
       <button
         type="button"
-        onClick={() => shiftWeek(1)}
+        onClick={() => shiftWeek(1)} aria-label="Próxima semana"
         className="h-10 w-7 shrink-0 grid place-items-center rounded-xl text-muted-foreground active:bg-surface-muted"
       >
         <ChevronRight className="h-4 w-4" strokeWidth={2} />
@@ -302,10 +302,10 @@ function MonthGrid({
       <div className="flex items-center justify-between mb-3">
         <span className="text-base font-semibold text-foreground">{MONTHS_CAP[month]}, {year}</span>
         <div className="flex gap-2">
-          <button type="button" onClick={() => setCursor(new Date(year, month - 1, 1))} className="h-8 w-8 grid place-items-center rounded-lg border border-border text-muted-foreground">
+          <button type="button" onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Mês anterior" className="h-8 w-8 grid place-items-center rounded-lg border border-border text-muted-foreground">
             <ChevronLeft className="h-4 w-4" strokeWidth={2} />
           </button>
-          <button type="button" onClick={() => setCursor(new Date(year, month + 1, 1))} className="h-8 w-8 grid place-items-center rounded-lg border border-border text-muted-foreground">
+          <button type="button" onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Próximo mês" className="h-8 w-8 grid place-items-center rounded-lg border border-border text-muted-foreground">
             <ChevronRight className="h-4 w-4" strokeWidth={2} />
           </button>
         </div>

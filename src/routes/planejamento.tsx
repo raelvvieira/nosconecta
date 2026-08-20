@@ -164,6 +164,7 @@ function PlanningPage() {
                       <TooltipTrigger asChild>
                         <button
                           type="button"
+                          aria-label="O que é Fôlego Financeiro"
                           className="text-muted-foreground hover:text-foreground"
                         >
                           <Info className="h-3.5 w-3.5" />

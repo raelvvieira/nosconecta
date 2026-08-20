@@ -54,14 +54,14 @@ export function MobileCalendarSheet({ open, selectedDate, appointments, onClose,
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setCursor(new Date(year, month - 1, 1))}
+                onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Mês anterior"
                 className="h-9 w-9 grid place-items-center rounded-xl bg-white border border-border text-muted-foreground"
               >
                 <ChevronLeft className="h-4 w-4" strokeWidth={2} />
               </button>
               <button
                 type="button"
-                onClick={() => setCursor(new Date(year, month + 1, 1))}
+                onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Próximo mês"
                 className="h-9 w-9 grid place-items-center rounded-xl bg-white border border-border text-muted-foreground"
               >
                 <ChevronRight className="h-4 w-4" strokeWidth={2} />

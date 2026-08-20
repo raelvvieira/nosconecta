@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Bell } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Appointment, AgendaFilters, WaitingListItem, Professional, Room } from "./types";
 import { statusStyle, STATUS_LABEL } from "./appointment-utils";
 
@@ -51,14 +51,14 @@ function MiniCalendar({
         <div className="flex gap-1">
           <button
             type="button"
-            onClick={() => navigateMonth(-1)}
+            onClick={() => navigateMonth(-1)} aria-label="Mês anterior"
             className="h-7 w-7 grid place-items-center rounded-lg text-muted-foreground hover:bg-surface transition-colors"
           >
             <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2} />
           </button>
           <button
             type="button"
-            onClick={() => navigateMonth(1)}
+            onClick={() => navigateMonth(1)} aria-label="Próximo mês"
             className="h-7 w-7 grid place-items-center rounded-lg text-muted-foreground hover:bg-surface transition-colors"
           >
             <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} />
@@ -203,12 +203,6 @@ function WaitingListCard({ items }: { items: WaitingListItem[] }) {
                 <p className="text-2xs text-muted-foreground truncate">{item.procedureName}</p>
                 <p className="text-3xs text-foreground-subtle">Entrou há {item.daysWaiting} dia{item.daysWaiting !== 1 ? "s" : ""}</p>
               </div>
-              <button
-                type="button"
-                className="h-7 w-7 grid place-items-center rounded-lg hover:bg-white transition-colors"
-              >
-                <Bell className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.75} />
-              </button>
             </div>
           ))}
         </div>

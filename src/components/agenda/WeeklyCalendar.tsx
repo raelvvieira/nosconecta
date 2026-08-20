@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Settings2 } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Appointment, BlockedTime, ViewMode, AgendaFilters } from "./types";
 import {
@@ -237,12 +237,6 @@ export function WeeklyCalendar({
               <option value="">Todas as salas</option>
               {rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
-            <button
-              type="button"
-              className="h-8 w-8 grid place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface transition-colors"
-            >
-              <Settings2 className="h-4 w-4" strokeWidth={1.75} />
-            </button>
           </div>
         </div>
 
@@ -250,7 +244,7 @@ export function WeeklyCalendar({
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigateWeek(-1)}
+            onClick={() => navigateWeek(-1)} aria-label="Semana anterior"
             className="h-8 w-8 grid place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface transition-colors"
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={2} />
@@ -264,7 +258,7 @@ export function WeeklyCalendar({
           </button>
           <button
             type="button"
-            onClick={() => navigateWeek(1)}
+            onClick={() => navigateWeek(1)} aria-label="Próxima semana"
             className="h-8 w-8 grid place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface transition-colors"
           >
             <ChevronRight className="h-4 w-4" strokeWidth={2} />
