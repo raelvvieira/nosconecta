@@ -5,6 +5,7 @@ import { createAppointment, updateAppointment } from "@/lib/agenda/agenda.functi
 import { createPatient, getPatientByCrmContact } from "@/lib/patients/patients.functions";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { useUnitSelection } from "@/lib/settings/unit-context";
+import { useAgendaCatalog } from "@/lib/agenda/useAppointmentForm";
 import type { Appointment } from "@/components/agenda/types";
 
 /**
@@ -55,6 +56,26 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
   const createPatientFn = useServerFn(createPatient);
   const findByContactFn = useServerFn(getPatientByCrmContact);
   const { selectedUnitId } = useUnitSelection();
+  const { rooms } = useAgendaCatalog();
+
+  /**
+   * A unidade do agendamento vem da CADEIRA escolhida.
+   *
+   * Cadeira e unidade são a mesma informação dita de dois jeitos — cada cadeira
+   * já pertence a uma unidade —, então derivar aqui é melhor do que pedir as
+   * duas no formulário, onde elas poderiam se contradizer.
+   *
+   * Antes ia só o `selectedUnitId`, que é o seletor global do menu e começa em
+   * "todas as unidades": com duas unidades cadastradas, o servidor recusava com
+   * "Selecione a unidade." num formulário que não tinha campo de unidade
+   * nenhum para atender ao pedido.
+   *
+   * Fica no hook, e não no formulário, porque quatro telas gravam agendamento
+   * (Agenda, chat, celular e o arrastar do calendário) — resolver em cada uma
+   * seria a mesma regra em quatro lugares, saindo do ar uma da outra.
+   */
+  const unidadeDaCadeira = (roomId?: string | null): string | null =>
+    (roomId && rooms.find((r) => r.id === roomId)?.unitId) || null;
 
   /**
    * Garante um paciente de verdade por trás de um agendamento que nasceu de uma
@@ -120,7 +141,9 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       // e botão do celular).
       const r: any = existingId
         ? await updateFn({ data: { ...payload, retornoEm } })
-        : await createFn({ data: { ...payload, unitId: selectedUnitId ?? undefined } });
+        : await createFn({
+            data: { ...payload, unitId: unidadeDaCadeira(data.roomId) ?? selectedUnitId ?? undefined },
+          });
       return { existingId, retornoEm: retornoEm ?? null, conflitos: r?.conflitos ?? [] };
     },
     onSuccess: ({ existingId, retornoEm, conflitos }) => {

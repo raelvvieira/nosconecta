@@ -24,6 +24,12 @@ export interface Professional {
 export interface Room {
   id: string;
   name: string;
+  /** Unidade a que a cadeira pertence. É por ela que o agendamento descobre
+   *  sua unidade: cadeira e unidade são a mesma informação dita de dois
+   *  jeitos, e pedir as duas separadas abriria espaço para se contradizerem. */
+  unitId?: string | null;
+  /** Nome da unidade, para mostrar junto do nome da cadeira na escolha. */
+  unitName?: string | null;
 }
 
 export interface Procedure {

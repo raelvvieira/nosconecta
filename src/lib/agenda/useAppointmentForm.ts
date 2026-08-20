@@ -6,6 +6,7 @@ import {
   procedures as fallbackProcedures,
   rooms as fallbackRooms,
 } from "@/components/agenda/mock-data";
+import type { Room } from "@/components/agenda/types";
 
 // Catálogo de profissionais/salas/procedimentos vindo das Configurações.
 // Estava montado dentro da página de Agenda; virou hook porque agora o chat
@@ -24,12 +25,19 @@ export function useAgendaCatalog() {
       .filter((item) => item.active)
       .map((item) => ({ id: item.id, name: item.name, specialty: item.specialty })) ?? fallbackProfessionals;
 
-  const rooms =
+  // A unidade da cadeira vem junto: é dela que o agendamento tira a própria
+  // unidade, em vez de depender do seletor global do menu — que começa em
+  // "todas as unidades" e fazia o servidor recusar com "Selecione a unidade."
+  // num formulário que não tinha campo de unidade nenhum.
+  const unidadePorId = new Map((settings?.units ?? []).map((u) => [u.id, u.name]));
+  const rooms: Room[] =
     settings?.chairs
       .filter((item) => item.active)
       .map((item) => ({
         id: item.id,
         name: item.roomName ? `${item.name} · ${item.roomName}` : item.name,
+        unitId: item.unitId,
+        unitName: item.unitId ? (unidadePorId.get(item.unitId) ?? null) : null,
       })) ?? fallbackRooms;
 
   const procedures =

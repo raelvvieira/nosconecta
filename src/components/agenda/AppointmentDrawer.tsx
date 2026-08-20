@@ -178,6 +178,8 @@ export function AppointmentDrawer({
     setForm((f) => ({ ...f, professionalId: id, professionalName: prof?.name ?? "" }));
   };
 
+  const salaEscolhida = rooms.find((r) => r.id === form.roomId);
+
   const handleRoom = (id: string) => {
     const room = rooms.find((r) => r.id === id);
     setForm((f) => ({ ...f, roomId: id, roomName: room?.name ?? "" }));
@@ -419,16 +421,31 @@ export function AppointmentDrawer({
                   emptyText="Nenhum profissional encontrado"
                 />
               </div>
-              <div className="space-y-2">
+              <div className="col-span-2 space-y-2">
                 <Label className="text-sm text-foreground-secondary">Sala</Label>
                 <Combobox
                   value={form.roomId ?? ""}
                   onChange={handleRoom}
-                  options={rooms.map((r) => ({ value: r.id, label: r.name }))}
+                  options={rooms.map((r) => ({
+                    value: r.id,
+                    // A unidade entra no rótulo: é ela que decide a unidade do
+                    // agendamento, então precisa estar visível na hora de
+                    // escolher — e não escondida no cadastro da cadeira.
+                    label: r.unitName ? `${r.name} — ${r.unitName}` : r.name,
+                  }))}
                   placeholder="Selecionar..."
-                  searchPlaceholder="Buscar sala..."
+                  searchPlaceholder="Buscar sala ou unidade..."
                   emptyText="Nenhuma sala encontrada"
                 />
+                {salaEscolhida?.unitName && (
+                  <p className="text-2xs text-muted-foreground">
+                    Este agendamento entra na unidade{" "}
+                    <span className="font-medium text-foreground-secondary">
+                      {salaEscolhida.unitName}
+                    </span>
+                    .
+                  </p>
+                )}
               </div>
             </div>
           </section>

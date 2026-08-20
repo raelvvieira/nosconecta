@@ -69,11 +69,14 @@ export function Combobox({
           role="combobox"
           aria-expanded={open}
           className={cn(
-            "flex h-11 w-full items-center justify-between rounded-2xl border border-input bg-background px-4 py-2 text-sm",
+            "flex h-11 w-full items-center justify-between rounded-md border border-input bg-white px-4 py-2 text-sm",
             "ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
           )}
         >
-          <span className={cn("truncate", !selectedLabel && "text-muted-foreground")}>
+          <span
+            title={selectedLabel || undefined}
+            className={cn("truncate", !selectedLabel && "text-muted-foreground")}
+          >
             {selectedLabel || placeholder}
           </span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />

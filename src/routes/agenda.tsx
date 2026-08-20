@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { PageHeading } from "@/components/layout/PageHeading";
-import { useQuery, useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
+import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { z } from "zod";
@@ -16,14 +16,9 @@ import { RightSidebar } from "@/components/agenda/RightSidebar";
 import { MobileAgenda } from "@/components/agenda/mobile/MobileAgenda";
 import { STATUS_LABEL } from "@/components/agenda/appointment-utils";
 import type { Appointment, AgendaFilters, AppointmentStatus, BlockedTime } from "@/components/agenda/types";
-import {
-  professionals as fallbackProfessionals,
-  rooms as fallbackRooms,
-  procedures as fallbackProcedures,
-} from "@/components/agenda/mock-data";
-import { getSettings } from "@/lib/settings/settings.functions";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { appointmentPayload, useSaveAppointment } from "@/lib/agenda/useSaveAppointment";
+import { useAgendaCatalog } from "@/lib/agenda/useAppointmentForm";
 import { acharSobreposicoes, type Sobreposicao } from "@/lib/agenda/conflicts";
 import { OverlapDialog } from "@/components/agenda/OverlapDialog";
 import type { AlvoArraste, ItemArrastavel } from "@/components/agenda/useCalendarDrag";
@@ -78,33 +73,11 @@ function AgendaPage() {
   const search = Route.useSearch();
   const router = useRouter();
   const qc = useQueryClient();
-  const fetchSettings = useServerFn(getSettings);
-  const { data: settings } = useQuery({
-    queryKey: ["settings"],
-    queryFn: () => fetchSettings(),
-    staleTime: 15_000,
-  });
-  const professionals =
-    settings?.professionals
-      .filter((item) => item.active)
-      .map((item) => ({ id: item.id, name: item.name, specialty: item.specialty })) ??
-    fallbackProfessionals;
-  const rooms =
-    settings?.chairs
-      .filter((item) => item.active)
-      .map((item) => ({
-        id: item.id,
-        name: item.roomName ? `${item.name} · ${item.roomName}` : item.name,
-      })) ?? fallbackRooms;
-  const procedures =
-    settings?.procedures
-      .filter((item) => item.active)
-      .map((item) => ({
-        id: item.id,
-        name: item.name,
-        duration: item.durationMinutes,
-        price: item.price,
-      })) ?? fallbackProcedures;
+  // O mesmo catálogo do chat e do celular, do mesmo lugar. Estava duplicado
+  // aqui — o que é justamente o que o comentário de `useAgendaCatalog` avisa
+  // que sai do ar em silêncio: a unidade da cadeira, adicionada no hook, não
+  // chegava nesta cópia.
+  const { professionals, rooms, procedures } = useAgendaCatalog();
 
   const fetchOverview = useServerFn(getAgendaOverview);
   const updateStatusFn = useServerFn(updateAppointmentStatus);
@@ -168,7 +141,15 @@ function AgendaPage() {
       };
       // Criar devolve { id }, editar devolve { ok } — o retorno não é usado.
       if (data.id) return updateBlockFn({ data: { ...payload, id: data.id } }).then(() => undefined);
-      return createBlockFn({ data: { ...payload, unitId: selectedUnitId ?? undefined } }).then(() => undefined);
+      // Mesma regra do agendamento: a sala decide a unidade. Sem isto, criar
+      // um bloqueio numa clínica com duas unidades caía em "Selecione a
+      // unidade." sem ter onde escolher.
+      const unidadeDaSala = payload.roomId
+        ? (rooms.find((r) => r.id === payload.roomId)?.unitId ?? null)
+        : null;
+      return createBlockFn({
+        data: { ...payload, unitId: unidadeDaSala ?? selectedUnitId ?? undefined },
+      }).then(() => undefined);
     },
     onSuccess: (_r, data) => {
       toast.success(data.id ? "Compromisso atualizado" : "Compromisso criado");
