@@ -98,6 +98,11 @@ export interface PatientFinanceRow {
 
 export interface PatientDetail extends PatientSummary {
   professionalName: string | null;
+  /** Contato correspondente no CRM, quando o paciente já foi vinculado.
+   *  A coluna sempre veio no `select("*")` do detalhe; só não era exposta —
+   *  e é ela que permite mostrar a conversa de WhatsApp dentro da ficha, sem
+   *  nenhuma consulta nova. */
+  crmContactId: string | null;
   treatmentId: string | null;
   timeline: CareEvent[];
   appointments: PatientAppointment[];
@@ -288,6 +293,7 @@ export const getPatientDetail = createServerFn({ method: "GET" })
     return {
       ...summary,
       professionalName: professionalsRes.data?.name ?? null,
+      crmContactId: row.crm_contact_id ?? null,
       treatmentId: null,
       timeline: [],
       appointments: [],

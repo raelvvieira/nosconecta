@@ -1,11 +1,13 @@
 import { useState } from "react";
+import { z } from "zod";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, CalendarDays, Check, ChevronRight, CircleDollarSign, ClipboardList, Clock3, MapPin, MessageCircle, MoreHorizontal, ReceiptText, Sparkles, Stethoscope, UserRound, WalletCards } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, Check, ChevronRight, CircleDollarSign, ClipboardList, Clock3, MessageCircle, MoreHorizontal, ReceiptText, Sparkles, Stethoscope, UserRound, WalletCards } from "lucide-react";
 import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
+import { ConversaDoPaciente } from "@/components/patients/ConversaDoPaciente";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
@@ -15,6 +17,15 @@ import {
   type CareEvent,
   type PatientDetail,
 } from "@/lib/patients/patients.functions";
+
+// A aba vive na URL, não em estado local.
+//
+// Estava em `useState`: recarregar a página voltava para "Resumo", e não havia
+// como mandar a alguém o link do financeiro de um paciente. `validateSearch`
+// com zod é o mesmo padrão da lista de pacientes e do resto das rotas.
+const searchSchema = z.object({
+  aba: z.enum(["resumo", "clinico", "financeiro"]).default("resumo"),
+});
 
 type DetailFetcher = (args: { data: { patientId: string } }) => Promise<PatientDetail>;
 
@@ -27,6 +38,7 @@ const detailQuery = (fetcher: DetailFetcher, patientId: string) =>
 
 export const Route = createFileRoute("/pacientes/$patientId")({
   ssr: false,
+  validateSearch: searchSchema,
   head: () => ({
     meta: [
       { title: "Paciente · NÓS Conecta" },
@@ -50,8 +62,6 @@ export const Route = createFileRoute("/pacientes/$patientId")({
   component: PatientDetailPage,
 });
 
-type Tab = "overview" | "history" | "finance";
-
 function PatientDetailPage() {
   const { patientId } = Route.useParams();
   const navigate = useNavigate();
@@ -60,7 +70,9 @@ function PatientDetailPage() {
   const { data: patient, isLoading } = useQuery(
     detailQuery(fetchDetail as unknown as DetailFetcher, patientId),
   );
-  const [tab, setTab] = useState<Tab>("overview");
+  const { aba } = Route.useSearch();
+  const irParaAba = (nova: typeof aba) =>
+    navigate({ to: ".", params: { patientId }, search: { aba: nova }, replace: true });
   const [editOpen, setEditOpen] = useState(false);
   if (!patient) {
     return (
@@ -139,11 +151,28 @@ function PatientDetailPage() {
                         : "Ativo"}
               </span>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {patient.age ? `${patient.age} anos` : "Idade não informada"}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {patient.phone ?? "Telefone não informado"}
+            {/* Uma linha em vez de três: idade, telefone e nº do paciente são
+                a identificação rápida, e separá-los em parágrafos empurrava o
+                resto da ficha para baixo sem ganho nenhum de leitura. O nº do
+                paciente estava no tipo e nunca aparecia — é ele que permite
+                cruzar com o sistema antigo. */}
+            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+              {patient.age ? <span>{patient.age} anos</span> : null}
+              {patient.phone ? (
+                <>
+                  {patient.age ? <span aria-hidden>·</span> : null}
+                  <span>{patient.phone}</span>
+                </>
+              ) : null}
+              {patient.legacyPatientId ? (
+                <>
+                  <span aria-hidden>·</span>
+                  <span>Nº {patient.legacyPatientId}</span>
+                </>
+              ) : null}
+              {!patient.age && !patient.phone && !patient.legacyPatientId ? (
+                <span>Sem idade nem telefone cadastrados</span>
+              ) : null}
             </p>
           </div>
         </section>
@@ -190,30 +219,24 @@ function PatientDetailPage() {
           </section>
         )}
 
+        {/* Três abas por enquanto. "Arquivos" entra quando existir tabela e
+            bucket — aba vazia que promete algo é pior do que aba ausente. */}
         <nav
           className="surface-card mt-5 grid grid-cols-3 overflow-hidden p-1"
           aria-label="Seções do paciente"
         >
-          <TabButton
-            label="Visão geral"
-            active={tab === "overview"}
-            onClick={() => setTab("overview")}
-          />
-          <TabButton
-            label="Histórico"
-            active={tab === "history"}
-            onClick={() => setTab("history")}
-          />
+          <TabButton label="Resumo" active={aba === "resumo"} onClick={() => irParaAba("resumo")} />
+          <TabButton label="Clínico" active={aba === "clinico"} onClick={() => irParaAba("clinico")} />
           <TabButton
             label="Financeiro"
-            active={tab === "finance"}
-            onClick={() => setTab("finance")}
+            active={aba === "financeiro"}
+            onClick={() => irParaAba("financeiro")}
           />
         </nav>
 
-        {tab === "overview" && <Overview patient={patient} onSchedule={schedule} />}
-        {tab === "history" && <History patient={patient} />}
-        {tab === "finance" && <Finance patient={patient} onReceive={receive} />}
+        {aba === "resumo" && <Overview patient={patient} onSchedule={schedule} />}
+        {aba === "clinico" && <History patient={patient} />}
+        {aba === "financeiro" && <Finance patient={patient} onReceive={receive} />}
       </main>
 
       <PatientFormSheet
@@ -301,52 +324,98 @@ function Overview({ patient, onSchedule }: { patient: PatientDetail; onSchedule:
           </div>
         </section>
 
+        <ConversaDoPaciente crmContactId={patient.crmContactId} />
+
         <PersonalInfoCard patient={patient} />
       </div>
     </div>
   );
 }
 
+/** Uma linha só aparece quando tem valor.
+ *
+ *  O contrário — mostrar "não informado" em toda linha vazia — enche a ficha
+ *  de ruído justamente no paciente sobre quem se sabe menos, que é quando ela
+ *  precisa ser mais fácil de ler. */
+function Linha({ rotulo, valor }: { rotulo: string; valor: string | null | undefined }) {
+  if (!valor) return null;
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-1.5">
+      <span className="shrink-0 text-xs text-muted-foreground">{rotulo}</span>
+      <span className="min-w-0 truncate text-sm font-medium text-right">{valor}</span>
+    </div>
+  );
+}
+
 function PersonalInfoCard({ patient }: { patient: PatientDetail }) {
   const addressLine = [patient.address, patient.addressComplement].filter(Boolean).join(", ");
-  const cityLine = [patient.neighborhood, patient.city && patient.state ? `${patient.city}/${patient.state}` : patient.city]
+  const cityLine = [
+    patient.neighborhood,
+    patient.city && patient.state ? `${patient.city}/${patient.state}` : patient.city,
+  ]
     .filter(Boolean)
     .join(" · ");
   const hasAddress = !!(addressLine || cityLine || patient.zipCode);
   const hasGuardian = !!(patient.guardianName || patient.guardianCpf);
   const genderLabel = patient.gender === "F" ? "Feminino" : patient.gender === "M" ? "Masculino" : null;
 
-  if (!hasAddress && !hasGuardian && !genderLabel) return null;
+  // CPF, e-mail, data de nascimento, profissional responsável e observações
+  // vinham do servidor a cada abertura e não eram desenhados em lugar nenhum.
+  const identificacao = !!(patient.cpf || patient.birthDate || genderLabel);
+  const contato = !!patient.email;
+  const cuidado = !!patient.professionalName;
+
+  if (!identificacao && !contato && !cuidado && !hasAddress && !hasGuardian && !patient.notes) {
+    return null;
+  }
 
   return (
     <section className="surface-card p-5">
       <div className="flex items-start gap-4">
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-info-soft text-info">
-          <MapPin className="h-5 w-5" />
+          <UserRound className="h-5 w-5" />
         </span>
-        <div className="min-w-0 flex-1 space-y-4">
-          <p className="text-xs text-muted-foreground">Dados pessoais</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-muted-foreground">Dados do paciente</p>
 
-          {genderLabel && <p className="text-sm">Sexo: {genderLabel}</p>}
+          <div className="mt-3 divide-y divide-border">
+            <Linha rotulo="CPF" valor={patient.cpf} />
+            <Linha
+              rotulo="Nascimento"
+              valor={patient.birthDate ? formatDate(patient.birthDate) : null}
+            />
+            <Linha rotulo="Sexo" valor={genderLabel} />
+            <Linha rotulo="E-mail" valor={patient.email} />
+            <Linha rotulo="Dentista responsável" valor={patient.professionalName} />
+          </div>
 
           {hasAddress && (
-            <div>
-              {addressLine && <p className="font-medium">{addressLine}</p>}
+            <div className="mt-4 border-t border-border pt-3">
+              <p className="text-xs text-muted-foreground">Endereço</p>
+              {addressLine && <p className="mt-1 text-sm font-medium">{addressLine}</p>}
               {cityLine && <p className="text-sm text-muted-foreground">{cityLine}</p>}
-              {patient.zipCode && <p className="text-sm text-muted-foreground">CEP {patient.zipCode}</p>}
+              {patient.zipCode && (
+                <p className="text-sm text-muted-foreground">CEP {patient.zipCode}</p>
+              )}
             </div>
           )}
 
           {hasGuardian && (
-            <div className="flex items-start gap-3 border-t border-border pt-3">
-              <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Responsável</p>
-                {patient.guardianName && <p className="font-medium">{patient.guardianName}</p>}
-                {patient.guardianCpf && (
-                  <p className="text-sm text-muted-foreground">CPF {patient.guardianCpf}</p>
-                )}
-              </div>
+            <div className="mt-4 border-t border-border pt-3">
+              <p className="text-xs text-muted-foreground">Responsável</p>
+              {patient.guardianName && <p className="mt-1 text-sm font-medium">{patient.guardianName}</p>}
+              {patient.guardianCpf && (
+                <p className="text-sm text-muted-foreground">CPF {patient.guardianCpf}</p>
+              )}
+            </div>
+          )}
+
+          {patient.notes && (
+            <div className="mt-4 border-t border-border pt-3">
+              <p className="text-xs text-muted-foreground">Observações</p>
+              <p className="mt-1 whitespace-pre-line text-sm text-foreground-secondary">
+                {patient.notes}
+              </p>
             </div>
           )}
         </div>
@@ -461,7 +530,31 @@ function History({ patient }: { patient: PatientDetail }) {
   );
 }
 
+const PERIODOS = [
+  { id: "todos", label: "Todos" },
+  { id: "12m", label: "12 meses" },
+  { id: "ano", label: "Este ano" },
+] as const;
+type Periodo = (typeof PERIODOS)[number]["id"];
+
 function Finance({ patient, onReceive }: { patient: PatientDetail; onReceive: () => void }) {
+  const [periodo, setPeriodo] = useState<Periodo>("todos");
+
+  // O filtro só aparece quando há o que filtrar. Um controle que, na prática,
+  // devolve sempre a mesma lista é ruído — e a maioria das fichas tem duas ou
+  // três movimentações.
+  const vale = patient.finances.length > 6;
+
+  const movimentacoes = !vale || periodo === "todos"
+    ? patient.finances
+    : patient.finances.filter((item) => {
+        const corte =
+          periodo === "ano"
+            ? `${new Date().getFullYear()}-01-01`
+            : localDateStr(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000));
+        return item.dueDate >= corte;
+      });
+
   return (
     <div className="mt-5 grid gap-5 lg:grid-cols-3">
       <Metric label="Recebido" value={formatBRL(patient.receivedAmount)} tone="success" />
@@ -475,12 +568,34 @@ function Finance({ patient, onReceive }: { patient: PatientDetail; onReceive: ()
               Recebimentos vinculados a este paciente.
             </p>
           </div>
-          <Button className="bg-gradient-primary text-white" onClick={onReceive}>
-            Novo recebimento
-          </Button>
+          <div className="flex items-center gap-3">
+            {vale && (
+              <div className="flex rounded-xl border border-border p-0.5" role="group" aria-label="Período">
+                {PERIODOS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setPeriodo(p.id)}
+                    aria-pressed={periodo === p.id}
+                    className={cn(
+                      "press rounded-lg px-2.5 py-1.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                      periodo === p.id
+                        ? "bg-foreground text-white"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <Button className="bg-gradient-primary text-white" onClick={onReceive}>
+              Novo recebimento
+            </Button>
+          </div>
         </div>
         <div className="divide-y divide-border border-t border-border">
-          {patient.finances.map((item) => (
+          {movimentacoes.map((item) => (
             <div key={item.id} className="flex items-center gap-3 px-5 py-4 sm:px-7">
               <span className="grid h-10 w-10 place-items-center rounded-2xl bg-info-soft text-info">
                 <ReceiptText className="h-4 w-4" />
@@ -512,9 +627,11 @@ function Finance({ patient, onReceive }: { patient: PatientDetail; onReceive: ()
               </div>
             </div>
           ))}
-          {!patient.finances.length && (
+          {!movimentacoes.length && (
             <p className="px-5 py-10 text-center text-sm text-muted-foreground">
-              Nenhuma movimentação financeira vinculada.
+              {patient.finances.length
+                ? "Nenhuma movimentação neste período."
+                : "Nenhuma movimentação financeira vinculada."}
             </p>
           )}
         </div>
