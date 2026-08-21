@@ -1236,6 +1236,156 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_anamnesis: {
+        Row: {
+          answers: Json
+          created_at: string
+          filled_at: string
+          id: string
+          patient_id: string
+          professional_id: string | null
+          professional_name: string | null
+          template: Json
+          updated_at: string
+        }
+        Insert: {
+          answers?: Json
+          created_at?: string
+          filled_at?: string
+          id?: string
+          patient_id: string
+          professional_id?: string | null
+          professional_name?: string | null
+          template?: Json
+          updated_at?: string
+        }
+        Update: {
+          answers?: Json
+          created_at?: string
+          filled_at?: string
+          id?: string
+          patient_id?: string
+          professional_id?: string | null
+          professional_name?: string | null
+          template?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_anamnesis_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_anamnesis_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patient_files: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          mime: string | null
+          patient_id: string
+          professional_name: string | null
+          size_bytes: number | null
+          storage_path: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          mime?: string | null
+          patient_id: string
+          professional_name?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          mime?: string | null
+          patient_id?: string
+          professional_name?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_files_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patient_notes: {
+        Row: {
+          appointment_id: string | null
+          body: string
+          created_at: string
+          id: string
+          patient_id: string
+          professional_id: string | null
+          professional_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          patient_id: string
+          professional_id?: string | null
+          professional_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          patient_id?: string
+          professional_id?: string | null
+          professional_name?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_notes_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_notes_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_notes_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           address: string | null
@@ -1572,6 +1722,121 @@ export type Database = {
           user_agent?: string | null
         }
         Relationships: []
+      }
+      treatment_items: {
+        Row: {
+          amount: number
+          created_at: string
+          done_at: string | null
+          id: string
+          plan_id: string
+          procedure_id: string | null
+          procedure_name: string
+          status: string
+          tooth: string | null
+          transaction_id: string | null
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          done_at?: string | null
+          id?: string
+          plan_id: string
+          procedure_id?: string | null
+          procedure_name: string
+          status?: string
+          tooth?: string | null
+          transaction_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          done_at?: string | null
+          id?: string
+          plan_id?: string
+          procedure_id?: string | null
+          procedure_name?: string
+          status?: string
+          tooth?: string | null
+          transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "treatment_items_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "treatment_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "treatment_items_procedure_id_fkey"
+            columns: ["procedure_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_procedures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "treatment_items_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "financial_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      treatment_plans: {
+        Row: {
+          approved_at: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          patient_id: string
+          professional_id: string | null
+          professional_name: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          patient_id: string
+          professional_id?: string | null
+          professional_name?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          patient_id?: string
+          professional_id?: string | null
+          professional_name?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "treatment_plans_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "treatment_plans_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
