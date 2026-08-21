@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { ConversaDoPaciente } from "@/components/patients/ConversaDoPaciente";
+import { Prontuario } from "@/components/patients/Prontuario";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
@@ -235,7 +236,7 @@ function PatientDetailPage() {
         </nav>
 
         {aba === "resumo" && <Overview patient={patient} onSchedule={schedule} />}
-        {aba === "clinico" && <History patient={patient} />}
+        {aba === "clinico" && <Clinico patient={patient} />}
         {aba === "financeiro" && <Finance patient={patient} onReceive={receive} />}
       </main>
 
@@ -501,9 +502,24 @@ function CareTimeline({ events }: { events: CareEvent[] }) {
   );
 }
 
+/** A aba Clínico: prontuário em cima, histórico de consultas embaixo.
+ *
+ *  Nesta ordem porque a evolução é o que a dentista escreve todo dia, e o
+ *  histórico é consulta ocasional. Orçamentos e tratamentos entram aqui na
+ *  Onda 4 — a narrativa é uma só (orçar, tratar, evoluir) e não merece três
+ *  abas separadas. */
+function Clinico({ patient }: { patient: PatientDetail }) {
+  return (
+    <div className="mt-5 space-y-5">
+      <Prontuario patientId={patient.id} />
+      <History patient={patient} />
+    </div>
+  );
+}
+
 function History({ patient }: { patient: PatientDetail }) {
   return (
-    <section className="surface-card mt-5 overflow-hidden p-5 sm:p-7">
+    <section className="surface-card overflow-hidden p-5 sm:p-7">
       <h2 className="text-xl font-semibold">Histórico do paciente</h2>
       <div className="mt-5 divide-y divide-border">
         {patient.timeline.map((event) => (
