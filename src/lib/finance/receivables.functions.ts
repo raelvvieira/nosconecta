@@ -513,10 +513,16 @@ export async function createAppointmentReceivable(
     professionalId: string | null;
     paidOn?: string | null;
   },
-): Promise<void> {
-  if (!(params.amount > 0)) return;
+  // Devolve o id do lançamento criado, ou null quando não havia valor.
+  //
+  // Era `void`. Quem chamava da agenda ignorava o retorno e continua
+  // ignorando — mas um item de tratamento precisa GUARDAR esse id, senão não
+  // há como saber que ele já foi cobrado, e concluir o mesmo procedimento duas
+  // vezes geraria duas cobranças.
+): Promise<string | null> {
+  if (!(params.amount > 0)) return null;
   const recebido = !!params.paidOn;
-  const { error } = await supabase.from("financial_transactions").insert({
+  const { data: criado, error } = await supabase.from("financial_transactions").insert({
     owner_id: ownerId,
     unit_id: unitId,
     type: "receivable" as const,
@@ -533,8 +539,9 @@ export async function createAppointmentReceivable(
     notes: null,
     is_recurring: false,
     recurrence_type: null,
-  });
+  }).select("id").single();
   if (error) throw new Error(error.message);
+  return criado?.id ? String(criado.id) : null;
 }
 
 export const markReceivableReceived = createServerFn({ method: "POST" })

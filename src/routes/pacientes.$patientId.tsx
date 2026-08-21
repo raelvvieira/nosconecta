@@ -9,6 +9,7 @@ import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { ConversaDoPaciente } from "@/components/patients/ConversaDoPaciente";
 import { Prontuario } from "@/components/patients/Prontuario";
+import { Tratamentos } from "@/components/patients/Tratamentos";
 import { ArquivosDoPaciente } from "@/components/patients/ArquivosDoPaciente";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -520,6 +521,9 @@ function CareTimeline({ events }: { events: CareEvent[] }) {
 function Clinico({ patient }: { patient: PatientDetail }) {
   return (
     <div className="mt-5 space-y-5">
+      {/* Orçar → tratar → evoluir → histórico: a ordem em que a coisa acontece,
+          e por isso a ordem em que aparece. */}
+      <Tratamentos patientId={patient.id} />
       <Prontuario patientId={patient.id} />
       <History patient={patient} />
     </div>
