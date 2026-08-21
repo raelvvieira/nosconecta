@@ -9,6 +9,7 @@ import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { ConversaDoPaciente } from "@/components/patients/ConversaDoPaciente";
 import { Prontuario } from "@/components/patients/Prontuario";
+import { ArquivosDoPaciente } from "@/components/patients/ArquivosDoPaciente";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
@@ -25,7 +26,7 @@ import {
 // como mandar a alguém o link do financeiro de um paciente. `validateSearch`
 // com zod é o mesmo padrão da lista de pacientes e do resto das rotas.
 const searchSchema = z.object({
-  aba: z.enum(["resumo", "clinico", "financeiro"]).default("resumo"),
+  aba: z.enum(["resumo", "clinico", "financeiro", "arquivos"]).default("resumo"),
 });
 
 type DetailFetcher = (args: { data: { patientId: string } }) => Promise<PatientDetail>;
@@ -220,10 +221,12 @@ function PatientDetailPage() {
           </section>
         )}
 
-        {/* Três abas por enquanto. "Arquivos" entra quando existir tabela e
-            bucket — aba vazia que promete algo é pior do que aba ausente. */}
+        {/* Quatro abas contra as sete da referência. "Imagens" e "Documentos"
+            viraram uma só: a diferença entre um raio-x e um termo assinado é
+            técnica, não de uso. Orçamentos e tratamentos moram dentro de
+            Clínico, porque orçar, tratar e evoluir é uma narrativa só. */}
         <nav
-          className="surface-card mt-5 grid grid-cols-3 overflow-hidden p-1"
+          className="surface-card mt-5 grid grid-cols-4 overflow-hidden p-1"
           aria-label="Seções do paciente"
         >
           <TabButton label="Resumo" active={aba === "resumo"} onClick={() => irParaAba("resumo")} />
@@ -233,11 +236,17 @@ function PatientDetailPage() {
             active={aba === "financeiro"}
             onClick={() => irParaAba("financeiro")}
           />
+          <TabButton
+            label="Arquivos"
+            active={aba === "arquivos"}
+            onClick={() => irParaAba("arquivos")}
+          />
         </nav>
 
         {aba === "resumo" && <Overview patient={patient} onSchedule={schedule} />}
         {aba === "clinico" && <Clinico patient={patient} />}
         {aba === "financeiro" && <Finance patient={patient} onReceive={receive} />}
+        {aba === "arquivos" && <ArquivosDoPaciente patientId={patient.id} />}
       </main>
 
       <PatientFormSheet
