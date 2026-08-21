@@ -44,9 +44,16 @@ async function hkdf(
   info: Uint8Array,
   length: number,
 ): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
+  const key = await crypto.subtle.importKey("raw", ikm as ArrayBufferView, "HKDF", false, [
+    "deriveBits",
+  ]);
   const bits = await crypto.subtle.deriveBits(
-    { name: "HKDF", hash: "SHA-256", salt, info },
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: salt as ArrayBufferView,
+      info: info as ArrayBufferView,
+    },
     key,
     length * 8,
   );
@@ -57,7 +64,13 @@ async function hkdf(
 
 /** Chave pública P-256 crua (65 bytes, 0x04 || X || Y) → CryptoKey. */
 async function importPublicKey(raw: Uint8Array): Promise<CryptoKey> {
-  return crypto.subtle.importKey("raw", raw, { name: "ECDH", namedCurve: "P-256" }, true, []);
+  return crypto.subtle.importKey(
+    "raw",
+    raw as ArrayBufferView,
+    { name: "ECDH", namedCurve: "P-256" },
+    true,
+    [],
+  );
 }
 
 async function exportPublicKey(key: CryptoKey): Promise<Uint8Array> {
@@ -178,11 +191,19 @@ export async function encryptPayload(
   // registro. Sem ele o navegador rejeita a mensagem.
   const record = concat(encoder.encode(plaintext), new Uint8Array([0x02]));
 
-  const aesKey = await crypto.subtle.importKey("raw", contentEncryptionKey, "AES-GCM", false, [
-    "encrypt",
-  ]);
+  const aesKey = await crypto.subtle.importKey(
+    "raw",
+    contentEncryptionKey as ArrayBufferView,
+    "AES-GCM",
+    false,
+    ["encrypt"],
+  );
   const ciphertext = new Uint8Array(
-    await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce, tagLength: 128 }, aesKey, record),
+    await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: nonce as ArrayBufferView, tagLength: 128 },
+      aesKey,
+      record as ArrayBufferView,
+    ),
   );
 
   // Cabeçalho aes128gcm: salt(16) | rs(4, big-endian) | idlen(1) | keyid
