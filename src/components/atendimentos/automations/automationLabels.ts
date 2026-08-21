@@ -83,6 +83,7 @@ export const CONDITION_FIELD_LABEL: Record<string, string> = {
   status: "Situação do agendamento",
   stageId: "Etapa do funil",
   dealStatus: "Situação da negociação",
+  unitId: "Unidade do agendamento",
 };
 
 export const CONDITION_OPERATOR_LABEL: Record<string, string> = {

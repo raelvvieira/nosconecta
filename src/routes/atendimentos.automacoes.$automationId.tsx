@@ -55,6 +55,7 @@ import {
   type AutomationNodeData,
   type AutomationScheduleWindow,
 } from "@/lib/atendimentos/automations.functions";
+import { useUnitSelection } from "@/lib/settings/unit-context";
 import type { SystemEvent } from "@/lib/integrations/meta-capi.functions";
 import { getPipelineStages } from "@/lib/atendimentos/pipeline.functions";
 
@@ -185,6 +186,17 @@ function Editor() {
   // array instável ainda re-renderizaria todos os cards a cada render.
   const stages = useMemo(() => stagesQuery.data?.stages ?? [], [stagesQuery.data]);
 
+  // Unidades vêm do contexto que o menu lateral já alimenta — sem consulta
+  // nova. A condição de unidade guarda o id e mostra o nome, então renomear a
+  // unidade em Configurações não muda para onde a automação manda mensagem.
+  const { units } = useUnitSelection();
+  // Duas listas de propósito. `units` (todas) resolve NOME no card: unidade
+  // desativada depois de salva ainda precisa aparecer pelo nome, senão o fluxo
+  // vira "(unidade não encontrada)" sem motivo aparente. `unidadesAtivas` é o
+  // que se pode ESCOLHER e o que o aviso cobra — oferecer unidade fechada, ou
+  // reclamar que ela não é testada, seria ruído.
+  const unidadesAtivas = useMemo(() => units.filter((u) => u.active), [units]);
+
   const hidratado = useRef(false);
   useEffect(() => {
     if (ehNova || hidratado.current) return;
@@ -265,6 +277,7 @@ function Editor() {
       conditions,
       scheduleWindow,
       stages,
+      units,
       onEditarGatilho: () => setGatilhoDialog(true),
       onEditarFiltro: () => setFiltroDialog(true),
       onEditarJanela: () => setJanelaDialog(true),
@@ -276,7 +289,7 @@ function Editor() {
       },
       onRemoverNo: removerNo,
     }),
-    [triggerEvent, conditions, scheduleWindow, stages, nodes, removerNo],
+    [triggerEvent, conditions, scheduleWindow, stages, units, nodes, removerNo],
   );
 
   // O botão de excluir mora na aresta, então o callback viaja em `edge.data`
@@ -331,7 +344,7 @@ function Editor() {
       // redundante. Aviso e não bloqueio — montar o fluxo aos poucos é
       // legítimo. A lista vive em `avisosDoFluxo` porque é a mesma pergunta
       // que o histórico de execuções responde depois, só que antes.
-      for (const aviso of avisosDoFluxo(grafoLimpo.nodesLimpos, grafoLimpo.edgesLimpas)) {
+      for (const aviso of avisosDoFluxo(grafoLimpo.nodesLimpos, grafoLimpo.edgesLimpas, unidadesAtivas)) {
         toast.warning(aviso, { duration: 8000 });
       }
       queryClient.invalidateQueries({ queryKey: ["automations"] });
@@ -511,6 +524,8 @@ function Editor() {
         onOpenChange={(o) => !o && setCondicaoNoDialog(null)}
         data={dadosDoNo(nodes.find((n) => n.id === condicaoNoDialog?.nodeId))}
         stages={stages}
+        units={unidadesAtivas}
+        triggerEvent={triggerEvent}
         onSalvar={(data) => {
           if (condicaoNoDialog) atualizarNo(condicaoNoDialog.nodeId, data);
           setCondicaoNoDialog(null);

@@ -30,6 +30,8 @@ export interface EditorAcoes {
   conditions: { stageId?: string; status?: string; dealStatus?: string };
   scheduleWindow: AutomationScheduleWindow;
   stages: PipelineStage[];
+  /** Unidades da clínica — a condição de unidade guarda o id e mostra o nome. */
+  units: { id: string; name: string }[];
   onEditarGatilho: () => void;
   onEditarFiltro: () => void;
   onEditarJanela: () => void;
@@ -298,7 +300,11 @@ export function ActionNode({ id, data }: { id: string; data: AutomationNodeData 
   );
 }
 
-function condicaoTexto(data: AutomationNodeData, stages: PipelineStage[]): string {
+function condicaoTexto(
+  data: AutomationNodeData,
+  stages: PipelineStage[],
+  units: { id: string; name: string }[],
+): string {
   if (!data.field) return "Escolher condição";
   if (data.field === "hasContact") return CONDITION_FIELD_LABEL.hasContact;
   const campo = CONDITION_FIELD_LABEL[data.field] ?? data.field;
@@ -309,12 +315,29 @@ function condicaoTexto(data: AutomationNodeData, stages: PipelineStage[]): strin
     const s = stages.find((x) => x.id === data.value);
     return `${campo}: ${s?.name ?? data.value ?? ""}`;
   }
+  if (data.field === "unitId") {
+    return `${campo}: ${nomeDaUnidade(data.value, units)}`;
+  }
   const lista = data.field === "status" ? APPOINTMENT_STATUSES : DEAL_STATUSES;
   return `${campo}: ${lista.find((x) => x.value === data.value)?.label ?? data.value ?? ""}`;
 }
 
+/** Unidade apagada depois de salva não some do card: mostrar o rastro é mais
+ *  honesto do que um rótulo vazio, e é o que `acaoResumo` já faz com etapa. */
+function nomeDaUnidade(id: string | undefined, units: { id: string; name: string }[]): string {
+  if (!id) return "";
+  return units.find((u) => u.id === id)?.name ?? "(unidade não encontrada)";
+}
+
 export function ConditionNode({ id, data }: { id: string; data: AutomationNodeData }) {
   const e = useEditor();
+  // Condição de unidade rotula as saídas com o nome real em vez de "Sim"/"Não".
+  // O ganho não é estético: deixa visível que o segundo ramo é o RESTO, e não
+  // uma unidade específica — é ele que vai receber a unidade que você abrir
+  // depois de montar este fluxo.
+  const porUnidade = data.field === "unitId";
+  const rotuloSim = porUnidade ? nomeDaUnidade(data.value, e.units) || "Sim" : "Sim";
+  const rotuloNao = porUnidade ? "Demais unidades" : "Não";
   return (
     <NodeShell
       icon={<Split className="h-3.5 w-3.5" />}
@@ -324,8 +347,8 @@ export function ConditionNode({ id, data }: { id: string; data: AutomationNodeDa
       onRemover={() => e.onRemoverNo(id)}
       rodape={
         <div className="space-y-1 border-t border-border px-3.5 py-2">
-          <PontoDeSaida id="sim" rotulo="Sim" cor="!bg-success" />
-          <PontoDeSaida id="nao" rotulo="Não" cor="!bg-muted-foreground" />
+          <PontoDeSaida id="sim" rotulo={rotuloSim} cor="!bg-success" />
+          <PontoDeSaida id="nao" rotulo={rotuloNao} cor="!bg-muted-foreground" />
         </div>
       }
     >
@@ -334,7 +357,7 @@ export function ConditionNode({ id, data }: { id: string; data: AutomationNodeDa
         onClick={() => e.onEditarNo(id)}
         className="nodrag w-full rounded-xl border border-border bg-surface-subtle px-3 py-2.5 text-left transition-colors hover:border-coral"
       >
-        <p className="text-sm font-medium">{condicaoTexto(data, e.stages)}</p>
+        <p className="text-sm font-medium">{condicaoTexto(data, e.stages, e.units)}</p>
       </button>
     </NodeShell>
   );

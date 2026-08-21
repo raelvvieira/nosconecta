@@ -50,7 +50,21 @@ export type AutomationNodeType = "trigger" | "action" | "condition" | "randomize
 
 /** Campo do evento que uma condição pode testar — só o que já chega no
  *  contexto do disparo, sem consulta extra ao banco ou ao CRM. */
-export type ConditionField = "amount" | "hasContact" | "status" | "stageId" | "dealStatus";
+export type ConditionField =
+  | "amount"
+  | "hasContact"
+  | "status"
+  | "stageId"
+  | "dealStatus"
+  | "unitId";
+
+/** Gatilhos cujo contexto carrega o agendamento — e portanto a unidade.
+ *  Mesma ideia do `AGENDA` de automation-vars.ts: campo que o gatilho não
+ *  preenche é recusado no save, não descoberto em runtime. */
+export const GATILHOS_COM_UNIDADE: SystemEvent[] = [
+  "appointment.created",
+  "appointment.status_changed",
+];
 export type ConditionOperator = "gt" | "lt" | "eq";
 
 export interface AutomationNodeData {
@@ -308,6 +322,15 @@ export const saveAutomation = createServerFn({ method: "POST" })
         if (n.data.field !== "hasContact" && !String(n.data.value ?? "").trim()) {
           throw new Error("Informe o valor de comparação da condição.");
         }
+        // Unidade só existe no contexto de gatilho de agenda. Nos outros,
+        // `ctx.appointment` é nulo e a condição cairia SEMPRE no ramo "Não" —
+        // fluxo que parece certo na tela e manda a mensagem errada calado.
+        if (n.data.field === "unitId" && !GATILHOS_COM_UNIDADE.includes(input.triggerEvent)) {
+          throw new Error(
+            "A condição de unidade só funciona nos gatilhos de agendamento — " +
+              "nos outros o evento não carrega unidade, e ela cairia sempre no ramo Não.",
+          );
+        }
         continue;
       }
       if (n.type !== "action") continue;
@@ -474,7 +497,7 @@ export const getAutomationRuns = createServerFn({ method: "GET" })
 /** Versão do executor que o app espera encontrar publicado.
  *  Espelha `VERSAO_MOTOR` em atendimento-automations/index.ts — os dois
  *  runtimes são separados, então o número é duplicado de propósito. */
-const VERSAO_ESPERADA = 3;
+const VERSAO_ESPERADA = 4;
 
 export type EstadoDoMotor = "ok" | "desatualizado" | "ausente" | "indeterminado";
 
@@ -560,7 +583,13 @@ export const getAutomationEngineStatus = createServerFn({ method: "GET" })
  * Função pura de propósito: roda no cliente, na hora de salvar, sem ida ao
  * servidor.
  */
-export function avisosDoFluxo(nodes: AutomationNode[], edges: AutomationEdge[]): string[] {
+export function avisosDoFluxo(
+  nodes: AutomationNode[],
+  edges: AutomationEdge[],
+  /** Unidades da clínica, para avisar sobre a que nenhuma condição nomeia.
+   *  Opcional: quem não tem a lista à mão simplesmente não recebe esse aviso. */
+  units: { id: string; name: string }[] = [],
+): string[] {
   const avisos: string[] = [];
   const temSaida = (id: string, handle?: string) =>
     edges.some((e) => e.source === id && (handle === undefined || e.sourceHandle === handle));
@@ -620,6 +649,25 @@ export function avisosDoFluxo(nodes: AutomationNode[], edges: AutomationEdge[]):
     avisos.push(
       'A condição "Tem paciente vinculado" é opcional aqui: o envio de WhatsApp já é pulado sozinho quando não há contato, e o motivo fica registrado em Execuções.',
     );
+  }
+
+  // Unidade que o fluxo não nomeia cai no ramo "Não" da última condição e
+  // recebe a mensagem escrita para OUTRA unidade. Não é erro — é a escolha de
+  // ter um ramo genérico — mas quem abrir uma unidade nova meses depois não
+  // tem como lembrar disso sozinho, e o texto pode citar a cidade errada.
+  const testadas = new Set(
+    nodes
+      .filter((n) => n.type === "condition" && n.data?.field === "unitId")
+      .map((n) => String(n.data?.value ?? "")),
+  );
+  if (testadas.size) {
+    const descobertas = units.filter((u) => !testadas.has(u.id));
+    if (descobertas.length) {
+      avisos.push(
+        `${descobertas.map((u) => `"${u.name}"`).join(", ")} ${descobertas.length === 1 ? "não é testada" : "não são testadas"} por nenhuma condição — ` +
+          `${descobertas.length === 1 ? "cai" : "caem"} no ramo genérico e ${descobertas.length === 1 ? "recebe" : "recebem"} a mensagem escrita para as demais.`,
+      );
+    }
   }
 
   return [...new Set(avisos)];

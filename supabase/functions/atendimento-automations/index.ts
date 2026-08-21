@@ -39,7 +39,7 @@ const TZ = "America/Sao_Paulo";
  *  respostas distintas para três situações distintas.
  *
  *  Subir este número quando o executor mudar de forma que o app precise saber. */
-const VERSAO_MOTOR = 3;
+const VERSAO_MOTOR = 4;
 
 interface DispatchContext {
   entityId?: string | null;
@@ -93,7 +93,7 @@ interface GrafoNode {
   type: NodeType;
   data: {
     action?: ActionConfig;
-    field?: "amount" | "hasContact" | "status" | "stageId" | "dealStatus";
+    field?: "amount" | "hasContact" | "status" | "stageId" | "dealStatus" | "unitId";
     operator?: "gt" | "lt" | "eq";
     value?: string;
     weights?: Record<string, number>;
@@ -150,6 +150,14 @@ function avaliarCondicao(node: GrafoNode, ctx: DispatchContext): boolean {
     if (operator === "gt") return Number(ctx.amount) > alvo;
     if (operator === "lt") return Number(ctx.amount) < alvo;
     return Number(ctx.amount) === alvo;
+  }
+  // Unidade do agendamento. Compara ID e não nome: renomear a unidade em
+  // Configurações não pode mudar para onde uma automação salva manda mensagem.
+  // `appointments.unit_id` é NOT NULL, então em gatilho de agenda este lado
+  // nunca é vazio — e o save recusa esta condição nos outros gatilhos, onde
+  // `ctx.appointment` é nulo e ela cairia sempre no "não".
+  if (field === "unitId") {
+    return String(value ?? "") === String(ctx.appointment?.unitId ?? "");
   }
   // Igualdades usam a mesma coerção de matchesConditions, senão a condição do
   // gatilho e a do card se comportariam diferente pro mesmo valor.

@@ -37,12 +37,13 @@ import { SYSTEM_EVENTS, type SystemEvent } from "@/lib/integrations/meta-capi.fu
 import { varsDoGatilho } from "@/lib/atendimentos/automation-vars";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import type {
-  AutomationAction,
-  AutomationNodeData,
-  AutomationScheduleWindow,
-  ConditionField,
-  ConditionOperator,
+import {
+  GATILHOS_COM_UNIDADE,
+  type AutomationAction,
+  type AutomationNodeData,
+  type AutomationScheduleWindow,
+  type ConditionField,
+  type ConditionOperator,
 } from "@/lib/atendimentos/automations.functions";
 import type { PipelineStage } from "@/lib/atendimentos/pipeline.functions";
 import {
@@ -986,12 +987,18 @@ export function EditarCondicaoNoDialog({
   onOpenChange,
   data,
   stages,
+  units,
+  triggerEvent,
   onSalvar,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   data: AutomationNodeData;
   stages: PipelineStage[];
+  units: { id: string; name: string }[];
+  /** Decide se "Unidade do agendamento" é oferecida: só gatilho de agenda
+   *  carrega unidade, e o save recusa a combinação errada de qualquer jeito. */
+  triggerEvent: SystemEvent | null;
   onSalvar: (data: AutomationNodeData) => void;
 }) {
   const [field, setField] = useState<ConditionField>("hasContact");
@@ -1006,6 +1013,8 @@ export function EditarCondicaoNoDialog({
   }, [open, data]);
 
   const precisaValor = field !== "hasContact";
+  const ofereceUnidade =
+    units.length > 0 && !!triggerEvent && GATILHOS_COM_UNIDADE.includes(triggerEvent);
   const listaStatus =
     field === "status" ? APPOINTMENT_STATUSES : field === "dealStatus" ? DEAL_STATUSES : null;
 
@@ -1038,8 +1047,17 @@ export function EditarCondicaoNoDialog({
                 <SelectItem value="status">Situação do agendamento</SelectItem>
                 <SelectItem value="stageId">Etapa do funil</SelectItem>
                 <SelectItem value="dealStatus">Situação da negociação</SelectItem>
+                {ofereceUnidade && (
+                  <SelectItem value="unitId">Unidade do agendamento</SelectItem>
+                )}
               </SelectContent>
             </Select>
+            {field === "unitId" && (
+              <p className="mt-1.5 text-2xs text-muted-foreground">
+                O ramo "não" recebe todas as outras unidades — inclusive as que você abrir
+                depois. Use-o para a mensagem mais genérica.
+              </p>
+            )}
             {field === "amount" && (
               <p className="mt-1.5 text-2xs text-muted-foreground">
                 Cadastro de paciente e mudança de etapa não carregam valor — nesses casos a
@@ -1081,6 +1099,24 @@ export function EditarCondicaoNoDialog({
                   {listaStatus.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
                       {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {field === "unitId" && (
+            <div>
+              <Label>Unidade</Label>
+              <Select value={valor} onValueChange={setValor}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Escolha a unidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  {units.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
