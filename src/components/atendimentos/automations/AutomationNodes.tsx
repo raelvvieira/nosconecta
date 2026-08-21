@@ -9,6 +9,7 @@ import type {
 } from "@/lib/atendimentos/automations.functions";
 import type { PipelineStage } from "@/lib/atendimentos/pipeline.functions";
 import {
+  ACTION_CANAL,
   ACTION_ESCOPO,
   ACTION_LABEL,
   APPOINTMENT_STATUSES,
@@ -286,6 +287,12 @@ export function ActionNode({ id, data }: { id: string; data: AutomationNodeData 
         >
           {ESCOPO_LABEL[escopo]}
         </span>
+      )}
+      {/* PARA QUEM a ação age já estava dito acima; faltava POR ONDE ela sai.
+          Sem isso não havia como saber, olhando o fluxo, se a mensagem usa o
+          motor de campanhas ou o de disparo. */}
+      {tipo && ACTION_CANAL[tipo] && (
+        <p className="mt-1.5 text-3xs leading-snug text-muted-foreground">{ACTION_CANAL[tipo]}</p>
       )}
     </NodeShell>
   );

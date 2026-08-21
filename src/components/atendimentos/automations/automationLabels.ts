@@ -61,6 +61,22 @@ export const ESCOPO_LABEL: Record<"pessoa" | "clinica" | "fluxo", string> = {
   fluxo: "pausa o fluxo",
 };
 
+/** Por onde a ação sai, quando isso não é óbvio pela tela.
+ *
+ *  Existe porque a pergunta "essa mensagem usa o motor de campanhas ou o de
+ *  disparo?" foi feita olhando este card, e ele não tinha como responder. São
+ *  motores diferentes — campanhas passa por `crm-campaigns`, disparo por
+ *  `_shared/whatsapp-send.ts` — e a automação usa o SEGUNDO, o mesmo do
+ *  disparo por contato selecionado.
+ *
+ *  Só ações cujo canal é ambíguo entram aqui: mover etapa e observação não
+ *  saem por canal nenhum. */
+export const ACTION_CANAL: Partial<Record<AutomationActionType, string>> = {
+  send_whatsapp: "Sai pelo número conectado em Atendimentos, pelo mesmo caminho do disparo — e conta no limite diário.",
+  send_push: "Notificação no aplicativo, para todos os aparelhos da clínica.",
+  webhook: "Chamada HTTPS para o endereço configurado.",
+};
+
 export const CONDITION_FIELD_LABEL: Record<string, string> = {
   amount: "Valor do evento",
   hasContact: "Tem paciente vinculado",
