@@ -23,7 +23,45 @@ export const LOSS_REASONS = [
   "Adiou o tratamento",
   "Não era o perfil",
   "Distância / localização",
+  // O opt-out explícito. Não tinha onde ser registrado, e era o caso mais
+  // caro de errar: mandar campanha para quem pediu para não receber.
+  "Pediu para não receber mensagens",
+  "Outro",
 ];
+
+export const MOTIVO_OUTRO = "Outro";
+
+/**
+ * Motivos dos quais não se volta.
+ *
+ * Quem cai num destes sai de qualquer disparo por coluna no funil de
+ * recuperação. Sai do próprio motivo, e não de uma chave separada, porque
+ * chave separada depende de alguém lembrar de marcar — e quem esquece manda
+ * mensagem para quem pediu para não receber.
+ */
+export const MOTIVOS_DEFINITIVOS = [
+  "Não era o perfil",
+  "Distância / localização",
+  "Pediu para não receber mensagens",
+];
+
+/**
+ * O motivo gravado, encaixado na lista fechada.
+ *
+ * Até agora o campo era texto livre ao lado dos chips, então há histórico com
+ * qualquer coisa escrita. Nada disso é reescrito: o que não bate com a lista é
+ * LIDO como "Outro" — o texto original continua no detalhe da negociação, que é
+ * onde ele ainda vale alguma coisa.
+ */
+export function motivoNormalizado(reason: string | null | undefined): string {
+  const texto = (reason ?? "").trim();
+  if (!texto) return MOTIVO_OUTRO;
+  return LOSS_REASONS.includes(texto) ? texto : MOTIVO_OUTRO;
+}
+
+export function motivoEhDefinitivo(reason: string | null | undefined): boolean {
+  return MOTIVOS_DEFINITIVOS.includes(motivoNormalizado(reason));
+}
 
 export interface Deal {
   itemId: string;

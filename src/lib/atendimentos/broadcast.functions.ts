@@ -128,6 +128,38 @@ export interface RecentRecipient {
  * caminho "Todos os contatos" (CRM) não grava quem recebeu, então não tem
  * como entrar nesta conta.
  */
+/**
+ * Último disparo recebido por cada contato, sem a janela curta.
+ *
+ * Irmã de `getRecentRecipients`, que existe para outra pergunta — "esta pessoa
+ * recebeu nos últimos dias?", para não repetir num disparo novo. Aqui a
+ * pergunta é "já tentamos reativar esta pessoa desde que ela foi perdida?", e
+ * a resposta pode estar a seis meses de distância.
+ *
+ * Teto de 12 meses para a consulta não crescer sem fim: reativação mais antiga
+ * que isso não muda decisão nenhuma — a pessoa volta a ser abordável.
+ */
+export const getUltimoDisparoPorContato = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .handler(async ({ context }): Promise<Record<string, string>> => {
+    const supabase: any = context.supabase;
+    const desde = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase
+      .from("whatsapp_broadcast_targets")
+      .select("contact_id, sent_at")
+      .eq("owner_id", context.ownerId)
+      .eq("status", "sent")
+      .gte("sent_at", desde);
+    if (error) throw new Error(error.message);
+
+    const ultimo: Record<string, string> = {};
+    for (const row of (data ?? []) as any[]) {
+      const id = String(row.contact_id);
+      if (!ultimo[id] || row.sent_at > ultimo[id]) ultimo[id] = row.sent_at;
+    }
+    return ultimo;
+  });
+
 export const getRecentRecipients = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<RecentRecipient[]> => {

@@ -45,6 +45,8 @@ import {
   saveDealValue,
   DEAL_STATUS_LABEL,
   LOSS_REASONS,
+  MOTIVO_OUTRO,
+  motivoNormalizado,
   type Deal,
   type DealEvent,
   type DealStatus,
@@ -350,7 +352,7 @@ export function DealDetailSheet({
                         onClick={() => setLossReason(reason)}
                         className={cn(
                           "rounded-full border px-2.5 py-1 text-2xs transition-colors",
-                          lossReason === reason
+                          reason === motivoNormalizado(lossReason)
                             ? "border-transparent bg-foreground text-white"
                             : "border-border hover:bg-muted/50",
                         )}
@@ -359,12 +361,20 @@ export function DealDetailSheet({
                       </button>
                     ))}
                   </div>
-                  <Textarea
-                    value={lossReason}
-                    onChange={(event) => setLossReason(event.target.value)}
-                    placeholder="Ou escreva o motivo"
-                    className="min-h-16"
-                  />
+                  {/* Campo livre só em "Outro". Antes ele ficava sempre
+                      visível e sobrescrevia o chip escolhido — o que gravava
+                      era texto livre, e texto livre não filtra nem classifica.
+                      É por isso que o funil de recuperação não conseguia
+                      separar quem pode ser abordado de quem pediu para não
+                      ser. */}
+                  {lossReason === MOTIVO_OUTRO || !LOSS_REASONS.includes(lossReason) ? (
+                    <Textarea
+                      value={lossReason === MOTIVO_OUTRO ? "" : lossReason}
+                      onChange={(event) => setLossReason(event.target.value || MOTIVO_OUTRO)}
+                      placeholder="Qual foi o motivo?"
+                      className="min-h-16"
+                    />
+                  ) : null}
                   <div className="flex gap-2">
                     <Button
                       size="sm"

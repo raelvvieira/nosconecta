@@ -327,7 +327,13 @@ function PipelinePage() {
           </div>
         ) : funil === "perdidos" ? (
           <div className="flex-1 px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
-            <QuadroDePerdidos itens={items} deals={dealByItem} busca={query} />
+            <QuadroDePerdidos
+              itens={items}
+              deals={dealByItem}
+              conversas={conversations}
+              busca={query}
+              onAbrir={(item) => setOpenItemId(item.id)}
+            />
           </div>
         ) : (
           <div className="flex-1 overflow-x-auto px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
