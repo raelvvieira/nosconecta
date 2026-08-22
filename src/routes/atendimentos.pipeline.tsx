@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate} from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Settings2, Trash2, Workflow } from "lucide-react";
+import { Plus, Search, Settings2, Trash2, Workflow, Send} from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -19,6 +19,8 @@ import { getConversations } from "@/lib/atendimentos/atendimentos.functions";
 import { getSalesAssistant } from "@/lib/atendimentos/insights.functions";
 import { getDeals, type Deal } from "@/lib/atendimentos/deals.functions";
 import { QuadroDeClientes } from "@/components/atendimentos/pipeline/QuadroDeClientes";
+import { useDisparoDeColuna } from "@/components/atendimentos/pipeline/useDisparoDeColuna";
+import type { ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
 import { QuadroDePerdidos } from "@/components/atendimentos/pipeline/QuadroDePerdidos";
 import {
   createPipeline,
@@ -150,6 +152,28 @@ function PipelinePage() {
     };
   };
 
+  /** Card do funil de Leads no formato que o disparo entende.
+   *
+   *  Devolve `null` quando não há contato no CRM por trás — acontece com card
+   *  de conversa que o CRM ainda não associou a um contato. Sem isso o alvo
+   *  entraria na fila com contactId vazio e o envio falharia lá na frente. */
+  const paraContatoDoLead = (item: PipelineItem): ContatoSelecionado | null => {
+    const conversation =
+      item.type === "conversation"
+        ? conversations.find((c) => c.id === item.itemId)
+        : conversations.find((c) => c.contactId === item.itemId);
+    const contactId = item.type === "contact" ? item.itemId : (conversation?.contactId ?? null);
+    if (!contactId) return null;
+    return {
+      id: contactId,
+      name: item.title || "Sem nome",
+      phone: conversation?.phone ?? null,
+      origem: "crm",
+      patientId: null,
+      conversationId: conversation?.id ?? null,
+    };
+  };
+
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["pipeline-stages"] });
     queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
@@ -200,6 +224,7 @@ function PipelinePage() {
 
   const [configOpen, setConfigOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const { abrir: abrirDisparo, dialogo: dialogoDeDisparo } = useDisparoDeColuna();
   const search = Route.useSearch();
   const navigate = useNavigate();
   const funil: Funil = search.funil ?? "leads";
@@ -360,6 +385,26 @@ function PipelinePage() {
                         {total > 0 && ` · ${formatBRL(total)}`}
                       </span>
                     </div>
+                    {/* Mesma peça dos outros dois funis: o disparo não pode se
+                        comportar diferente dependendo de qual quadro a pessoa
+                        estava olhando. */}
+                    {(() => {
+                      const alvos = stageItems
+                        .map(paraContatoDoLead)
+                        .filter((c): c is ContatoSelecionado => c !== null);
+                      if (!alvos.length) return null;
+                      return (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mb-2 h-8 w-full gap-1.5 text-2xs"
+                          onClick={() => abrirDisparo(alvos)}
+                        >
+                          <Send className="h-3 w-3" />
+                          Disparar para {alvos.length}
+                        </Button>
+                      );
+                    })()}
                     <div
                       ref={(el) => registerColumn(stage.id, el)}
                       className={cn(
@@ -429,6 +474,8 @@ function PipelinePage() {
           {drag.title}
         </div>
       )}
+
+      {dialogoDeDisparo}
 
       <DealDetailSheet
         item={openItem}

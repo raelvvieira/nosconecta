@@ -10,7 +10,13 @@ import {
   type ClienteNoFunil,
   type EtapaDoCliente,
 } from "@/lib/atendimentos/funis.functions";
+import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
+import {
+  quantosPodemReceber,
+  useDisparoDeColuna,
+} from "@/components/atendimentos/pipeline/useDisparoDeColuna";
 
 // O quadro de Clientes.
 //
@@ -72,14 +78,31 @@ function Card({ cliente }: { cliente: ClienteNoFunil }) {
   );
 }
 
+/** Cliente do funil no formato que o disparo entende.
+ *
+ *  Paciente sem `crm_contact_id` entra como origem "paciente": ele existe aqui
+ *  mas ainda não no CRM, e `prepararAlvos` cria o contato lá na hora do envio. */
+function paraContato(c: ClienteNoFunil): ContatoSelecionado {
+  return {
+    id: c.crmContactId ?? c.patientId,
+    name: c.name,
+    phone: c.phone,
+    origem: c.crmContactId ? "crm" : "paciente",
+    patientId: c.patientId,
+    conversationId: null,
+  };
+}
+
 function Coluna({
   stage,
   total,
   busca,
+  onDisparar,
 }: {
   stage: EtapaDoCliente;
   total: number;
   busca: string;
+  onDisparar: (contatos: ContatoSelecionado[]) => void;
 }) {
   const buscarColuna = useServerFn(getColunaDoFunil);
   const [paginas, setPaginas] = useState(1);
@@ -102,6 +125,7 @@ function Coluna({
   // mostrar 148 num quadro com 3 cards na tela seria mentira.
   const rotuloTotal = busca ? clientes.length : total;
   const temMais = !busca && clientes.length < total;
+  const podemReceber = quantosPodemReceber(clientes.map(paraContato));
 
   return (
     <div className="flex w-[280px] shrink-0 flex-col">
@@ -111,6 +135,21 @@ function Coluna({
         <span className="ml-auto text-xs font-semibold text-muted-foreground">{rotuloTotal}</span>
       </div>
       <p className="px-1 pb-2 text-3xs leading-snug text-muted-foreground">{meta.explica}</p>
+
+      {/* O botão dispara para o que ESTÁ carregado na coluna, e o número diz
+          exatamente isso — prometer o total da coluna e mandar só a primeira
+          página seria pior do que não ter o botão. */}
+      {podemReceber > 0 && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mb-2 h-8 w-full gap-1.5 text-2xs"
+          onClick={() => onDisparar(clientes.map(paraContato))}
+        >
+          <Send className="h-3 w-3" />
+          Disparar para {podemReceber}
+        </Button>
+      )}
 
       <div className="custom-scroll flex-1 space-y-2 overflow-y-auto overflow-x-hidden rounded-2xl bg-surface-subtle p-2">
         {carregando && !clientes.length ? (
@@ -140,6 +179,7 @@ function Coluna({
 }
 
 export function QuadroDeClientes({ busca }: { busca: string }) {
+  const { abrir, dialogo } = useDisparoDeColuna();
   const buscarContagem = useServerFn(getContagemDoFunil);
   const contagem = useQuery({
     queryKey: ["funil-clientes", "contagem"],
@@ -160,15 +200,19 @@ export function QuadroDeClientes({ busca }: { busca: string }) {
   }
 
   return (
-    <div className="custom-scroll mt-4 flex flex-1 gap-3 overflow-x-auto pb-2">
-      {ETAPAS_DO_CLIENTE.map((stage) => (
-        <Coluna
-          key={stage}
-          stage={stage}
-          total={contagem.data?.contagem[stage] ?? 0}
-          busca={busca}
-        />
-      ))}
-    </div>
+    <>
+      <div className="custom-scroll mt-4 flex flex-1 gap-3 overflow-x-auto pb-2">
+        {ETAPAS_DO_CLIENTE.map((stage) => (
+          <Coluna
+            key={stage}
+            stage={stage}
+            total={contagem.data?.contagem[stage] ?? 0}
+            busca={busca}
+            onDisparar={abrir}
+          />
+        ))}
+      </div>
+      {dialogo}
+    </>
   );
 }

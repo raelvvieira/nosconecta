@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Send } from "lucide-react";
 import type { PipelineItem } from "@/lib/atendimentos/pipeline.functions";
 import {
   LOSS_REASONS,
@@ -13,6 +13,8 @@ import { getUltimoDisparoPorContato } from "@/lib/atendimentos/broadcast.functio
 import type { ConversationRow } from "@/lib/atendimentos/atendimentos.functions";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
+import { useDisparoDeColuna } from "@/components/atendimentos/pipeline/useDisparoDeColuna";
 
 // O funil de recuperação.
 //
@@ -65,6 +67,9 @@ interface Perdido {
   deal: Deal;
   motivo: string;
   etapa: Etapa;
+  contactId: string | null;
+  conversationId: string | null;
+  phone: string | null;
 }
 
 /** A regra do funil, isolada para poder ser lida (e conferida) de uma vez. */
@@ -96,6 +101,19 @@ function etapaDe(
   return dias < DIAS_ESFRIANDO ? "esfriando" : "pronto";
 }
 
+/** Card perdido no formato que o disparo entende. Sempre origem "crm": estes
+ *  contatos nasceram de uma conversa no WhatsApp, então já existem lá. */
+function paraContato(p: Perdido): ContatoSelecionado {
+  return {
+    id: p.contactId!,
+    name: p.item.title || "Sem nome",
+    phone: p.phone,
+    origem: "crm",
+    patientId: null,
+    conversationId: p.conversationId,
+  };
+}
+
 export function QuadroDePerdidos({
   itens,
   deals,
@@ -109,6 +127,7 @@ export function QuadroDePerdidos({
   busca: string;
   onAbrir: (item: PipelineItem) => void;
 }) {
+  const { abrir, dialogo } = useDisparoDeColuna();
   const buscarDisparos = useServerFn(getUltimoDisparoPorContato);
   const [motivoFiltro, setMotivoFiltro] = useState<string | null>(null);
 
@@ -135,6 +154,9 @@ export function QuadroDePerdidos({
       lista.push({
         item,
         deal,
+        contactId,
+        conversationId: conversa?.id ?? null,
+        phone: conversa?.phone ?? null,
         motivo: motivoNormalizado(deal.lossReason),
         etapa: etapaDe(
           deal,
@@ -214,6 +236,21 @@ export function QuadroDePerdidos({
               </div>
               <p className="px-1 pb-2 text-3xs leading-snug text-muted-foreground">{meta.explica}</p>
 
+              {/* "Não perturbar" nunca ganha botão, e isso não é configurável:
+                  a coluna existe exatamente para essas pessoas NÃO receberem.
+                  Um botão ali seria um pedido de erro. */}
+              {etapa !== "nao_perturbar" && lista.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mb-2 h-8 w-full gap-1.5 text-2xs"
+                  onClick={() => abrir(lista.filter((p) => p.contactId).map(paraContato))}
+                >
+                  <Send className="h-3 w-3" />
+                  Disparar para {lista.filter((p) => p.contactId).length}
+                </Button>
+              )}
+
               <div className="custom-scroll flex-1 space-y-2 overflow-y-auto overflow-x-hidden rounded-2xl bg-surface-subtle p-2">
                 {!lista.length ? (
                   <p className="py-6 text-center text-2xs text-muted-foreground">Vazio</p>
@@ -253,6 +290,7 @@ export function QuadroDePerdidos({
           );
         })}
       </div>
+      {dialogo}
     </div>
   );
 }

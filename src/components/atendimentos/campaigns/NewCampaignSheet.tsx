@@ -15,7 +15,8 @@ import {
   updatePendingMove,
   type MessageInterval,
 } from "@/lib/atendimentos/campaigns.functions";
-import { criarDisparo, type BroadcastAlvo } from "@/lib/atendimentos/broadcast.functions";
+import { criarDisparo } from "@/lib/atendimentos/broadcast.functions";
+import { prepararAlvos } from "@/lib/atendimentos/prepararAlvos";
 import { garantirContatoCrm } from "@/lib/patients/patients.functions";
 import { movePipelineItem } from "@/lib/atendimentos/pipeline.functions";
 import { moveContactsToStage } from "@/lib/atendimentos/campaignMoveLoop";
@@ -223,19 +224,10 @@ export function NewCampaignSheet({
       // (ou acha) esse contato agora, um por um, antes de enfileirar; se
       // algum falhar, a mutation inteira falha, em vez de enfileirar um
       // alvo que o disparo não vai conseguir alcançar.
-      const alvos: BroadcastAlvo[] = await Promise.all(
-        (disparoSelecao ?? []).map(async (c) => {
-          if (c.origem === "crm") {
-            return { contactId: c.id, conversationId: c.conversationId, name: c.name, phone: c.phone };
-          }
-          if (!c.phone) throw new Error(`${c.name} não tem telefone cadastrado — não dá para disparar.`);
-          const { contactId } = await doGarantirContato({
-            data: { patientId: c.patientId!, name: c.name, phone: c.phone },
-          });
-          if (!contactId) throw new Error(`Não foi possível vincular ${c.name} ao CRM antes de disparar.`);
-          return { contactId, conversationId: null, name: c.name, phone: c.phone };
-        }),
-      );
+      // Exigente de propósito (sem `tolerante`): aqui a pessoa escolheu cada
+      // contato a dedo, então um que não possa receber precisa parar tudo em
+      // vez de sair da lista sem ela perceber.
+      const { alvos } = await prepararAlvos(disparoSelecao ?? [], doGarantirContato);
       return doDisparar({ data: { ...dados, targets: alvos } });
     },
     onSuccess: (r) => {
