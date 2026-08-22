@@ -16,18 +16,31 @@ export interface PipelineItem {
   title: string | null;
 }
 
-async function callEdgeFunction(body: unknown) {
+// O CRM às vezes demora demais e a function estoura o próprio timeout interno.
+// Uma segunda tentativa resolve a maioria dos casos; se insistir, vira mensagem
+// legível em vez de tela em branco.
+async function callEdgeFunction(body: unknown, attempt = 1): Promise<any> {
   const url = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
-  const res = await fetch(`${url}/functions/v1/crm-pipeline`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
-    body: JSON.stringify(body ?? {}),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error ?? `Falha ao chamar crm-pipeline (${res.status})`);
-  return json;
+  try {
+    const res = await fetch(`${url}/functions/v1/crm-pipeline`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify(body ?? {}),
+      signal: AbortSignal.timeout(55_000),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json?.error ?? `Falha ao chamar crm-pipeline (${res.status})`);
+    return json;
+  } catch (err: any) {
+    const isTimeout = err?.name === "TimeoutError" || /timed out|aborted/i.test(String(err?.message ?? ""));
+    if (isTimeout) {
+      if (attempt < 2) return callEdgeFunction(body, attempt + 1);
+      throw new Error("O CRM demorou demais para responder. Tente novamente em instantes.");
+    }
+    throw err;
+  }
 }
 
 function mapStage(row: any): PipelineStage {
