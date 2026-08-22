@@ -2,11 +2,12 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Mail, MessageCircle, MessageSquareText, RotateCw, Send } from "lucide-react";
+import { Mail, MessageCircle, MessageSquareText, RotateCw, Send, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PushSettingsCard } from "@/components/settings/PushSettingsCard";
+import { listAutomations } from "@/lib/atendimentos/automations.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,6 +112,18 @@ function NotificationsPage() {
     whatsappInboundWebhook: false,
   };
 
+  // Só a existência de uma automação de lembrete ativa interessa aqui — não a
+  // lista. `listAutomations` já é a função que a tela de Atendimentos usa.
+  const buscarAutomacoes = useServerFn(listAutomations);
+  const automacoes = useQuery({
+    queryKey: ["automations"],
+    queryFn: () => buscarAutomacoes(),
+    staleTime: 60_000,
+  });
+  const temAutomacaoDeLembrete = (automacoes.data ?? []).some(
+    (a) => a.active && a.triggerEvent === "appointment.reminder_due",
+  );
+
   // Casca (sidebar, cabeçalho do módulo e menu) vem do layout em
   // configuracoes.tsx — aqui é só o painel de conteúdo.
   return (
@@ -121,6 +134,21 @@ function NotificationsPage() {
           Confirmação de agendamento e lembretes automáticos por e-mail, SMS e WhatsApp.
         </p>
       </header>
+
+      {/* Dois caminhos de lembrete ligados ao mesmo tempo = paciente recebendo
+          duas vezes. É invisível de dentro desta tela (a automação mora em
+          Atendimentos), e a pessoa que ligou uma não lembra da outra. */}
+      {temAutomacaoDeLembrete && (
+        <div className="surface-card mt-5 flex items-start gap-3 border-warning/30 bg-warning-soft p-4">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+          <p className="text-sm text-foreground">
+            Existe uma <span className="font-medium">automação de lembrete ativa</span> em
+            Atendimentos. Os lembretes desta página saem além dela — se os dois estiverem
+            ligados, o paciente recebe a mesma consulta duas vezes. Deixe apenas um dos
+            caminhos ativo.
+          </p>
+        </div>
+      )}
 
       {/* Status por canal */}
       <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">

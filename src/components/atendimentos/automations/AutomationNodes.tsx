@@ -2,7 +2,7 @@ import { createContext, useContext } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { Bot, Clock, Dices, Split, Trash2, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { SystemEvent } from "@/lib/integrations/meta-capi.functions";
+import type { AutomationEvent } from "@/lib/atendimentos/automation-events";
 import type {
   AutomationNodeData,
   AutomationScheduleWindow,
@@ -26,7 +26,7 @@ import {
  *  gravado no banco inteiro, e uma função vira `undefined` no JSON.stringify
  *  sem avisar ninguém. */
 export interface EditorAcoes {
-  triggerEvent: SystemEvent | null;
+  triggerEvent: AutomationEvent | null;
   conditions: { stageId?: string; status?: string; dealStatus?: string };
   scheduleWindow: AutomationScheduleWindow;
   stages: PipelineStage[];
@@ -177,7 +177,7 @@ function janelaTexto(w: AutomationScheduleWindow): string {
   return `${rotulo}, ${w.start ?? "00:00"}–${w.end ?? "23:59"}`;
 }
 
-const TEM_FILTRO: SystemEvent[] = [
+const TEM_FILTRO: AutomationEvent[] = [
   "pipeline.stage_changed",
   "appointment.status_changed",
   "deal.status_changed",
@@ -238,6 +238,10 @@ function acaoResumo(data: AutomationNodeData, stages: PipelineStage[]): string {
     case "move_pipeline_stage": {
       const stage = stages.find((s) => s.id === action.stageId);
       return stage ? stage.name : "(etapa não encontrada)";
+    }
+    case "set_appointment_status": {
+      const st = APPOINTMENT_STATUSES.find((x) => x.value === action.appointmentStatus);
+      return st ? `Marcar como ${st.label}` : "(status não escolhido)";
     }
     case "add_deal_note":
       return action.noteBody?.trim() || "(sem texto)";
@@ -317,6 +321,20 @@ function condicaoTexto(
   }
   if (data.field === "unitId") {
     return `${campo}: ${nomeDaUnidade(data.value, units)}`;
+  }
+  if (data.field === "daysUntil") {
+    const n = Number(data.value);
+    // "0 dias" lido no canvas é pior do que "é hoje" — o card existe para ser
+    // entendido de relance.
+    if (data.operator === "eq" && Number.isFinite(n)) {
+      if (n === 0) return "A consulta é hoje";
+      if (n === 1) return "A consulta é amanhã";
+      return `Faltam ${n} dias para a consulta`;
+    }
+    return `${campo} ${CONDITION_OPERATOR_LABEL[data.operator ?? "eq"]} ${data.value ?? ""}`;
+  }
+  if (data.field === "replyText") {
+    return `Resposta ${CONDITION_OPERATOR_LABEL[data.operator ?? "contains"]} "${data.value ?? ""}"`;
   }
   const lista = data.field === "status" ? APPOINTMENT_STATUSES : DEAL_STATUSES;
   return `${campo}: ${lista.find((x) => x.value === data.value)?.label ?? data.value ?? ""}`;

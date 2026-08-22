@@ -15,6 +15,9 @@ import {
   Webhook,
   XCircle,
   Zap,
+  BellRing,
+  MessageSquareReply,
+  CalendarCheck,
 } from "lucide-react";
 import {
   Dialog,
@@ -33,13 +36,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SYSTEM_EVENTS, type SystemEvent } from "@/lib/integrations/meta-capi.functions";
+import {
+  AUTOMATION_EVENTS,
+  type AutomationEvent,
+} from "@/lib/atendimentos/automation-events";
 import { varsDoGatilho } from "@/lib/atendimentos/automation-vars";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
-  GATILHOS_COM_UNIDADE,
+  GATILHOS_COM_AGENDAMENTO,
+  GATILHOS_COM_CONTAGEM,
+  GATILHOS_COM_RESPOSTA,
+  OPERADORES_DO_CAMPO,
   type AutomationAction,
+  type AutomationActionType,
   type AutomationNodeData,
   type AutomationScheduleWindow,
   type ConditionField,
@@ -48,28 +58,35 @@ import {
 import type { PipelineStage } from "@/lib/atendimentos/pipeline.functions";
 import {
   APPOINTMENT_STATUSES,
+  CONDITION_OPERATOR_LABEL,
   DEAL_STATUSES,
   DIAS_SEMANA,
   TRIGGER_LABEL,
   TRIGGERS_SEM_CONTATO_GARANTIDO,
 } from "./automationLabels";
 
-const TRIGGER_ICON: Record<SystemEvent, React.ReactNode> = {
+const TRIGGER_ICON: Record<AutomationEvent, React.ReactNode> = {
   "patient.created": <UserPlus className="h-4 w-4" />,
   "appointment.created": <CalendarPlus className="h-4 w-4" />,
   "appointment.status_changed": <CalendarPlus className="h-4 w-4" />,
   "receivable.paid": <Wallet className="h-4 w-4" />,
   "deal.status_changed": <XCircle className="h-4 w-4" />,
   "pipeline.stage_changed": <GitBranch className="h-4 w-4" />,
+  "appointment.reminder_due": <BellRing className="h-4 w-4" />,
+  "whatsapp.reply_received": <MessageSquareReply className="h-4 w-4" />,
 };
 
-const TRIGGER_HINT: Record<SystemEvent, string> = {
+const TRIGGER_HINT: Record<AutomationEvent, string> = {
   "patient.created": "Sempre que uma ficha nova de paciente é criada.",
   "appointment.created": "Sempre que um agendamento entra na agenda.",
   "appointment.status_changed": "Confirmado, concluído, faltou, cancelado…",
   "receivable.paid": "Quando um recebimento é marcado como recebido.",
   "deal.status_changed": "Quando uma negociação é marcada como perdida no funil.",
   "pipeline.stage_changed": "Quando um card é movido para outra etapa do funil.",
+  "appointment.reminder_due":
+    "Todo dia de manhã, para cada consulta que está a 3 dias, 1 dia ou é hoje.",
+  "whatsapp.reply_received":
+    "Quando o paciente responde no WhatsApp. Vale para a consulta futura mais próxima dele.",
 };
 
 export function EscolherGatilhoDialog({
@@ -79,7 +96,7 @@ export function EscolherGatilhoDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onEscolher: (event: SystemEvent) => void;
+  onEscolher: (event: AutomationEvent) => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -92,7 +109,7 @@ export function EscolherGatilhoDialog({
           <DialogDescription>O que faz esta automação começar a rodar.</DialogDescription>
         </DialogHeader>
         <div className="space-y-1">
-          {SYSTEM_EVENTS.map((event) => (
+          {AUTOMATION_EVENTS.map((event) => (
             <button
               key={event}
               type="button"
@@ -129,7 +146,7 @@ export function EditarCondicaoDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  triggerEvent: SystemEvent | null;
+  triggerEvent: AutomationEvent | null;
   conditions: { stageId?: string; status?: string; dealStatus?: string };
   stages: PipelineStage[];
   onSalvar: (conditions: { stageId?: string; status?: string; dealStatus?: string }) => void;
@@ -227,7 +244,7 @@ function VariaveisDisponiveis({
   valor,
   onInserir,
 }: {
-  trigger: SystemEvent | null;
+  trigger: AutomationEvent | null;
   campoRef: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>;
   valor: string;
   onInserir: (novo: string) => void;
@@ -282,21 +299,13 @@ export function AdicionarAcaoDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  triggerEvent: SystemEvent | null;
+  triggerEvent: AutomationEvent | null;
   stages: PipelineStage[];
   /** Ação já configurada, quando o card está sendo reaberto pra editar. */
   acaoAtual?: AutomationAction | null;
   onAdicionar: (action: AutomationAction) => void;
 }) {
-  const [tipo, setTipo] = useState<
-    | "escolher"
-    | "send_whatsapp"
-    | "move_pipeline_stage"
-    | "add_deal_note"
-    | "send_push"
-    | "webhook"
-    | "wait"
-  >("escolher");
+  const [tipo, setTipo] = useState<AutomationActionType | "escolher">("escolher");
   const [mensagem, setMensagem] = useState("");
   // Refs pra inserir a variável na posição do cursor (ver VariaveisDisponiveis).
   const refMensagem = useRef<HTMLTextAreaElement>(null);
@@ -308,6 +317,7 @@ export function AdicionarAcaoDialog({
   const [pushTitulo, setPushTitulo] = useState("");
   const [pushTexto, setPushTexto] = useState("");
   const [url, setUrl] = useState("");
+  const [statusAgendamento, setStatusAgendamento] = useState("");
   const [esperaValor, setEsperaValor] = useState("1");
   const [esperaUnidade, setEsperaUnidade] = useState<"minutos" | "horas" | "dias">("dias");
 
@@ -321,6 +331,7 @@ export function AdicionarAcaoDialog({
     setPushTitulo(acaoAtual?.pushTitle ?? "");
     setPushTexto(acaoAtual?.pushBody ?? "");
     setUrl(acaoAtual?.webhookUrl ?? "");
+    setStatusAgendamento(acaoAtual?.appointmentStatus ?? "");
     const min = Number(acaoAtual?.waitMinutes ?? 0);
     if (min > 0 && min % (60 * 24) === 0) {
       setEsperaValor(String(min / (60 * 24)));
@@ -340,6 +351,7 @@ export function AdicionarAcaoDialog({
   // Guardrail de loop: mover etapa não pode ser ação de quem já dispara ao
   // mudar de etapa (o servidor também recusa — ver saveAutomation).
   const podeMoverEtapa = triggerEvent !== "pipeline.stage_changed";
+  const podeMudarStatus = !!triggerEvent && GATILHOS_COM_AGENDAMENTO.includes(triggerEvent);
   const avisaSemContato = triggerEvent && TRIGGERS_SEM_CONTATO_GARANTIDO.includes(triggerEvent);
 
   return (
@@ -367,6 +379,28 @@ export function AdicionarAcaoDialog({
                 <span className="block text-sm font-medium">Enviar WhatsApp</span>
                 <span className="mt-0.5 block text-2xs text-muted-foreground">
                   Manda uma mensagem para o contato do evento.
+                </span>
+              </span>
+            </button>
+
+            <p className="px-1 pb-1 pt-3 text-2xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Agenda
+            </p>
+            <button
+              type="button"
+              disabled={!podeMudarStatus}
+              onClick={() => setTipo("set_appointment_status")}
+              className="flex w-full items-start gap-3 rounded-2xl border border-transparent px-3 py-2.5 text-left transition-colors hover:border-border hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-transparent disabled:hover:bg-transparent"
+            >
+              <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
+                <CalendarCheck className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">Mudar status do agendamento</span>
+                <span className="mt-0.5 block text-2xs text-muted-foreground">
+                  {podeMudarStatus
+                    ? "Marca como confirmado, pendente, cancelado…"
+                    : "Indisponível: este gatilho não traz um agendamento."}
                 </span>
               </span>
             </button>
@@ -636,6 +670,48 @@ export function AdicionarAcaoDialog({
                     type: "send_push",
                     pushTitle: pushTitulo.trim(),
                     pushBody: pushTexto.trim(),
+                  });
+                  onOpenChange(false);
+                }}
+              >
+                Adicionar
+              </Button>
+              <Button variant="outline" onClick={() => setTipo("escolher")}>
+                Voltar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {tipo === "set_appointment_status" && (
+          <div className="space-y-4">
+            <div>
+              <Label>Marcar o agendamento como *</Label>
+              <Select value={statusAgendamento} onValueChange={setStatusAgendamento}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Escolha o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {APPOINTMENT_STATUSES.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1.5 text-2xs text-muted-foreground">
+                Vale para o agendamento do evento. A mudança não dispara outras automações —
+                senão um fluxo que ouve mudança de status e muda o status se alimentaria sozinho.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                className="flex-1 bg-gradient-primary text-white"
+                disabled={!statusAgendamento}
+                onClick={() => {
+                  onAdicionar({
+                    type: "set_appointment_status",
+                    appointmentStatus: statusAgendamento,
                   });
                   onOpenChange(false);
                 }}
@@ -998,7 +1074,7 @@ export function EditarCondicaoNoDialog({
   units: { id: string; name: string }[];
   /** Decide se "Unidade do agendamento" é oferecida: só gatilho de agenda
    *  carrega unidade, e o save recusa a combinação errada de qualquer jeito. */
-  triggerEvent: SystemEvent | null;
+  triggerEvent: AutomationEvent | null;
   onSalvar: (data: AutomationNodeData) => void;
 }) {
   const [field, setField] = useState<ConditionField>("hasContact");
@@ -1014,7 +1090,12 @@ export function EditarCondicaoNoDialog({
 
   const precisaValor = field !== "hasContact";
   const ofereceUnidade =
-    units.length > 0 && !!triggerEvent && GATILHOS_COM_UNIDADE.includes(triggerEvent);
+    units.length > 0 && !!triggerEvent && GATILHOS_COM_AGENDAMENTO.includes(triggerEvent);
+  const ofereceContagem = !!triggerEvent && GATILHOS_COM_CONTAGEM.includes(triggerEvent);
+  const ofereceResposta = !!triggerEvent && GATILHOS_COM_RESPOSTA.includes(triggerEvent);
+  // Operadores do campo escolhido. Oferecer "contém" para número (ou "maior
+  // que" para texto) só produziria condição que nunca bate.
+  const operadores = OPERADORES_DO_CAMPO[field] ?? [];
   const listaStatus =
     field === "status" ? APPOINTMENT_STATUSES : field === "dealStatus" ? DEAL_STATUSES : null;
 
@@ -1034,8 +1115,14 @@ export function EditarCondicaoNoDialog({
             <Select
               value={field}
               onValueChange={(v) => {
-                setField(v as ConditionField);
+                const novo = v as ConditionField;
+                setField(novo);
                 setValor("");
+                // Operador do campo anterior pode não existir no novo ("contém"
+                // não vale para número). Sem isto o card salvaria uma combinação
+                // que o save recusa e a condição nunca bateria.
+                const validos = OPERADORES_DO_CAMPO[novo] ?? [];
+                if (validos.length && !validos.includes(operator)) setOperator(validos[0]);
               }}
             >
               <SelectTrigger className="mt-1.5">
@@ -1050,8 +1137,26 @@ export function EditarCondicaoNoDialog({
                 {ofereceUnidade && (
                   <SelectItem value="unitId">Unidade do agendamento</SelectItem>
                 )}
+                {ofereceContagem && (
+                  <SelectItem value="daysUntil">Faltam quantos dias</SelectItem>
+                )}
+                {ofereceResposta && (
+                  <SelectItem value="replyText">Resposta do paciente</SelectItem>
+                )}
               </SelectContent>
             </Select>
+            {field === "replyText" && (
+              <p className="mt-1.5 text-2xs text-muted-foreground">
+                Ignora acento e maiúscula: "Não", "nao" e "NÃO" caem no mesmo ramo. "Contém"
+                procura a palavra inteira — pega "sim, confirmo" e "confirmo sim", mas não
+                confunde "assim" com "sim".
+              </p>
+            )}
+            {field === "daysUntil" && (
+              <p className="mt-1.5 text-2xs text-muted-foreground">
+                3 = faltam três dias · 1 = é amanhã · 0 = é hoje.
+              </p>
+            )}
             {field === "unitId" && (
               <p className="mt-1.5 text-2xs text-muted-foreground">
                 O ramo "não" recebe todas as outras unidades — inclusive as que você abrir
@@ -1103,6 +1208,30 @@ export function EditarCondicaoNoDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {(field === "daysUntil" || field === "replyText") && (
+            <div className="flex gap-2">
+              <Select value={operator} onValueChange={(v) => setOperator(v as ConditionOperator)}>
+                <SelectTrigger className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {operadores.map((op) => (
+                    <SelectItem key={op} value={op}>
+                      {CONDITION_OPERATOR_LABEL[op]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                value={valor}
+                onChange={(e) => setValor(e.target.value)}
+                inputMode={field === "daysUntil" ? "numeric" : "text"}
+                placeholder={field === "daysUntil" ? "1" : "sim"}
+                className="flex-1"
+              />
             </div>
           )}
 

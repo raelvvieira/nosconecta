@@ -13,13 +13,39 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { pushToOwner } from "../_shared/push.ts";
 import { onlyDigits, phoneMatches } from "../_shared/phone-match.ts";
 
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-);
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
 function stripAccents(value: string): string {
   return value.normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+/** Manda a resposta para o motor de automações.
+ *
+ *  Falha é engolida de propósito: automação quebrada não pode impedir o
+ *  registro da resposta nem o push para a equipe, que são o mínimo que essa
+ *  função precisa entregar. Mesma regra dos 6 pontos de dispatch do app. */
+async function dispatchAutomation(ownerId: string, context: Record<string, unknown>): Promise<void> {
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/atendimento-automations`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({
+        ownerId,
+        action: "dispatch",
+        systemEvent: "whatsapp.reply_received",
+        context,
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch (e) {
+    console.error("[whatsapp-inbound-webhook] dispatch de automação falhou:", e);
+  }
 }
 
 function classifyReply(text: string): "confirm" | "decline" | "unclear" {
@@ -127,7 +153,9 @@ Deno.serve(async (req) => {
     }).format(new Date());
     const { data: appt } = await supabase
       .from("appointments")
-      .select("id, status")
+      // Campos além de id/status: viajam no contexto da automação para as
+      // variáveis da mensagem ({{data}}, {{hora}}, {{unidade}}…).
+      .select("id, status, date, start_time, procedure_name, professional_name, unit_id")
       .eq("patient_id", patient.id)
       .gte("date", today)
       .in("status", ["pending", "confirmed"])
@@ -148,15 +176,52 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, matched: false, reason: "sem agendamento futuro" }));
     }
 
+    // A resposta vira evento de automação ANTES de qualquer decisão embutida:
+    // é o que permite a clínica escrever as próprias palavras ("confirmo",
+    // "tá", "blz") em vez de depender da lista fixa de `classifyReply`.
+    const { data: regraDeResposta } = await supabase
+      .from("automation_rules")
+      .select("id")
+      .eq("owner_id", patient.owner_id)
+      .eq("trigger_event", "whatsapp.reply_received")
+      .eq("active", true)
+      .limit(1)
+      .maybeSingle();
+    const automacaoDecide = !!regraDeResposta;
+
+    if (automacaoDecide) {
+      await dispatchAutomation(patient.owner_id, {
+        entityId: appt.id,
+        appointmentId: appt.id,
+        patientId: patient.id,
+        contactName: patient.name ?? null,
+        status: appt.status ?? null,
+        replyText: messageText,
+        appointment: {
+          date: appt.date ?? null,
+          startTime: appt.start_time ?? null,
+          procedureName: appt.procedure_name ?? null,
+          professionalName: appt.professional_name ?? null,
+          unitId: appt.unit_id ?? null,
+        },
+      });
+    }
+
     const classification = classifyReply(messageText);
-    let action = "unmatched";
-    if (classification === "confirm") {
-      await supabase.from("appointments").update({ status: "confirmed" }).eq("id", appt.id);
-      action = "confirmed";
-    } else if (classification === "decline") {
-      // Never auto-cancel from a text reply — flagged for staff to review
-      // and cancel/reschedule manually from the Agenda.
-      action = "declined";
+    let action = automacaoDecide ? "automation" : "unmatched";
+    // Com automação ativa, quem muda o status é o fluxo — aplicar também a
+    // regra fixa aqui faria a mesma resposta ser tratada duas vezes, e a
+    // clínica não teria como desligar o comportamento embutido. Sem automação,
+    // nada muda em relação a antes.
+    if (!automacaoDecide) {
+      if (classification === "confirm") {
+        await supabase.from("appointments").update({ status: "confirmed" }).eq("id", appt.id);
+        action = "confirmed";
+      } else if (classification === "decline") {
+        // Never auto-cancel from a text reply — flagged for staff to review
+        // and cancel/reschedule manually from the Agenda.
+        action = "declined";
+      }
     }
 
     await logReply({

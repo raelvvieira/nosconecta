@@ -1,32 +1,41 @@
 // Vocabulário compartilhado entre a lista e o editor de automações. Mesmos
 // rótulos/valores já usados em MetaTriggerSheet.tsx pro mesmo conjunto de
 // SYSTEM_EVENTS — não reinventa condição nem status.
-import type { SystemEvent } from "@/lib/integrations/meta-capi.functions";
+import type { AutomationEvent } from "@/lib/atendimentos/automation-events";
 import type { AutomationActionType } from "@/lib/atendimentos/automations.functions";
 
-export const TRIGGER_LABEL: Record<SystemEvent, string> = {
+export const TRIGGER_LABEL: Record<AutomationEvent, string> = {
   "patient.created": "Paciente cadastrado",
   "appointment.created": "Agendamento criado",
   "appointment.status_changed": "Status do agendamento mudou",
   "receivable.paid": "Recebimento pago",
   "deal.status_changed": "Negociação perdida",
   "pipeline.stage_changed": "Card mudou de etapa no funil",
+  "appointment.reminder_due": "Lembrete de consulta (diário)",
+  "whatsapp.reply_received": "Paciente respondeu no WhatsApp",
 };
 
 // Curto, pra caber no card do canvas — a versão longa (TRIGGER_LABEL) fica
 // pro modal de escolha e pro texto de apoio.
-export const TRIGGER_LABEL_SHORT: Record<SystemEvent, string> = {
+export const TRIGGER_LABEL_SHORT: Record<AutomationEvent, string> = {
   "patient.created": "Paciente cadastrado",
   "appointment.created": "Agendamento criado",
   "appointment.status_changed": "Agendamento mudou de status",
   "receivable.paid": "Recebimento pago",
   "deal.status_changed": "Negociação perdida",
   "pipeline.stage_changed": "Card mudou de etapa",
+  "appointment.reminder_due": "Lembrete de consulta",
+  "whatsapp.reply_received": "Paciente respondeu",
 };
 
 export const DEAL_STATUSES = [{ value: "lost", label: "Perdido" }];
 
 export const APPOINTMENT_STATUSES = [
+  // "pending" é o estado inicial de todo agendamento e existe no banco desde
+  // sempre (o webhook de entrada já filtra por ele) — só nunca tinha sido
+  // exposto aqui. Faz falta na ação de mudar status: devolver para pendente é
+  // o destino certo de quem pediu para remarcar.
+  { value: "pending", label: "Pendente" },
   { value: "confirmed", label: "Confirmado" },
   { value: "in_progress", label: "Em atendimento" },
   { value: "completed", label: "Concluído" },
@@ -36,6 +45,7 @@ export const APPOINTMENT_STATUSES = [
 
 export const ACTION_LABEL: Record<AutomationActionType, string> = {
   send_whatsapp: "Enviar mensagem de WhatsApp",
+  set_appointment_status: "Mudar status do agendamento",
   move_pipeline_stage: "Mover para etapa do funil",
   add_deal_note: "Registrar observação na negociação",
   send_push: "Notificar a equipe",
@@ -48,6 +58,7 @@ export const ACTION_LABEL: Record<AutomationActionType, string> = {
  *  ação recai sobre ele ou sobre a clínica. */
 export const ACTION_ESCOPO: Record<AutomationActionType, "pessoa" | "clinica" | "fluxo"> = {
   send_whatsapp: "pessoa",
+  set_appointment_status: "pessoa",
   move_pipeline_stage: "pessoa",
   add_deal_note: "pessoa",
   send_push: "clinica",
@@ -75,6 +86,8 @@ export const ACTION_CANAL: Partial<Record<AutomationActionType, string>> = {
   send_whatsapp: "Sai pelo número conectado em Atendimentos, pelo mesmo caminho do disparo — e conta no limite diário.",
   send_push: "Notificação no aplicativo, para todos os aparelhos da clínica.",
   webhook: "Chamada HTTPS para o endereço configurado.",
+  set_appointment_status:
+    "Muda o agendamento na Agenda. Não dispara outras automações — evita fluxo que se alimenta sozinho.",
 };
 
 export const CONDITION_FIELD_LABEL: Record<string, string> = {
@@ -84,12 +97,16 @@ export const CONDITION_FIELD_LABEL: Record<string, string> = {
   stageId: "Etapa do funil",
   dealStatus: "Situação da negociação",
   unitId: "Unidade do agendamento",
+  daysUntil: "Faltam quantos dias",
+  replyText: "Resposta do paciente",
 };
 
 export const CONDITION_OPERATOR_LABEL: Record<string, string> = {
   gt: "maior que",
   lt: "menor que",
-  eq: "igual a",
+  eq: "é igual a",
+  contains: "contém",
+  not_contains: "não contém",
 };
 
 /** Dias da semana no índice de `getDay()` — 0=domingo. Mesma convenção do
@@ -120,7 +137,7 @@ export function duracaoTexto(minutos: number): string {
 // Gatilhos que podem acontecer sem paciente/contato vinculado — usado pro
 // aviso na hora de escolher "Enviar WhatsApp" como ação (ver
 // atendimento-automations/index.ts: resolverContatoParaEnvio).
-export const TRIGGERS_SEM_CONTATO_GARANTIDO: SystemEvent[] = [
+export const TRIGGERS_SEM_CONTATO_GARANTIDO: AutomationEvent[] = [
   "receivable.paid",
   "pipeline.stage_changed",
 ];

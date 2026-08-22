@@ -2,7 +2,8 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, MoreHorizontal, Plus } from "lucide-react";
+import { Bot, Sparkles, MoreHorizontal, Plus } from "lucide-react";
+import { MODELOS } from "@/components/atendimentos/automations/automationTemplates";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -125,6 +126,39 @@ function AutomacoesPage() {
             </Link>
           </Button>
         </header>
+
+        {/* Modelos: o fluxo de confirmação são seis cards e três condições.
+            Montar isso à mão antes de ver a automação funcionar uma vez é onde
+            a maioria desiste. Some quando a clínica já tem automações — a
+            partir daí o valor é editar as que existem, não recomeçar. */}
+        {!lista.length && (
+          <section className="mt-5">
+            <h2 className="px-1 text-2xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Comece por um modelo
+            </h2>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              {MODELOS.map((m) => (
+                <Link
+                  key={m.id}
+                  to="/atendimentos/automacoes/$automationId"
+                  params={{ automationId: "nova" }}
+                  search={{ modelo: m.id }}
+                  className="press surface-card flex items-start gap-3 p-4 text-left transition-colors hover:border-coral focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                >
+                  <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-primary text-white">
+                    <Sparkles className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{m.nome}</span>
+                    <span className="mt-1 block text-2xs leading-snug text-muted-foreground">
+                      {m.descricao}
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="surface-card mt-5 divide-y divide-border overflow-hidden">
           {lista.map((regra) => (

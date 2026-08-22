@@ -39,7 +39,7 @@ const TZ = "America/Sao_Paulo";
  *  respostas distintas para três situações distintas.
  *
  *  Subir este número quando o executor mudar de forma que o app precise saber. */
-const VERSAO_MOTOR = 4;
+const VERSAO_MOTOR = 5;
 
 interface DispatchContext {
   entityId?: string | null;
@@ -53,6 +53,13 @@ interface DispatchContext {
   status?: string | null;
   dealStatus?: string | null;
   amount?: number | null;
+  /** Agendamento que o evento diz respeito — a ação de mudar status precisa
+   *  dele, e `entityId` nem sempre é o id limpo. */
+  appointmentId?: string | null;
+  /** Quantos dias faltam para a consulta (3, 1, 0). Só no lembrete diário. */
+  daysUntil?: number | null;
+  /** O que o paciente escreveu. Só em whatsapp.reply_received. */
+  replyText?: string | null;
   /** Dados do agendamento congelados no disparo — ver automations.server.ts. */
   appointment?: {
     date?: string | null;
@@ -69,7 +76,8 @@ type ActionConfig =
   | { type: "add_deal_note"; noteBody: string }
   | { type: "send_push"; pushTitle: string; pushBody: string }
   | { type: "webhook"; webhookUrl: string }
-  | { type: "wait"; waitMinutes: number };
+  | { type: "wait"; waitMinutes: number }
+  | { type: "set_appointment_status"; appointmentStatus: string };
 
 interface ScheduleWindow {
   enabled?: boolean;
@@ -93,8 +101,16 @@ interface GrafoNode {
   type: NodeType;
   data: {
     action?: ActionConfig;
-    field?: "amount" | "hasContact" | "status" | "stageId" | "dealStatus" | "unitId";
-    operator?: "gt" | "lt" | "eq";
+    field?:
+      | "amount"
+      | "hasContact"
+      | "status"
+      | "stageId"
+      | "dealStatus"
+      | "unitId"
+      | "daysUntil"
+      | "replyText";
+    operator?: "gt" | "lt" | "eq" | "contains" | "not_contains";
     value?: string;
     weights?: Record<string, number>;
   };
@@ -136,6 +152,39 @@ function grafoDaRegra(row: any): Grafo {
   };
 }
 
+/** Texto comparável: sem acento, sem caixa, sem espaço sobrando.
+ *
+ *  Em português isto não é refinamento, é requisito: "Não", "nao" e "NÃO" são
+ *  a MESMA resposta, e comparar cru mandaria as três para ramos diferentes. O
+ *  `classifyReply` do webhook de entrada já minúscula pelo mesmo motivo; aqui
+ *  vai um passo além e tira o acento, porque quem digita no celular
+ *  frequentemente não acentua.
+ *
+ *  NFD separa a letra do acento; o range \u0300-\u036f remove só os
+ *  diacríticos, preservando ç → c e qualquer outro caractere. */
+function comparavel(v: unknown): string {
+  return String(v ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+/** "contém" quer dizer contém a PALAVRA, não a sequência de letras.
+ *
+ *  Sem isto, `contém "sim"` casa com "as-sim" — e a resposta "não, assim não
+ *  posso" confirmaria a consulta. O `classifyReply` do webhook de entrada já
+ *  compara por token pelo mesmo motivo; aqui a fronteira é feita por regex
+ *  porque o alvo pode ter mais de uma palavra ("pode sim").
+ *
+ *  O texto já vem sem acento de `comparavel`, então sobra só [a-z0-9] como
+ *  "caractere de palavra" — pontuação, espaço e início/fim contam como
+ *  fronteira. */
+function contemPalavra(texto: string, alvo: string): boolean {
+  const escapado = alvo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9])${escapado}([^a-z0-9]|$)`).test(texto);
+}
+
 /** Avalia uma condição só com o que já veio no contexto do disparo.
  *  Valor ausente cai sempre no ramo "não" — `patient.created` e
  *  `pipeline.stage_changed` não carregam valor, e isso tem que ser
@@ -150,6 +199,30 @@ function avaliarCondicao(node: GrafoNode, ctx: DispatchContext): boolean {
     if (operator === "gt") return Number(ctx.amount) > alvo;
     if (operator === "lt") return Number(ctx.amount) < alvo;
     return Number(ctx.amount) === alvo;
+  }
+  // Quantos dias faltam para a consulta. Mesma comparação numérica de `amount`,
+  // e o mesmo cuidado: ausente cai no ramo "não" em vez de virar 0 — 0 é "é
+  // hoje", que é um valor legítimo e não pode ser confundido com "não sei".
+  if (field === "daysUntil") {
+    if (ctx.daysUntil === null || ctx.daysUntil === undefined) return false;
+    const alvo = Number(String(value ?? "").trim());
+    if (!Number.isFinite(alvo)) return false;
+    if (operator === "gt") return Number(ctx.daysUntil) > alvo;
+    if (operator === "lt") return Number(ctx.daysUntil) < alvo;
+    return Number(ctx.daysUntil) === alvo;
+  }
+  // O que o paciente respondeu.
+  if (field === "replyText") {
+    const texto = comparavel(ctx.replyText);
+    const alvo = comparavel(value);
+    if (!alvo) return false;
+    // Sem resposta nenhuma: "não contém" seria tecnicamente verdadeiro, mas
+    // dizer que uma mensagem inexistente "não contém não" e seguir pelo ramo
+    // Sim é o tipo de acerto por acidente que vira mensagem errada.
+    if (!texto) return false;
+    if (operator === "contains") return contemPalavra(texto, alvo);
+    if (operator === "not_contains") return !contemPalavra(texto, alvo);
+    return texto === alvo;
   }
   // Unidade do agendamento. Compara ID e não nome: renomear a unidade em
   // Configurações não pode mudar para onde uma automação salva manda mensagem.
@@ -230,6 +303,7 @@ async function valoresDasVariaveis(
     valor: moedaBR(ctx.amount),
     unidade: "",
     endereco: "",
+    resposta: ctx.replyText?.trim() ?? "",
   };
 
   if (precisaUnidade && ap?.unitId) {
@@ -540,6 +614,30 @@ async function executarAcao(
     try {
       await enviarWhatsapp(supabase, ownerId, alvo, texto);
       await debitDailyUsage(supabase, ownerId, `automation:${regra.id}`, 1);
+      await logRun({ ...base, status: "sent" });
+    } catch (e) {
+      await logRun({ ...base, status: "failed", error: String(e).slice(0, 500) });
+    }
+    return;
+  }
+
+  if (action.type === "set_appointment_status") {
+    if (!ctx.appointmentId) {
+      await logRun({ ...base, status: "skipped_no_contact", error: "Evento sem agendamento." });
+      return;
+    }
+    // Escreve DIRETO na tabela, e não pela server function de agendamento.
+    // Mesmo motivo pelo qual `move_pipeline_stage` chama a Edge Function do
+    // funil direto: passar pelo caminho normal re-dispararia
+    // `appointment.status_changed`, e uma automação que muda status ouvindo
+    // mudança de status é um laço que queima cota até o teto diário.
+    try {
+      const { error } = await supabase
+        .from("appointments")
+        .update({ status: action.appointmentStatus })
+        .eq("id", ctx.appointmentId)
+        .eq("owner_id", ownerId);
+      if (error) throw new Error(error.message);
       await logRun({ ...base, status: "sent" });
     } catch (e) {
       await logRun({ ...base, status: "failed", error: String(e).slice(0, 500) });

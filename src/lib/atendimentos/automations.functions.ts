@@ -1,6 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
-import { SYSTEM_EVENTS, type SystemEvent } from "@/lib/integrations/meta-capi.functions";
+import {
+  AUTOMATION_EVENTS,
+  GATILHOS_COM_AGENDAMENTO,
+  GATILHOS_COM_CONTAGEM,
+  GATILHOS_COM_RESPOSTA,
+  type AutomationEvent,
+} from "@/lib/atendimentos/automation-events";
+export {
+  AUTOMATION_EVENTS,
+  GATILHOS_COM_AGENDAMENTO,
+  GATILHOS_COM_CONTAGEM,
+  GATILHOS_COM_RESPOSTA,
+  type AutomationEvent,
+};
 import { varsIncompativeis } from "@/lib/atendimentos/automation-vars";
 
 export type AutomationActionType =
@@ -9,7 +22,8 @@ export type AutomationActionType =
   | "add_deal_note"
   | "send_push"
   | "webhook"
-  | "wait";
+  | "wait"
+  | "set_appointment_status";
 
 export interface AutomationAction {
   type: AutomationActionType;
@@ -27,6 +41,8 @@ export interface AutomationAction {
   webhookUrl?: string;
   /** Só em wait — 1 minuto a 30 dias. */
   waitMinutes?: number;
+  /** Só em set_appointment_status — um dos status de `APPOINTMENT_STATUSES`. */
+  appointmentStatus?: string;
 }
 
 /** Janela em que a automação pode agir, no relógio da clínica
@@ -56,16 +72,25 @@ export type ConditionField =
   | "status"
   | "stageId"
   | "dealStatus"
-  | "unitId";
+  | "unitId"
+  /** Quantos dias faltam para a consulta (3, 1, 0) — só no lembrete diário. */
+  | "daysUntil"
+  /** O texto que o paciente respondeu — só no gatilho de resposta. */
+  | "replyText";
+export type ConditionOperator = "gt" | "lt" | "eq" | "contains" | "not_contains";
 
-/** Gatilhos cujo contexto carrega o agendamento — e portanto a unidade.
- *  Mesma ideia do `AGENDA` de automation-vars.ts: campo que o gatilho não
- *  preenche é recusado no save, não descoberto em runtime. */
-export const GATILHOS_COM_UNIDADE: SystemEvent[] = [
-  "appointment.created",
-  "appointment.status_changed",
-];
-export type ConditionOperator = "gt" | "lt" | "eq";
+/** Operadores que fazem sentido em cada campo. Oferecer "maior que" para texto
+ *  ou "contém" para número é convite a montar condição que nunca bate. */
+export const OPERADORES_DO_CAMPO: Record<ConditionField, ConditionOperator[]> = {
+  amount: ["gt", "lt", "eq"],
+  daysUntil: ["eq", "gt", "lt"],
+  replyText: ["contains", "eq", "not_contains"],
+  hasContact: [],
+  status: [],
+  stageId: [],
+  dealStatus: [],
+  unitId: [],
+};
 
 export interface AutomationNodeData {
   /** action: a ação em si (mesma forma de sempre). */
@@ -103,7 +128,7 @@ export interface AutomationRule {
   id: string;
   name: string;
   active: boolean;
-  triggerEvent: SystemEvent | null;
+  triggerEvent: AutomationEvent | null;
   triggerConditions: { stageId?: string; status?: string; dealStatus?: string };
   /** Espelho derivado do grafo, mantido por um release — a lista usa pro
    *  resumo. O executor lê `nodes`. */
@@ -213,7 +238,7 @@ function mapRule(row: any): AutomationRule {
     id: String(row.id),
     name: row.name ?? "",
     active: row.active ?? true,
-    triggerEvent: (row.trigger_event as SystemEvent) ?? null,
+    triggerEvent: (row.trigger_event as AutomationEvent) ?? null,
     triggerConditions: (row.trigger_conditions ?? {}) as AutomationRule["triggerConditions"],
     actions: Array.isArray(row.actions) ? row.actions : [],
     nodes: sintetizarNodes(row),
@@ -261,7 +286,7 @@ export const saveAutomation = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator((input: Partial<AutomationRule> & { name: string }) => {
     if (!input.name?.trim()) throw new Error("Dê um nome à automação.");
-    if (!input.triggerEvent || !SYSTEM_EVENTS.includes(input.triggerEvent)) {
+    if (!input.triggerEvent || !AUTOMATION_EVENTS.includes(input.triggerEvent)) {
       throw new Error("Escolha quando a automação dispara.");
     }
     const nodes = input.nodes ?? [];
@@ -325,11 +350,32 @@ export const saveAutomation = createServerFn({ method: "POST" })
         // Unidade só existe no contexto de gatilho de agenda. Nos outros,
         // `ctx.appointment` é nulo e a condição cairia SEMPRE no ramo "Não" —
         // fluxo que parece certo na tela e manda a mensagem errada calado.
-        if (n.data.field === "unitId" && !GATILHOS_COM_UNIDADE.includes(input.triggerEvent)) {
+        if (n.data.field === "unitId" && !GATILHOS_COM_AGENDAMENTO.includes(input.triggerEvent)) {
           throw new Error(
             "A condição de unidade só funciona nos gatilhos de agendamento — " +
               "nos outros o evento não carrega unidade, e ela cairia sempre no ramo Não.",
           );
+        }
+        if (n.data.field === "daysUntil" && !GATILHOS_COM_CONTAGEM.includes(input.triggerEvent)) {
+          throw new Error(
+            'A condição "Faltam quantos dias" só existe no gatilho "Lembrete de consulta" — ' +
+              "é ele que conta os dias até a consulta.",
+          );
+        }
+        if (n.data.field === "replyText" && !GATILHOS_COM_RESPOSTA.includes(input.triggerEvent)) {
+          throw new Error(
+            'A condição de resposta só funciona no gatilho "Paciente respondeu no WhatsApp" — ' +
+              "nos outros não há texto nenhum para comparar.",
+          );
+        }
+        // Operador incompatível com o campo nunca bate. Barrar aqui evita o
+        // fluxo que parece montado e nunca segue pelo ramo Sim.
+        if (
+          n.data.operator &&
+          OPERADORES_DO_CAMPO[n.data.field].length &&
+          !OPERADORES_DO_CAMPO[n.data.field].includes(n.data.operator)
+        ) {
+          throw new Error("A comparação escolhida não vale para esse tipo de condição.");
         }
         continue;
       }
@@ -359,6 +405,17 @@ export const saveAutomation = createServerFn({ method: "POST" })
       }
       if (acao.type === "move_pipeline_stage" && !acao.stageId) {
         throw new Error("Escolha a etapa de destino da ação de mover no funil.");
+      }
+      if (acao.type === "set_appointment_status") {
+        if (!acao.appointmentStatus) {
+          throw new Error("Escolha o status de destino da ação de mudar o agendamento.");
+        }
+        if (!GATILHOS_COM_AGENDAMENTO.includes(input.triggerEvent)) {
+          throw new Error(
+            'A ação "Mudar status do agendamento" precisa de um gatilho que traga um ' +
+              "agendamento — cadastro de paciente e movimentação de funil não trazem.",
+          );
+        }
       }
       if (acao.type === "add_deal_note" && !acao.noteBody?.trim()) {
         throw new Error("Escreva o texto da observação.");
@@ -497,7 +554,7 @@ export const getAutomationRuns = createServerFn({ method: "GET" })
 /** Versão do executor que o app espera encontrar publicado.
  *  Espelha `VERSAO_MOTOR` em atendimento-automations/index.ts — os dois
  *  runtimes são separados, então o número é duplicado de propósito. */
-const VERSAO_ESPERADA = 4;
+const VERSAO_ESPERADA = 5;
 
 export type EstadoDoMotor = "ok" | "desatualizado" | "ausente" | "indeterminado";
 

@@ -6,7 +6,10 @@
 // para recusar uma variável que o gatilho não sabe preencher, e o executor usa
 // a dele para substituir. Divergir faz o save aceitar algo que sai vazio na
 // mensagem do paciente.
-import type { SystemEvent } from "@/lib/integrations/meta-capi.functions";
+import {
+  AUTOMATION_EVENTS,
+  type AutomationEvent,
+} from "@/lib/atendimentos/automation-events";
 
 export interface AutomationVar {
   /** Sem as chaves: "data" vira {{data}}. */
@@ -14,18 +17,19 @@ export interface AutomationVar {
   rotulo: string;
   exemplo: string;
   /** Gatilhos que conseguem preencher esta variável. */
-  gatilhos: SystemEvent[];
+  gatilhos: AutomationEvent[];
 }
 
-const AGENDA: SystemEvent[] = ["appointment.created", "appointment.status_changed"];
-const TODOS: SystemEvent[] = [
-  "patient.created",
+// Todo gatilho que chega com agendamento em mãos preenche data, hora,
+// procedimento, profissional e unidade — inclusive o lembrete diário e a
+// resposta do paciente, que o webhook já liga ao agendamento mais próximo.
+const AGENDA: AutomationEvent[] = [
   "appointment.created",
   "appointment.status_changed",
-  "receivable.paid",
-  "deal.status_changed",
-  "pipeline.stage_changed",
+  "appointment.reminder_due",
+  "whatsapp.reply_received",
 ];
+const TODOS: AutomationEvent[] = [...AUTOMATION_EVENTS];
 
 export const AUTOMATION_VARS: AutomationVar[] = [
   { chave: "nome", rotulo: "Nome da pessoa", exemplo: "Kauany", gatilhos: TODOS },
@@ -41,17 +45,28 @@ export const AUTOMATION_VARS: AutomationVar[] = [
     gatilhos: AGENDA,
   },
   {
+    chave: "resposta",
+    rotulo: "O que o paciente respondeu",
+    exemplo: "Sim",
+    gatilhos: ["whatsapp.reply_received"],
+  },
+  {
     chave: "valor",
     rotulo: "Valor",
     exemplo: "R$ 350,00",
-    gatilhos: ["appointment.created", "appointment.status_changed", "receivable.paid"],
+    gatilhos: [
+      "appointment.created",
+      "appointment.status_changed",
+      "appointment.reminder_due",
+      "receivable.paid",
+    ],
   },
 ];
 
 /** As que o gatilho escolhido consegue preencher. Sem gatilho ainda escolhido,
  *  só as que valem para todos — oferecer {{data}} antes de saber o gatilho
  *  levaria a escrever uma mensagem que o save depois recusa. */
-export function varsDoGatilho(trigger: SystemEvent | null): AutomationVar[] {
+export function varsDoGatilho(trigger: AutomationEvent | null): AutomationVar[] {
   if (trigger) return AUTOMATION_VARS.filter((v) => v.gatilhos.includes(trigger));
   return AUTOMATION_VARS.filter((v) => v.gatilhos.length === TODOS.length);
 }
@@ -61,7 +76,7 @@ const PADRAO_VAR = /\{\{\s*([a-zA-Z_]+)\s*\}\}/g;
 /** Variáveis usadas no texto que o gatilho NÃO preenche. É o que a validação
  *  do save recusa: melhor barrar na hora de salvar do que mandar
  *  "confirmado para o dia  às " para o paciente. */
-export function varsIncompativeis(texto: string, trigger: SystemEvent | null): string[] {
+export function varsIncompativeis(texto: string, trigger: AutomationEvent | null): string[] {
   const permitidas = new Set(varsDoGatilho(trigger).map((v) => v.chave));
   const usadas = new Set<string>();
   for (const m of texto.matchAll(PADRAO_VAR)) usadas.add(m[1].toLowerCase());
