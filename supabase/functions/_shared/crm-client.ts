@@ -9,25 +9,40 @@ export interface RawResponse {
   json: any;
 }
 
-// Sem timeout, uma resposta lenta do CRM deixava a tela presa em "carregando"
-// por muito tempo antes de eventualmente falhar (ou nunca falhar de fato) —
-// parecendo travado. 15s converte "muito lento" em erro rápido e claro, que
-// as telas de erro já tratam.
-const REQUEST_TIMEOUT_MS = 15_000;
+// Sem timeout, uma resposta lenta do CRM deixava a tela presa em "carregando".
+// 15s se mostrou curto demais para listas grandes (conversas, itens do
+// pipeline): virava TimeoutError mesmo quando o CRM ia responder. 30s por
+// tentativa, com uma segunda tentativa automática, cabe folgado dentro do
+// limite de quem chama (55s no lado do app) e some com a maioria dos erros.
+const REQUEST_TIMEOUT_MS = 30_000;
 
-export async function rawFetch(baseUrl: string, path: string, init: RequestInit = {}): Promise<RawResponse> {
+export async function rawFetch(baseUrl: string, path: string, init: RequestInit = {}, attempt = 1): Promise<RawResponse> {
   // Com FormData (envio de anexo), o content-type NÃO pode ser definido por
   // nós: o fetch precisa gerar o header com o boundary do multipart. Fixar
   // application/json aqui quebraria o upload.
   const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
-  const res = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    headers: {
-      ...(isFormData ? {} : { "content-type": "application/json" }),
-      ...(init.headers ?? {}),
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      headers: {
+        ...(isFormData ? {} : { "content-type": "application/json" }),
+        ...(init.headers ?? {}),
+      },
+    });
+  } catch (err) {
+    const isTimeout =
+      (err as any)?.name === "TimeoutError" || /timed out|aborted/i.test(String((err as any)?.message ?? ""));
+    // Só repete leituras (GET) e só uma vez: repetir POST poderia duplicar
+    // mensagem enviada / contato criado.
+    const method = (init.method ?? "GET").toUpperCase();
+    if (isTimeout && attempt === 1 && method === "GET" && !isFormData) {
+      return rawFetch(baseUrl, path, init, 2);
+    }
+    if (isTimeout) throw new Error("O CRM demorou demais para responder. Tente novamente em instantes.");
+    throw err;
+  }
   const text = await res.text();
   let json: any = {};
   try {
@@ -37,6 +52,7 @@ export async function rawFetch(baseUrl: string, path: string, init: RequestInit 
   }
   return { ok: res.ok, status: res.status, json };
 }
+
 
 // Confirmado com dados reais: toda resposta do CRM (login, contatos,
 // campanhas, ...) vem envelopada como { success, data, meta? }. Desembrulha
