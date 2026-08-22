@@ -60,6 +60,13 @@ export type Database = {
             foreignKeyName: "appointment_notification_replies_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "appointment_notification_replies_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
             referencedRelation: "patients"
             referencedColumns: ["id"]
           },
@@ -183,6 +190,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "appointments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
+          },
           {
             foreignKeyName: "appointments_patient_id_fkey"
             columns: ["patient_id"]
@@ -485,6 +499,27 @@ export type Database = {
           },
         ]
       }
+      clinic_funnel_rules: {
+        Row: {
+          clientes: Json
+          owner_id: string
+          perdidos: Json
+          updated_at: string
+        }
+        Insert: {
+          clientes?: Json
+          owner_id: string
+          perdidos?: Json
+          updated_at?: string
+        }
+        Update: {
+          clientes?: Json
+          owner_id?: string
+          perdidos?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clinic_members: {
         Row: {
           active: boolean
@@ -597,6 +632,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "appointments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinic_notifications_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
           },
           {
             foreignKeyName: "clinic_notifications_patient_id_fkey"
@@ -1050,6 +1092,13 @@ export type Database = {
             foreignKeyName: "financial_transactions_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "financial_transactions_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
             referencedRelation: "patients"
             referencedColumns: ["id"]
           },
@@ -1329,6 +1378,13 @@ export type Database = {
             foreignKeyName: "patient_anamnesis_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "patient_anamnesis_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
             referencedRelation: "patients"
             referencedColumns: ["id"]
           },
@@ -1380,6 +1436,13 @@ export type Database = {
             foreignKeyName: "patient_files_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "patient_files_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
             referencedRelation: "patients"
             referencedColumns: ["id"]
           },
@@ -1423,6 +1486,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "appointments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_notes_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
           },
           {
             foreignKeyName: "patient_notes_patient_id_fkey"
@@ -1880,6 +1950,13 @@ export type Database = {
             foreignKeyName: "treatment_plans_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "treatment_plans_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
             referencedRelation: "patients"
             referencedColumns: ["id"]
           },
@@ -1942,6 +2019,13 @@ export type Database = {
           unit_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "waiting_list_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
+          },
           {
             foreignKeyName: "waiting_list_patient_id_fkey"
             columns: ["patient_id"]
@@ -2046,7 +2130,30 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      patient_funnel_signals: {
+        Row: {
+          crm_contact_id: string | null
+          dias_sem_consulta: number | null
+          name: string | null
+          owner_id: string | null
+          patient_id: string | null
+          phone: string | null
+          tem_orcamento_aberto: boolean | null
+          tem_tratamento_pendente: boolean | null
+          teve_consulta: boolean | null
+          ultima_concluida: string | null
+          unit_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patients_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_invitation: { Args: { _token: string }; Returns: boolean }
