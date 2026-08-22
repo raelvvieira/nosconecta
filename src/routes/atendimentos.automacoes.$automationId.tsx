@@ -58,13 +58,8 @@ import {
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import type { AutomationEvent } from "@/lib/atendimentos/automation-events";
 import { getPipelineStages } from "@/lib/atendimentos/pipeline.functions";
-import { modeloPorId } from "@/components/atendimentos/automations/automationTemplates";
 
-const searchSchema = z.object({
-  /** Semente do canvas ao criar. Vive na URL para o link do modelo ser
-   *  compartilhável e para o F5 não perder o fluxo recém-semeado. */
-  modelo: z.string().optional(),
-});
+const searchSchema = z.object({});
 
 export const Route = createFileRoute("/atendimentos/automacoes/$automationId")({
   ssr: false,
@@ -137,19 +132,15 @@ function Editor() {
   const { automationId } = useParams({ from: "/atendimentos/automacoes/$automationId" });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const search = Route.useSearch();
   const ehNova = automationId === "nova";
 
   const fetchAutomation = useServerFn(getAutomation);
   const fetchStages = useServerFn(getPipelineStages);
   const doSave = useServerFn(saveAutomation);
 
-  const modeloInicial = automationId === "nova" ? modeloPorId(search.modelo) : null;
-  const [nome, setNome] = useState(modeloInicial?.nome ?? "");
+  const [nome, setNome] = useState("");
   const [ativa, setAtiva] = useState(true);
-  const [triggerEvent, setTriggerEvent] = useState<AutomationEvent | null>(
-    modeloInicial?.triggerEvent ?? null,
-  );
+  const [triggerEvent, setTriggerEvent] = useState<AutomationEvent | null>(null);
   const [conditions, setConditions] = useState<{
     stageId?: string;
     status?: string;
@@ -159,17 +150,8 @@ function Editor() {
 
   // `nodes`/`edges` do React Flow são a FONTE DE VERDADE do fluxo — não há
   // mais um `useState` paralelo com a lista de ações espelhada em nós.
-  // Semeado uma vez, na criação do estado — e não por efeito depois da
-  // pintura: com `useEffect` o canvas apareceria vazio por um quadro e só
-  // então preencheria, que é o mesmo defeito de "abre errado e depois arruma"
-  // que já corrigimos na Sidebar.
-  const modelo = modeloInicial;
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>(
-    (modelo?.nodes ?? GRAFO_NOVO.nodes).map(paraFlow),
-  );
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(
-    (modelo?.edges ?? []) as unknown as Edge[],
-  );
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>(GRAFO_NOVO.nodes.map(paraFlow));
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const [execucoes, setExecucoes] = useState(false);
   const [gatilhoDialog, setGatilhoDialog] = useState(false);

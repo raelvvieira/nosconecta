@@ -32,6 +32,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   deleteAutomation,
+  saveAutomation,
   listAutomations,
   setAutomationActive,
   type AutomationActionType,
@@ -104,6 +105,7 @@ function AutomacoesPage() {
   const fetchAutomations = useServerFn(listAutomations);
   const doSetActive = useServerFn(setAutomationActive);
   const doDelete = useServerFn(deleteAutomation);
+  const doSave = useServerFn(saveAutomation);
 
   const [excluirId, setExcluirId] = useState<string | null>(null);
   // Confirmação só ao DESLIGAR. Ligar é reversível e imediato; desligar é o
@@ -125,6 +127,36 @@ function AutomacoesPage() {
       toast.success("Automação atualizada");
       setDesligar(null);
       refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  // Criar a partir do modelo grava JÁ, e pausada.
+  //
+  // Antes o clique só abria o editor com o fluxo semeado, e a automação só
+  // existia depois de alguém clicar em Salvar. Abrir e fechar não criava nada e
+  // não avisava — e enquanto isso os lembretes simplesmente não existiam.
+  //
+  // Pausada porque o modelo vem com textos de exemplo: a clínica precisa
+  // revisar a mensagem antes de ela sair para paciente.
+  const criarDoModelo = useMutation({
+    mutationFn: (m: ModeloDeAutomacao) =>
+      doSave({
+        data: {
+          name: m.nome,
+          active: false,
+          triggerEvent: m.triggerEvent,
+          nodes: m.nodes,
+          edges: m.edges,
+        },
+      }),
+    onSuccess: (r: { id: string }) => {
+      toast.success("Automação criada — revise os textos e ligue quando quiser");
+      refresh();
+      navigate({
+        to: "/atendimentos/automacoes/$automationId",
+        params: { automationId: r.id },
+      });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -185,12 +217,12 @@ function AutomacoesPage() {
             </h2>
             <div className="surface-card divide-y divide-border overflow-hidden">
               {modelosPendentes.map((m) => (
-                <Link
+                <button
                   key={m.id}
-                  to="/atendimentos/automacoes/$automationId"
-                  params={{ automationId: "nova" }}
-                  search={{ modelo: m.id }}
-                  className="press flex min-h-[92px] items-center gap-3 px-4 py-4 transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 sm:px-5"
+                  type="button"
+                  disabled={criarDoModelo.isPending}
+                  onClick={() => criarDoModelo.mutate(m)}
+                  className="press flex min-h-[92px] w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 disabled:opacity-60 sm:px-5"
                 >
                   <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-primary text-white">
                     <Sparkles className="h-5 w-5" />
@@ -204,7 +236,7 @@ function AutomacoesPage() {
                   <span className="shrink-0 rounded-full bg-coral-soft px-3 py-1 text-2xs font-semibold text-coral">
                     Criar
                   </span>
-                </Link>
+                </button>
               ))}
             </div>
           </section>

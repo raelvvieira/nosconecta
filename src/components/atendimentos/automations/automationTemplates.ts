@@ -126,6 +126,3 @@ export const MODELOS: ModeloDeAutomacao[] = [
     ],
   },
 ];
-
-export const modeloPorId = (id: string | undefined): ModeloDeAutomacao | null =>
-  MODELOS.find((m) => m.id === id) ?? null;
