@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate} from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, Settings2, Trash2, Workflow } from "lucide-react";
@@ -18,6 +18,8 @@ import { formatBRL } from "@/lib/finance/format";
 import { getConversations } from "@/lib/atendimentos/atendimentos.functions";
 import { getSalesAssistant } from "@/lib/atendimentos/insights.functions";
 import { getDeals, type Deal } from "@/lib/atendimentos/deals.functions";
+import { QuadroDeClientes } from "@/components/atendimentos/pipeline/QuadroDeClientes";
+import { QuadroDePerdidos } from "@/components/atendimentos/pipeline/QuadroDePerdidos";
 import {
   createPipeline,
   deletePipelineStage,
@@ -30,7 +32,11 @@ import {
   type PipelineStage,
 } from "@/lib/atendimentos/pipeline.functions";
 
-const searchSchema = z.object({});
+const searchSchema = z.object({
+  /** Funil visível. Na URL para o F5 não jogar de volta em Leads e para dar
+   *  para mandar a alguém o link do funil certo. */
+  funil: z.enum(["leads", "clientes", "perdidos"]).optional(),
+});
 
 export const Route = createFileRoute("/atendimentos/pipeline")({
   ssr: false,
@@ -55,12 +61,17 @@ export const Route = createFileRoute("/atendimentos/pipeline")({
 });
 
 const STAGE_COLORS = ["#FF7A59", "#8B5CF6", "#0EA5E9", "#F59E0B", "#22C55E", "#EC4899"];
-type StatusFilter = "open" | "all" | "won" | "lost";
-const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
-  { value: "open", label: "Em aberto" },
-  { value: "all", label: "Todas" },
-  { value: "won", label: "Ganhas" },
-  { value: "lost", label: "Perdidas" },
+/** Os três funis.
+ *
+ *  Antes eram quatro filtros sobre o MESMO quadro — e marcar "Ganhas" mostrava
+ *  os convertidos nas colunas do funil de captação, que não querem dizer nada
+ *  para quem já é cliente. "Todas" saiu junto: misturar os três estados numa
+ *  vista só não responde nenhuma pergunta que a clínica realmente faz. */
+type Funil = "leads" | "clientes" | "perdidos";
+const FUNIS: { value: Funil; label: string }[] = [
+  { value: "leads", label: "Leads" },
+  { value: "clientes", label: "Clientes" },
+  { value: "perdidos", label: "Perdidos" },
 ];
 
 function PipelinePage() {
@@ -189,22 +200,24 @@ function PipelinePage() {
 
   const [configOpen, setConfigOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("open");
+  const search = Route.useSearch();
+  const navigate = useNavigate();
+  const funil: Funil = search.funil ?? "leads";
   const [openItemId, setOpenItemId] = useState<string | null>(null);
 
   const visibleItems = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("pt-BR");
     return items.filter((item) => {
       const status = dealByItem.get(item.id)?.status ?? "negotiating";
-      if (statusFilter === "open" && status !== "negotiating") return false;
-      if (statusFilter === "won" && status !== "won") return false;
-      if (statusFilter === "lost" && status !== "lost") return false;
+      // O quadro de Leads é só quem ainda não virou nada: ganho vive no funil
+      // de Clientes e perdido no de Perdidos, cada um com suas colunas.
+      if (status !== "negotiating") return false;
       if (!term) return true;
       const extras = extrasFor(item);
       return `${item.title ?? ""} ${extras.phone ?? ""}`.toLocaleLowerCase("pt-BR").includes(term);
     });
     // extrasFor depende de conversations; recalcular quando qualquer fonte mudar
-  }, [items, dealByItem, statusFilter, query, conversations, stuckByConversation]);
+  }, [items, dealByItem, query, conversations, stuckByConversation]);
 
   const openItem = items.find((i) => i.id === openItemId) ?? null;
   const openStage = openItem ? (stages.find((s) => s.id === openItem.stageId) ?? null) : null;
@@ -262,21 +275,20 @@ function PipelinePage() {
                 className="h-10 rounded-xl bg-white pl-10"
               />
             </div>
-            {/* Sem isso, ganhos e perdidos entopem o board com o tempo. */}
             <div className="flex items-center gap-1 rounded-full border border-border bg-white p-1">
-              {STATUS_FILTERS.map((filter) => (
+              {FUNIS.map((f) => (
                 <button
-                  key={filter.value}
+                  key={f.value}
                   type="button"
-                  onClick={() => setStatusFilter(filter.value)}
+                  onClick={() => navigate({ to: "/atendimentos/pipeline", search: { funil: f.value } })}
                   className={cn(
                     "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                    statusFilter === filter.value
+                    funil === f.value
                       ? "bg-foreground text-white"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {filter.label}
+                  {f.label}
                 </button>
               ))}
             </div>
@@ -308,6 +320,14 @@ function PipelinePage() {
                 Criar pipeline
               </Button>
             </section>
+          </div>
+        ) : funil === "clientes" ? (
+          <div className="flex-1 px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
+            <QuadroDeClientes busca={query} />
+          </div>
+        ) : funil === "perdidos" ? (
+          <div className="flex-1 px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
+            <QuadroDePerdidos itens={items} deals={dealByItem} busca={query} />
           </div>
         ) : (
           <div className="flex-1 overflow-x-auto px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
@@ -367,7 +387,7 @@ function PipelinePage() {
                       ))}
                       {stageItems.length === 0 && (
                         <p className="px-2 py-4 text-center text-xs text-muted-foreground">
-                          {query || statusFilter !== "all" ? "Nada aqui com esse filtro" : "Vazio"}
+                          {query ? "Nada aqui com essa busca" : "Vazio"}
                         </p>
                       )}
                     </div>
