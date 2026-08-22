@@ -553,6 +553,60 @@ export type Database = {
           },
         ]
       }
+      clinic_notifications: {
+        Row: {
+          appointment_id: string | null
+          body: string | null
+          created_at: string
+          id: string
+          kind: string
+          owner_id: string
+          patient_id: string | null
+          read_at: string | null
+          title: string
+          url: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          owner_id: string
+          patient_id?: string | null
+          read_at?: string | null
+          title: string
+          url?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          owner_id?: string
+          patient_id?: string | null
+          read_at?: string | null
+          title?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_notifications_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinic_notifications_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_procedures: {
         Row: {
           active: boolean
