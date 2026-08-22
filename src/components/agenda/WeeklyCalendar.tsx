@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAvisosPorAgendamento } from "@/lib/notifications/use-avisos";
 import type { Appointment, BlockedTime, ViewMode, AgendaFilters } from "./types";
 import {
   HOURS,
@@ -137,6 +138,7 @@ export function WeeklyCalendar({
   rooms,
   onFiltersChange,
 }: Props) {
+  const comAviso = useAvisosPorAgendamento();
   const [view, setView] = useState<ViewMode>("week");
   const scrollRef = useRef<HTMLDivElement>(null);
   const weekStart = getMondayOfWeek(selectedDate);
@@ -482,6 +484,16 @@ export function WeeklyCalendar({
                                   {appt.type === "return" && (
                                     <span className="shrink-0 rounded-full bg-violet-soft px-1.5 text-3xs font-semibold text-violet">
                                       {TYPE_LABEL.return}
+                                    </span>
+                                  )}
+                                  {/* Aviso da equipe em aberto para esta
+                                      consulta — na prática, "o paciente pediu
+                                      remarcar". Fica aqui, e não só no sino,
+                                      porque é olhando o dia que a pessoa
+                                      decide o que fazer com o horário. */}
+                                  {comAviso.has(appt.id) && (
+                                    <span className="shrink-0 rounded-full bg-warning-soft px-1.5 text-3xs font-semibold text-warning">
+                                      pediu remarcar
                                     </span>
                                   )}
                                 </span>

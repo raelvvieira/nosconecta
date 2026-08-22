@@ -2,7 +2,6 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertTriangle,
   ArrowDownCircle,
-  Bell,
   CalendarDays,
   ChevronRight,
   CreditCard,
@@ -11,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
+import { SinoDeAvisos } from "@/components/layout/SinoDeAvisos";
 import type { HomeData } from "@/components/home/home-data";
 import { formatBRL } from "@/lib/finance/format";
 import { useGreetingUser } from "@/components/home/use-greeting-user";
@@ -39,13 +39,7 @@ function Cabecalho() {
         {/* Eram um botão e um bloco sem ação nenhuma. Agora levam aonde a
             informação de fato mora — sino para as notificações, inicial para a
             conta —, em vez de parecerem clicáveis e não fazerem nada. */}
-        <Link
-          to="/configuracoes/notificacoes"
-          aria-label="Notificações"
-          className="press relative grid h-[52px] w-[52px] place-items-center rounded-xl border border-border bg-card shadow-2"
-        >
-          <Bell className="h-[21px] w-[21px] text-foreground" strokeWidth={1.75} />
-        </Link>
+        <SinoDeAvisos className="h-[52px] w-[52px] shrink-0 !rounded-xl shadow-2" />
         <Link
           to="/configuracoes"
           aria-label="Conta"

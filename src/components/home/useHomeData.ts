@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, queryOptions } from "@tanstack/react-query";
 import { getFinanceOverview } from "@/lib/finance/queries.functions";
 import { getHomeToday } from "@/lib/agenda/agenda.functions";
+import { listarAvisos } from "@/lib/notifications/inbox.functions";
 import { montarDadosHome, type HomeData } from "@/components/home/home-data";
 
 // A tela inicial aparece em dois lugares (`/inicio` e o modo celular de
@@ -31,11 +32,23 @@ export function useHomeData(): HomeData | null {
   const fetchOverview = useServerFn(getFinanceOverview);
   const fetchToday = useServerFn(getHomeToday);
 
+  const fetchAvisos = useServerFn(listarAvisos);
+
   const overview = useQuery(homeOverviewOptions(fetchOverview as any));
   const today = useQuery(homeTodayOptions(fetchToday as any));
+  // Mesma chave do sino: as duas telas leem a mesma contagem, então abrir o
+  // sino e ver o bloco "Atenção" nunca discordam.
+  const avisos = useQuery({
+    queryKey: ["clinic-notifications"],
+    queryFn: () => fetchAvisos(),
+    staleTime: 30_000,
+  });
 
   return useMemo(
-    () => (overview.data && today.data ? montarDadosHome(overview.data, today.data) : null),
-    [overview.data, today.data],
+    () =>
+      overview.data && today.data
+        ? montarDadosHome(overview.data, today.data, avisos.data?.naoLidos ?? 0)
+        : null,
+    [overview.data, today.data, avisos.data],
   );
 }

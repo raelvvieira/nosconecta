@@ -52,12 +52,60 @@ export interface PushNotification {
   url?: string;
 }
 
+/** Pedido para o aviso também virar linha na caixa da clínica (o sino).
+ *
+ *  Opcional e explícito no ponto de chamada, e NÃO automático para todo push,
+ *  por um motivo concreto: `push-poll-conversations` manda um push por mensagem
+ *  de WhatsApp recebida. Ligado à caixa, ele afogaria o sino em minutos — e a
+ *  conversa já é a caixa de entrada dela. */
+export interface CaixaDeAvisos {
+  /** Amarra o aviso ao agendamento, que é o que permite a etiqueta na agenda. */
+  appointmentId?: string | null;
+  patientId?: string | null;
+}
+
+/** Grava o aviso na caixa da clínica.
+ *
+ *  Roda ANTES de qualquer verificação de push, e é isso que importa: sem VAPID,
+ *  com o tipo desligado ou sem nenhum aparelho inscrito, `pushToOwner` retorna
+ *  cedo — e era exatamente aí que o aviso sumia. A caixa é o registro durável;
+ *  o push é só a tentativa de entrega.
+ *
+ *  A preferência de push não silencia a caixa de propósito: desligar o push diz
+ *  "não vibre meu celular", não "esconda isso do sistema".
+ *
+ *  Falha nunca derruba o envio: o push é a parte que a pessoa está esperando. */
+async function gravarNaCaixa(
+  supabase: any,
+  ownerId: string,
+  type: PushType,
+  notification: PushNotification,
+  caixa: CaixaDeAvisos,
+): Promise<void> {
+  try {
+    await supabase.from("clinic_notifications").insert({
+      owner_id: ownerId,
+      kind: type,
+      title: notification.title,
+      body: notification.body,
+      url: notification.url ?? null,
+      appointment_id: caixa.appointmentId ?? null,
+      patient_id: caixa.patientId ?? null,
+    });
+  } catch (e) {
+    console.error("[push] falha ao gravar aviso na caixa:", e);
+  }
+}
+
 export async function pushToOwner(
   supabase: any,
   ownerId: string,
   type: PushType,
   notification: PushNotification,
+  caixa?: CaixaDeAvisos,
 ) {
+  if (caixa) await gravarNaCaixa(supabase, ownerId, type, notification, caixa);
+
   const vapid = vapidConfig();
   if (!vapid) return { ok: true, skipped: "VAPID não configurado", sent: 0 };
 

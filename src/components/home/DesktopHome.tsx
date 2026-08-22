@@ -2,7 +2,6 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertTriangle,
   ArrowDownCircle,
-  Bell,
   CalendarDays,
   ChevronRight,
   CreditCard,
@@ -11,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { KpiCard } from "@/components/finance/KpiCard";
+import { SinoDeAvisos } from "@/components/layout/SinoDeAvisos";
 import { Button } from "@/components/ui/button";
 import { formatBRL } from "@/lib/finance/format";
 import { useGreetingUser } from "@/components/home/use-greeting-user";
@@ -30,14 +30,7 @@ export function DesktopHome({ dados }: { dados: HomeData }) {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Resumo da clínica hoje</p>
         </div>
-        <button
-          type="button"
-          className="relative h-11 w-11 rounded-2xl bg-white border border-border grid place-items-center shadow-soft shrink-0"
-          aria-label="Notificações"
-        >
-          <Bell className="h-5 w-5 text-foreground" strokeWidth={1.75} />
-          <span className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full bg-danger border-2 border-white" />
-        </button>
+        <SinoDeAvisos className="h-11 w-11 shrink-0" />
       </header>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5">

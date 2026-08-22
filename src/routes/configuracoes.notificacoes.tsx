@@ -345,6 +345,11 @@ function ReplyActionPill({ action }: { action: string }) {
       ? { bg: "bg-success-soft", text: "text-success", label: "Confirmado" }
       : action === "declined"
         ? { bg: "bg-warning-soft", text: "text-warning", label: "Pediu cancelar — revisar" }
+        // Com automação ativa, quem decide é o fluxo — o webhook só entrega o
+        // texto. Sem este caso a linha caía no default e dizia "Não entendido",
+        // que é o oposto do que aconteceu.
+        : action === "automation"
+        ? { bg: "bg-info-soft", text: "text-info", label: "Tratado por automação" }
         : action === "no_patient_found"
           ? { bg: "bg-muted", text: "text-muted-foreground", label: "Paciente não identificado" }
           : action === "no_appointment_found"

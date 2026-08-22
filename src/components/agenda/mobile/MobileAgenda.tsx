@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAvisosPorAgendamento } from "@/lib/notifications/use-avisos";
 import { useRegisterMobileFab, useRegisterIlhaHandlers } from "@/components/finance/mobile-fab-context";
 import {
   SlidersHorizontal,
@@ -182,7 +183,18 @@ function DateSelector({ selectedDate, onDateChange }: { selectedDate: Date; onDa
 
 // ─── Appointment card ────────────────────────────────────────────────────────
 
-function AppointmentCard({ appt, onClick }: { appt: Appointment; onClick: () => void }) {
+function AppointmentCard({
+  appt,
+  onClick,
+  comAviso,
+}: {
+  appt: Appointment;
+  onClick: () => void;
+  /** Aviso da equipe em aberto para esta consulta — na prática, "pediu
+   *  remarcar". Vem por prop e não por hook porque este card é desenhado
+   *  dentro de um laço; consultar por card seria uma consulta por linha. */
+  comAviso: boolean;
+}) {
   const s = statusStyle(appt.status);
   return (
     <button
@@ -209,6 +221,11 @@ function AppointmentCard({ appt, onClick }: { appt: Appointment; onClick: () => 
           {appt.type === "return" && (
             <span className="shrink-0 rounded-full bg-violet-soft px-1.5 py-0.5 text-3xs font-semibold text-violet">
               {TYPE_LABEL.return}
+            </span>
+          )}
+          {comAviso && (
+            <span className="shrink-0 rounded-full bg-warning-soft px-1.5 py-0.5 text-3xs font-semibold text-warning">
+              pediu remarcar
             </span>
           )}
         </p>
@@ -370,6 +387,7 @@ export function MobileAgenda({
   onEditAppointment,
   onStatusChange,
 }: Props) {
+  const comAviso = useAvisosPorAgendamento();
   const [tab, setTab] = useState<MobileTab>("day");
   const [detailAppt, setDetailAppt] = useState<Appointment | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -491,7 +509,11 @@ export function MobileAgenda({
                       }}
                     />
                     {item.kind === "appt" ? (
-                      <AppointmentCard appt={item.data} onClick={() => setDetailAppt(item.data)} />
+                      <AppointmentCard
+                        appt={item.data}
+                        comAviso={comAviso.has(item.data.id)}
+                        onClick={() => setDetailAppt(item.data)}
+                      />
                     ) : (
                       <BlockCard block={item.data} />
                     )}
@@ -516,7 +538,12 @@ export function MobileAgenda({
                     {DAYS_SHORT[d.getDay()]}, {d.getDate()} de {MONTHS_PT[d.getMonth()]}
                   </h3>
                   {items.map((a) => (
-                    <AppointmentCard key={a.id} appt={a} onClick={() => setDetailAppt(a)} />
+                    <AppointmentCard
+                      key={a.id}
+                      appt={a}
+                      comAviso={comAviso.has(a.id)}
+                      onClick={() => setDetailAppt(a)}
+                    />
                   ))}
                 </div>
               );

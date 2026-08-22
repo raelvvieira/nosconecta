@@ -708,7 +708,14 @@ async function executarAcao(
         // sem valor sai como vazio em vez de cancelar o aviso à equipe.
         title: (await interpolar(action.pushTitle, ownerId, ctx)).texto,
         body: (await interpolar(action.pushBody, ownerId, ctx)).texto,
-        url: "/atendimentos/automacoes",
+        // Quando o evento tem agendamento, o clique leva para a agenda: é lá
+        // que a pessoa resolve. Sem agendamento, sobra a própria automação.
+        url: ctx.appointmentId ? "/agenda" : "/atendimentos/automacoes",
+      }, {
+        // Amarra o aviso ao agendamento — é o que faz a etiqueta "pediu
+        // remarcar" aparecer no bloco certo do calendário.
+        appointmentId: ctx.appointmentId ?? null,
+        patientId: ctx.patientId ?? null,
       });
       await logRun({ ...base, status: "sent" });
     } catch (e) {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Check, Sparkles, MoreHorizontal, Plus } from "lucide-react";
+import { Bot, Sparkles, MoreHorizontal, Plus } from "lucide-react";
 import {
   MODELOS,
   type ModeloDeAutomacao,
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -105,6 +106,9 @@ function AutomacoesPage() {
   const doDelete = useServerFn(deleteAutomation);
 
   const [excluirId, setExcluirId] = useState<string | null>(null);
+  // Confirmação só ao DESLIGAR. Ligar é reversível e imediato; desligar é o
+  // lado que faz mensagem deixar de sair sem ninguém perceber.
+  const [desligar, setDesligar] = useState<AutomationRule | null>(null);
 
   const automacoesQuery = useQuery({
     queryKey: ["automations"],
@@ -119,6 +123,7 @@ function AutomacoesPage() {
       doSetActive({ data: { id: regra.id, active: !regra.active } }),
     onSuccess: () => {
       toast.success("Automação atualizada");
+      setDesligar(null);
       refresh();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -166,61 +171,41 @@ function AutomacoesPage() {
           </Button>
         </header>
 
-        {/* Modelos.
-            Estavam atrás de `!lista.length`, com o raciocínio de que quem já
-            tem automação quer editar, não recomeçar. Errado no caso que
-            importa: um modelo NOVO é capacidade que a clínica ainda não tem, e
-            escondê-lo deixou os dois fluxos da última rodada sem caminho
-            nenhum para serem criados. Some sozinho quando todos já existem —
-            aí sim não há o que oferecer. */}
+        {/* Modelos e automações compartilham a MESMA linha de lista.
+            Antes os modelos eram cartões numa grade de duas colunas e as
+            automações eram linhas cheias — duas formas para coisas que se leem
+            do mesmo jeito, e a página parecia dois módulos colados.
+
+            A seção some quando todos os modelos já viraram automação: aí não há
+            mais nada a oferecer. */}
         {modelosPendentes.length > 0 && (
           <section className="mt-5">
-            <h2 className="px-1 text-2xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            <h2 className="px-1 pb-2 text-2xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               {lista.length ? "Modelos prontos" : "Comece por um modelo"}
             </h2>
-            <div className="mt-2 grid gap-3 sm:grid-cols-2">
-              {MODELOS.map((m) => {
-                const jaCriada = automacaoDoModelo(m);
-                if (jaCriada) {
-                  return (
-                    <Link
-                      key={m.id}
-                      to="/atendimentos/automacoes/$automationId"
-                      params={{ automationId: jaCriada.id }}
-                      className="press surface-card flex items-start gap-3 p-4 text-left opacity-60 transition-opacity hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                    >
-                      <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-success-soft text-success">
-                        <Check className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-sm font-semibold">{m.nome}</span>
-                        <span className="mt-1 block text-2xs leading-snug text-muted-foreground">
-                          Já criada — abrir "{jaCriada.name}"
-                        </span>
-                      </span>
-                    </Link>
-                  );
-                }
-                return (
-                  <Link
-                    key={m.id}
-                    to="/atendimentos/automacoes/$automationId"
-                    params={{ automationId: "nova" }}
-                    search={{ modelo: m.id }}
-                    className="press surface-card flex items-start gap-3 p-4 text-left transition-colors hover:border-coral focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                  >
-                    <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-primary text-white">
-                      <Sparkles className="h-4 w-4" />
+            <div className="surface-card divide-y divide-border overflow-hidden">
+              {modelosPendentes.map((m) => (
+                <Link
+                  key={m.id}
+                  to="/atendimentos/automacoes/$automationId"
+                  params={{ automationId: "nova" }}
+                  search={{ modelo: m.id }}
+                  className="press flex min-h-[92px] items-center gap-3 px-4 py-4 transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 sm:px-5"
+                >
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-primary text-white">
+                    <Sparkles className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">{m.nome}</span>
+                    <span className="mt-1 block text-xs leading-snug text-muted-foreground">
+                      {m.descricao}
                     </span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold">{m.nome}</span>
-                      <span className="mt-1 block text-2xs leading-snug text-muted-foreground">
-                        {m.descricao}
-                      </span>
-                    </span>
-                  </Link>
-                );
-              })}
+                  </span>
+                  <span className="shrink-0 rounded-full bg-coral-soft px-3 py-1 text-2xs font-semibold text-coral">
+                    Criar
+                  </span>
+                </Link>
+              ))}
             </div>
           </section>
         )}
@@ -264,6 +249,23 @@ function AutomacoesPage() {
                   {resumoDoFluxo(regra)}
                 </p>
               </button>
+              {/* A chave na própria linha: ligar/desligar era a ação mais
+                  frequente e estava escondida atrás dos três pontinhos, com o
+                  rótulo mudando de "Pausar" para "Ativar" — dá para errar sem
+                  perceber. A chave mostra o estado e muda o estado no mesmo
+                  gesto. */}
+              <Switch
+                checked={regra.active}
+                aria-label={`${regra.active ? "Desligar" : "Ligar"} ${regra.name}`}
+                disabled={toggleMutation.isPending}
+                onCheckedChange={(ligar) => {
+                  // Ligar é imediato: é reversível e o efeito aparece na hora.
+                  // Desligar pede confirmação porque o efeito é invisível — as
+                  // mensagens simplesmente param de sair, sem nada na tela.
+                  if (ligar) toggleMutation.mutate(regra);
+                  else setDesligar(regra);
+                }}
+              />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" aria-label={`Ações de ${regra.name}`}>
@@ -280,9 +282,6 @@ function AutomacoesPage() {
                     }
                   >
                     Editar
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toggleMutation.mutate(regra)}>
-                    {regra.active ? "Pausar" : "Ativar"}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -317,6 +316,28 @@ function AutomacoesPage() {
           )}
         </section>
       </main>
+
+      <AlertDialog open={!!desligar} onOpenChange={(open) => !open && setDesligar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desligar "{desligar?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ela para de rodar imediatamente e as mensagens deixam de sair — sem nenhum aviso
+              na tela quando isso acontecer. O fluxo e o histórico ficam guardados, e é só
+              ligar de novo para voltar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Não, manter ligada</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-danger text-white hover:bg-danger/90"
+              onClick={() => desligar && toggleMutation.mutate(desligar)}
+            >
+              Sim, desligar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!excluirId} onOpenChange={(open) => !open && setExcluirId(null)}>
         <AlertDialogContent>

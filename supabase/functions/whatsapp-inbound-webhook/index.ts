@@ -244,6 +244,9 @@ Deno.serve(async (req) => {
             ? `${patient.name ?? "O paciente"} confirmou o agendamento.`
             : `${patient.name ?? "O paciente"} respondeu pedindo para cancelar ou remarcar.`,
         url: "/agenda",
+      }, {
+        appointmentId: appt.id,
+        patientId: patient.id,
       }).catch((e) => console.error("[whatsapp-inbound-webhook] push falhou:", e));
     }
 

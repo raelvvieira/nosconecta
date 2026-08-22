@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { AlertTriangle, CalendarDays, DollarSign } from "lucide-react";
+import { AlertTriangle, BellRing, CalendarDays, DollarSign } from "lucide-react";
 import type { HomeToday } from "@/lib/agenda/agenda.functions";
 import type { OverviewData } from "@/lib/finance/queries.functions";
 import { formatBRL } from "@/lib/finance/format";
@@ -62,7 +62,13 @@ function amanha(): string {
   return localDateStr(d);
 }
 
-export function montarDadosHome(finance: OverviewData, hoje: HomeToday): HomeData {
+export function montarDadosHome(
+  finance: OverviewData,
+  hoje: HomeToday,
+  /** Avisos não lidos da caixa da clínica (paciente pediu remarcar, etc.).
+   *  Opcional para as chamadas que ainda não passam esse dado não quebrarem. */
+  avisosEmAberto = 0,
+): HomeData {
   const detalhes: string[] = [];
   if (hoje.confirmed) detalhes.push(`${hoje.confirmed} confirmados`);
   if (hoje.pending) detalhes.push(`${hoje.pending} pendentes`);
@@ -95,6 +101,16 @@ export function montarDadosHome(finance: OverviewData, hoje: HomeToday): HomeDat
       color: "var(--info)",
       bg: "var(--info-soft)",
       label: `${hoje.pending} ${hoje.pending === 1 ? "atendimento de hoje sem confirmação" : "atendimentos de hoje sem confirmação"}`,
+      to: "/agenda",
+    });
+  }
+
+  if (avisosEmAberto > 0) {
+    atencao.push({
+      icon: BellRing,
+      color: "var(--coral)",
+      bg: "var(--coral-soft)",
+      label: `${avisosEmAberto} ${avisosEmAberto === 1 ? "aviso da equipe em aberto" : "avisos da equipe em aberto"}`,
       to: "/agenda",
     });
   }
