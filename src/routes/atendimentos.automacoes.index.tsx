@@ -2,7 +2,12 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Sparkles, MoreHorizontal, Plus } from "lucide-react";
+import { Bot, Sparkles, MoreHorizontal, Plus, Users, UserX } from "lucide-react";
+import { getRegrasDosFunis } from "@/lib/atendimentos/funis.functions";
+import {
+  REGRAS_CLIENTES_PADRAO,
+  REGRAS_PERDIDOS_PADRAO,
+} from "@/lib/atendimentos/funnelRules";
 import {
   MODELOS,
   type ModeloDeAutomacao,
@@ -106,6 +111,7 @@ function AutomacoesPage() {
   const doSetActive = useServerFn(setAutomationActive);
   const doDelete = useServerFn(deleteAutomation);
   const doSave = useServerFn(saveAutomation);
+  const buscarRegras = useServerFn(getRegrasDosFunis);
 
   const [excluirId, setExcluirId] = useState<string | null>(null);
   // Confirmação só ao DESLIGAR. Ligar é reversível e imediato; desligar é o
@@ -172,6 +178,30 @@ function AutomacoesPage() {
   });
 
   const lista = automacoesQuery.data ?? [];
+
+  // Contagem real das etapas de cada funil, para a linha não mentir quando a
+  // clínica adicionar ou remover uma.
+  const regrasQuery = useQuery({
+    queryKey: ["regras-dos-funis"],
+    queryFn: () => buscarRegras(),
+    staleTime: 5 * 60_000,
+  });
+  const FUNIS_EDITAVEIS = [
+    {
+      funil: "clientes" as const,
+      titulo: "Movimentação do funil de Clientes",
+      entrada: "Todo paciente da base",
+      icone: Users,
+      etapas: (regrasQuery.data?.clientes ?? REGRAS_CLIENTES_PADRAO).filter((r) => r.ativa).length,
+    },
+    {
+      funil: "perdidos" as const,
+      titulo: "Movimentação do funil de Perdidos",
+      entrada: "Toda negociação marcada como perdida",
+      icone: UserX,
+      etapas: (regrasQuery.data?.perdidos ?? REGRAS_PERDIDOS_PADRAO).filter((r) => r.ativa).length,
+    },
+  ];
 
   // Um modelo já foi usado quando existe automação com o MESMO gatilho. É
   // heurística, não vínculo: o modelo é semente, e depois de criada a
@@ -242,7 +272,46 @@ function AutomacoesPage() {
           </section>
         )}
 
-        <section className="surface-card mt-5 divide-y divide-border overflow-hidden">
+        {/* Movimentação dos funis.
+            Aparecem aqui porque é aqui que se procura "o que o sistema faz
+            sozinho", mas NÃO são linhas de `automation_rules`: o motor de
+            automações é orientado a evento e nunca executaria uma
+            classificação de funil. Editar leva a `clinic_funnel_rules`, que é
+            o que o Pipeline realmente lê. */}
+        <section className="mt-6">
+          <h2 className="px-1 pb-2 text-2xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            Movimentação dos funis
+          </h2>
+          <div className="surface-card divide-y divide-border overflow-hidden">
+            {FUNIS_EDITAVEIS.map((f) => (
+              <Link
+                key={f.funil}
+                to="/atendimentos/automacoes/funil/$funil"
+                params={{ funil: f.funil }}
+                className="press flex min-h-[92px] items-center gap-3 px-4 py-4 transition-colors hover:bg-surface-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 sm:px-5"
+              >
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-violet-soft text-violet">
+                  <f.icone className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">{f.titulo}</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">{f.entrada}</span>
+                  <span className="mt-1 block text-2xs text-muted-foreground/80">
+                    {f.etapas} etapas · decide em que coluna cada pessoa aparece
+                  </span>
+                </span>
+                {/* Selo em vez de chave: desligar a movimentação inteira
+                    deixaria todo card sem coluna. O que se desliga é uma
+                    ETAPA, lá dentro. */}
+                <span className="shrink-0 rounded-full bg-success-soft px-3 py-1 text-2xs font-semibold text-success">
+                  Automático
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <section className="surface-card mt-6 divide-y divide-border overflow-hidden">
           {lista.map((regra) => (
             <div
               key={regra.id}

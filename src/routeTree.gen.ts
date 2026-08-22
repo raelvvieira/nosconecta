@@ -33,6 +33,7 @@ import { Route as PacientesIndexRouteImport } from './routes/pacientes.index'
 import { Route as PacientesPatientIdRouteImport } from './routes/pacientes.$patientId'
 import { Route as AtendimentosAutomacoesIndexRouteImport } from './routes/atendimentos.automacoes.index'
 import { Route as AtendimentosAutomacoesAutomationIdRouteImport } from './routes/atendimentos.automacoes.$automationId'
+import { Route as AtendimentosAutomacoesFunilFunilRouteImport } from './routes/atendimentos.automacoes.funil.$funil'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -158,6 +159,12 @@ const AtendimentosAutomacoesAutomationIdRoute =
     path: '/$automationId',
     getParentRoute: () => AtendimentosAutomacoesRoute,
   } as any)
+const AtendimentosAutomacoesFunilFunilRoute =
+  AtendimentosAutomacoesFunilFunilRouteImport.update({
+    id: '/funil/$funil',
+    path: '/funil/$funil',
+    getParentRoute: () => AtendimentosAutomacoesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -184,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/pacientes/': typeof PacientesIndexRoute
   '/atendimentos/automacoes/$automationId': typeof AtendimentosAutomacoesAutomationIdRoute
   '/atendimentos/automacoes/': typeof AtendimentosAutomacoesIndexRoute
+  '/atendimentos/automacoes/funil/$funil': typeof AtendimentosAutomacoesFunilFunilRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -206,6 +214,7 @@ export interface FileRoutesByTo {
   '/pacientes': typeof PacientesIndexRoute
   '/atendimentos/automacoes/$automationId': typeof AtendimentosAutomacoesAutomationIdRoute
   '/atendimentos/automacoes': typeof AtendimentosAutomacoesIndexRoute
+  '/atendimentos/automacoes/funil/$funil': typeof AtendimentosAutomacoesFunilFunilRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -233,6 +242,7 @@ export interface FileRoutesById {
   '/pacientes/': typeof PacientesIndexRoute
   '/atendimentos/automacoes/$automationId': typeof AtendimentosAutomacoesAutomationIdRoute
   '/atendimentos/automacoes/': typeof AtendimentosAutomacoesIndexRoute
+  '/atendimentos/automacoes/funil/$funil': typeof AtendimentosAutomacoesFunilFunilRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -261,6 +271,7 @@ export interface FileRouteTypes {
     | '/pacientes/'
     | '/atendimentos/automacoes/$automationId'
     | '/atendimentos/automacoes/'
+    | '/atendimentos/automacoes/funil/$funil'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -283,6 +294,7 @@ export interface FileRouteTypes {
     | '/pacientes'
     | '/atendimentos/automacoes/$automationId'
     | '/atendimentos/automacoes'
+    | '/atendimentos/automacoes/funil/$funil'
   id:
     | '__root__'
     | '/'
@@ -309,6 +321,7 @@ export interface FileRouteTypes {
     | '/pacientes/'
     | '/atendimentos/automacoes/$automationId'
     | '/atendimentos/automacoes/'
+    | '/atendimentos/automacoes/funil/$funil'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -496,12 +509,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AtendimentosAutomacoesAutomationIdRouteImport
       parentRoute: typeof AtendimentosAutomacoesRoute
     }
+    '/atendimentos/automacoes/funil/$funil': {
+      id: '/atendimentos/automacoes/funil/$funil'
+      path: '/funil/$funil'
+      fullPath: '/atendimentos/automacoes/funil/$funil'
+      preLoaderRoute: typeof AtendimentosAutomacoesFunilFunilRouteImport
+      parentRoute: typeof AtendimentosAutomacoesRoute
+    }
   }
 }
 
 interface AtendimentosAutomacoesRouteChildren {
   AtendimentosAutomacoesAutomationIdRoute: typeof AtendimentosAutomacoesAutomationIdRoute
   AtendimentosAutomacoesIndexRoute: typeof AtendimentosAutomacoesIndexRoute
+  AtendimentosAutomacoesFunilFunilRoute: typeof AtendimentosAutomacoesFunilFunilRoute
 }
 
 const AtendimentosAutomacoesRouteChildren: AtendimentosAutomacoesRouteChildren =
@@ -509,6 +530,8 @@ const AtendimentosAutomacoesRouteChildren: AtendimentosAutomacoesRouteChildren =
     AtendimentosAutomacoesAutomationIdRoute:
       AtendimentosAutomacoesAutomationIdRoute,
     AtendimentosAutomacoesIndexRoute: AtendimentosAutomacoesIndexRoute,
+    AtendimentosAutomacoesFunilFunilRoute:
+      AtendimentosAutomacoesFunilFunilRoute,
   }
 
 const AtendimentosAutomacoesRouteWithChildren =
