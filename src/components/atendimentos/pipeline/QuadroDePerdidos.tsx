@@ -10,6 +10,12 @@ import {
   type Deal,
 } from "@/lib/atendimentos/deals.functions";
 import { getUltimoDisparoPorContato } from "@/lib/atendimentos/broadcast.functions";
+import { getRegrasDosFunis } from "@/lib/atendimentos/funis.functions";
+import {
+  REGRAS_PERDIDOS_PADRAO,
+  classificar,
+  type SinaisDoPerdido,
+} from "@/lib/atendimentos/funnelRules";
 import type { ConversationRow } from "@/lib/atendimentos/atendimentos.functions";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -27,78 +33,37 @@ import { useDisparoDeColuna } from "@/components/atendimentos/pipeline/useDispar
 // que dá público preciso: "pronto para reativar" + "saiu por preço" é um grupo
 // com uma mensagem óbvia.
 
-/** Quanto tempo um "não" precisa esfriar antes de valer nova abordagem. */
-const DIAS_ESFRIANDO = 30;
-
-type Etapa = "esfriando" | "pronto" | "enviada" | "respondeu" | "nao_perturbar";
-
-const ETAPA: Record<Etapa, { titulo: string; cor: string; explica: string }> = {
-  esfriando: {
-    titulo: "Esfriando",
-    cor: "#94A3B8",
-    explica: `Perdido há menos de ${DIAS_ESFRIANDO} dias`,
-  },
-  pronto: {
-    titulo: "Pronto para reativar",
-    cor: "#F59E0B",
-    explica: "Nenhuma tentativa desde a perda",
-  },
-  enviada: {
-    titulo: "Reativação enviada",
-    cor: "#0EA5E9",
-    explica: "Recebeu disparo e ainda não respondeu",
-  },
-  respondeu: {
-    titulo: "Respondeu",
-    cor: "#22C55E",
-    explica: "Reagiu — alguém precisa falar com essa pessoa",
-  },
-  nao_perturbar: {
-    titulo: "Não perturbar",
-    cor: "#EF4444",
-    explica: "Motivo definitivo — fora de qualquer disparo",
-  },
-};
-
-const ORDEM: Etapa[] = ["esfriando", "pronto", "enviada", "respondeu", "nao_perturbar"];
-
+/** Perdido classificado pela regra da clínica. */
 interface Perdido {
   item: PipelineItem;
   deal: Deal;
   motivo: string;
-  etapa: Etapa;
+  etapa: string;
   contactId: string | null;
   conversationId: string | null;
   phone: string | null;
 }
 
-/** A regra do funil, isolada para poder ser lida (e conferida) de uma vez. */
-function etapaDe(
+/** Os sinais que a regra lê. Só isto — a decisão de qual coluna é da regra,
+ *  que a clínica edita, não deste arquivo. */
+function sinaisDe(
   deal: Deal,
   ultimoDisparo: string | undefined,
   ultimaMensagem: string | null | undefined,
-): Etapa {
-  // Definitivo vence tudo: nem o tempo nem uma resposta reabrem quem pediu
-  // para não ser mais procurado.
-  if (motivoEhDefinitivo(deal.lossReason)) return "nao_perturbar";
-
+): SinaisDoPerdido {
   const perdidoEm = deal.updatedAt;
   // Disparo ANTERIOR à perda não conta como tentativa de reativação — era a
   // campanha que talvez tenha originado o contato.
   const tentativa = ultimoDisparo && perdidoEm && ultimoDisparo > perdidoEm ? ultimoDisparo : null;
-
-  if (tentativa) {
-    // Mensagem depois do disparo. Comparado por data e não por "não lidas"
-    // porque a resposta continua valendo depois de alguém da clínica abrir a
-    // conversa — e é justamente a que já foi lida que corre risco de ser
-    // esquecida.
-    if (ultimaMensagem && ultimaMensagem > tentativa) return "respondeu";
-    return "enviada";
-  }
-
-  if (!perdidoEm) return "pronto";
-  const dias = (Date.now() - new Date(perdidoEm).getTime()) / 864e5;
-  return dias < DIAS_ESFRIANDO ? "esfriando" : "pronto";
+  return {
+    motivoDefinitivo: motivoEhDefinitivo(deal.lossReason),
+    diasDesdePerda: perdidoEm ? (Date.now() - new Date(perdidoEm).getTime()) / 864e5 : null,
+    recebeuDisparoAposPerda: !!tentativa,
+    // Comparado por data e não por "não lidas" porque a resposta continua
+    // valendo depois de alguém da clínica abrir a conversa — e é justamente a
+    // já lida que corre risco de ser esquecida.
+    respondeuAposDisparo: !!tentativa && !!ultimaMensagem && ultimaMensagem > tentativa,
+  };
 }
 
 /** Card perdido no formato que o disparo entende. Sempre origem "crm": estes
@@ -129,6 +94,14 @@ export function QuadroDePerdidos({
 }) {
   const { abrir, dialogo } = useDisparoDeColuna();
   const buscarDisparos = useServerFn(getUltimoDisparoPorContato);
+  const buscarRegras = useServerFn(getRegrasDosFunis);
+
+  const regrasQuery = useQuery({
+    queryKey: ["regras-dos-funis"],
+    queryFn: () => buscarRegras(),
+    staleTime: 5 * 60_000,
+  });
+  const regras = regrasQuery.data?.perdidos ?? REGRAS_PERDIDOS_PADRAO;
   const [motivoFiltro, setMotivoFiltro] = useState<string | null>(null);
 
   const disparos = useQuery({
@@ -158,15 +131,14 @@ export function QuadroDePerdidos({
         conversationId: conversa?.id ?? null,
         phone: conversa?.phone ?? null,
         motivo: motivoNormalizado(deal.lossReason),
-        etapa: etapaDe(
-          deal,
-          contactId ? disparos.data?.[contactId] : undefined,
-          conversa?.lastMessageAt,
+        etapa: classificar(
+          regras,
+          sinaisDe(deal, contactId ? disparos.data?.[contactId] : undefined, conversa?.lastMessageAt),
         ),
       });
     }
     return lista;
-  }, [itens, deals, conversas, busca, disparos.data]);
+  }, [itens, deals, conversas, busca, disparos.data, regras]);
 
   const filtrados = motivoFiltro ? perdidos.filter((p) => p.motivo === motivoFiltro) : perdidos;
   // Só os motivos que de fato aparecem — chip de filtro que devolve zero é
@@ -222,24 +194,29 @@ export function QuadroDePerdidos({
       )}
 
       <div className="custom-scroll flex flex-1 gap-3 overflow-x-auto pb-2">
-        {ORDEM.map((etapa) => {
-          const meta = ETAPA[etapa];
+        {regras.filter((r) => r.ativa).map((regra) => {
+          const etapa = regra.id;
           const lista = filtrados.filter((p) => p.etapa === etapa);
           return (
             <div key={etapa} className="flex w-[280px] shrink-0 flex-col">
               <div className="flex items-center gap-2 px-1 pb-2">
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: meta.cor }} />
-                <h3 className="truncate text-sm font-semibold">{meta.titulo}</h3>
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: regra.cor }} />
+                <h3 className="truncate text-sm font-semibold">{regra.nome}</h3>
                 <span className="ml-auto text-xs font-semibold text-muted-foreground">
                   {lista.length}
                 </span>
               </div>
-              <p className="px-1 pb-2 text-3xs leading-snug text-muted-foreground">{meta.explica}</p>
+              <p className="px-1 pb-2 text-3xs leading-snug text-muted-foreground">{regra.explica}</p>
 
               {/* "Não perturbar" nunca ganha botão, e isso não é configurável:
                   a coluna existe exatamente para essas pessoas NÃO receberem.
                   Um botão ali seria um pedido de erro. */}
-              {etapa !== "nao_perturbar" && lista.length > 0 && (
+              {/* A trava é pela CONDIÇÃO, não pelo id da etapa: coluna cujo
+                  critério é "motivo definitivo" existe exatamente para essas
+                  pessoas não receberem. Amarrar ao id "nao_perturbar" quebraria
+                  assim que a clínica renomeasse a etapa ou criasse outra com o
+                  mesmo critério — e é essa edição que estamos abrindo. */}
+              {regra.condicao !== "motivo_definitivo" && lista.length > 0 && (
                 <Button
                   variant="outline"
                   size="sm"

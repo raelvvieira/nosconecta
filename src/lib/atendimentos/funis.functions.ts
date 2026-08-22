@@ -1,13 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import {
+  REGRAS_CLIENTES_PADRAO,
+  REGRAS_PERDIDOS_PADRAO,
+  classificar,
+  regrasOuPadrao,
+  type RegraDeFunil,
+} from "@/lib/atendimentos/funnelRules";
 
 // O funil de Clientes.
 //
-// Diferente do funil de Leads, que vive no CRM externo e tem etapas
-// arrastáveis, este é calculado: a etapa sai da view `patient_funnel_stage`, a
-// partir de orçamento, tratamento e última consulta. Não há o que arrastar —
-// e é essa a troca, feita de propósito: o quadro nunca envelhece parado.
+// A etapa é calculada, e a regra do cálculo é configurável — por isso a
+// classificação acontece AQUI e não no banco. A view devolve os sinais de cada
+// paciente (a parte cara: os joins sobre consultas, planos e itens); a
+// sequência de "primeira regra que casar vence" é barata e precisa ler a
+// configuração da clínica.
 
 const TABELA_AUSENTE = "42P01";
 
@@ -18,105 +26,155 @@ function ausente(error: any): boolean {
   );
 }
 
-/** As colunas, na ordem em que aparecem — que é a mesma ordem de precedência da
- *  view. Manter as duas listas alinhadas é o que faz o quadro contar a mesma
- *  história que o banco. */
-export const ETAPAS_DO_CLIENTE = [
-  "novo",
-  "orcamento_aberto",
-  "tratamento_parado",
-  "em_tratamento",
-  "inativo",
-  "manutencao",
-] as const;
-
-export type EtapaDoCliente = (typeof ETAPAS_DO_CLIENTE)[number];
-
 export interface ClienteNoFunil {
   patientId: string;
   name: string;
   phone: string | null;
   crmContactId: string | null;
   ultimaConsulta: string | null;
-  stage: EtapaDoCliente;
+  stage: string;
 }
 
-/** Quantos cards cada coluna traz de uma vez. A base inteira entra neste funil,
- *  então despejar tudo travaria a pintura — o resto vem por "ver mais". */
+export interface FunilDeClientes {
+  regras: RegraDeFunil[];
+  clientes: ClienteNoFunil[];
+  contagem: Record<string, number>;
+  /** View ainda não criada no banco. A tela avisa em vez de quebrar. */
+  indisponivel: boolean;
+}
+
+/** Quantas linhas por ida ao PostgREST. O padrão dele é devolver no máximo
+ *  1000 — pedir mais numa tacada não adianta, então o jeito de ver a base
+ *  inteira é paginar até esgotar. */
+const POR_PAGINA = 1000;
+
 export const POR_COLUNA = 20;
 
-const mapear = (row: any): ClienteNoFunil => ({
-  patientId: String(row.patient_id),
-  name: row.name ?? "",
-  phone: row.phone ?? null,
-  crmContactId: row.crm_contact_id ?? null,
-  ultimaConsulta: row.ultima_concluida ?? null,
-  stage: row.stage as EtapaDoCliente,
-});
-
 function comEscopo(query: any, context: any) {
-  // Mesmo recorte por unidade das outras telas: admin com "todas" vê tudo, e
-  // quem está numa unidade só vê a dela.
   const q = query.eq("owner_id", context.ownerId);
   return context.unitId ? q.eq("unit_id", context.unitId) : q;
 }
 
 /**
- * Quantos clientes há em cada coluna.
+ * Todos os pacientes já classificados, com a contagem por coluna.
  *
- * Sai de uma view que já agrupa, e não de contar linhas trazidas para cá: o
- * PostgREST devolve no máximo 1000 linhas por padrão, então contar no cliente
- * daria números MENORES que a realidade assim que a clínica passasse de mil
- * pacientes — errado, e sem erro nenhum para denunciar.
+ * Traz a base inteira de propósito: a contagem por coluna tem que ser exata, e
+ * sem um CASE no banco não há como agrupar lá. São seis colunas pequenas por
+ * paciente — o custo está nos joins, que continuam no SQL.
  *
- * A busca não passa por aqui de propósito: com busca ativa a contagem por
- * coluna vem do que cada coluna carregou, e o quadro mostra o que achou em vez
- * de um total que não corresponde ao que está na tela.
+ * O teto disso é da ordem de alguns milhares de pacientes. Passando muito
+ * disso, volta a pedir solução no banco — e aí, com as regras já estabilizadas,
+ * gerar o CASE a partir da configuração vira uma opção razoável.
  */
-export const getContagemDoFunil = createServerFn({ method: "GET" })
+export const getFunilDeClientes = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
-  .handler(async ({ context }): Promise<{ contagem: Record<string, number>; indisponivel: boolean }> => {
+  .handler(async ({ context }): Promise<FunilDeClientes> => {
     const supabase: any = context.supabase;
-    const { data: linhas, error } = await comEscopo(
-      supabase.from("patient_funnel_counts").select("stage, total"),
-      context,
+
+    const { data: config, error: erroConfig } = await supabase
+      .from("clinic_funnel_rules")
+      .select("clientes")
+      .eq("owner_id", context.ownerId)
+      .maybeSingle();
+    // Configuração ausente não é erro: significa "usar as regras de fábrica".
+    const regras = regrasOuPadrao(
+      erroConfig ? null : config?.clientes,
+      REGRAS_CLIENTES_PADRAO,
     );
-    if (error) {
-      if (ausente(error)) return { contagem: {}, indisponivel: true };
-      throw new Error(error.message);
+
+    const linhas: any[] = [];
+    for (let pagina = 0; ; pagina++) {
+      const { data, error } = await comEscopo(
+        supabase
+          .from("patient_funnel_signals")
+          .select(
+            "patient_id, name, phone, crm_contact_id, ultima_concluida, teve_consulta, tem_orcamento_aberto, tem_tratamento_pendente, dias_sem_consulta",
+          ),
+        context,
+      )
+        .order("name", { ascending: true })
+        .range(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA - 1);
+      if (error) {
+        if (ausente(error)) {
+          return { regras, clientes: [], contagem: {}, indisponivel: true };
+        }
+        throw new Error(error.message);
+      }
+      linhas.push(...(data ?? []));
+      // Página incompleta = acabou. Evita uma ida a mais só para descobrir que
+      // não há nada, que é o custo de olhar só o total.
+      if (!data || data.length < POR_PAGINA) break;
     }
+
     const contagem: Record<string, number> = {};
-    for (const row of linhas ?? []) {
-      // Somado, e não atribuído: sem unidade escolhida a view devolve uma linha
-      // por unidade para a mesma etapa.
-      contagem[row.stage] = (contagem[row.stage] ?? 0) + Number(row.total ?? 0);
-    }
-    return { contagem, indisponivel: false };
+    for (const regra of regras) contagem[regra.id] = 0;
+
+    const clientes: ClienteNoFunil[] = linhas.map((row) => {
+      const stage = classificar(regras, {
+        teveConsulta: !!row.teve_consulta,
+        temOrcamentoAberto: !!row.tem_orcamento_aberto,
+        temTratamentoPendente: !!row.tem_tratamento_pendente,
+        diasSemConsulta: row.dias_sem_consulta ?? null,
+      });
+      contagem[stage] = (contagem[stage] ?? 0) + 1;
+      return {
+        patientId: String(row.patient_id),
+        name: row.name ?? "",
+        phone: row.phone ?? null,
+        crmContactId: row.crm_contact_id ?? null,
+        ultimaConsulta: row.ultima_concluida ?? null,
+        stage,
+      };
+    });
+
+    return { regras, clientes, contagem, indisponivel: false };
   });
 
-/** Uma coluna inteira, para o "ver mais". */
-export const getColunaDoFunil = createServerFn({ method: "GET" })
+/** As regras dos dois funis, para a tela de edição e para o quadro de
+ *  Perdidos — que classifica no cliente, com os sinais que já tem em mãos. */
+export const getRegrasDosFunis = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
-  .inputValidator((input: { stage: EtapaDoCliente; q?: string; offset: number }) => input)
-  .handler(async ({ data, context }): Promise<ClienteNoFunil[]> => {
-    const supabase: any = context.supabase;
-    const busca = (data.q ?? "").trim();
+  .handler(
+    async ({ context }): Promise<{ clientes: RegraDeFunil[]; perdidos: RegraDeFunil[] }> => {
+      const supabase: any = context.supabase;
+      const { data, error } = await supabase
+        .from("clinic_funnel_rules")
+        .select("clientes, perdidos")
+        .eq("owner_id", context.ownerId)
+        .maybeSingle();
+      if (error && !ausente(error)) throw new Error(error.message);
+      return {
+        clientes: regrasOuPadrao(data?.clientes, REGRAS_CLIENTES_PADRAO),
+        perdidos: regrasOuPadrao(data?.perdidos, REGRAS_PERDIDOS_PADRAO),
+      };
+    },
+  );
 
-    let query = comEscopo(
-      supabase
-        .from("patient_funnel_stage")
-        .select("patient_id, name, phone, crm_contact_id, ultima_concluida, stage")
-        .eq("stage", data.stage),
-      context,
-    );
-    if (busca) query = query.or(`name.ilike.%${busca}%,phone.ilike.%${busca}%`);
-
-    const { data: linhas, error } = await query
-      .order("name", { ascending: true })
-      .range(data.offset, data.offset + POR_COLUNA - 1);
-    if (error) {
-      if (ausente(error)) return [];
-      throw new Error(error.message);
+export const salvarRegrasDoFunil = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { funil: "clientes" | "perdidos"; regras: RegraDeFunil[] }) => {
+    if (!input.regras?.length) throw new Error("O funil precisa de ao menos uma etapa.");
+    if (!input.regras.some((r) => r.ativa)) {
+      throw new Error("Ao menos uma etapa precisa estar ligada — senão nenhum card teria coluna.");
     }
-    return (linhas ?? []).map(mapear);
+    for (const r of input.regras) {
+      if (!r.nome?.trim()) throw new Error("Toda etapa precisa de um nome.");
+      if (r.valor !== undefined && (!Number.isFinite(r.valor) || r.valor < 0)) {
+        throw new Error(`O prazo de "${r.nome}" precisa ser um número de dias.`);
+      }
+    }
+    return input;
+  })
+  .handler(async ({ data, context }): Promise<{ ok: true }> => {
+    const supabase: any = context.supabase;
+    const { error } = await supabase.from("clinic_funnel_rules").upsert(
+      {
+        owner_id: context.ownerId,
+        [data.funil]: data.regras,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "owner_id" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
