@@ -4,8 +4,7 @@ import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
 // Arquivos do paciente — imagens e documentos.
 //
-// O upload em si acontece no cliente, direto no Storage (mesmo caminho que
-// MediaUploadField.tsx já usa nas campanhas). O que passa por aqui é o
+// O upload em si acontece no cliente, direto no Storage. O que passa por aqui é o
 // REGISTRO: qual paciente, que tipo, onde ficou guardado. Separar assim evita
 // mandar o binário para o servidor de aplicação só para ele reenviar ao
 // Storage.

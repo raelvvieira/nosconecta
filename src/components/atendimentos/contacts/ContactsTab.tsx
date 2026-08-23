@@ -22,7 +22,7 @@ import { contatosDaCaixa, daParaSepararPorNumero } from "@/lib/atendimentos/inbo
 
 /** Constante, não `[]` na hora: array novo a cada render invalida todo
  *  `useMemo` que dependa dele — foi assim que a página de campanhas ganhou um
- *  laço infinito (ver FunnelSection.tsx). */
+ *  laço infinito, na seção de funil que a tela de campanhas tinha. */
 const SEM_CONVERSAS: never[] = [];
 const SEM_PACIENTES: never[] = [];
 const SEM_RECENTES: never[] = [];
@@ -153,10 +153,19 @@ export function ContactsTab({
   const [ocultarRecentes, setOcultarRecentes] = useState(true);
   const [janelaDias, setJanelaDias] = useState(1);
 
+  // Paciente SEM telefone nunca consegue receber: sem número não há como criar
+  // o contato no CRM, e `prepararAlvos` o recusa na hora de enfileirar. Ele
+  // aparecia na lista com "sem telefone", dava para selecionar, e o disparo
+  // falhava depois. Contato do CRM entra sempre — ele existe lá, com o telefone
+  // que o CRM tem, mesmo quando não veio para cá.
+  const semTelefone = (patientsQuery.data ?? SEM_PACIENTES).filter((p) => !p.phone).length;
+
   const contatos = useMemo<ContatoUnificado[]>(
     () => [
       ...contatosEstado.contatos.map((c) => ({ id: c.id, name: c.name, phone: c.phone, origem: "crm" as const, patientId: null })),
-      ...(patientsQuery.data ?? SEM_PACIENTES).map((p) => ({ id: p.id, name: p.name, phone: p.phone, origem: "paciente" as const, patientId: p.id })),
+      ...(patientsQuery.data ?? SEM_PACIENTES)
+        .filter((p) => !!p.phone)
+        .map((p) => ({ id: p.id, name: p.name, phone: p.phone, origem: "paciente" as const, patientId: p.id })),
     ],
     [contatosEstado.contatos, patientsQuery.data],
   );
@@ -354,6 +363,17 @@ export function ContactsTab({
             )}
           </span>
         </label>
+      )}
+
+      {/* Número que some sem explicação é pior do que número errado: se a base
+          tem paciente sem telefone, a lista precisa dizer por que ele não está
+          aqui em vez de simplesmente vir menor do que a pessoa esperava. */}
+      {semTelefone > 0 && (
+        <p className="px-1 text-2xs text-muted-foreground">
+          {semTelefone === 1
+            ? "1 paciente está sem telefone e não aparece aqui — sem número não há como disparar."
+            : `${semTelefone} pacientes estão sem telefone e não aparecem aqui — sem número não há como disparar.`}
+        </p>
       )}
 
       {/* Só aparece quando existe alguma coisa pra mostrar — clínica nova, sem

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, LayoutDashboard, Megaphone, MessageCircle, Workflow } from "lucide-react";
+import { Bell, LayoutDashboard, MessageCircle, Send, Workflow } from "lucide-react";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBadge";
@@ -13,7 +13,8 @@ import { StuckConversationsCard } from "@/components/atendimentos/StuckConversat
 import { SalesPlaybookCard } from "@/components/atendimentos/SalesPlaybookCard";
 import { getConversations } from "@/lib/atendimentos/atendimentos.functions";
 import { getPipelineItems, getPipelineStages } from "@/lib/atendimentos/pipeline.functions";
-import { getCampaigns, getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
+import { getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
+import { listarDisparos } from "@/lib/atendimentos/broadcast.functions";
 import { getSalesAssistant, getSalesPlaybook } from "@/lib/atendimentos/insights.functions";
 
 export const Route = createFileRoute("/atendimentos/")({
@@ -41,7 +42,7 @@ function DashboardPage() {
   const fetchConversations = useServerFn(getConversations);
   const fetchStages = useServerFn(getPipelineStages);
   const fetchItems = useServerFn(getPipelineItems);
-  const fetchCampaigns = useServerFn(getCampaigns);
+  const fetchDisparos = useServerFn(listarDisparos);
   const fetchUsage = useServerFn(getDailySendUsage);
   const fetchAssistant = useServerFn(getSalesAssistant);
   const fetchPlaybook = useServerFn(getSalesPlaybook);
@@ -61,9 +62,17 @@ function DashboardPage() {
   const itemsQuery = useQuery({ queryKey: ["pipeline-items"], queryFn: () => fetchItems(), staleTime: 8_000 });
   const items = itemsQuery.data?.items ?? [];
 
-  const campaignsQuery = useQuery({ queryKey: ["campaigns"], queryFn: () => fetchCampaigns(), staleTime: 10_000 });
-  const campaigns = campaignsQuery.data ?? [];
-  const activeCampaigns = campaigns.filter((c) => c.status === "running").length;
+  // Era "campanhas ativas", contando `status === "running"` no motor do CRM —
+  // que nunca executou nada, então o número só podia ser zero para sempre. O
+  // disparo é o caminho que envia de verdade, e é o que a fila registra.
+  const disparosQuery = useQuery({
+    queryKey: ["disparos"],
+    queryFn: () => fetchDisparos(),
+    staleTime: 10_000,
+  });
+  const disparosEmAndamento = (disparosQuery.data ?? []).filter(
+    (d) => d.status === "running",
+  ).length;
 
   const usageQuery = useQuery({ queryKey: ["campaigns-usage"], queryFn: () => fetchUsage(), staleTime: 15_000 });
 
@@ -97,7 +106,7 @@ function DashboardPage() {
           <KpiCard label="Conversas ativas" value={String(conversations.length)} icon={MessageCircle} tone="violet" />
           <KpiCard label="Precisam de atenção" value={String(needsAttention)} icon={Bell} tone="warning" />
           <KpiCard label="Contatos no funil" value={String(items.length)} icon={Workflow} tone="success" />
-          <KpiCard label="Campanhas ativas" value={String(activeCampaigns)} icon={Megaphone} tone="danger" />
+          <KpiCard label="Disparos em andamento" value={String(disparosEmAndamento)} icon={Send} tone="danger" />
         </section>
 
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_360px]">

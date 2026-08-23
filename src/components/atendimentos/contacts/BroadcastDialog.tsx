@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import { AlertTriangle, Info, MessageCircle, UserX } from "lucide-react";
 import {
   AlertDialog,
@@ -13,6 +16,20 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { PhonePreview } from "@/components/atendimentos/campaigns/PhonePreview";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import {
+  getMessageTemplates,
+  saveMessageTemplate,
+} from "@/lib/atendimentos/campaigns.functions";
 import type { ContatoSelecionado } from "./ContactsTab";
 
 /** Ritmo entre mensagens, em segundos. Rajada é o que mais derruba número. */
@@ -26,8 +43,9 @@ const RITMOS = [
 /**
  * Revisão antes de disparar para uma seleção.
  *
- * Mesmo desenho do `FireCampaignDialog`: a mensagem à vista, quantos vão,
- * quanto sobra da cota. A diferença é a divisão entre os dois caminhos de
+ * A mensagem à vista, quantos vão, quanto sobra da cota. Este era o desenho
+ * do diálogo de campanha, que foi removido junto com aquele motor; o que ele
+ * ganhou aqui é a divisão entre os dois caminhos de
  * envio — quem tem conversa aberta recebe por um caminho confirmado, quem não
  * tem depende de um endpoint do CRM que nunca foi testado. Dizer isso antes é
  * o que evita a pessoa achar que alcançou a base inteira.
@@ -49,13 +67,43 @@ export function BroadcastDialog({
   const [mensagem, setMensagem] = useState("");
   const [ritmo, setRitmo] = useState(8);
   const [erro, setErro] = useState<string | null>(null);
+  const [salvarComoModelo, setSalvarComoModelo] = useState(false);
+  const [nomeDoModelo, setNomeDoModelo] = useState("");
   const aberto = Boolean(contatos?.length);
+
+  // Os modelos vinham do formulário de campanha — o caminho que nunca enviou
+  // nada. Mudaram para cá, que é onde a mensagem de disparo é escrita de
+  // verdade; continuam sendo os mesmos do chat.
+  const queryClient = useQueryClient();
+  const buscarModelos = useServerFn(getMessageTemplates);
+  const salvarModelo = useServerFn(saveMessageTemplate);
+
+  const modelosQuery = useQuery({
+    queryKey: ["message-templates"],
+    queryFn: () => buscarModelos(),
+    enabled: aberto,
+    staleTime: 5 * 60_000,
+  });
+
+  const guardarModelo = useMutation({
+    mutationFn: () =>
+      salvarModelo({ data: { name: nomeDoModelo.trim(), content: mensagem.trim() } }),
+    onSuccess: () => {
+      toast.success("Modelo salvo");
+      setSalvarComoModelo(false);
+      setNomeDoModelo("");
+      queryClient.invalidateQueries({ queryKey: ["message-templates"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   useEffect(() => {
     if (!aberto) return;
     setMensagem("");
     setRitmo(8);
     setErro(null);
+    setSalvarComoModelo(false);
+    setNomeDoModelo("");
   }, [aberto]);
 
   const { comConversa, semConversa } = useMemo(() => {
@@ -95,9 +143,33 @@ export function BroadcastDialog({
         <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
           <div className="space-y-3">
             <div className="space-y-2">
-              <Label htmlFor="disparo-msg" className="text-sm text-foreground-secondary">
-                Mensagem *
-              </Label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label htmlFor="disparo-msg" className="text-sm text-foreground-secondary">
+                  Mensagem *
+                </Label>
+                {(modelosQuery.data ?? []).length > 0 && (
+                  <Select
+                    onValueChange={(id) => {
+                      const m = (modelosQuery.data ?? []).find((t) => t.id === id);
+                      if (m) {
+                        setMensagem(m.content);
+                        setErro(null);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-52 text-2xs">
+                      <SelectValue placeholder="Usar um modelo salvo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(modelosQuery.data ?? []).map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
               <Textarea
                 id="disparo-msg"
                 data-disparo-mensagem=""
@@ -113,6 +185,39 @@ export function BroadcastDialog({
                 <p data-disparo-erro="" className="text-2xs text-danger">
                   {erro}
                 </p>
+              )}
+
+              {/* Guardar o texto como modelo. Fica junto da caixa de mensagem
+                  porque é aqui que se percebe "isto eu vou reescrever toda
+                  semana" — no formulário de campanha antigo isso vivia num
+                  passo à parte, e o formulário nunca enviou nada. */}
+              <label className="flex items-center gap-2 pt-0.5">
+                <Checkbox
+                  checked={salvarComoModelo}
+                  onCheckedChange={(v) => setSalvarComoModelo(v === true)}
+                  disabled={!mensagem.trim()}
+                />
+                <span className="text-2xs text-muted-foreground">Salvar como modelo</span>
+              </label>
+              {salvarComoModelo && (
+                <div className="flex gap-2">
+                  <Input
+                    value={nomeDoModelo}
+                    onChange={(e) => setNomeDoModelo(e.target.value)}
+                    placeholder="Nome do modelo"
+                    className="h-8 flex-1 text-2xs"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-2xs"
+                    disabled={!nomeDoModelo.trim() || guardarModelo.isPending}
+                    onClick={() => guardarModelo.mutate()}
+                  >
+                    {guardarModelo.isPending ? "Salvando…" : "Salvar"}
+                  </Button>
+                </div>
               )}
             </div>
 

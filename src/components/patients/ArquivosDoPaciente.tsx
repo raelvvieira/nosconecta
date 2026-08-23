@@ -148,8 +148,7 @@ export function ArquivosDoPaciente({ patientId }: { patientId: string }) {
       if (!ownerId) throw new Error("Sessão expirada — recarregue a página.");
 
       // Prefixo com o id do dono: é ele que permite uma policy de storage
-      // separar uma clínica da outra dentro do mesmo bucket. Mesmo formato de
-      // MediaUploadField.tsx.
+      // separar uma clínica da outra dentro do mesmo bucket.
       const nomeSeguro = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const caminho = `${ownerId}/${crypto.randomUUID()}-${nomeSeguro}`;
       const { error: erroUpload } = await supabase.storage
