@@ -65,6 +65,7 @@ export function useDisparoDeColuna() {
       setSelecao(null);
       queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
       queryClient.invalidateQueries({ queryKey: ["ultimo-disparo-por-contato"] });
+      queryClient.invalidateQueries({ queryKey: ["broadcast-recent-recipients"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });

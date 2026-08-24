@@ -79,6 +79,10 @@ export function NewCampaignSheet({
       );
       queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
       queryClient.invalidateQueries({ queryKey: ["disparos"] });
+      // Sem isto, quem acabou de entrar na fila continua aparecendo como "ainda
+      // não recebeu" até o cache vencer — e no envio em lotes isso é o que
+      // faria o progresso não andar e o mesmo lote ser oferecido de novo.
+      queryClient.invalidateQueries({ queryKey: ["broadcast-recent-recipients"] });
       setDisparoSelecao(null);
       onOpenChange(false);
       reset();

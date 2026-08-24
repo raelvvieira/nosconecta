@@ -1,12 +1,10 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { AlertTriangle, Loader2, MessageCircle, Search, UserRound, Users } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { AlertTriangle, Loader2, MessageCircle, UserRound, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { useContatosIncremental } from "@/lib/atendimentos/useContatosIncremental";
@@ -17,8 +15,12 @@ import {
 } from "@/lib/atendimentos/contactFilters";
 import { getConversations, getWhatsappInboxes } from "@/lib/atendimentos/atendimentos.functions";
 import { getRecentRecipients } from "@/lib/atendimentos/broadcast.functions";
+import { getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
 import { getPatientContacts } from "@/lib/patients/patients.functions";
 import { contatosDaCaixa, daParaSepararPorNumero } from "@/lib/atendimentos/inboxSnapshot";
+import { calcularLote } from "@/lib/atendimentos/loteDeDisparo";
+import { FiltrosDeContatos } from "./FiltrosDeContatos";
+import { LoteDeDisparo, nomeDoRecorte } from "./LoteDeDisparo";
 
 /** Constante, não `[]` na hora: array novo a cada render invalida todo
  *  `useMemo` que dependa dele — foi assim que a página de campanhas ganhou um
@@ -35,8 +37,17 @@ function diasAtras(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / (24 * 60 * 60 * 1000));
 }
 
-function rotuloRecente(iso: string): string {
-  const dias = diasAtras(iso);
+/** Já recebeu, ou já está na fila para receber. */
+interface Tratamento {
+  quando: string;
+  naFila: boolean;
+}
+
+function rotuloRecente({ quando, naFila }: Tratamento): string {
+  // "na fila" não é o mesmo que "recebeu": a mensagem ainda não saiu, e dizer
+  // que saiu faria a pessoa achar que pode remover da fila sem consequência.
+  if (naFila) return "na fila";
+  const dias = diasAtras(quando);
   if (dias <= 0) return "recebeu hoje";
   if (dias === 1) return "recebeu ontem";
   return `recebeu há ${dias} dias`;
@@ -138,6 +149,17 @@ export function ContactsTab({
     staleTime: 60_000,
   });
 
+  // Mesma chave da tela de campanhas e do disparo por coluna: os três mostram
+  // o mesmo número de cota porque leem o mesmo cache, não porque combinaram.
+  const fetchUsage = useServerFn(getDailySendUsage);
+  const usageQuery = useQuery({
+    queryKey: ["campaigns-usage"],
+    queryFn: () => fetchUsage(),
+    enabled: ativo,
+    staleTime: 15_000,
+  });
+  const usage = usageQuery.data ?? { limit: 200, usedToday: 0 };
+
   const [busca, setBusca] = useState("");
   const [ddds, setDdds] = useState<Set<string>>(new Set());
   // Só quem é do número conectado, por padrão. Trocar de número no WhatsApp
@@ -210,33 +232,40 @@ export function ContactsTab({
   // contact_id); paciente sem CRM só ganha um contact_id na hora do disparo
   // (garantirContatoCrm), então esse caso só casa por telefone.
   const { porContato, porTelefone } = useMemo(() => {
-    const porContato = new Map<string, string>();
-    const porTelefone = new Map<string, string>();
+    const porContato = new Map<string, Tratamento>();
+    const porTelefone = new Map<string, Tratamento>();
     for (const r of recentesQuery.data ?? SEM_RECENTES) {
-      porContato.set(r.contactId, r.sentAt);
+      const t: Tratamento = { quando: r.sentAt, naFila: r.naFila };
+      porContato.set(r.contactId, t);
       const fone = normFone(r.phone);
       if (fone) {
         const atual = porTelefone.get(fone);
-        if (!atual || r.sentAt > atual) porTelefone.set(fone, r.sentAt);
+        if (!atual || t.quando > atual.quando) porTelefone.set(fone, t);
       }
     }
     return { porContato, porTelefone };
   }, [recentesQuery.data]);
 
-  const ultimoEnvio = (c: ContatoUnificado): string | null =>
+  const ultimoEnvio = (c: ContatoUnificado): Tratamento | null =>
     porContato.get(c.id) ?? porTelefone.get(normFone(c.phone)) ?? null;
 
-  const semRecentes = useMemo(
-    () =>
-      ocultarRecentes
-        ? noEscopo.filter((c) => {
-            const via = ultimoEnvio(c);
-            return !via || diasAtras(via) >= janelaDias;
-          })
-        : noEscopo,
-    [noEscopo, ocultarRecentes, janelaDias, porContato, porTelefone],
+  /** Já recebeu ou já está na fila, dentro da janela escolhida. Quem está aqui
+   *  não entra em lote nenhum — é o que impede a mesma pessoa de receber duas
+   *  vezes numa campanha que leva dias. */
+  const foiTratado = (c: ContatoUnificado): boolean => {
+    const via = ultimoEnvio(c);
+    // Na fila conta como tratado sem olhar a janela: a mensagem ainda vai sair,
+    // e a data ali é a de agendamento, que pode ser daqui a pouco.
+    if (!via) return false;
+    return via.naFila || diasAtras(via.quando) < janelaDias;
+  };
+
+  const naoTratados = useMemo(
+    () => noEscopo.filter((c) => !foiTratado(c)),
+    [noEscopo, janelaDias, porContato, porTelefone],
   );
-  const omitidosRecentes = noEscopo.length - semRecentes.length;
+  const semRecentes = ocultarRecentes ? naoTratados : noEscopo;
+  const omitidosRecentes = noEscopo.length - naoTratados.length;
 
   /** DDDs presentes na base, do mais numeroso para o menos. */
   const fichasDdd = useMemo(() => contarPorDdd(semRecentes), [semRecentes]);
@@ -244,6 +273,32 @@ export function ContactsTab({
     () => filtrarContatos(semRecentes, { busca, ddds }),
     [semRecentes, busca, ddds],
   );
+
+  // O recorte para o envio em lotes, em duas medidas: quantos existem e quantos
+  // ainda não foram tratados. Sai de `noEscopo` e não de `filtrados` de
+  // propósito — desligar "sem disparo recente" muda o que a lista MOSTRA, mas
+  // não pode fazer o lote reenviar para quem já recebeu.
+  const recorteTotal = useMemo(
+    () => filtrarContatos(noEscopo, { busca, ddds }).length,
+    [noEscopo, busca, ddds],
+  );
+  const recortePendente = useMemo(
+    () => filtrarContatos(naoTratados, { busca, ddds }),
+    [naoTratados, busca, ddds],
+  );
+
+  const lote = calcularLote({
+    total: recorteTotal,
+    restantes: recortePendente.length,
+    limite: usage.limit,
+    usadoHoje: usage.usedToday,
+    carregando: contatosEstado.carregando,
+  });
+
+  // O cartão de lote só faz sentido quando o recorte não cabe de uma vez: com
+  // 40 contatos e cota de 200 ele seria um passo a mais para fazer o que o
+  // "Selecionar todos" já faz num toque.
+  const precisaDeLotes = recorteTotal > usage.limit || lote.tratados > 0;
 
   const todosFiltradosSelecionados =
     filtrados.length > 0 && filtrados.every((c) => selecionados.has(c.id));
@@ -264,10 +319,22 @@ export function ContactsTab({
     setDdds(next);
   };
 
+  const comConversa = (c: ContatoUnificado): ContatoSelecionado => ({
+    ...c,
+    conversationId: conversaPorContato.get(c.id) ?? null,
+  });
+
   const paraDisparo = (): ContatoSelecionado[] =>
-    contatos
-      .filter((c) => selecionados.has(c.id))
-      .map((c) => ({ ...c, conversationId: conversaPorContato.get(c.id) ?? null }));
+    contatos.filter((c) => selecionados.has(c.id)).map(comConversa);
+
+  /** O lote: os primeiros N ainda não tratados do recorte. Qual "primeiros" não
+   *  importa para a corretude — a ordem da lista não é estável, e quem já foi
+   *  tratado nunca está aqui —, mas seguir a ordem exibida é o que faz o
+   *  resultado bater com o que a pessoa acabou de ver na tela. */
+  const dispararLote = () => {
+    const alvos = recortePendente.slice(0, lote.tamanho).map(comConversa);
+    if (alvos.length) onDisparar(alvos);
+  };
 
   // Só a tela cheia de "carregando" enquanto NADA chegou ainda — a partir da
   // primeira página, o carregamento vira uma faixa discreta acima da lista,
@@ -327,100 +394,44 @@ export function ContactsTab({
         </p>
       )}
 
-      <div className="relative mt-5">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          data-busca-contato=""
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar por nome ou número"
-          className="h-12 rounded-xl bg-white pl-11 shadow-soft"
-        />
-      </div>
-
-      {/* O recorte por número vem antes do recorte por DDD: primeiro "de quem
-          é essa base", depois "de onde eles são". */}
-      {separavel && (
-        <label
-          data-so-numero-atual=""
-          className="mt-3 flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-white px-3 py-2.5"
-        >
-          <Checkbox
-            checked={soDoNumeroAtual}
-            onCheckedChange={(v) => {
-              setSoDoNumeroAtual(Boolean(v));
-              // Sair do recorte não pode deixar selecionado alguém que estava
-              // escondido; voltar ao recorte não pode carregar quem sumiu.
-              onSelecionadosChange(new Set());
-            }}
-          />
-          <span className="min-w-0 flex-1 text-sm">
-            Só contatos do número conectado
-            {omitidos > 0 && soDoNumeroAtual && (
-              <span className="ml-1 text-muted-foreground">
-                · {omitidos} de outro número ou sem conversa ficaram de fora
-              </span>
-            )}
-          </span>
-        </label>
-      )}
-
-      {/* Número que some sem explicação é pior do que número errado: se a base
-          tem paciente sem telefone, a lista precisa dizer por que ele não está
-          aqui em vez de simplesmente vir menor do que a pessoa esperava. */}
-      {semTelefone > 0 && (
-        <p className="px-1 text-2xs text-muted-foreground">
-          {semTelefone === 1
-            ? "1 paciente está sem telefone e não aparece aqui — sem número não há como disparar."
-            : `${semTelefone} pacientes estão sem telefone e não aparecem aqui — sem número não há como disparar.`}
-        </p>
-      )}
-
-      {/* Só aparece quando existe alguma coisa pra mostrar — clínica nova, sem
-          disparo nenhum ainda, não ganha um controle vazio na tela. */}
-      {(recentesQuery.data?.length ?? 0) > 0 && (
-        <div
-          data-ocultar-recentes=""
-          className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-white px-3 py-2.5"
-        >
-          <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
-            <Checkbox
-              checked={ocultarRecentes}
-              onCheckedChange={(v) => {
-                setOcultarRecentes(Boolean(v));
-                // Mesmo motivo do recorte por número: sair não pode deixar
-                // selecionado quem estava escondido, voltar não pode carregar
-                // quem sumiu da lista.
-                onSelecionadosChange(new Set());
-              }}
-            />
-            <span className="min-w-0 text-sm">
-              Ocultar quem recebeu disparo nos últimos {janelaDias === 1 ? "1 dia" : `${janelaDias} dias`}
-              {omitidosRecentes > 0 && ocultarRecentes && (
-                <span className="ml-1 text-muted-foreground">
-                  · {omitidosRecentes} ficaram de fora
-                </span>
-              )}
-            </span>
-          </label>
-          <Select value={String(janelaDias)} onValueChange={(v) => setJanelaDias(Number(v))}>
-            <SelectTrigger className="h-9 w-28 shrink-0 text-sm" data-janela-recentes="">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">1 dia</SelectItem>
-              <SelectItem value="3">3 dias</SelectItem>
-              <SelectItem value="7">7 dias</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      <FiltrosDeContatos
+        busca={busca}
+        onBusca={setBusca}
+        separavel={separavel}
+        soDoNumeroAtual={soDoNumeroAtual}
+        onSoDoNumeroAtual={(v) => {
+          setSoDoNumeroAtual(v);
+          // Sair do recorte não pode deixar selecionado alguém que estava
+          // escondido; voltar ao recorte não pode carregar quem sumiu.
+          onSelecionadosChange(new Set());
+        }}
+        omitidosPorNumero={omitidos}
+        temRecentes={(recentesQuery.data?.length ?? 0) > 0}
+        ocultarRecentes={ocultarRecentes}
+        onOcultarRecentes={(v) => {
+          setOcultarRecentes(v);
+          onSelecionadosChange(new Set());
+        }}
+        janelaDias={janelaDias}
+        onJanelaDias={(v) => {
+          setJanelaDias(v);
+          onSelecionadosChange(new Set());
+        }}
+        omitidosPorRecente={omitidosRecentes}
+        semTelefone={semTelefone}
+        visiveis={semRecentes.length}
+        base={contatos.length + semTelefone}
+      />
 
       {fichasDdd.length > 0 && (
         <div className="scrollbar-none -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">
+          {/* "Todos" conta sobre a MESMA base das outras fichas. Antes contava
+              `contatos.length`, a base crua, enquanto cada DDD contava já
+              filtrado — então "Todos (1000)" convivia com fichas somando 950, e
+              os números não fechavam para quem tentasse conferir. */}
           <FichaDdd
             rotulo="Todos"
-            contagem={contatos.length}
+            contagem={semRecentes.length}
             ativa={ddds.size === 0}
             onClick={() => setDdds(new Set())}
           />
@@ -434,6 +445,16 @@ export function ContactsTab({
             />
           ))}
         </div>
+      )}
+
+      {precisaDeLotes && (
+        <LoteDeDisparo
+          estado={lote}
+          recorte={nomeDoRecorte(ddds, busca)}
+          limite={usage.limit}
+          usadoHoje={usage.usedToday}
+          onEnviar={dispararLote}
+        />
       )}
 
       {!contatosEstado.carregando && contatosEstado.truncado && (

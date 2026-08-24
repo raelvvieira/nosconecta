@@ -1,6 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
+/**
+ * Quantos dias para trás a consulta de "quem já foi tratado" enxerga.
+ *
+ * Era 7. Subiu para 30 porque o envio em lotes respeita a cota diária, então
+ * uma base de 800 contatos leva 4 ou 5 dias a 200/dia — e com a janela em 7
+ * dias uma campanha mais longa começaria a reoferecer, no fim, gente que já
+ * recebeu no começo. A janela que a tela usa continua sendo escolha da tela
+ * (1, 3, 7, 15 ou 30 dias); esta é só o teto do que vem do servidor, para um
+ * dado já carregado servir a qualquer escolha sem refazer a consulta.
+ */
+const JANELA_DIAS = 30;
+
 export interface BroadcastAlvo {
   contactId: string;
   conversationId: string | null;
@@ -113,7 +125,11 @@ export interface RecentRecipient {
    *  gravado no disparo é o que o CRM criou na hora (via `garantirContatoCrm`),
    *  nunca o id do paciente usado na lista de seleção. */
   phone: string | null;
+  /** Quando saiu, ou quando está agendado para sair se ainda está na fila. */
   sentAt: string;
+  /** `true` = ainda na fila, não saiu. A pessoa conta como tratada do mesmo
+   *  jeito: enfileirar já é um compromisso de envio. */
+  naFila: boolean;
 }
 
 /**
@@ -164,25 +180,35 @@ export const getRecentRecipients = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<RecentRecipient[]> => {
     const supabase: any = context.supabase;
-    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const since = new Date(Date.now() - JANELA_DIAS * 24 * 60 * 60 * 1000).toISOString();
+
+    // `pending` entra junto com `sent`, e essa é a diferença que faz o envio em
+    // lotes ser confiável. `sent_at` só é gravado quando a mensagem sai de
+    // verdade — uma fila de 200 a cada 8 segundos leva ~27 minutos. Contando só
+    // `sent`, os 200 recém-enfileirados continuariam aparecendo como "ainda não
+    // receberam" durante toda a fila, e o progresso do lote diria 0 de 808
+    // logo depois de enviar. Quem está na fila já está comprometido.
     const { data, error } = await supabase
       .from("whatsapp_broadcast_targets")
-      .select("contact_id, phone, sent_at")
+      .select("contact_id, phone, sent_at, scheduled_for, status")
       .eq("owner_id", context.ownerId)
-      .eq("status", "sent")
-      .gte("sent_at", since);
+      .in("status", ["sent", "pending"])
+      .or(`sent_at.gte.${since},scheduled_for.gte.${since}`);
     if (error) throw new Error(error.message);
 
     // Uma linha por contact_id — a mesma pessoa pode ter recebido em mais de
-    // um disparo na janela; o que importa pro aviso é só o envio mais recente.
+    // um disparo na janela; o que importa pro aviso é só o mais recente.
     const porContato = new Map<string, RecentRecipient>();
     for (const row of (data ?? []) as any[]) {
+      const quando: string = row.sent_at ?? row.scheduled_for;
+      if (!quando) continue;
       const atual = porContato.get(row.contact_id);
-      if (!atual || row.sent_at > atual.sentAt) {
+      if (!atual || quando > atual.sentAt) {
         porContato.set(row.contact_id, {
           contactId: String(row.contact_id),
           phone: row.phone ?? null,
-          sentAt: row.sent_at,
+          sentAt: quando,
+          naFila: row.status === "pending",
         });
       }
     }
