@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -10,6 +10,8 @@ import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FichasDeTag } from "@/components/tags/FichasDeTag";
+import { listarTags, mapaDeTags, todasAsAtribuicoes } from "@/lib/tags/tags.functions";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
 import { localDateStr } from "@/lib/date";
@@ -108,6 +110,31 @@ function PatientsPage() {
     attention: { returns: 0, delinquent: 0 },
   };
   const [formOpen, setFormOpen] = useState(false);
+  const [tagsEscolhidas, setTagsEscolhidas] = useState<Set<string>>(new Set());
+
+  const fetchTags = useServerFn(listarTags);
+  const fetchAtribuicoes = useServerFn(todasAsAtribuicoes);
+  const tagsQuery = useQuery({ queryKey: ["tags"], queryFn: () => fetchTags(), staleTime: 5 * 60_000 });
+  const atribuicoesQuery = useQuery({
+    queryKey: ["tags-atribuicoes"],
+    queryFn: () => fetchAtribuicoes(),
+    staleTime: 60_000,
+  });
+  const porPaciente = useMemo(
+    () => mapaDeTags(atribuicoesQuery.data ?? []),
+    [atribuicoesQuery.data],
+  );
+  // Recorte por tag no cliente: a lista já veio inteira do servidor, e uma
+  // segunda ida ao banco só para cruzar tag seria trabalho repetido.
+  const pacientesVisiveis = useMemo(() => {
+    if (tagsEscolhidas.size === 0) return data.patients;
+    return data.patients.filter((p) => {
+      const doPaciente = porPaciente.get(p.id);
+      if (!doPaciente) return false;
+      for (const t of tagsEscolhidas) if (doPaciente.has(t)) return true;
+      return false;
+    });
+  }, [data.patients, tagsEscolhidas, porPaciente]);
 
   const setSearch = (patch: Partial<PatientsSearch>) =>
     routeNavigate({
@@ -193,13 +220,26 @@ function PatientsPage() {
                 : FILTERS.find((item) => item.value === search.status)?.label}
             </h2>
             <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
-              {data.patients.length}
+              {pacientesVisiveis.length}
             </span>
           </div>
 
-          {data.patients.length ? (
+          <FichasDeTag
+            className="mb-3"
+            tags={tagsQuery.data ?? []}
+            escolhidas={tagsEscolhidas}
+            onAlternar={(id) => {
+              const next = new Set(tagsEscolhidas);
+              if (next.has(id)) next.delete(id);
+              else next.add(id);
+              setTagsEscolhidas(next);
+            }}
+            contar={(id) => data.patients.filter((p) => porPaciente.get(p.id)?.has(id)).length}
+          />
+
+          {pacientesVisiveis.length ? (
             <div className="surface-card divide-y divide-border overflow-hidden">
-              {data.patients.map((patient, index) => (
+              {pacientesVisiveis.map((patient, index) => (
                 <Link
                   key={patient.id}
                   to="/pacientes/$patientId"

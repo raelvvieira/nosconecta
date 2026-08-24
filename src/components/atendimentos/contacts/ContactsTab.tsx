@@ -19,6 +19,8 @@ import { getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
 import { getPatientContacts } from "@/lib/patients/patients.functions";
 import { contatosDaCaixa, daParaSepararPorNumero } from "@/lib/atendimentos/inboxSnapshot";
 import { calcularLote } from "@/lib/atendimentos/loteDeDisparo";
+import { listarTags, mapaDeTags, todasAsAtribuicoes } from "@/lib/tags/tags.functions";
+import { FichasDeTag } from "@/components/tags/FichasDeTag";
 import { FiltrosDeContatos } from "./FiltrosDeContatos";
 import { LoteDeDisparo, nomeDoRecorte } from "./LoteDeDisparo";
 
@@ -28,6 +30,8 @@ import { LoteDeDisparo, nomeDoRecorte } from "./LoteDeDisparo";
 const SEM_CONVERSAS: never[] = [];
 const SEM_PACIENTES: never[] = [];
 const SEM_RECENTES: never[] = [];
+const SEM_ATRIBUICOES: never[] = [];
+const SEM_TAGS: never[] = [];
 
 const normFone = (phone: string | null) => (phone ?? "").replace(/\D/g, "");
 
@@ -160,8 +164,24 @@ export function ContactsTab({
   });
   const usage = usageQuery.data ?? { limit: 200, usedToday: 0 };
 
+  const fetchTags = useServerFn(listarTags);
+  const fetchAtribuicoes = useServerFn(todasAsAtribuicoes);
+  const tagsQuery = useQuery({
+    queryKey: ["tags"],
+    queryFn: () => fetchTags(),
+    enabled: ativo,
+    staleTime: 5 * 60_000,
+  });
+  const atribuicoesQuery = useQuery({
+    queryKey: ["tags-atribuicoes"],
+    queryFn: () => fetchAtribuicoes(),
+    enabled: ativo,
+    staleTime: 60_000,
+  });
+
   const [busca, setBusca] = useState("");
   const [ddds, setDdds] = useState<Set<string>>(new Set());
+  const [tagsEscolhidas, setTagsEscolhidas] = useState<Set<string>>(new Set());
   // Só quem é do número conectado, por padrão. Trocar de número no WhatsApp
   // deixa a caixa antiga na conta com todas as conversas dela, e disparar para
   // essa gente é mandar mensagem de uma clínica que ela não reconhece. Não se
@@ -267,11 +287,31 @@ export function ContactsTab({
   const semRecentes = ocultarRecentes ? naoTratados : noEscopo;
   const omitidosRecentes = noEscopo.length - naoTratados.length;
 
+  // Tag por contato, casada pelas duas chaves de uma vez — a lista tem mais de
+  // mil linhas, e resolver o vínculo de cada uma seria uma consulta por linha.
+  const porContatoTags = useMemo(
+    () => mapaDeTags(atribuicoesQuery.data ?? SEM_ATRIBUICOES),
+    [atribuicoesQuery.data],
+  );
+
+  const temAlgumaTagEscolhida = (c: ContatoUnificado): boolean => {
+    if (tagsEscolhidas.size === 0) return true;
+    // O `id` já é a chave certa: do CRM para quem veio de lá, do paciente para
+    // quem nunca conversou. `mapaDeTags` indexa as duas.
+    const doContato = porContatoTags.get(c.id) ?? porContatoTags.get(c.patientId ?? "");
+    if (!doContato) return false;
+    // Várias tags escolhidas somam em vez de restringir: "clareamento OU
+    // implante" é o recorte que serve a um disparo; exigir as duas juntas
+    // devolveria quase ninguém.
+    for (const t of tagsEscolhidas) if (doContato.has(t)) return true;
+    return false;
+  };
+
   /** DDDs presentes na base, do mais numeroso para o menos. */
   const fichasDdd = useMemo(() => contarPorDdd(semRecentes), [semRecentes]);
   const filtrados = useMemo(
-    () => filtrarContatos(semRecentes, { busca, ddds }),
-    [semRecentes, busca, ddds],
+    () => filtrarContatos(semRecentes, { busca, ddds }).filter(temAlgumaTagEscolhida),
+    [semRecentes, busca, ddds, tagsEscolhidas, porContatoTags],
   );
 
   // O recorte para o envio em lotes, em duas medidas: quantos existem e quantos
@@ -279,12 +319,12 @@ export function ContactsTab({
   // propósito — desligar "sem disparo recente" muda o que a lista MOSTRA, mas
   // não pode fazer o lote reenviar para quem já recebeu.
   const recorteTotal = useMemo(
-    () => filtrarContatos(noEscopo, { busca, ddds }).length,
-    [noEscopo, busca, ddds],
+    () => filtrarContatos(noEscopo, { busca, ddds }).filter(temAlgumaTagEscolhida).length,
+    [noEscopo, busca, ddds, tagsEscolhidas, porContatoTags],
   );
   const recortePendente = useMemo(
-    () => filtrarContatos(naoTratados, { busca, ddds }),
-    [naoTratados, busca, ddds],
+    () => filtrarContatos(naoTratados, { busca, ddds }).filter(temAlgumaTagEscolhida),
+    [naoTratados, busca, ddds, tagsEscolhidas, porContatoTags],
   );
 
   const lote = calcularLote({
@@ -446,6 +486,27 @@ export function ContactsTab({
           ))}
         </div>
       )}
+
+      <FichasDeTag
+        className="mt-2.5"
+        tags={tagsQuery.data ?? SEM_TAGS}
+        escolhidas={tagsEscolhidas}
+        onAlternar={(id) => {
+          const next = new Set(tagsEscolhidas);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          setTagsEscolhidas(next);
+          // Mesmo motivo dos outros filtros: mudar o recorte não pode deixar
+          // selecionado quem sumiu da tela.
+          onSelecionadosChange(new Set());
+        }}
+        contar={(id) =>
+          semRecentes.filter((c) => {
+            const t = porContatoTags.get(c.id) ?? porContatoTags.get(c.patientId ?? "");
+            return Boolean(t?.has(id));
+          }).length
+        }
+      />
 
       {precisaDeLotes && (
         <LoteDeDisparo

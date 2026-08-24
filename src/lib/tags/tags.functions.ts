@@ -286,22 +286,61 @@ export const desmarcarTag = createServerFn({ method: "POST" })
  * seria uma consulta por linha. Quem monta o mapa é o cliente, que já tem os
  * contatos em mãos.
  */
+export interface AtribuicaoDeTag {
+  tagId: string;
+  patientId: string | null;
+  crmContactId: string | null;
+  /** O `crm_contact_id` do PACIENTE desta linha, quando ela é de paciente.
+   *
+   *  Sem isto o filtro erraria no caso mais comum: a lista de contatos de
+   *  disparo identifica um contato do CRM pelo id do CRM, mas a tag dele foi
+   *  gravada em `patient_id` (é o que a regra de escrita faz quando o vínculo
+   *  existe). As duas pontas não se encontrariam, e a pessoa etiquetada
+   *  simplesmente não apareceria no recorte. */
+  patientCrmContactId: string | null;
+}
+
 export const todasAsAtribuicoes = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
-  .handler(
-    async ({
-      context,
-    }): Promise<{ tagId: string; patientId: string | null; crmContactId: string | null }[]> => {
-      const supabase: any = context.supabase;
-      const { data, error } = await supabase
-        .from("contact_tags")
-        .select("tag_id, patient_id, crm_contact_id")
-        .eq("owner_id", context.ownerId);
-      if (error) throw new Error(error.message);
-      return (data ?? []).map((r: any) => ({
-        tagId: String(r.tag_id),
-        patientId: r.patient_id ?? null,
-        crmContactId: r.crm_contact_id ?? null,
-      }));
-    },
-  );
+  .handler(async ({ context }): Promise<AtribuicaoDeTag[]> => {
+    const supabase: any = context.supabase;
+    const { data, error } = await supabase
+      .from("contact_tags")
+      .select("tag_id, patient_id, crm_contact_id, patients(crm_contact_id)")
+      .eq("owner_id", context.ownerId);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r: any) => ({
+      tagId: String(r.tag_id),
+      patientId: r.patient_id ?? null,
+      crmContactId: r.crm_contact_id ?? null,
+      patientCrmContactId: r.patients?.crm_contact_id ?? null,
+    }));
+  });
+
+/**
+ * Quais tags cada pessoa tem, pronto para filtrar uma lista grande.
+ *
+ * Recebe as atribuições cruas e devolve um mapa por CHAVE DE TELA — o `id` que
+ * a lista de contatos usa, que é o do CRM para quem veio de lá e o do paciente
+ * para quem nunca conversou. A mesma atribuição pode entrar sob duas chaves, e
+ * é isso que faz a tag aparecer independentemente de por onde a pessoa está
+ * sendo olhada.
+ *
+ * Fora dos componentes por ser testável, e porque errar aqui é um recorte de
+ * disparo que exclui gente em silêncio.
+ */
+export function mapaDeTags(atribuicoes: AtribuicaoDeTag[]): Map<string, Set<string>> {
+  const mapa = new Map<string, Set<string>>();
+  const juntar = (chave: string | null, tagId: string) => {
+    if (!chave) return;
+    const atual = mapa.get(chave) ?? new Set<string>();
+    atual.add(tagId);
+    mapa.set(chave, atual);
+  };
+  for (const a of atribuicoes) {
+    juntar(a.patientId, a.tagId);
+    juntar(a.crmContactId, a.tagId);
+    juntar(a.patientCrmContactId, a.tagId);
+  }
+  return mapa;
+}
