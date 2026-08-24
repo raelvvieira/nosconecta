@@ -23,15 +23,49 @@ export interface AlvoDeEnvio {
   contact_id: string;
 }
 
-/** Manda uma mensagem, devolvendo por qual caminho saiu. */
+/** Imagem enviada JUNTO do texto, como legenda de uma mensagem só. */
+export interface MidiaDeEnvio {
+  nome: string;
+  tipo: string;
+  bytes: Uint8Array;
+}
+
+/** Manda uma mensagem, devolvendo por qual caminho saiu.
+ *
+ *  `midiaIgnorada` vem preenchido quando havia imagem para mandar e o caminho
+ *  usado não sabe carregá-la — é o que impede a foto de sumir em silêncio. */
 export async function enviarWhatsapp(
   supabase: any,
   ownerId: string,
   alvo: AlvoDeEnvio,
   message: string,
-): Promise<{ via: string }> {
+  midia?: MidiaDeEnvio | null,
+): Promise<{ via: string; midiaIgnorada?: string }> {
   if (alvo.conversation_id) {
     // Caminho CONFIRMADO: é o mesmo que o chat usa para responder alguém.
+    //
+    // Com imagem, o endpoint troca de JSON para multipart e o texto vai em
+    // `content` na MESMA requisição — é assim que sai uma mensagem só, com a
+    // foto legendada, e não duas mensagens seguidas. Idêntico ao que
+    // `crm-conversations/handleSend` já faz para o anexo do chat.
+    if (midia) {
+      const form = new FormData();
+      form.append("content", message);
+      form.append("message_type", "outgoing");
+      form.append("private", "false");
+      form.append(
+        "attachments[]",
+        new File([midia.bytes as BlobPart], midia.nome, {
+          type: midia.tipo || "application/octet-stream",
+        }),
+      );
+      await crmFetch(supabase, ownerId, `/api/v1/conversations/${alvo.conversation_id}/messages`, {
+        method: "POST",
+        body: form,
+      });
+      return { via: "conversation_midia" };
+    }
+
     await crmFetch(supabase, ownerId, `/api/v1/conversations/${alvo.conversation_id}/messages`, {
       method: "POST",
       body: JSON.stringify({ content: message, message_type: "outgoing", private: false }),
@@ -67,5 +101,20 @@ export async function enviarWhatsapp(
       message: { content: message },
     }),
   });
-  return { via: "conversation_new" };
+  // Imagem NÃO acompanha a criação da conversa. Este endpoint aceita só JSON
+  // com `message.content`; anexar aqui nunca foi confirmado pelo time do CRM, e
+  // chutar um formato faria a requisição inteira ser recusada — a pessoa não
+  // receberia nem a foto nem o texto. Então o texto sai, e a linha do alvo
+  // registra por que a foto não foi, para aparecer em Execuções em vez de
+  // sumir.
+  //
+  // Mandar a foto numa segunda mensagem logo depois seria possível (o `id` da
+  // conversa volta nesta resposta), mas seriam DUAS mensagens — e o pedido era
+  // explicitamente uma só, com legenda.
+  return {
+    via: "conversation_new",
+    midiaIgnorada: midia
+      ? "Contato ainda não tinha conversa aberta: a imagem só pode ser anexada a uma conversa existente."
+      : undefined,
+  };
 }

@@ -9,8 +9,10 @@
 // só, e dois contadores separados deixariam o número exposto ao dobro do que a
 // clínica escolheu como limite.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { enviarWhatsapp } from "../_shared/whatsapp-send.ts";
+import { enviarWhatsapp, type MidiaDeEnvio } from "../_shared/whatsapp-send.ts";
 import { debitDailyUsage, getDailyUsage } from "../_shared/daily-quota.ts";
+import { horariosDaFila, normalizarRitmo, type Ritmo } from "../_shared/ritmo.ts";
+import { aplicarVariaveis } from "../_shared/variaveis-disparo.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -31,8 +33,9 @@ interface AlvoEntrada {
 async function handleCreate(
   ownerId: string,
   message: string,
-  intervalSeconds: number,
+  ritmoBruto: Partial<Ritmo> | null,
   alvos: AlvoEntrada[],
+  mediaPath: string | null,
 ) {
   if (!message?.trim()) throw new Error("Escreva a mensagem antes de disparar.");
   if (!alvos?.length) throw new Error("Selecione ao menos um contato.");
@@ -46,20 +49,29 @@ async function handleCreate(
     );
   }
 
-  const passo = Math.max(1, Math.min(intervalSeconds, 300));
+  const ritmo = normalizarRitmo(ritmoBruto);
   const { data: lote, error } = await supabase
     .from("whatsapp_broadcasts")
     .insert({
       owner_id: ownerId,
       message: message.trim(),
-      interval_seconds: passo,
+      // Mantido para os disparos antigos e como valor de leitura de reserva.
+      interval_seconds: ritmo.minSegundos,
+      interval_min_seconds: ritmo.minSegundos,
+      interval_max_seconds: ritmo.maxSegundos,
+      pause_after: ritmo.pausarACada,
+      resume_after_minutes: ritmo.retomarEmMinutos,
+      media_path: mediaPath,
       total: alvos.length,
     })
     .select("id")
     .single();
   if (error) throw new Error(error.message);
 
+  // O ritmo mora aqui: cada alvo nasce com o horário em que deve sair, então a
+  // fila é previsível e o cron não guarda estado nenhum.
   const inicio = Date.now();
+  const horarios = horariosDaFila(alvos.length, ritmo, inicio);
   const linhas = alvos.map((a, i) => ({
     broadcast_id: lote.id,
     owner_id: ownerId,
@@ -67,8 +79,7 @@ async function handleCreate(
     conversation_id: a.conversationId ?? null,
     contact_name: a.name ?? null,
     phone: a.phone ?? null,
-    // O primeiro sai já; os outros escalonados. É aqui que o ritmo mora.
-    scheduled_for: new Date(inicio + i * passo * 1000).toISOString(),
+    scheduled_for: new Date(horarios[i]).toISOString(),
   }));
   const { error: erroAlvos } = await supabase.from("whatsapp_broadcast_targets").insert(linhas);
   if (erroAlvos) throw new Error(erroAlvos.message);
@@ -81,7 +92,21 @@ async function handleCreate(
     ok: true,
     broadcastId: lote.id,
     total: alvos.length,
-    terminaEm: new Date(inicio + (alvos.length - 1) * passo * 1000).toISOString(),
+    terminaEm: new Date(horarios[horarios.length - 1]).toISOString(),
+  };
+}
+
+/** A imagem do lote, baixada UMA vez por tick e reaproveitada por todos os
+ *  alvos daquele lote — baixar por alvo seria 40 downloads do mesmo arquivo a
+ *  cada minuto. */
+async function baixarMidia(path: string | null): Promise<MidiaDeEnvio | null> {
+  if (!path) return null;
+  const { data, error } = await supabase.storage.from("crm-campaign-media").download(path);
+  if (error || !data) return null;
+  return {
+    nome: path.split("/").pop() || "imagem",
+    tipo: data.type || "image/jpeg",
+    bytes: new Uint8Array(await data.arrayBuffer()),
   };
 }
 
@@ -89,7 +114,7 @@ async function handleTick() {
   const agora = new Date().toISOString();
   const { data: alvos } = await supabase
     .from("whatsapp_broadcast_targets")
-    .select("id, owner_id, broadcast_id, contact_id, conversation_id")
+    .select("id, owner_id, broadcast_id, contact_id, conversation_id, contact_name")
     .eq("status", "pending")
     .lte("scheduled_for", agora)
     .order("scheduled_for", { ascending: true })
@@ -97,15 +122,22 @@ async function handleTick() {
 
   if (!alvos?.length) return { ok: true, enviados: 0, falhas: 0 };
 
-  // A mensagem e o status do lote são lidos uma vez por lote, não por alvo.
-  const lotes = new Map<string, { message: string; status: string }>();
+  // A mensagem, o status e a imagem do lote são lidos uma vez por lote, não por
+  // alvo — inclusive o download da imagem, que é o mais caro dos três.
+  const lotes = new Map<string, { message: string; status: string; midia: MidiaDeEnvio | null }>();
   for (const id of new Set(alvos.map((a: any) => a.broadcast_id))) {
     const { data } = await supabase
       .from("whatsapp_broadcasts")
-      .select("message, status")
+      .select("message, status, media_path")
       .eq("id", id)
       .maybeSingle();
-    if (data) lotes.set(String(id), data);
+    if (data) {
+      lotes.set(String(id), {
+        message: data.message,
+        status: data.status,
+        midia: data.status === "running" ? await baixarMidia(data.media_path) : null,
+      });
+    }
   }
 
   let enviados = 0;
@@ -123,10 +155,27 @@ async function handleTick() {
     }
 
     try {
-      const { via } = await enviarWhatsapp(supabase, alvo.owner_id, alvo, lote.message);
+      // As variáveis são resolvidas POR ALVO, aqui e não na criação: gravar o
+      // texto já personalizado em cada linha da fila duplicaria a mensagem
+      // inteira 200 vezes no banco, e impediria corrigir o texto de um lote em
+      // andamento.
+      const texto = aplicarVariaveis(lote.message, { nome: alvo.contact_name });
+      const { via, midiaIgnorada } = await enviarWhatsapp(
+        supabase,
+        alvo.owner_id,
+        alvo,
+        texto,
+        lote.midia,
+      );
       await supabase
         .from("whatsapp_broadcast_targets")
-        .update({ status: "sent", sent_via: via, sent_at: new Date().toISOString(), error: null })
+        .update({
+          status: "sent",
+          sent_via: via,
+          sent_at: new Date().toISOString(),
+          error: null,
+          media_skipped_reason: midiaIgnorada ?? null,
+        })
         .eq("id", alvo.id);
       enviados++;
     } catch (e) {
@@ -196,8 +245,20 @@ Deno.serve(async (req) => {
         result = await handleCreate(
           ownerId,
           body.message,
-          Number(body.intervalSeconds ?? 8),
+          // `intervalSeconds` continua aceito: um cliente antigo que só sabe
+          // mandar o valor único vira uma faixa degenerada (min = max), com o
+          // mesmo comportamento de antes.
+          body.ritmo ??
+            (body.intervalSeconds
+              ? {
+                  minSegundos: Number(body.intervalSeconds),
+                  maxSegundos: Number(body.intervalSeconds),
+                  pausarACada: 0,
+                  retomarEmMinutos: 0,
+                }
+              : null),
           body.targets ?? [],
+          body.mediaPath ?? null,
         );
         break;
       case "cancel":

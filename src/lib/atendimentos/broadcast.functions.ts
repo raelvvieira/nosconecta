@@ -45,10 +45,26 @@ async function callBroadcast(body: unknown) {
   return json;
 }
 
+/** Ritmo da fila. Espelha `supabase/functions/_shared/ritmo.ts`, que é quem
+ *  aplica os limites — aqui é só o formato que atravessa a chamada. */
+export interface RitmoDoDisparo {
+  minSegundos: number;
+  maxSegundos: number;
+  pausarACada: number;
+  retomarEmMinutos: number;
+}
+
 export const criarDisparo = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator(
-    (input: { message: string; intervalSeconds: number; targets: BroadcastAlvo[] }) => {
+    (input: {
+      message: string;
+      ritmo: RitmoDoDisparo;
+      targets: BroadcastAlvo[];
+      /** Caminho no bucket `crm-campaign-media`, não URL assinada: a fila pode
+       *  levar horas até o último alvo e a assinatura expiraria no meio. */
+      mediaPath?: string | null;
+    }) => {
       if (!input.message?.trim()) throw new Error("Escreva a mensagem antes de disparar.");
       if (!input.targets?.length) throw new Error("Selecione ao menos um contato.");
       return input;
@@ -59,7 +75,8 @@ export const criarDisparo = createServerFn({ method: "POST" })
       ownerId: context.ownerId,
       action: "create",
       message: data.message,
-      intervalSeconds: data.intervalSeconds,
+      ritmo: data.ritmo,
+      mediaPath: data.mediaPath ?? null,
       targets: data.targets,
     });
     return {

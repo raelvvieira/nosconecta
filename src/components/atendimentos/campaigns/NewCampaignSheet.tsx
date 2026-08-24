@@ -11,7 +11,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
-import { criarDisparo } from "@/lib/atendimentos/broadcast.functions";
+import { criarDisparo, type RitmoDoDisparo } from "@/lib/atendimentos/broadcast.functions";
 import { garantirContatoCrm } from "@/lib/patients/patients.functions";
 import { prepararAlvos } from "@/lib/atendimentos/prepararAlvos";
 import { ContactsTab, type ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
@@ -62,7 +62,11 @@ export function NewCampaignSheet({
   };
 
   const disparoMutation = useMutation({
-    mutationFn: async (dados: { message: string; intervalSeconds: number }) => {
+    mutationFn: async (dados: {
+      message: string;
+      ritmo: RitmoDoDisparo;
+      mediaPath: string | null;
+    }) => {
       // Exigente (sem `tolerante`): aqui a pessoa escolheu cada contato a dedo,
       // então um que não possa receber precisa parar tudo em vez de sair da
       // lista sem ela perceber.

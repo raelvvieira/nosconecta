@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { criarDisparo } from "@/lib/atendimentos/broadcast.functions";
+import { criarDisparo, type RitmoDoDisparo } from "@/lib/atendimentos/broadcast.functions";
 import { getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
 import { garantirContatoCrm } from "@/lib/patients/patients.functions";
 import { prepararAlvos } from "@/lib/atendimentos/prepararAlvos";
@@ -38,7 +38,11 @@ export function useDisparoDeColuna() {
   });
 
   const disparo = useMutation({
-    mutationFn: async (dados: { message: string; intervalSeconds: number }) => {
+    mutationFn: async (dados: {
+      message: string;
+      ritmo: RitmoDoDisparo;
+      mediaPath: string | null;
+    }) => {
       // Tolerante: a lista veio de uma coluna inteira, não escolhida uma a uma.
       // Um paciente sem telefone não pode impedir o envio para os outros —
       // mas também não pode sumir calado, por isso `foraDoDisparo` vira aviso.
