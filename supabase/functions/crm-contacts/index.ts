@@ -571,10 +571,13 @@ async function handleResolveBatch(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
   try {
-    const { ownerId, action, patient, page, pageSize } = (await req.json()) as {
+    const { ownerId, action, patient, patients, page, pageSize } = (await req.json()) as {
       ownerId?: string;
       action?: string;
       patient?: { patientId: string; name: string; phone?: string | null };
+      /** Lista para `resolve-batch` — vincular a seleção inteira de um disparo
+       *  numa chamada, em vez de uma por contato. */
+      patients?: { patientId: string; name?: string | null; phone?: string | null }[];
       /** Presente = uma página só (handlePage). Ausente = varredura completa
        *  no servidor (handleList), mantida por compatibilidade. */
       page?: number;
@@ -591,7 +594,7 @@ Deno.serve(async (req) => {
     } else if (action === "upsert" && patient) {
       result = await handleUpsert(ownerId, patient);
     } else if (action === "resolve-batch") {
-      result = await handleResolveBatch(ownerId, body.patients ?? []);
+      result = await handleResolveBatch(ownerId, patients ?? []);
     } else if (action === "backfill-links") {
       result = await handleBackfillLinks(ownerId);
     } else {

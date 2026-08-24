@@ -16,6 +16,19 @@ bun run build       # confirma que builda sem error
 
 Só commitar se `bun run build` terminar com `✓ built in ...s` sem erros.
 
+**Se o commit tocar `supabase/functions/`, rode também:**
+
+```bash
+node scripts/checar-edge-functions.mjs
+```
+
+`bunx tsc` cobre só `src/` — as Edge Functions rodam em Deno e ficam de fora.
+Transpilar cada arquivo prova apenas que ele compila; não faz análise de escopo,
+então um identificador que não existe passa inteiro e só aparece como
+`ReferenceError` quando a função roda, na cara de quem está usando o sistema.
+Foi assim que um `body.patients` chegou em produção num arquivo que
+desestrutura a requisição e nunca declarou `body`.
+
 ## Arquivos que não devem ser editados
 
 - `src/routeTree.gen.ts` — auto-gerado pelo Vite
