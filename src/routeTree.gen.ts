@@ -29,6 +29,7 @@ import { Route as AtendimentosPipelineRouteImport } from './routes/atendimentos.
 import { Route as ConfiguracoesIndexRouteImport } from './routes/configuracoes.index'
 import { Route as ConfiguracoesIntegracoesRouteImport } from './routes/configuracoes.integracoes'
 import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
+import { Route as ConfiguracoesTagsRouteImport } from './routes/configuracoes.tags'
 import { Route as PacientesIndexRouteImport } from './routes/pacientes.index'
 import { Route as PacientesPatientIdRouteImport } from './routes/pacientes.$patientId'
 import { Route as AtendimentosAutomacoesIndexRouteImport } from './routes/atendimentos.automacoes.index'
@@ -137,6 +138,11 @@ const ConfiguracoesNotificacoesRoute =
     path: '/notificacoes',
     getParentRoute: () => ConfiguracoesRoute,
   } as any)
+const ConfiguracoesTagsRoute = ConfiguracoesTagsRouteImport.update({
+  id: '/tags',
+  path: '/tags',
+  getParentRoute: () => ConfiguracoesRoute,
+} as any)
 const PacientesIndexRoute = PacientesIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -185,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
+  '/configuracoes/tags': typeof ConfiguracoesTagsRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/atendimentos/': typeof AtendimentosIndexRoute
   '/configuracoes/': typeof ConfiguracoesIndexRoute
@@ -208,6 +215,7 @@ export interface FileRoutesByTo {
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
+  '/configuracoes/tags': typeof ConfiguracoesTagsRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/atendimentos': typeof AtendimentosIndexRoute
   '/configuracoes': typeof ConfiguracoesIndexRoute
@@ -236,6 +244,7 @@ export interface FileRoutesById {
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
+  '/configuracoes/tags': typeof ConfiguracoesTagsRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/atendimentos/': typeof AtendimentosIndexRoute
   '/configuracoes/': typeof ConfiguracoesIndexRoute
@@ -265,6 +274,7 @@ export interface FileRouteTypes {
     | '/atendimentos/pipeline'
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
+    | '/configuracoes/tags'
     | '/pacientes/$patientId'
     | '/atendimentos/'
     | '/configuracoes/'
@@ -288,6 +298,7 @@ export interface FileRouteTypes {
     | '/atendimentos/pipeline'
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
+    | '/configuracoes/tags'
     | '/pacientes/$patientId'
     | '/atendimentos'
     | '/configuracoes'
@@ -315,6 +326,7 @@ export interface FileRouteTypes {
     | '/atendimentos/pipeline'
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
+    | '/configuracoes/tags'
     | '/pacientes/$patientId'
     | '/atendimentos/'
     | '/configuracoes/'
@@ -481,6 +493,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfiguracoesNotificacoesRouteImport
       parentRoute: typeof ConfiguracoesRoute
     }
+    '/configuracoes/tags': {
+      id: '/configuracoes/tags'
+      path: '/tags'
+      fullPath: '/configuracoes/tags'
+      preLoaderRoute: typeof ConfiguracoesTagsRouteImport
+      parentRoute: typeof ConfiguracoesRoute
+    }
     '/pacientes/': {
       id: '/pacientes/'
       path: '/'
@@ -562,12 +581,14 @@ const AtendimentosRouteWithChildren = AtendimentosRoute._addFileChildren(
 interface ConfiguracoesRouteChildren {
   ConfiguracoesIntegracoesRoute: typeof ConfiguracoesIntegracoesRoute
   ConfiguracoesNotificacoesRoute: typeof ConfiguracoesNotificacoesRoute
+  ConfiguracoesTagsRoute: typeof ConfiguracoesTagsRoute
   ConfiguracoesIndexRoute: typeof ConfiguracoesIndexRoute
 }
 
 const ConfiguracoesRouteChildren: ConfiguracoesRouteChildren = {
   ConfiguracoesIntegracoesRoute: ConfiguracoesIntegracoesRoute,
   ConfiguracoesNotificacoesRoute: ConfiguracoesNotificacoesRoute,
+  ConfiguracoesTagsRoute: ConfiguracoesTagsRoute,
   ConfiguracoesIndexRoute: ConfiguracoesIndexRoute,
 }
 

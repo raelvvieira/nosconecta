@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, CheckCheck, ChevronDown, MessageCircle, Search, StickyNote, X } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { SeletorDeTags } from "@/components/tags/SeletorDeTags";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Input } from "@/components/ui/input";
 import { ChatComposer } from "@/components/atendimentos/chat/ChatComposer";
@@ -434,6 +435,16 @@ function ChatPage() {
                   <p className="truncate text-xs text-muted-foreground">{selected.phone}</p>
                 )}
               </div>
+              {/* Tags ficam FORA do bloco do funil: elas não dependem de o
+                  pipeline estar configurado, e uma clínica que nunca conectou o
+                  CRM continua podendo categorizar quem fala com ela. */}
+              <SeletorDeTags
+                alvo={{ crmContactId: selected.contactId ?? null }}
+                vazio="Tag"
+                compacto
+                className="shrink-0"
+              />
+
               {pipelineConfigured && pipelineStages.length > 0 && (
                 <div className="flex shrink-0 items-center gap-1.5">
                   <DropdownMenu>

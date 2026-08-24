@@ -4,6 +4,7 @@ import { queryOptions, useQuery } from "@tanstack/react-query";
 import {
   Armchair,
   Bell,
+  Tag as TagIcon,
   BriefcaseMedical,
   Building2,
   MessageCircle,
@@ -53,6 +54,18 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
         label: "Procedimentos",
         description: "Duração, preço e custo",
         icon: BriefcaseMedical,
+      },
+      {
+        // Rota própria, e não `section`, porque a CRUD genérica desta tela
+        // grava três campos numa tabela e nada mais. As tags precisam da
+        // contagem de uso, da paleta de cores e da recusa de nome repetido —
+        // que já vivem em `tags.functions.ts`. Encaixá-las na CRUD genérica
+        // significaria uma segunda implementação das mesmas regras.
+        kind: "link",
+        to: "/configuracoes/tags",
+        label: "Tags",
+        description: "Etiquetas de contatos e pacientes",
+        icon: TagIcon,
       },
     ],
   },

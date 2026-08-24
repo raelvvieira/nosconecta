@@ -4,6 +4,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, CalendarDays, Check, ChevronRight, CircleDollarSign, ClipboardList, Clock3, MessageCircle, MoreHorizontal, ReceiptText, Sparkles, Stethoscope, UserRound, WalletCards } from "lucide-react";
+import { SeletorDeTags } from "@/components/tags/SeletorDeTags";
 import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
@@ -177,6 +178,16 @@ function PatientDetailPage() {
                 <span>Sem idade nem telefone cadastrados</span>
               ) : null}
             </p>
+
+            {/* As tags ficam no cartão de identificação, logo abaixo da linha
+                de idade e telefone: é a informação de "quem é essa pessoa para
+                a clínica", junto do resto da identificação, e não escondida
+                numa aba. */}
+            <SeletorDeTags
+              alvo={{ patientId: patient.id }}
+              vazio="Adicionar tag"
+              className="mt-3"
+            />
           </div>
         </section>
 
