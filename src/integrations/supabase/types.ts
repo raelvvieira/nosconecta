@@ -694,6 +694,33 @@ export type Database = {
         }
         Relationships: []
       }
+      clinic_tags: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clinic_units: {
         Row: {
           active: boolean
@@ -726,6 +753,55 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      contact_tags: {
+        Row: {
+          created_at: string
+          crm_contact_id: string | null
+          id: string
+          owner_id: string
+          patient_id: string | null
+          tag_id: string
+        }
+        Insert: {
+          created_at?: string
+          crm_contact_id?: string | null
+          id?: string
+          owner_id: string
+          patient_id?: string | null
+          tag_id: string
+        }
+        Update: {
+          created_at?: string
+          crm_contact_id?: string | null
+          id?: string
+          owner_id?: string
+          patient_id?: string | null
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_tags_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "contact_tags_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_tags"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       crm_campaign_sends: {
         Row: {
@@ -2050,6 +2126,7 @@ export type Database = {
           conversation_id: string | null
           error: string | null
           id: string
+          media_skipped_reason: string | null
           owner_id: string
           phone: string | null
           scheduled_for: string
@@ -2064,6 +2141,7 @@ export type Database = {
           conversation_id?: string | null
           error?: string | null
           id?: string
+          media_skipped_reason?: string | null
           owner_id: string
           phone?: string | null
           scheduled_for: string
@@ -2078,6 +2156,7 @@ export type Database = {
           conversation_id?: string | null
           error?: string | null
           id?: string
+          media_skipped_reason?: string | null
           owner_id?: string
           phone?: string | null
           scheduled_for?: string
@@ -2099,9 +2178,15 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          interval_max_seconds: number | null
+          interval_min_seconds: number | null
           interval_seconds: number
+          media_path: string | null
           message: string
+          name: string | null
           owner_id: string
+          pause_after: number
+          resume_after_minutes: number
           status: string
           total: number
           updated_at: string
@@ -2109,9 +2194,15 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          interval_max_seconds?: number | null
+          interval_min_seconds?: number | null
           interval_seconds?: number
+          media_path?: string | null
           message: string
+          name?: string | null
           owner_id: string
+          pause_after?: number
+          resume_after_minutes?: number
           status?: string
           total?: number
           updated_at?: string
@@ -2119,9 +2210,15 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          interval_max_seconds?: number | null
+          interval_min_seconds?: number | null
           interval_seconds?: number
+          media_path?: string | null
           message?: string
+          name?: string | null
           owner_id?: string
+          pause_after?: number
+          resume_after_minutes?: number
           status?: string
           total?: number
           updated_at?: string
