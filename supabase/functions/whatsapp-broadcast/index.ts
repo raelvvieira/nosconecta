@@ -36,6 +36,7 @@ async function handleCreate(
   ritmoBruto: Partial<Ritmo> | null,
   alvos: AlvoEntrada[],
   mediaPath: string | null,
+  nome: string | null,
 ) {
   if (!message?.trim()) throw new Error("Escreva a mensagem antes de disparar.");
   if (!alvos?.length) throw new Error("Selecione ao menos um contato.");
@@ -54,6 +55,7 @@ async function handleCreate(
     .from("whatsapp_broadcasts")
     .insert({
       owner_id: ownerId,
+      name: nome?.trim() || null,
       message: message.trim(),
       // Mantido para os disparos antigos e como valor de leitura de reserva.
       interval_seconds: ritmo.minSegundos,
@@ -259,6 +261,7 @@ Deno.serve(async (req) => {
               : null),
           body.targets ?? [],
           body.mediaPath ?? null,
+          body.name ?? null,
         );
         break;
       case "cancel":

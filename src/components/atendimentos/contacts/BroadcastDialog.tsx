@@ -102,6 +102,7 @@ export function BroadcastDialog({
   usage,
   isPending,
   onOpenChange,
+  sugestaoDeNome,
   onConfirm,
 }: {
   /** `null` = fechado. */
@@ -109,12 +110,16 @@ export function BroadcastDialog({
   usage: { limit: number; usedToday: number };
   isPending?: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Sugestão de nome, vinda do recorte — "DDD 51", "Todos os contatos"… */
+  sugestaoDeNome?: string;
   onConfirm: (dados: {
     message: string;
+    name: string;
     ritmo: RitmoDoDisparo;
     mediaPath: string | null;
   }) => void;
 }) {
+  const [nome, setNome] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [ritmoId, setRitmoId] = useState("seguro");
   const [imagem, setImagem] = useState<ImagemDoDisparo | null>(null);
@@ -149,13 +154,18 @@ export function BroadcastDialog({
 
   useEffect(() => {
     if (!aberto) return;
+    // Nome sugerido a cada abertura, não preservado: reaproveitar o nome do
+    // disparo anterior é exatamente como duas campanhas ficam com o mesmo
+    // rótulo na lista.
+    const hoje = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    setNome(sugestaoDeNome ? `${sugestaoDeNome} · ${hoje}` : `Disparo · ${hoje}`);
     setMensagem("");
     setRitmoId("seguro");
     setImagem(null);
     setErro(null);
     setSalvarComoModelo(false);
     setNomeDoModelo("");
-  }, [aberto]);
+  }, [aberto, sugestaoDeNome]);
 
   const { comConversa, semConversa, exemploDeNome } = useMemo(() => {
     const lista = contatos ?? [];
@@ -204,7 +214,12 @@ export function BroadcastDialog({
       return;
     }
     setErro(null);
-    onConfirm({ message: mensagem.trim(), ritmo, mediaPath: imagem?.path ?? null });
+    onConfirm({
+      message: mensagem.trim(),
+      name: nome.trim(),
+      ritmo,
+      mediaPath: imagem?.path ?? null,
+    });
   };
 
   return (
@@ -221,6 +236,25 @@ export function BroadcastDialog({
 
         <div className="grid gap-5 sm:grid-cols-[1fr_auto]">
           <div className="space-y-5">
+            {/* ── Nome ─────────────────────────────────────────────────── */}
+            <section className="space-y-2">
+              <Label htmlFor="disparo-nome" className="text-sm font-medium">
+                Nome do disparo
+              </Label>
+              <Input
+                id="disparo-nome"
+                data-disparo-nome=""
+                value={nome}
+                maxLength={60}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Combo clareamento"
+                className="h-11 rounded-xl bg-white"
+              />
+              <p className="text-2xs text-muted-foreground">
+                É por ele que você acompanha o envio na lista de Campanhas.
+              </p>
+            </section>
+
             {/* ── Mensagem ─────────────────────────────────────────────── */}
             <section className="space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">

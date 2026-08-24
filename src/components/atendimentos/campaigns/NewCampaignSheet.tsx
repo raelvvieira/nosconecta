@@ -12,8 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import { getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
 import { criarDisparo, type RitmoDoDisparo } from "@/lib/atendimentos/broadcast.functions";
-import { garantirContatoCrm } from "@/lib/patients/patients.functions";
-import { prepararAlvos } from "@/lib/atendimentos/prepararAlvos";
+import { classificarSelecao } from "@/lib/atendimentos/prepararAlvos";
 import { ContactsTab, type ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
 import { BroadcastDialog } from "@/components/atendimentos/contacts/BroadcastDialog";
 
@@ -37,12 +36,12 @@ export function NewCampaignSheet({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
+  /** Recebe o id do disparo recém-criado, para a página destacá-lo na lista. */
+  onCreated: (broadcastId: string) => void;
 }) {
   const queryClient = useQueryClient();
   const fetchUsage = useServerFn(getDailySendUsage);
   const doDisparar = useServerFn(criarDisparo);
-  const doGarantirContato = useServerFn(garantirContatoCrm);
 
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [disparoSelecao, setDisparoSelecao] = useState<ContatoSelecionado[] | null>(null);
@@ -64,33 +63,33 @@ export function NewCampaignSheet({
   const disparoMutation = useMutation({
     mutationFn: async (dados: {
       message: string;
+      name: string;
       ritmo: RitmoDoDisparo;
       mediaPath: string | null;
     }) => {
-      // Exigente (sem `tolerante`): aqui a pessoa escolheu cada contato a dedo,
-      // então um que não possa receber precisa parar tudo em vez de sair da
-      // lista sem ela perceber.
-      const { alvos } = await prepararAlvos(disparoSelecao ?? [], doGarantirContato);
-      return doDisparar({ data: { ...dados, targets: alvos } });
+      // Classificação pura, instantânea: o vínculo com o CRM acontece no
+      // servidor, em lote. Antes era aqui, uma ida por contato em série — o
+      // "Enfileirando…" que não terminava.
+      const { prontos, aVincular, foraDoDisparo } = classificarSelecao(disparoSelecao ?? []);
+      const r = await doDisparar({ data: { ...dados, prontos, aVincular } });
+      return { ...r, foraDoDisparo: [...foraDoDisparo, ...r.foraDoDisparo] };
     },
     onSuccess: (r) => {
-      const fim = r.terminaEm ? new Date(r.terminaEm) : null;
-      toast.success(
-        fim
-          ? `Fila criada com ${r.total} contatos — termina por volta das ${fim.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.`
-          : `Fila criada com ${r.total} contatos.`,
-        { duration: 8000 },
-      );
+      toast.success(`Disparo na fila com ${r.total} contatos.`, { duration: 6000 });
+      if (r.foraDoDisparo.length) {
+        toast.warning(
+          `${r.foraDoDisparo.length} ${r.foraDoDisparo.length === 1 ? "pessoa ficou" : "pessoas ficaram"} de fora: ` +
+            r.foraDoDisparo.map((f) => f.nome).join(", "),
+          { duration: 10000 },
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
       queryClient.invalidateQueries({ queryKey: ["disparos"] });
-      // Sem isto, quem acabou de entrar na fila continua aparecendo como "ainda
-      // não recebeu" até o cache vencer — e no envio em lotes isso é o que
-      // faria o progresso não andar e o mesmo lote ser oferecido de novo.
       queryClient.invalidateQueries({ queryKey: ["broadcast-recent-recipients"] });
       setDisparoSelecao(null);
       onOpenChange(false);
       reset();
-      onCreated();
+      onCreated(r.broadcastId);
     },
     onError: (error: Error) => toast.error(error.message),
   });

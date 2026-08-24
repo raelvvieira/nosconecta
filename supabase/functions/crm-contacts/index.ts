@@ -475,6 +475,99 @@ async function handleBackfillLinks(ownerId: string) {
   };
 }
 
+/**
+ * Vincula ao CRM uma LISTA de pacientes, de uma vez.
+ *
+ * Existe porque o disparo fazia isso pelo caminho errado: o navegador chamava
+ * `garantirContatoCrm` uma vez por contato, em série, cada uma com duas
+ * tentativas e 55s de timeout. Numa seleção de 200 pacientes era o
+ * "Enfileirando…" que não terminava.
+ *
+ * Aqui é o mesmo padrão que `handleBackfillLinks` já usa para a base inteira —
+ * `resolve_phones`, que aceita até 5000 telefones, com `CONCORRENCIA` de folga
+ * para o que ele não achar. Quem já tem `crm_contact_id` gravado nem chega a
+ * ser consultado.
+ *
+ * Devolve o mapa `patientId → contactId`. Quem não resolveu simplesmente não
+ * aparece no mapa: o chamador decide se isso derruba o disparo ou se a pessoa
+ * fica de fora com aviso — e ele decidiu ficar de fora com aviso.
+ */
+async function handleResolveBatch(
+  ownerId: string,
+  pacientes: { patientId: string; name?: string | null; phone?: string | null }[],
+) {
+  const mapa: Record<string, string> = {};
+  if (!pacientes?.length) return { ok: true, contatos: mapa };
+
+  // 1. Quem já está vinculado sai daqui sem custo nenhum.
+  const ids = [...new Set(pacientes.map((p) => p.patientId))];
+  const { data: jaLinkados } = await supabase
+    .from("patients")
+    .select("id, crm_contact_id, phone")
+    .eq("owner_id", ownerId)
+    .in("id", ids);
+
+  const telefonePorId = new Map<string, string>();
+  for (const row of (jaLinkados ?? []) as any[]) {
+    if (row.crm_contact_id) mapa[String(row.id)] = String(row.crm_contact_id);
+    else if (row.phone) telefonePorId.set(String(row.id), String(row.phone));
+  }
+
+  // 2. O resto vai para `resolve_phones`, em paralelo controlado.
+  const pendentes = [...telefonePorId.entries()];
+  const semMatch: [string, string][] = [];
+  while (pendentes.length > 0) {
+    const lote = pendentes.splice(0, CONCORRENCIA);
+    const resultados = await Promise.all(
+      lote.map(async ([id, phone]) => [id, phone, await resolverTelefoneNoCrm(ownerId, phone)] as const),
+    );
+    for (const [id, phone, contactId] of resultados) {
+      if (contactId) mapa[id] = contactId;
+      else semMatch.push([id, phone]);
+    }
+  }
+
+  // 3. Quem o CRM não conhece precisa ser criado — o caminho caro, agora só
+  //    para os poucos que sobraram em vez de para a seleção inteira.
+  const porId = new Map(pacientes.map((p) => [p.patientId, p]));
+  const criar = [...semMatch];
+  while (criar.length > 0) {
+    const lote = criar.splice(0, CONCORRENCIA);
+    const resultados = await Promise.all(
+      lote.map(async ([id]) => {
+        const p = porId.get(id);
+        try {
+          const r = await handleUpsert(ownerId, {
+            patientId: id,
+            name: p?.name ?? "",
+            phone: p?.phone ?? "",
+          });
+          return [id, (r as any)?.contactId ?? null] as const;
+        } catch (_) {
+          // Um contato que o CRM recusa não pode derrubar os outros 199.
+          return [id, null] as const;
+        }
+      }),
+    );
+    for (const [id, contactId] of resultados) if (contactId) mapa[id] = String(contactId);
+  }
+
+  // Grava os vínculos novos de uma vez, para o próximo disparo já achar tudo
+  // no passo 1 e nem consultar o CRM.
+  const novos = Object.entries(mapa).filter(([id]) => telefonePorId.has(id));
+  await Promise.all(
+    novos.map(([id, contactId]) =>
+      supabase
+        .from("patients")
+        .update({ crm_contact_id: contactId })
+        .eq("id", id)
+        .eq("owner_id", ownerId),
+    ),
+  );
+
+  return { ok: true, contatos: mapa, resolvidos: Object.keys(mapa).length, pedidos: ids.length };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
   try {
@@ -497,6 +590,8 @@ Deno.serve(async (req) => {
       result = await handleList(ownerId);
     } else if (action === "upsert" && patient) {
       result = await handleUpsert(ownerId, patient);
+    } else if (action === "resolve-batch") {
+      result = await handleResolveBatch(ownerId, body.patients ?? []);
     } else if (action === "backfill-links") {
       result = await handleBackfillLinks(ownerId);
     } else {

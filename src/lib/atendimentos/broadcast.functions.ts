@@ -22,6 +22,9 @@ export interface BroadcastAlvo {
 
 export interface BroadcastResumo {
   id: string;
+  /** Nome dado no disparo. Nulo nos que vieram antes do campo existir — a tela
+   *  cai no trecho da mensagem, como fazia antes. */
+  name: string | null;
   message: string;
   status: "running" | "done" | "cancelled";
   total: number;
@@ -29,6 +32,8 @@ export interface BroadcastResumo {
   falhas: number;
   pendentes: number;
   createdAt: string;
+  /** Quando a fila deve terminar, pelo ritmo gravado. */
+  terminaEm: string | null;
 }
 
 async function callBroadcast(body: unknown) {
@@ -54,35 +59,110 @@ export interface RitmoDoDisparo {
   retomarEmMinutos: number;
 }
 
+/** Um paciente que ainda precisa de contato no CRM. */
+export interface AlvoAVincular {
+  patientId: string;
+  name: string;
+  phone: string;
+  conversationId: string | null;
+}
+
+async function resolverEmLote(
+  ownerId: string,
+  pacientes: AlvoAVincular[],
+): Promise<Record<string, string>> {
+  if (!pacientes.length) return {};
+  const url = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
+  const res = await fetch(`${url}/functions/v1/crm-contacts`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
+    body: JSON.stringify({
+      ownerId,
+      action: "resolve-batch",
+      patients: pacientes.map((p) => ({ patientId: p.patientId, name: p.name, phone: p.phone })),
+    }),
+    // Uma chamada só, mas ela resolve a lista inteira — merece a folga que
+    // antes era gasta por contato.
+    signal: AbortSignal.timeout(110_000),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error ?? `Falha ao vincular contatos no CRM (${res.status})`);
+  return (json.contatos ?? {}) as Record<string, string>;
+}
+
+/**
+ * Cria a fila de disparo.
+ *
+ * O vínculo com o CRM acontece AQUI, numa chamada em lote — não mais no
+ * navegador, uma ida por contato em série. Era isso que fazia uma seleção de
+ * 200 pacientes ficar em "Enfileirando…" por minutos: cada contato tinha duas
+ * tentativas de 55 segundos, e a primeira falha ainda derrubava tudo.
+ *
+ * Quem o CRM não conseguir vincular não derruba o disparo: sai da fila e volta
+ * nomeado em `foraDoDisparo`, para a tela dizer quem ficou de fora.
+ */
 export const criarDisparo = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator(
     (input: {
       message: string;
+      name?: string | null;
       ritmo: RitmoDoDisparo;
-      targets: BroadcastAlvo[];
+      /** Contatos que já têm id no CRM. */
+      prontos: BroadcastAlvo[];
+      /** Pacientes que precisam de vínculo — resolvidos aqui, em lote. */
+      aVincular: AlvoAVincular[];
       /** Caminho no bucket `crm-campaign-media`, não URL assinada: a fila pode
        *  levar horas até o último alvo e a assinatura expiraria no meio. */
       mediaPath?: string | null;
     }) => {
       if (!input.message?.trim()) throw new Error("Escreva a mensagem antes de disparar.");
-      if (!input.targets?.length) throw new Error("Selecione ao menos um contato.");
+      if (!input.prontos?.length && !input.aVincular?.length) {
+        throw new Error("Selecione ao menos um contato.");
+      }
       return input;
     },
   )
   .handler(async ({ data, context }) => {
+    const mapa = await resolverEmLote(context.ownerId, data.aVincular ?? []);
+
+    const foraDoDisparo: { nome: string; motivo: string }[] = [];
+    const vinculados: BroadcastAlvo[] = [];
+    for (const p of data.aVincular ?? []) {
+      const contactId = mapa[p.patientId];
+      if (!contactId) {
+        foraDoDisparo.push({ nome: p.name, motivo: "não pôde ser vinculado ao CRM." });
+        continue;
+      }
+      vinculados.push({
+        contactId,
+        conversationId: p.conversationId,
+        name: p.name,
+        phone: p.phone,
+      });
+    }
+
+    const targets = [...(data.prontos ?? []), ...vinculados];
+    if (!targets.length) {
+      throw new Error("Nenhum dos contatos selecionados pôde ser vinculado ao CRM.");
+    }
+
     const json = await callBroadcast({
       ownerId: context.ownerId,
       action: "create",
       message: data.message,
+      name: data.name?.trim() || null,
       ritmo: data.ritmo,
       mediaPath: data.mediaPath ?? null,
-      targets: data.targets,
+      targets,
     });
     return {
       broadcastId: String(json.broadcastId),
       total: Number(json.total ?? 0),
       terminaEm: String(json.terminaEm ?? ""),
+      foraDoDisparo,
     };
   });
 
@@ -100,13 +180,35 @@ export const cancelarDisparo = createServerFn({ method: "POST" })
  * Lido direto do banco pela RLS do dono, sem passar pela Edge Function: são
  * tabelas nossas, e o `select` já é permitido só para quem é dono.
  */
+/**
+ * Quando a fila termina, calculado a partir do ritmo gravado no lote.
+ *
+ * Espelha `duracaoEstimadaMinutos` de `_shared/ritmo.ts` (Deno não é importável
+ * de `src/`) e usa a MÉDIA da faixa: prometer o melhor caso e entregar o pior
+ * é pior do que prometer a média. Disparo antigo, sem faixa gravada, cai no
+ * `interval_seconds` único que ele de fato teve.
+ */
+function previsaoDeTermino(l: any): string | null {
+  const total = Number(l.total ?? 0);
+  if (total <= 1) return null;
+  const min = Number(l.interval_min_seconds ?? l.interval_seconds ?? 8);
+  const max = Number(l.interval_max_seconds ?? min);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  const intervalos = total - 1;
+  const pausarACada = Number(l.pause_after ?? 0);
+  const pausas = pausarACada > 0 ? Math.floor(intervalos / pausarACada) : 0;
+  const segundos =
+    intervalos * ((min + max) / 2) + pausas * Number(l.resume_after_minutes ?? 0) * 60;
+  return new Date(new Date(l.created_at).getTime() + segundos * 1000).toISOString();
+}
+
 export const listarDisparos = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<BroadcastResumo[]> => {
     const supabase: any = context.supabase;
     const { data: lotes, error } = await supabase
       .from("whatsapp_broadcasts")
-      .select("id, message, status, total, created_at")
+      .select("id, name, message, status, total, created_at, interval_min_seconds, interval_max_seconds, pause_after, resume_after_minutes")
       .eq("owner_id", context.ownerId)
       .order("created_at", { ascending: false })
       .limit(20);
@@ -124,6 +226,7 @@ export const listarDisparos = createServerFn({ method: "GET" })
 
     return lotes.map((l: any) => ({
       id: String(l.id),
+      name: l.name ?? null,
       message: l.message,
       status: l.status,
       total: Number(l.total ?? 0),
@@ -131,6 +234,7 @@ export const listarDisparos = createServerFn({ method: "GET" })
       falhas: contar(l.id, "failed"),
       pendentes: contar(l.id, "pending"),
       createdAt: l.created_at,
+      terminaEm: previsaoDeTermino(l),
     }));
   });
 

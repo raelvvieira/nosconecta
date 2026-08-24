@@ -4,8 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { criarDisparo, type RitmoDoDisparo } from "@/lib/atendimentos/broadcast.functions";
 import { getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
-import { garantirContatoCrm } from "@/lib/patients/patients.functions";
-import { prepararAlvos } from "@/lib/atendimentos/prepararAlvos";
+import { classificarSelecao } from "@/lib/atendimentos/prepararAlvos";
 import { BroadcastDialog } from "@/components/atendimentos/contacts/BroadcastDialog";
 import type { ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
 
@@ -23,7 +22,6 @@ import type { ContatoSelecionado } from "@/components/atendimentos/contacts/Cont
 export function useDisparoDeColuna() {
   const queryClient = useQueryClient();
   const doDisparar = useServerFn(criarDisparo);
-  const doGarantirContato = useServerFn(garantirContatoCrm);
   const fetchUsage = useServerFn(getDailySendUsage);
 
   const [selecao, setSelecao] = useState<ContatoSelecionado[] | null>(null);
@@ -40,29 +38,24 @@ export function useDisparoDeColuna() {
   const disparo = useMutation({
     mutationFn: async (dados: {
       message: string;
+      name: string;
       ritmo: RitmoDoDisparo;
       mediaPath: string | null;
     }) => {
-      // Tolerante: a lista veio de uma coluna inteira, não escolhida uma a uma.
-      // Um paciente sem telefone não pode impedir o envio para os outros —
-      // mas também não pode sumir calado, por isso `foraDoDisparo` vira aviso.
-      const { alvos, foraDoDisparo } = await prepararAlvos(
-        selecao ?? [],
-        doGarantirContato,
-        true,
-      );
-      if (!alvos.length) {
+      // Sem I/O aqui: o vínculo com o CRM é feito no servidor, em lote.
+      const { prontos, aVincular, foraDoDisparo } = classificarSelecao(selecao ?? []);
+      if (!prontos.length && !aVincular.length) {
         throw new Error("Ninguém desta coluna pode receber disparo agora.");
       }
-      const r = await doDisparar({ data: { ...dados, targets: alvos } });
-      return { ...r, foraDoDisparo };
+      const r = await doDisparar({ data: { ...dados, prontos, aVincular } });
+      return { ...r, foraDoDisparo: [...foraDoDisparo, ...r.foraDoDisparo] };
     },
     onSuccess: (r) => {
       toast.success(`Fila criada com ${r.total} contatos.`, { duration: 8000 });
       if (r.foraDoDisparo.length) {
         toast.warning(
           `${r.foraDoDisparo.length} ${r.foraDoDisparo.length === 1 ? "pessoa ficou" : "pessoas ficaram"} de fora: ` +
-            r.foraDoDisparo.map((f) => f.nome).join(", "),
+            r.foraDoDisparo.map((f: { nome: string }) => f.nome).join(", "),
           { duration: 10000 },
         );
       }

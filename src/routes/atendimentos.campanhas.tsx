@@ -6,7 +6,6 @@ import {
   Megaphone,
   Plus,
   Send,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -37,6 +36,8 @@ import {
   setDailySendLimit,
 } from "@/lib/atendimentos/campaigns.functions";
 import { cancelarDisparo, listarDisparos } from "@/lib/atendimentos/broadcast.functions";
+import { CartaoDeDisparo } from "@/components/atendimentos/campaigns/CartaoDeDisparo";
+import { algumEmAndamento } from "@/lib/atendimentos/statusDoDisparo";
 
 const searchSchema = z.object({});
 
@@ -62,11 +63,6 @@ export const Route = createFileRoute("/atendimentos/campanhas")({
   component: CampanhasPage,
 });
 
-const DISPARO_STATUS_LABEL: Record<string, string> = {
-  running: "Em andamento",
-  done: "Concluído",
-  cancelled: "Cancelado",
-};
 
 
 function CampanhasPage() {
@@ -79,9 +75,22 @@ function CampanhasPage() {
   const usageQuery = useQuery({ queryKey: ["campaigns-usage"], queryFn: () => fetchUsage(), staleTime: 15_000 });
   // Os disparos segmentados (via "Selecionar contatos") não são campanha do
   // Wavy — vivem nas nossas próprias tabelas, lidos direto por RLS.
-  const disparosQuery = useQuery({ queryKey: ["disparos"], queryFn: () => fetchDisparos(), staleTime: 10_000 });
+  // Consulta de novo a cada 5s ENQUANTO houver disparo andando, e só então: um
+  // `refetchInterval` fixo ficaria consultando para sempre com a página aberta
+  // e nada acontecendo. `refetchIntervalInBackground` fica de fora de
+  // propósito — aba escondida não precisa de número atualizado.
+  const disparosQuery = useQuery({
+    queryKey: ["disparos"],
+    queryFn: () => fetchDisparos(),
+    staleTime: 3_000,
+    refetchInterval: (q) => (algumEmAndamento(q.state.data ?? []) ? 5_000 : false),
+  });
 
-  const refresh = () => {
+  const refresh = (broadcastId?: string) => {
+    if (broadcastId) {
+      setRecemCriado(broadcastId);
+      window.setTimeout(() => setRecemCriado((a) => (a === broadcastId ? null : a)), 12_000);
+    }
     queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
     queryClient.invalidateQueries({ queryKey: ["disparos"] });
@@ -99,6 +108,9 @@ function CampanhasPage() {
   });
 
   const [formOpen, setFormOpen] = useState(false);
+  // O disparo recém-criado ganha destaque por alguns segundos: com vinte na
+  // lista, "apareceu no topo" não é suficiente para a pessoa achar o dela.
+  const [recemCriado, setRecemCriado] = useState<string | null>(null);
   const [cancelarDisparoId, setCancelarDisparoId] = useState<string | null>(null);
 
   const cancelarDisparoMutation = useMutation({
@@ -180,28 +192,12 @@ function CampanhasPage() {
             </div>
           )}
           {(disparosQuery.data ?? []).map((d) => (
-            <div key={d.id} className="flex flex-wrap items-center gap-3 px-4 py-4 sm:px-5">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{d.message}</p>
-                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                  <span>{DISPARO_STATUS_LABEL[d.status] ?? d.status}</span>
-                  <span>
-                    · {d.enviados}/{d.total} enviados
-                    {d.falhas > 0 ? `, ${d.falhas} falharam` : ""}
-                  </span>
-                </p>
-              </div>
-              {d.status === "running" && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1.5 text-danger"
-                  onClick={() => setCancelarDisparoId(d.id)}
-                >
-                  <X className="h-3.5 w-3.5" /> Cancelar
-                </Button>
-              )}
-            </div>
+            <CartaoDeDisparo
+              key={d.id}
+              disparo={d}
+              destacado={d.id === recemCriado}
+              onCancelar={() => setCancelarDisparoId(d.id)}
+            />
           ))}
         </section>
       </main>
