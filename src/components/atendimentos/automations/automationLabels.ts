@@ -99,6 +99,7 @@ export const CONDITION_FIELD_LABEL: Record<string, string> = {
   unitId: "Unidade do agendamento",
   daysUntil: "Faltam quantos dias",
   replyText: "Resposta do paciente",
+  tag: "Tag do contato",
 };
 
 export const CONDITION_OPERATOR_LABEL: Record<string, string> = {

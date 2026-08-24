@@ -32,6 +32,8 @@ export interface EditorAcoes {
   stages: PipelineStage[];
   /** Unidades da clínica — a condição de unidade guarda o id e mostra o nome. */
   units: { id: string; name: string }[];
+  /** Tags da clínica — mesma razão: a condição guarda o id, o card mostra o nome. */
+  tags: { id: string; name: string }[];
   onEditarGatilho: () => void;
   onEditarFiltro: () => void;
   onEditarJanela: () => void;
@@ -308,6 +310,7 @@ function condicaoTexto(
   data: AutomationNodeData,
   stages: PipelineStage[],
   units: { id: string; name: string }[],
+  tags: { id: string; name: string }[],
 ): string {
   if (!data.field) return "Escolher condição";
   if (data.field === "hasContact") return CONDITION_FIELD_LABEL.hasContact;
@@ -321,6 +324,13 @@ function condicaoTexto(
   }
   if (data.field === "unitId") {
     return `${campo}: ${nomeDaUnidade(data.value, units)}`;
+  }
+  if (data.field === "tag") {
+    // Resolve id → nome, como a etapa e a unidade já fazem. Tag apagada depois
+    // mostra o aviso em vez de um uuid solto no card.
+    const t = tags.find((x) => x.id === data.value);
+    const verbo = data.operator === "not_contains" ? "Não tem a tag" : "Tem a tag";
+    return `${verbo}: ${t?.name ?? "(tag não encontrada)"}`;
   }
   if (data.field === "daysUntil") {
     const n = Number(data.value);
@@ -375,7 +385,7 @@ export function ConditionNode({ id, data }: { id: string; data: AutomationNodeDa
         onClick={() => e.onEditarNo(id)}
         className="nodrag w-full rounded-xl border border-border bg-surface-subtle px-3 py-2.5 text-left transition-colors hover:border-coral"
       >
-        <p className="text-sm font-medium">{condicaoTexto(data, e.stages, e.units)}</p>
+        <p className="text-sm font-medium">{condicaoTexto(data, e.stages, e.units, e.tags)}</p>
       </button>
     </NodeShell>
   );

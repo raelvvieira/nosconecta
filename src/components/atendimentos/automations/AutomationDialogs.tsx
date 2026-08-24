@@ -1064,6 +1064,7 @@ export function EditarCondicaoNoDialog({
   data,
   stages,
   units,
+  tags,
   triggerEvent,
   onSalvar,
 }: {
@@ -1072,6 +1073,9 @@ export function EditarCondicaoNoDialog({
   data: AutomationNodeData;
   stages: PipelineStage[];
   units: { id: string; name: string }[];
+  /** Vocabulário de tags da clínica, para o seletor. Vem de cima pelo mesmo
+   *  caminho de `stages` e `units` — o editor já carrega tudo de uma vez. */
+  tags: { id: string; name: string }[];
   /** Decide se "Unidade do agendamento" é oferecida: só gatilho de agenda
    *  carrega unidade, e o save recusa a combinação errada de qualquer jeito. */
   triggerEvent: AutomationEvent | null;
@@ -1143,6 +1147,9 @@ export function EditarCondicaoNoDialog({
                 {ofereceResposta && (
                   <SelectItem value="replyText">Resposta do paciente</SelectItem>
                 )}
+                {/* Sem gatilho que a ofereça ou não: toda pessoa pode ser
+                    etiquetada, venha de agendamento, funil ou conversa. */}
+                <SelectItem value="tag">Tag do contato</SelectItem>
               </SelectContent>
             </Select>
             {field === "replyText" && (
@@ -1169,6 +1176,13 @@ export function EditarCondicaoNoDialog({
                 condição cai sempre no "não".
               </p>
             )}
+            {field === "tag" && (
+              <p className="mt-1.5 text-2xs text-muted-foreground">
+                Compara a tag em si, não o nome — renomear em Configurações não muda o que esta
+                automação faz. Pessoa sem tag nenhuma cai no "não" para "tem", e no "sim" para
+                "não tem".
+              </p>
+            )}
           </div>
 
           {field === "amount" && (
@@ -1190,6 +1204,32 @@ export function EditarCondicaoNoDialog({
                 placeholder="500"
                 className="flex-1"
               />
+            </div>
+          )}
+
+          {field === "tag" && (
+            <div className="flex gap-2">
+              <Select value={operator} onValueChange={(v) => setOperator(v as ConditionOperator)}>
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="eq">tem a tag</SelectItem>
+                  <SelectItem value="not_contains">não tem a tag</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={valor} onValueChange={setValor}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Escolha a tag" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(tags ?? []).map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 

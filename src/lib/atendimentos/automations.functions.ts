@@ -76,7 +76,10 @@ export type ConditionField =
   /** Quantos dias faltam para a consulta (3, 1, 0) — só no lembrete diário. */
   | "daysUntil"
   /** O texto que o paciente respondeu — só no gatilho de resposta. */
-  | "replyText";
+  | "replyText"
+  /** Tem (ou não tem) a tag escolhida. Vale em qualquer gatilho: toda pessoa
+   *  pode ser etiquetada, venha de agendamento, funil ou conversa. */
+  | "tag";
 export type ConditionOperator = "gt" | "lt" | "eq" | "contains" | "not_contains";
 
 /** Operadores que fazem sentido em cada campo. Oferecer "maior que" para texto
@@ -85,6 +88,10 @@ export const OPERADORES_DO_CAMPO: Record<ConditionField, ConditionOperator[]> = 
   amount: ["gt", "lt", "eq"],
   daysUntil: ["eq", "gt", "lt"],
   replyText: ["contains", "eq", "not_contains"],
+  // "é igual a" lê como "tem a tag"; "não contém", como "não tem". Os rótulos
+  // são traduzidos no diálogo — reaproveitar os operadores existentes evita um
+  // par novo que só serviria a este campo.
+  tag: ["eq", "not_contains"],
   hasContact: [],
   status: [],
   stageId: [],
@@ -554,7 +561,7 @@ export const getAutomationRuns = createServerFn({ method: "GET" })
 /** Versão do executor que o app espera encontrar publicado.
  *  Espelha `VERSAO_MOTOR` em atendimento-automations/index.ts — os dois
  *  runtimes são separados, então o número é duplicado de propósito. */
-const VERSAO_ESPERADA = 5;
+const VERSAO_ESPERADA = 6;
 
 export type EstadoDoMotor = "ok" | "desatualizado" | "ausente" | "indeterminado";
 

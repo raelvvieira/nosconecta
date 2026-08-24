@@ -39,7 +39,7 @@ const TZ = "America/Sao_Paulo";
  *  respostas distintas para três situações distintas.
  *
  *  Subir este número quando o executor mudar de forma que o app precise saber. */
-const VERSAO_MOTOR = 5;
+const VERSAO_MOTOR = 6;
 
 interface DispatchContext {
   entityId?: string | null;
@@ -60,6 +60,14 @@ interface DispatchContext {
   daysUntil?: number | null;
   /** O que o paciente escreveu. Só em whatsapp.reply_received. */
   replyText?: string | null;
+  /** Ids das tags desta pessoa, carregados UMA vez antes de percorrer o grafo.
+   *
+   *  Preenchido pelo motor, não por quem despacha o evento. Fica no contexto
+   *  em vez de ser consultado dentro de `avaliarCondicao` por dois motivos:
+   *  a condição é síncrona (torná-la assíncrona espalharia await por todo o
+   *  percurso), e um fluxo com três cards de tag faria três consultas
+   *  idênticas. */
+  tagIds?: string[] | null;
   /** Dados do agendamento congelados no disparo — ver automations.server.ts. */
   appointment?: {
     date?: string | null;
@@ -223,6 +231,18 @@ function avaliarCondicao(node: GrafoNode, ctx: DispatchContext): boolean {
     if (operator === "contains") return contemPalavra(texto, alvo);
     if (operator === "not_contains") return !contemPalavra(texto, alvo);
     return texto === alvo;
+  }
+  // Tem (ou não tem) a tag. Compara ID e não nome, pelo mesmo motivo da
+  // unidade: renomear a tag em Configurações não pode mudar por onde uma
+  // automação salva manda mensagem.
+  //
+  // Pessoa sem tag nenhuma cai no ramo "Não" para `eq`, e no "Sim" para
+  // `not_contains` — que é a leitura certa de "não tem a tag VIP".
+  if (field === "tag") {
+    const alvo = String(value ?? "").trim();
+    if (!alvo) return false;
+    const tem = (ctx.tagIds ?? []).includes(alvo);
+    return operator === "not_contains" ? !tem : tem;
   }
   // Unidade do agendamento. Compara ID e não nome: renomear a unidade em
   // Configurações não pode mudar para onde uma automação salva manda mensagem.
@@ -759,6 +779,55 @@ async function executarAcao(
  *  O teto de passos é rede de segurança: ciclo é recusado no save
  *  (`saveAutomation`), mas um grafo gravado por outro caminho não pode rodar
  *  pra sempre. */
+/**
+ * As tags desta pessoa, pelas DUAS chaves.
+ *
+ * Mesma regra de `src/lib/tags/tags.functions.ts`: a tag pode estar gravada sob
+ * o paciente ou sob o contato do CRM, e ler só por uma faria a condição cair no
+ * ramo errado dependendo de por onde a pessoa foi etiquetada. Aqui a resolução
+ * é feita à mão porque Deno não importa de `src/`.
+ *
+ * Devolve lista vazia em qualquer falha: uma consulta que quebra não pode
+ * derrubar a automação inteira — a condição simplesmente não casa.
+ */
+async function carregarTags(ownerId: string, ctx: DispatchContext): Promise<string[]> {
+  let patientId = ctx.patientId ?? null;
+  let crmContactId = ctx.crmContactId ?? null;
+  try {
+    if (patientId && !crmContactId) {
+      const { data } = await supabase
+        .from("patients")
+        .select("crm_contact_id")
+        .eq("id", patientId)
+        .eq("owner_id", ownerId)
+        .maybeSingle();
+      crmContactId = data?.crm_contact_id ?? null;
+    } else if (crmContactId && !patientId) {
+      const { data } = await supabase
+        .from("patients")
+        .select("id")
+        .eq("crm_contact_id", crmContactId)
+        .eq("owner_id", ownerId)
+        .maybeSingle();
+      patientId = data?.id ?? null;
+    }
+    if (!patientId && !crmContactId) return [];
+
+    const condicoes: string[] = [];
+    if (patientId) condicoes.push(`patient_id.eq.${patientId}`);
+    if (crmContactId) condicoes.push(`crm_contact_id.eq.${crmContactId}`);
+
+    const { data } = await supabase
+      .from("contact_tags")
+      .select("tag_id")
+      .eq("owner_id", ownerId)
+      .or(condicoes.join(","));
+    return [...new Set(((data ?? []) as any[]).map((r) => String(r.tag_id)))];
+  } catch (_) {
+    return [];
+  }
+}
+
 async function percorrerGrafo(
   ownerId: string,
   grafo: Grafo,
@@ -937,6 +1006,11 @@ async function handleDispatch(
   }
 
   const agora = new Date();
+  // As tags da pessoa, uma vez só para todas as regras que casaram — e só
+  // quando alguma regra de fato vai rodar, para um evento sem automação
+  // nenhuma não pagar uma consulta a mais.
+  const ctxComTags: DispatchContext = { ...ctx, tagIds: await carregarTags(ownerId, ctx) };
+
   for (const r of matching as any[]) {
     const regra: Regra = { id: r.id, name: r.name, trigger_event: systemEvent };
     const grafo = grafoDaRegra(r);
@@ -985,7 +1059,7 @@ async function handleDispatch(
       continue;
     }
 
-    await percorrerGrafo(ownerId, grafo, primeiro, ctx, regra, depth, runId);
+    await percorrerGrafo(ownerId, grafo, primeiro, ctxComTags, regra, depth, runId);
   }
 
   return { ok: true, executed: matching.length };

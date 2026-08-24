@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { listarTags } from "@/lib/tags/tags.functions";
+
+/** Constante, não `[]` na hora: array novo a cada render invalidaria o memo do
+ *  contexto do editor e re-renderizaria todos os cards do canvas. */
+const SEM_TAGS: { id: string; name: string }[] = [];
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Background,
@@ -190,6 +195,12 @@ function Editor() {
   // nova. A condição de unidade guarda o id e mostra o nome, então renomear a
   // unidade em Configurações não muda para onde a automação manda mensagem.
   const { units } = useUnitSelection();
+  const buscarTags = useServerFn(listarTags);
+  const tagsQuery = useQuery({
+    queryKey: ["tags"],
+    queryFn: () => buscarTags(),
+    staleTime: 5 * 60_000,
+  });
   // Duas listas de propósito. `units` (todas) resolve NOME no card: unidade
   // desativada depois de salva ainda precisa aparecer pelo nome, senão o fluxo
   // vira "(unidade não encontrada)" sem motivo aparente. `unidadesAtivas` é o
@@ -278,6 +289,7 @@ function Editor() {
       scheduleWindow,
       stages,
       units,
+      tags: tagsQuery.data ?? SEM_TAGS,
       onEditarGatilho: () => setGatilhoDialog(true),
       onEditarFiltro: () => setFiltroDialog(true),
       onEditarJanela: () => setJanelaDialog(true),
@@ -289,7 +301,7 @@ function Editor() {
       },
       onRemoverNo: removerNo,
     }),
-    [triggerEvent, conditions, scheduleWindow, stages, units, nodes, removerNo],
+    [triggerEvent, conditions, scheduleWindow, stages, units, tagsQuery.data, nodes, removerNo],
   );
 
   // O botão de excluir mora na aresta, então o callback viaja em `edge.data`
@@ -525,6 +537,7 @@ function Editor() {
         data={dadosDoNo(nodes.find((n) => n.id === condicaoNoDialog?.nodeId))}
         stages={stages}
         units={unidadesAtivas}
+        tags={tagsQuery.data ?? SEM_TAGS}
         triggerEvent={triggerEvent}
         onSalvar={(data) => {
           if (condicaoNoDialog) atualizarNo(condicaoNoDialog.nodeId, data);
