@@ -66,12 +66,14 @@ export function NewCampaignSheet({
       name: string;
       ritmo: RitmoDoDisparo;
       mediaPath: string | null;
+      alvos: ContatoSelecionado[];
     }) => {
       // Classificação pura, instantânea: o vínculo com o CRM acontece no
-      // servidor, em lote. Antes era aqui, uma ida por contato em série — o
-      // "Enfileirando…" que não terminava.
-      const { prontos, aVincular, foraDoDisparo } = classificarSelecao(disparoSelecao ?? []);
-      const r = await doDisparar({ data: { ...dados, prontos, aVincular } });
+      // servidor, em lote. Os alvos vêm por parâmetro porque a tela já fechou
+      // quando esta chamada acontece — o estado da seleção não existe mais.
+      const { alvos, ...envio } = dados;
+      const { prontos, aVincular, foraDoDisparo } = classificarSelecao(alvos);
+      const r = await doDisparar({ data: { ...envio, prontos, aVincular } });
       return { ...r, foraDoDisparo: [...foraDoDisparo, ...r.foraDoDisparo] };
     },
     onSuccess: (r) => {
@@ -86,13 +88,28 @@ export function NewCampaignSheet({
       queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
       queryClient.invalidateQueries({ queryKey: ["disparos"] });
       queryClient.invalidateQueries({ queryKey: ["broadcast-recent-recipients"] });
-      setDisparoSelecao(null);
-      onOpenChange(false);
-      reset();
       onCreated(r.broadcastId);
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  // Confirmou: a tela sai de cena na hora e o acompanhamento passa a ser a
+  // lista de Campanhas, que se atualiza sozinha enquanto a fila anda. Esperar
+  // o servidor com o diálogo aberto prendia a pessoa num "Enfileirando…" que
+  // não conta nada além do que a própria lista já mostra.
+  const confirmarDisparo = (dados: {
+    message: string;
+    name: string;
+    ritmo: RitmoDoDisparo;
+    mediaPath: string | null;
+  }) => {
+    const alvos = disparoSelecao ?? [];
+    setDisparoSelecao(null);
+    onOpenChange(false);
+    reset();
+    toast.info("Enfileirando o disparo…", { duration: 3000 });
+    disparoMutation.mutate({ ...dados, alvos });
+  };
 
   return (
     <>
@@ -135,7 +152,7 @@ export function NewCampaignSheet({
         usage={usageQuery.data ?? { limit: 200, usedToday: 0 }}
         isPending={disparoMutation.isPending}
         onOpenChange={(o) => !o && setDisparoSelecao(null)}
-        onConfirm={(dados) => disparoMutation.mutate(dados)}
+        onConfirm={confirmarDisparo}
       />
     </>
   );
