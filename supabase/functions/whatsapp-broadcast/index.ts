@@ -13,6 +13,7 @@ import { enviarWhatsapp, type MidiaDeEnvio } from "../_shared/whatsapp-send.ts";
 import { debitDailyUsage, getDailyUsage } from "../_shared/daily-quota.ts";
 import { horariosDaFila, normalizarRitmo, type Ritmo } from "../_shared/ritmo.ts";
 import { aplicarVariaveis } from "../_shared/variaveis-disparo.ts";
+import { inserirTolerandoColunaAusente } from "../_shared/coluna-ausente.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -51,9 +52,21 @@ async function handleCreate(
   }
 
   const ritmo = normalizarRitmo(ritmoBruto);
-  const { data: lote, error } = await supabase
-    .from("whatsapp_broadcasts")
-    .insert({
+  // As colunas abaixo entraram em migrations recentes. Migration e deploy são
+  // dois passos manuais no Lovable, sem ordem garantida entre eles — então o
+  // insert tolera que uma delas ainda não exista, tirando-a e tentando de novo,
+  // em vez de derrubar o disparo com "column ... does not exist".
+  const OPCIONAIS = [
+    "name",
+    "interval_min_seconds",
+    "interval_max_seconds",
+    "pause_after",
+    "resume_after_minutes",
+    "media_path",
+  ];
+  const { data: lote, removidas } = await inserirTolerandoColunaAusente(
+    (linha) => supabase.from("whatsapp_broadcasts").insert(linha).select("id").single(),
+    {
       owner_id: ownerId,
       name: nome?.trim() || null,
       message: message.trim(),
@@ -65,10 +78,14 @@ async function handleCreate(
       resume_after_minutes: ritmo.retomarEmMinutos,
       media_path: mediaPath,
       total: alvos.length,
-    })
-    .select("id")
-    .single();
-  if (error) throw new Error(error.message);
+    },
+    OPCIONAIS,
+  );
+  if (removidas.length) {
+    // Fica no log da função: o disparo saiu, mas com menos informação gravada
+    // do que deveria, e a migration pendente é a explicação.
+    console.warn("[whatsapp-broadcast] colunas ausentes, migration pendente:", removidas);
+  }
 
   // O ritmo mora aqui: cada alvo nasce com o horário em que deve sair, então a
   // fila é previsível e o cron não guarda estado nenhum.
@@ -130,7 +147,10 @@ async function handleTick() {
   for (const id of new Set(alvos.map((a: any) => a.broadcast_id))) {
     const { data } = await supabase
       .from("whatsapp_broadcasts")
-      .select("message, status, media_path")
+      // `*` e não a lista de colunas: `media_path` veio de migration recente, e
+      // pedi-la por nome quebraria o tick inteiro num banco que ainda não a
+      // tem — parando TODAS as filas, não só a com imagem.
+      .select("*")
       .eq("id", id)
       .maybeSingle();
     if (data) {

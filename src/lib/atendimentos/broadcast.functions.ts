@@ -36,6 +36,28 @@ export interface BroadcastResumo {
   terminaEm: string | null;
 }
 
+/**
+ * Traduz o erro de uma Edge Function que ainda não foi publicada com a
+ * capacidade que o app acabou de passar a usar.
+ *
+ * Sem isto, o app pede `resolve-batch` a uma `crm-contacts` antiga, ela cai no
+ * `else` do despachante e devolve **"action/patient inválidos"** — texto que
+ * não nomeia a causa nem o conserto, e que chega na clínica como se o disparo
+ * estivesse quebrado.
+ *
+ * É o mesmo problema que `VERSAO_MOTOR` resolve nas automações: código novo no
+ * app pedindo capacidade que a função publicada não tem. Lá o painel diz
+ * "publicada, mas desatualizada"; aqui a mensagem nomeia a função e o comando.
+ */
+function erroDeFuncaoDesatualizada(funcao: string, status: number, erro: string): string | null {
+  const desconhecida = /action.*inv[áa]lid|action desconhecida|invalid action/i.test(erro);
+  if (status !== 400 || !desconhecida) return null;
+  return (
+    `A função ${funcao} ainda não foi publicada com esta capacidade. ` +
+    `No Lovable: "Deploy the ${funcao} edge function", depois Publish.`
+  );
+}
+
 async function callBroadcast(body: unknown) {
   const url = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -46,7 +68,16 @@ async function callBroadcast(body: unknown) {
     body: JSON.stringify(body ?? {}),
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error ?? `Falha ao chamar whatsapp-broadcast (${res.status})`);
+  if (!res.ok) {
+    const desatualizada = erroDeFuncaoDesatualizada(
+      "whatsapp-broadcast",
+      res.status,
+      String(json?.error ?? ""),
+    );
+    throw new Error(
+      desatualizada ?? json?.error ?? `Falha ao chamar whatsapp-broadcast (${res.status})`,
+    );
+  }
   return json;
 }
 
@@ -88,7 +119,16 @@ async function resolverEmLote(
     signal: AbortSignal.timeout(110_000),
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error ?? `Falha ao vincular contatos no CRM (${res.status})`);
+  if (!res.ok) {
+    const desatualizada = erroDeFuncaoDesatualizada(
+      "crm-contacts",
+      res.status,
+      String(json?.error ?? ""),
+    );
+    throw new Error(
+      desatualizada ?? json?.error ?? `Falha ao vincular contatos no CRM (${res.status})`,
+    );
+  }
   return (json.contatos ?? {}) as Record<string, string>;
 }
 
@@ -208,7 +248,11 @@ export const listarDisparos = createServerFn({ method: "GET" })
     const supabase: any = context.supabase;
     const { data: lotes, error } = await supabase
       .from("whatsapp_broadcasts")
-      .select("id, name, message, status, total, created_at, interval_min_seconds, interval_max_seconds, pause_after, resume_after_minutes")
+      // `*` e não a lista de colunas: `name` e as de ritmo vieram de migrations
+      // recentes, e pedi-las por nome faria a página de Campanhas inteira
+      // falhar num banco que ainda não as tem. `previsaoDeTermino` e o mapeamento
+      // abaixo já tratam ausência com `??`.
+      .select("*")
       .eq("owner_id", context.ownerId)
       .order("created_at", { ascending: false })
       .limit(20);
