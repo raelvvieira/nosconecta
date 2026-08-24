@@ -2222,6 +2222,7 @@ export type Database = {
         Returns: boolean
       }
       is_clinic_admin: { Args: never; Returns: boolean }
+      normalize_br_phone: { Args: { raw: string }; Returns: string }
       primary_clinic_owner: { Args: never; Returns: string }
     }
     Enums: {
