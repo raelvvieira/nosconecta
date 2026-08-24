@@ -1,147 +1,32 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import {
+  JANELA_DIAS,
+  callBroadcast,
+  previsaoDeTermino,
+  resolverEmLote,
+  type AlvoAVincular,
+} from "./broadcast.server";
+import type {
+  BroadcastAlvo,
+  BroadcastResumo,
+  RecentRecipient,
+  RitmoDoDisparo,
+} from "./broadcast.types";
 
 /**
- * Quantos dias para trás a consulta de "quem já foi tratado" enxerga.
- *
- * Era 7. Subiu para 30 porque o envio em lotes respeita a cota diária, então
- * uma base de 800 contatos leva 4 ou 5 dias a 200/dia — e com a janela em 7
- * dias uma campanha mais longa começaria a reoferecer, no fim, gente que já
- * recebeu no começo. A janela que a tela usa continua sendo escolha da tela
- * (1, 3, 7, 15 ou 30 dias); esta é só o teto do que vem do servidor, para um
- * dado já carregado servir a qualquer escolha sem refazer a consulta.
+ * Só declarações de server function moram aqui: o divisor de server functions
+ * apaga os irmãos de módulo, e ajudante definido neste arquivo vira
+ * `ReferenceError` em tempo de execução. O runtime está em `broadcast.server.ts`.
  */
-const JANELA_DIAS = 30;
 
-export interface BroadcastAlvo {
-  contactId: string;
-  conversationId: string | null;
-  name: string | null;
-  phone: string | null;
-}
-
-export interface BroadcastResumo {
-  id: string;
-  /** Nome dado no disparo. Nulo nos que vieram antes do campo existir — a tela
-   *  cai no trecho da mensagem, como fazia antes. */
-  name: string | null;
-  message: string;
-  status: "running" | "done" | "cancelled";
-  total: number;
-  enviados: number;
-  falhas: number;
-  pendentes: number;
-  createdAt: string;
-  /** Quando a fila deve terminar, pelo ritmo gravado. */
-  terminaEm: string | null;
-}
+export type { AlvoAVincular };
+export type { BroadcastAlvo, BroadcastResumo, RecentRecipient, RitmoDoDisparo };
 
 /**
- * Traduz o erro de uma Edge Function que ainda não foi publicada com a
- * capacidade que o app acabou de passar a usar.
- *
- * Sem isto, o app pede `resolve-batch` a uma `crm-contacts` antiga, ela cai no
- * `else` do despachante e devolve **"action/patient inválidos"** — texto que
- * não nomeia a causa nem o conserto, e que chega na clínica como se o disparo
- * estivesse quebrado.
- *
- * É o mesmo problema que `VERSAO_MOTOR` resolve nas automações: código novo no
- * app pedindo capacidade que a função publicada não tem. Lá o painel diz
- * "publicada, mas desatualizada"; aqui a mensagem nomeia a função e o comando.
- */
-function erroDeFuncaoDesatualizada(funcao: string, status: number, erro: string): string | null {
-  const desconhecida = /action.*inv[áa]lid|action desconhecida|invalid action/i.test(erro);
-  if (status !== 400 || !desconhecida) return null;
-  return (
-    `A função ${funcao} ainda não foi publicada com esta capacidade. ` +
-    `No Lovable: "Deploy the ${funcao} edge function", depois Publish.`
-  );
-}
-
-async function callBroadcast(body: unknown) {
-  const url = process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
-  const res = await fetch(`${url}/functions/v1/whatsapp-broadcast`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
-    body: JSON.stringify(body ?? {}),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const desatualizada = erroDeFuncaoDesatualizada(
-      "whatsapp-broadcast",
-      res.status,
-      String(json?.error ?? ""),
-    );
-    throw new Error(
-      desatualizada ?? json?.error ?? `Falha ao chamar whatsapp-broadcast (${res.status})`,
-    );
-  }
-  return json;
-}
-
-/** Ritmo da fila. Espelha `supabase/functions/_shared/ritmo.ts`, que é quem
- *  aplica os limites — aqui é só o formato que atravessa a chamada. */
-export interface RitmoDoDisparo {
-  minSegundos: number;
-  maxSegundos: number;
-  pausarACada: number;
-  retomarEmMinutos: number;
-}
-
-/** Um paciente que ainda precisa de contato no CRM. */
-export interface AlvoAVincular {
-  patientId: string;
-  name: string;
-  phone: string;
-  conversationId: string | null;
-}
-
-async function resolverEmLote(
-  ownerId: string,
-  pacientes: AlvoAVincular[],
-): Promise<Record<string, string>> {
-  if (!pacientes.length) return {};
-  const url = process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
-  const res = await fetch(`${url}/functions/v1/crm-contacts`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
-    body: JSON.stringify({
-      ownerId,
-      action: "resolve-batch",
-      patients: pacientes.map((p) => ({ patientId: p.patientId, name: p.name, phone: p.phone })),
-    }),
-    // Uma chamada só, mas ela resolve a lista inteira — merece a folga que
-    // antes era gasta por contato.
-    signal: AbortSignal.timeout(110_000),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const desatualizada = erroDeFuncaoDesatualizada(
-      "crm-contacts",
-      res.status,
-      String(json?.error ?? ""),
-    );
-    throw new Error(
-      desatualizada ?? json?.error ?? `Falha ao vincular contatos no CRM (${res.status})`,
-    );
-  }
-  return (json.contatos ?? {}) as Record<string, string>;
-}
-
-/**
- * Cria a fila de disparo.
- *
- * O vínculo com o CRM acontece AQUI, numa chamada em lote — não mais no
- * navegador, uma ida por contato em série. Era isso que fazia uma seleção de
- * 200 pacientes ficar em "Enfileirando…" por minutos: cada contato tinha duas
- * tentativas de 55 segundos, e a primeira falha ainda derrubava tudo.
- *
- * Quem o CRM não conseguir vincular não derruba o disparo: sai da fila e volta
- * nomeado em `foraDoDisparo`, para a tela dizer quem ficou de fora.
+ * Cria a fila de disparo. O vínculo com o CRM acontece aqui, numa chamada em
+ * lote. Quem o CRM não conseguir vincular não derruba o disparo: volta nomeado
+ * em `foraDoDisparo`.
  */
 export const criarDisparo = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
@@ -154,8 +39,7 @@ export const criarDisparo = createServerFn({ method: "POST" })
       prontos: BroadcastAlvo[];
       /** Pacientes que precisam de vínculo — resolvidos aqui, em lote. */
       aVincular: AlvoAVincular[];
-      /** Caminho no bucket `crm-campaign-media`, não URL assinada: a fila pode
-       *  levar horas até o último alvo e a assinatura expiraria no meio. */
+      /** Caminho no bucket `crm-campaign-media`, não URL assinada. */
       mediaPath?: string | null;
     }) => {
       if (!input.message?.trim()) throw new Error("Escreva a mensagem antes de disparar.");
@@ -210,38 +94,18 @@ export const cancelarDisparo = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator((input: { broadcastId: string }) => input)
   .handler(async ({ data, context }) => {
-    await callBroadcast({ ownerId: context.ownerId, action: "cancel", broadcastId: data.broadcastId });
+    await callBroadcast({
+      ownerId: context.ownerId,
+      action: "cancel",
+      broadcastId: data.broadcastId,
+    });
     return { ok: true };
   });
 
 /**
- * Os disparos recentes e como cada um foi.
- *
- * Lido direto do banco pela RLS do dono, sem passar pela Edge Function: são
- * tabelas nossas, e o `select` já é permitido só para quem é dono.
+ * Os disparos recentes e como cada um foi — lido direto do banco pela RLS do
+ * dono, sem passar pela Edge Function.
  */
-/**
- * Quando a fila termina, calculado a partir do ritmo gravado no lote.
- *
- * Espelha `duracaoEstimadaMinutos` de `_shared/ritmo.ts` (Deno não é importável
- * de `src/`) e usa a MÉDIA da faixa: prometer o melhor caso e entregar o pior
- * é pior do que prometer a média. Disparo antigo, sem faixa gravada, cai no
- * `interval_seconds` único que ele de fato teve.
- */
-function previsaoDeTermino(l: any): string | null {
-  const total = Number(l.total ?? 0);
-  if (total <= 1) return null;
-  const min = Number(l.interval_min_seconds ?? l.interval_seconds ?? 8);
-  const max = Number(l.interval_max_seconds ?? min);
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
-  const intervalos = total - 1;
-  const pausarACada = Number(l.pause_after ?? 0);
-  const pausas = pausarACada > 0 ? Math.floor(intervalos / pausarACada) : 0;
-  const segundos =
-    intervalos * ((min + max) / 2) + pausas * Number(l.resume_after_minutes ?? 0) * 60;
-  return new Date(new Date(l.created_at).getTime() + segundos * 1000).toISOString();
-}
-
 export const listarDisparos = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<BroadcastResumo[]> => {
@@ -249,9 +113,7 @@ export const listarDisparos = createServerFn({ method: "GET" })
     const { data: lotes, error } = await supabase
       .from("whatsapp_broadcasts")
       // `*` e não a lista de colunas: `name` e as de ritmo vieram de migrations
-      // recentes, e pedi-las por nome faria a página de Campanhas inteira
-      // falhar num banco que ainda não as tem. `previsaoDeTermino` e o mapeamento
-      // abaixo já tratam ausência com `??`.
+      // recentes, e pedi-las por nome faria a página de Campanhas inteira falhar.
       .select("*")
       .eq("owner_id", context.ownerId)
       .order("created_at", { ascending: false })
@@ -263,7 +125,10 @@ export const listarDisparos = createServerFn({ method: "GET" })
       .from("whatsapp_broadcast_targets")
       .select("broadcast_id, status")
       .eq("owner_id", context.ownerId)
-      .in("broadcast_id", lotes.map((l: any) => l.id));
+      .in(
+        "broadcast_id",
+        lotes.map((l: any) => l.id),
+      );
 
     const contar = (id: string, status: string) =>
       (alvos ?? []).filter((a: any) => a.broadcast_id === id && a.status === status).length;
@@ -282,43 +147,9 @@ export const listarDisparos = createServerFn({ method: "GET" })
     }));
   });
 
-export interface RecentRecipient {
-  /** contact_id do CRM — bate direto com `ContatoUnificado.id` de origem "crm". */
-  contactId: string;
-  /** Dígitos puros, quando existia no momento do disparo — é o único jeito de
-   *  reconhecer quem já recebeu entre os pacientes sem CRM: o `contact_id`
-   *  gravado no disparo é o que o CRM criou na hora (via `garantirContatoCrm`),
-   *  nunca o id do paciente usado na lista de seleção. */
-  phone: string | null;
-  /** Quando saiu, ou quando está agendado para sair se ainda está na fila. */
-  sentAt: string;
-  /** `true` = ainda na fila, não saiu. A pessoa conta como tratada do mesmo
-   *  jeito: enfileirar já é um compromisso de envio. */
-  naFila: boolean;
-}
-
 /**
- * Quem recebeu algum disparo recente (últimos 7 dias, fixo) — a base para o
- * aviso e o filtro de "já recebeu" na seleção de contatos de uma nova
- * campanha (`ContactsTab.tsx`). Busca uma janela larga de propósito: o
- * recorte de quantos dias contam como "recente" é escolha da tela, não do
- * servidor, então um dado já carregado serve pra qualquer janela até 7 dias
- * sem precisar refazer a consulta.
- *
- * Só enxerga o motor de fila própria (`whatsapp_broadcast_targets`) — o
- * caminho "Todos os contatos" (CRM) não grava quem recebeu, então não tem
- * como entrar nesta conta.
- */
-/**
- * Último disparo recebido por cada contato, sem a janela curta.
- *
- * Irmã de `getRecentRecipients`, que existe para outra pergunta — "esta pessoa
- * recebeu nos últimos dias?", para não repetir num disparo novo. Aqui a
- * pergunta é "já tentamos reativar esta pessoa desde que ela foi perdida?", e
- * a resposta pode estar a seis meses de distância.
- *
- * Teto de 12 meses para a consulta não crescer sem fim: reativação mais antiga
- * que isso não muda decisão nenhuma — a pessoa volta a ser abordável.
+ * Último disparo recebido por cada contato, sem a janela curta — responde
+ * "já tentamos reativar esta pessoa?". Teto de 12 meses.
  */
 export const getUltimoDisparoPorContato = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
@@ -341,18 +172,17 @@ export const getUltimoDisparoPorContato = createServerFn({ method: "GET" })
     return ultimo;
   });
 
+/**
+ * Quem recebeu algum disparo recente — base para o aviso e o filtro de "já
+ * recebeu" na seleção de contatos. `pending` conta junto com `sent`: quem está
+ * na fila já está comprometido.
+ */
 export const getRecentRecipients = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<RecentRecipient[]> => {
     const supabase: any = context.supabase;
     const since = new Date(Date.now() - JANELA_DIAS * 24 * 60 * 60 * 1000).toISOString();
 
-    // `pending` entra junto com `sent`, e essa é a diferença que faz o envio em
-    // lotes ser confiável. `sent_at` só é gravado quando a mensagem sai de
-    // verdade — uma fila de 200 a cada 8 segundos leva ~27 minutos. Contando só
-    // `sent`, os 200 recém-enfileirados continuariam aparecendo como "ainda não
-    // receberam" durante toda a fila, e o progresso do lote diria 0 de 808
-    // logo depois de enviar. Quem está na fila já está comprometido.
     const { data, error } = await supabase
       .from("whatsapp_broadcast_targets")
       .select("contact_id, phone, sent_at, scheduled_for, status")
@@ -361,8 +191,7 @@ export const getRecentRecipients = createServerFn({ method: "GET" })
       .or(`sent_at.gte.${since},scheduled_for.gte.${since}`);
     if (error) throw new Error(error.message);
 
-    // Uma linha por contact_id — a mesma pessoa pode ter recebido em mais de
-    // um disparo na janela; o que importa pro aviso é só o mais recente.
+    // Uma linha por contact_id — só o disparo mais recente importa.
     const porContato = new Map<string, RecentRecipient>();
     for (const row of (data ?? []) as any[]) {
       const quando: string = row.sent_at ?? row.scheduled_for;
