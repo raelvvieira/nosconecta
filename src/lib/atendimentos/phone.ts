@@ -16,14 +16,26 @@ export function formatWhatsappNumber(raw: string | null | undefined): string {
  * Existe porque um telefone de paciente sem o código do país (ex.:
  * "51993351821", DDD 51 sem o 55 na frente) faz o CRM interpretar "51" como
  * código de outro país (Peru) e criar um contato pro qual o WhatsApp nunca
- * entrega — confirmado pelo time do CRM em 15/08. Mesma lógica que já
- * existia só para o número de conexão do WhatsApp da clínica
- * (`crm-whatsapp/normalizeBrazilianPhone`), estendida pra todo telefone de
- * paciente também.
+ * entrega — confirmado pelo time do CRM em 15/08.
+ *
+ * A decisão é pelo COMPRIMENTO, e não por "já começa com 55". Um número
+ * brasileiro tem 12 ou 13 dígitos com o país (55 + DDD + 8 ou 9) e 10 ou 11
+ * sem ele. Logo, 10 ou 11 dígitos significa que falta o país — SEMPRE,
+ * inclusive quando começa com 55, porque aí o 55 é o DDD (Santa Maria,
+ * Uruguaiana, Santana do Livramento) e não o código do Brasil.
+ *
+ * Decidir pelo prefixo, como esta função fazia antes, não distingue os dois
+ * casos: todo número de DDD 55 salvo sem o país era pulado calado e continuava
+ * sem entregar. É o mesmo teste que `toE164BR` (em
+ * `supabase/functions/_shared/phone.ts`) já fazia certo desde sempre.
+ *
+ * Número curto demais para ter DDD é devolvido intocado: sem DDD não há como
+ * adivinhar a região, e inventar um "55" na frente só disfarçaria de válido
+ * algo que não é.
  */
 export function normalizeBrazilianPhone(raw: string): string {
   let digits = raw.replace(/\D/g, "");
   if (digits.startsWith("0")) digits = digits.slice(1);
-  if (!digits.startsWith("55")) digits = `55${digits}`;
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
   return digits;
 }

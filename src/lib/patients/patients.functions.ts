@@ -762,8 +762,13 @@ export const fixMissingCountryCodePhones = createServerFn({ method: "POST" })
     let corrigidos = 0;
     for (const p of (pacientes ?? []) as any[]) {
       const digitos = String(p.phone).replace(/\D/g, "");
+      // 10 ou 11 dígitos = falta o país, e ponto. Havia aqui um segundo
+      // guarda, `digitos.startsWith("55") → continue`, que era redundante com
+      // o teste de comprimento (com o país o número teria 12 ou 13) e ainda
+      // por cima nocivo: ele pulava calado todo número de DDD 55 — Santa
+      // Maria, Uruguaiana, Santana do Livramento —, que continuava sem
+      // entregar sem aparecer em lugar nenhum.
       if (digitos.length !== 10 && digitos.length !== 11) continue;
-      if (digitos.startsWith("55")) continue;
       const { error: updError } = await supabase
         .from("patients")
         .update({ phone: `55${digitos}`, crm_contact_id: null })
