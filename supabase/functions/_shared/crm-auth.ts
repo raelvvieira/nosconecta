@@ -117,7 +117,17 @@ async function authedFetch(
       headers: { authorization: `Bearer ${fresh}`, ...(init.headers ?? {}) },
     });
   }
-  if (!res.ok) throw new Error(`CRM ${path} falhou (${res.status}): ${JSON.stringify(res.json)}`);
+  if (!res.ok) {
+    // O status vai junto do erro, e não só embutido no texto: quem chama às
+    // vezes precisa distinguir "o CRM RECUSOU a requisição" (4xx — nada foi
+    // criado, dá pra tentar outro formato) de "o CRM falhou ou não respondeu"
+    // (5xx/timeout — pode ter criado, repetir arriscaria duplicar). Ler isso
+    // de volta com regex na mensagem funcionaria hoje e quebraria calado no
+    // dia em que o texto mudasse.
+    const err = new Error(`CRM ${path} falhou (${res.status}): ${JSON.stringify(res.json)}`);
+    (err as any).status = res.status;
+    throw err;
+  }
   return res.json;
 }
 

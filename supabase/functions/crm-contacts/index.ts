@@ -12,6 +12,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
 import { normalizeBrazilianPhone } from "../_shared/phone.ts";
+import { parearResolvePhones } from "../_shared/resolve-phones.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -74,6 +75,52 @@ async function resolverTelefoneNoCrm(ownerId: string, phone: string): Promise<st
   } catch {
     return null; // endpoint novo — quem chama decide o que tentar depois
   }
+}
+
+/**
+ * Quantos telefones vão numa chamada de `resolve_phones`. O endpoint aceita
+ * 5000; o teto aqui é menor de propósito, porque o limite que aperta primeiro
+ * não é o do CRM e sim os 30s de `rawFetch` — um lote grande demais estoura o
+ * tempo e derruba a resolução inteira, enquanto três lotes de 1000 não.
+ */
+const TELEFONES_POR_LOTE = 1000;
+
+/**
+ * Resolve VÁRIOS telefones numa chamada, devolvendo `telefone → contactId`.
+ *
+ * Só passou a ser possível quando o CRM começou a devolver `results` pareando
+ * telefone e id (25/08) — antes era um telefone por requisição, e o porquê está
+ * em `_shared/resolve-phones.ts`, junto da leitura da resposta.
+ *
+ * Um lote que não dê para parear devolve o que já tiver: quem chama termina o
+ * resto um a um.
+ */
+async function resolverTelefonesEmLote(
+  ownerId: string,
+  telefones: string[],
+): Promise<Map<string, string>> {
+  const mapa = new Map<string, string>();
+  const alvos = [...new Set(telefones.map(normalizeBrazilianPhone).filter(Boolean))];
+  if (!alvos.length) return mapa;
+
+  for (let i = 0; i < alvos.length; i += TELEFONES_POR_LOTE) {
+    const lote = alvos.slice(i, i + TELEFONES_POR_LOTE);
+    try {
+      const res = await crmFetch(supabase, ownerId, "/api/v1/audiences/resolve_phones", {
+        method: "POST",
+        body: JSON.stringify({ phones: lote }),
+      });
+      const pareado = parearResolvePhones(unwrap(res));
+      // `null` = resposta sem `results` (CRM na versão antiga). Para aqui em
+      // vez de tentar ler as listas soltas: quem chama resolve um a um, que é
+      // lento mas nunca troca as pessoas.
+      if (!pareado) return mapa;
+      for (const [telefone, id] of pareado) mapa.set(telefone, id);
+    } catch {
+      return mapa; // endpoint indisponível — quem chama decide o que tentar depois
+    }
+  }
+  return mapa;
 }
 
 /**
@@ -409,15 +456,10 @@ async function handleList(ownerId: string) {
  * da clínica já vinha recebendo mensagem dessas pessoas antes) parar de
  * bater no fluxo lento de criar/reagir a 422 a cada disparo.
  *
- * Resolve um telefone por vez (`resolverTelefoneNoCrm`), em lotes
- * concorrentes — não em uma chamada só com todos os telefones (o endpoint
- * aceita até 5000 de uma vez, mas devolve `contact_ids`/`nao_encontrados`
- * como duas listas separadas, sem casar explicitamente cada id com o
- * telefone que o gerou; arriscar essa correlação por posição poderia
- * vincular gente errada a conversa de outra pessoa — pior que o problema
- * que isto resolve). Quem sobrar sem achar cai na busca por
- * `/contacts/filter` (ver `buscarContatoPorTelefoneViaFiltro`) como
- * segunda tentativa.
+ * Resolve em lote (`resolverTelefonesEmLote`), agora que o CRM devolve
+ * `results` já pareando telefone e id. Quem o lote não achar passa pelo
+ * caminho um-a-um e, se ainda assim não aparecer, pela busca em
+ * `/contacts/filter` (ver `buscarContatoPorTelefoneViaFiltro`).
  */
 async function handleBackfillLinks(ownerId: string) {
   const { data: pacientes, error } = await supabase
@@ -430,23 +472,38 @@ async function handleBackfillLinks(ownerId: string) {
 
   let linkados = 0;
   const semMatch: { id: string; phone: string }[] = [];
-  const pendentes = [...(pacientes ?? [])];
+
+  const vincular = async (id: string, contactId: string) => {
+    const { error: updError } = await supabase
+      .from("patients")
+      .update({ crm_contact_id: contactId })
+      .eq("id", id)
+      .eq("owner_id", ownerId);
+    if (!updError) linkados++;
+  };
+
+  // Uma chamada por lote de 1000 em vez de uma por paciente: numa base de
+  // ~4.500 pacientes isso sai de milhares de requisições para meia dúzia.
+  const todos = (pacientes ?? []) as { id: string; phone: string }[];
+  const emLote = await resolverTelefonesEmLote(ownerId, todos.map((p) => p.phone));
+  const pendentes: { id: string; phone: string }[] = [];
+  for (const p of todos) {
+    const contactId = emLote.get(normalizeBrazilianPhone(p.phone)) ?? emLote.get(p.phone);
+    if (contactId) await vincular(p.id, contactId);
+    else pendentes.push({ id: p.id, phone: p.phone });
+  }
+
   while (pendentes.length > 0) {
     const lote = pendentes.splice(0, CONCORRENCIA);
     const resultados = await Promise.all(
-      lote.map(async (p) => ({ id: p.id, phone: p.phone as string, contactId: await resolverTelefoneNoCrm(ownerId, p.phone) })),
+      lote.map(async (p) => ({ id: p.id, phone: p.phone, contactId: await resolverTelefoneNoCrm(ownerId, p.phone) })),
     );
     for (const r of resultados) {
       if (!r.contactId) {
         semMatch.push({ id: r.id, phone: r.phone });
         continue;
       }
-      const { error: updError } = await supabase
-        .from("patients")
-        .update({ crm_contact_id: r.contactId })
-        .eq("id", r.id)
-        .eq("owner_id", ownerId);
-      if (!updError) linkados++;
+      await vincular(r.id, r.contactId);
     }
   }
 
@@ -458,12 +515,7 @@ async function handleBackfillLinks(ownerId: string) {
     );
     for (const r of resultados) {
       if (!r.contactId) continue;
-      const { error: updError } = await supabase
-        .from("patients")
-        .update({ crm_contact_id: r.contactId })
-        .eq("id", r.id)
-        .eq("owner_id", ownerId);
-      if (!updError) linkados++;
+      await vincular(r.id, r.contactId);
     }
   }
 
@@ -484,9 +536,8 @@ async function handleBackfillLinks(ownerId: string) {
  * "Enfileirando…" que não terminava.
  *
  * Aqui é o mesmo padrão que `handleBackfillLinks` já usa para a base inteira —
- * `resolve_phones`, que aceita até 5000 telefones, com `CONCORRENCIA` de folga
- * para o que ele não achar. Quem já tem `crm_contact_id` gravado nem chega a
- * ser consultado.
+ * `resolve_phones` em lote, com o caminho um-a-um só para o punhado que ele não
+ * achar. Quem já tem `crm_contact_id` gravado nem chega a ser consultado.
  *
  * Devolve o mapa `patientId → contactId`. Quem não resolveu simplesmente não
  * aparece no mapa: o chamador decide se isso derruba o disparo ou se a pessoa
@@ -513,11 +564,24 @@ async function handleResolveBatch(
     else if (row.phone) telefonePorId.set(String(row.id), String(row.phone));
   }
 
-  // 2. O resto vai para `resolve_phones`, em paralelo controlado.
+  // 2. O resto vai para `resolve_phones` numa chamada só. Uma seleção de 200
+  //    pessoas era 200 requisições ao CRM (6 de cada vez); agora é uma.
   const pendentes = [...telefonePorId.entries()];
   const semMatch: [string, string][] = [];
-  while (pendentes.length > 0) {
-    const lote = pendentes.splice(0, CONCORRENCIA);
+  const emLote = await resolverTelefonesEmLote(ownerId, pendentes.map(([, phone]) => phone));
+  const naoResolvidos: [string, string][] = [];
+  for (const [id, phone] of pendentes) {
+    const contactId = emLote.get(normalizeBrazilianPhone(phone)) ?? emLote.get(phone);
+    if (contactId) mapa[id] = contactId;
+    else naoResolvidos.push([id, phone]);
+  }
+
+  // Quem o lote não achou ainda passa pelo caminho um-a-um: ou o CRM está numa
+  // versão sem `results` (aí o lote volta vazio e isto resolve tudo), ou é só
+  // um telefone que ele não conhece — e nesse caso a chamada individual é
+  // barata, porque sobraram poucos.
+  while (naoResolvidos.length > 0) {
+    const lote = naoResolvidos.splice(0, CONCORRENCIA);
     const resultados = await Promise.all(
       lote.map(async ([id, phone]) => [id, phone, await resolverTelefoneNoCrm(ownerId, phone)] as const),
     );

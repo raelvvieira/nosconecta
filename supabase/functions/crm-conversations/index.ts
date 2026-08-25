@@ -4,16 +4,65 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
+import { lerTudoPaginado } from "../_shared/lista-paginada.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+// 100 é o máximo aceito por `/conversations` (padrão do CRM é 25). O teto de
+// páginas é rede de segurança contra paginação que não termina: 50 × 100 = 5000
+// conversas.
+const CONVERSAS_POR_PAGINA = 100;
+const MAX_PAGINAS_CONVERSAS = 50;
+// Pedir várias páginas ao mesmo tempo, como `crm-contacts/handleList` já faz —
+// uma de cada vez deixaria a tela de chat presa esperando dezenas de idas e
+// vindas ao CRM.
+const CONCORRENCIA_CONVERSAS = 6;
+// Melhor devolver o que já veio, marcado como truncado, do que rodar até o
+// Supabase matar a execução e a tela nunca saber por quê.
+const PRAZO_CONVERSAS_MS = 45_000;
+
+/**
+ * Todas as conversas da conta, paginadas.
+ *
+ * Antes isto era uma chamada sem parâmetro nenhum, e por isso vinham **25
+ * conversas, só as abertas** — o CRM confirmou (25/08) que o padrão de
+ * `per_page` é 25 e que o filtro de status tem padrão `open`. Nada no sistema
+ * dizia isso: a tela de chat mostrava 25 conversas como se fossem todas, o
+ * retrato por caixa contava errado, e — o pior — a aba de Contatos monta daqui
+ * o mapa `contato -> conversa` que o disparo usa. Uma conversa RESOLVIDA ficava
+ * invisível, o disparo achava que a pessoa não tinha conversa e ia pelo caminho
+ * de abrir uma nova.
+ *
+ * `status=all` é o que faz conversa resolvida voltar a existir para o sistema.
+ */
 async function handleList(ownerId: string) {
-  const res = await crmFetch(supabase, ownerId, "/api/v1/conversations");
-  const unwrapped = unwrap(res);
-  return { ok: true, conversations: Array.isArray(unwrapped) ? unwrapped : [] };
+  const { linhas, total, truncado } = await lerTudoPaginado<any>({
+    porPagina: CONVERSAS_POR_PAGINA,
+    maxPaginas: MAX_PAGINAS_CONVERSAS,
+    concorrencia: CONCORRENCIA_CONVERSAS,
+    prazoMs: PRAZO_CONVERSAS_MS,
+    idDe: (linha) => String(linha?.id ?? ""),
+    buscar: async (pagina) => {
+      const res = await crmFetch(
+        supabase,
+        ownerId,
+        `/api/v1/conversations?page=${pagina}&per_page=${CONVERSAS_POR_PAGINA}&status=all`,
+      );
+      // Sem `unwrap` na resposta crua: ele devolve `data` e descarta o `meta`.
+      // Em `/conversations` o total vem em `meta.total`/`meta.total_count` — sem
+      // o nível `pagination` que `/contacts` tem.
+      const linhas = unwrap(res);
+      return {
+        linhas: Array.isArray(linhas) ? linhas : [],
+        total: Number(res?.meta?.total ?? res?.meta?.total_count ?? 0),
+      };
+    },
+  });
+
+  return { ok: true, conversations: linhas, total, truncado };
 }
 
 async function handleMessages(ownerId: string, conversationId: string) {

@@ -27,6 +27,16 @@ export interface ConversationRow {
   lastMessagePreview: string | null;
   lastMessageAt: string | null;
   unreadCount: number;
+  /**
+   * Situação da conversa no CRM.
+   *
+   * Passou a existir quando a listagem deixou de pedir só as abertas: até
+   * então o CRM filtrava `status=open` por padrão e nós nem sabíamos, então
+   * toda conversa que chegava aqui era aberta e o campo não fazia falta. Agora
+   * que as resolvidas também vêm, sem isto não haveria como distinguir uma da
+   * outra na tela.
+   */
+  status: "open" | "resolved" | "pending";
 }
 
 export interface OutgoingAttachment {
@@ -110,6 +120,7 @@ function mapConversation(row: any): ConversationRow {
     lastMessagePreview: null,
     lastMessageAt: toIso(row?.created_at),
     unreadCount: row?.unread_count ?? 0,
+    status: row?.status === "resolved" ? "resolved" : row?.status === "pending" ? "pending" : "open",
   };
 }
 
@@ -225,7 +236,15 @@ export const getConversations = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<ConversationRow[]> => {
     const json = await callEdgeFunction("crm-conversations", { ownerId: context.ownerId, action: "list" });
-    return (json.conversations ?? []).map(mapConversation);
+    const linhas: ConversationRow[] = (json.conversations ?? []).map(mapConversation);
+    // Abertas primeiro, e dentro de cada grupo a mais recente no topo. A ordem
+    // importa agora que as resolvidas também vêm: sem isto, uma conversa
+    // encerrada há meses poderia aparecer acima do atendimento de hoje, só
+    // porque o CRM devolveu naquela ordem.
+    const peso = (c: ConversationRow) => (c.status === "resolved" ? 1 : 0);
+    return linhas.sort(
+      (a, b) => peso(a) - peso(b) || (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""),
+    );
   });
 
 export const getMessages = createServerFn({ method: "GET" })

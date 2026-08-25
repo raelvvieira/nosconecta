@@ -32,8 +32,10 @@ export interface MidiaDeEnvio {
 
 /** Manda uma mensagem, devolvendo por qual caminho saiu.
  *
- *  `midiaIgnorada` vem preenchido quando havia imagem para mandar e o caminho
- *  usado não sabe carregá-la — é o que impede a foto de sumir em silêncio. */
+ *  `midiaIgnorada` vem preenchido quando havia imagem para mandar e ela não
+ *  saiu — é o que impede a foto de sumir em silêncio. Os dois caminhos (com e
+ *  sem conversa aberta) sabem levar imagem legendada hoje, então isso só
+ *  aparece se o CRM recusar o anexo. */
 export async function enviarWhatsapp(
   supabase: any,
   ownerId: string,
@@ -93,28 +95,64 @@ export async function enviarWhatsapp(
 
   // NÃO mandar `source_id`: o CRM deriva do telefone do contato, e um valor
   // próprio faz a requisição ser recusada (confirmado pelo time do CRM, 18/08).
+  //
+  // Com imagem, este endpoint também aceita multipart — os campos aninhados vão
+  // como `message[content]` e `message[attachments][]` (confirmado pelo time do
+  // CRM, 25/08). Sai UMA mensagem com a foto legendada, sem precisar criar a
+  // conversa e mandar o anexo depois, que seriam duas mensagens no WhatsApp de
+  // quem recebe.
+  if (midia) {
+    const form = new FormData();
+    form.append("contact_id", alvo.contact_id);
+    form.append("inbox_id", inboxId);
+    form.append("message[content]", message);
+    form.append(
+      "message[attachments][]",
+      new File([midia.bytes as BlobPart], midia.nome, {
+        type: midia.tipo || "application/octet-stream",
+      }),
+    );
+    try {
+      await crmFetch(supabase, ownerId, "/api/v1/conversations", { method: "POST", body: form });
+      return { via: "conversation_nova_midia" };
+    } catch (e) {
+      // O time do CRM validou este caminho na camada do Rails, não de ponta a
+      // ponta por HTTP com token — e avisou disso. Se ele for RECUSADO (4xx), a
+      // conversa não chegou a ser criada, então dá pra cair no JSON de sempre e
+      // a pessoa recebe ao menos o texto, com o motivo da foto faltar gravado
+      // na linha do alvo.
+      //
+      // Só em 4xx. Num 5xx ou timeout não dá pra saber se a conversa foi criada
+      // antes de a resposta se perder, e repetir mandaria a mensagem duas vezes
+      // — pior do que falhar.
+      const status = Number((e as any)?.status ?? 0);
+      if (status < 400 || status >= 500) throw e;
+      console.warn("[whatsapp-send] multipart recusado na criação da conversa:", String(e).slice(0, 300));
+      await criarConversaSoTexto(supabase, ownerId, alvo.contact_id, inboxId, message);
+      return {
+        via: "conversation_new",
+        midiaIgnorada: "O CRM recusou a imagem ao abrir a conversa; o texto foi enviado.",
+      };
+    }
+  }
+
+  await criarConversaSoTexto(supabase, ownerId, alvo.contact_id, inboxId, message);
+  return { via: "conversation_new" };
+}
+
+async function criarConversaSoTexto(
+  supabase: any,
+  ownerId: string,
+  contactId: string,
+  inboxId: string,
+  message: string,
+): Promise<void> {
   await crmFetch(supabase, ownerId, "/api/v1/conversations", {
     method: "POST",
     body: JSON.stringify({
-      contact_id: alvo.contact_id,
+      contact_id: contactId,
       inbox_id: inboxId,
       message: { content: message },
     }),
   });
-  // Imagem NÃO acompanha a criação da conversa. Este endpoint aceita só JSON
-  // com `message.content`; anexar aqui nunca foi confirmado pelo time do CRM, e
-  // chutar um formato faria a requisição inteira ser recusada — a pessoa não
-  // receberia nem a foto nem o texto. Então o texto sai, e a linha do alvo
-  // registra por que a foto não foi, para aparecer em Execuções em vez de
-  // sumir.
-  //
-  // Mandar a foto numa segunda mensagem logo depois seria possível (o `id` da
-  // conversa volta nesta resposta), mas seriam DUAS mensagens — e o pedido era
-  // explicitamente uma só, com legenda.
-  return {
-    via: "conversation_new",
-    midiaIgnorada: midia
-      ? "Contato ainda não tinha conversa aberta: a imagem só pode ser anexada a uma conversa existente."
-      : undefined,
-  };
 }
