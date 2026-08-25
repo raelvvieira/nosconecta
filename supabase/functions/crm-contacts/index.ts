@@ -202,6 +202,19 @@ async function buscarContatoPorTelefoneViaFiltro(ownerId: string, phone: string)
 async function handleUpsert(
   ownerId: string,
   patient: { patientId: string; name: string; phone?: string | null },
+  /**
+   * `jaConsultado` = "o CRM já respondeu que não conhece este telefone".
+   *
+   * Só quem acabou de perguntar pode afirmar isso. Serve para o passo 3 de
+   * `handleResolveBatch`, que chega aqui com a resposta do lote na mão: sem
+   * isto, cada pessoa nova custava uma consulta individual para reconfirmar o
+   * que o lote tinha acabado de dizer — numa seleção de 200 contatos novos,
+   * 200 idas ao CRM que só repetiam uma resposta conhecida.
+   *
+   * A rede de segurança do 422 continua inteira: a corrida (alguém criar o
+   * mesmo contato nesse meio-tempo) segue possível, e é lá que ela é tratada.
+   */
+  opcoes: { jaConsultado?: boolean } = {},
 ) {
   const { data: row, error } = await supabase
     .from("patients")
@@ -245,7 +258,13 @@ async function handleUpsert(
   // Resolve ANTES de criar (recomendação do time do CRM, 15/08) — evita
   // tentar criar um contato que já existe e só reagir ao 422 depois, que é
   // o jeito antigo mantido abaixo só como rede de segurança.
-  let contactId: string | null = phone ? await resolverTelefoneNoCrm(ownerId, phone) : null;
+  //
+  // Pular quando quem chamou já perguntou não é um atalho: criar é idempotente
+  // por telefone (o CRM devolve o contato existente em vez de recusar, mesma
+  // forma de resposta), então perguntar de novo não protege de nada — só custa
+  // uma ida a mais por pessoa.
+  let contactId: string | null =
+    phone && !opcoes.jaConsultado ? await resolverTelefoneNoCrm(ownerId, phone) : null;
 
   if (!contactId) {
     try {
@@ -601,11 +620,14 @@ async function handleResolveBatch(
       lote.map(async ([id]) => {
         const p = porId.get(id);
         try {
-          const r = await handleUpsert(ownerId, {
-            patientId: id,
-            name: p?.name ?? "",
-            phone: p?.phone ?? "",
-          });
+          const r = await handleUpsert(
+            ownerId,
+            { patientId: id, name: p?.name ?? "", phone: p?.phone ?? "" },
+            // O lote acima já perguntou por este telefone e o CRM respondeu que
+            // não conhece. Perguntar de novo, uma pessoa por vez, era a última
+            // ida redundante que sobrava no caminho de "vinculando contatos".
+            { jaConsultado: true },
+          );
           return [id, (r as any)?.contactId ?? null] as const;
         } catch (_) {
           // Um contato que o CRM recusa não pode derrubar os outros 199.
