@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Rocket } from "lucide-react";
-import { toast } from "sonner";
 import {
   Sheet,
   SheetContent,
@@ -11,7 +10,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
-import { criarDisparo, type RitmoDoDisparo } from "@/lib/atendimentos/broadcast.functions";
+import type { RitmoDoDisparo } from "@/lib/atendimentos/broadcast.functions";
+import { enfileirarDisparo } from "@/lib/atendimentos/enfileiramento";
 import { classificarSelecao } from "@/lib/atendimentos/prepararAlvos";
 import { ContactsTab, type ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
 import { BroadcastDialog } from "@/components/atendimentos/contacts/BroadcastDialog";
