@@ -48,6 +48,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { haptic } from "@/lib/haptics";
 import { useUnitSelection } from "@/lib/settings/unit-context";
+import { FotoDoContato } from "@/components/atendimentos/chat/FotoDoContato";
 
 const searchSchema = z.object({
   conversationId: z.string().optional(),
@@ -82,16 +83,6 @@ function formatTime(iso: string | null): string {
   const sameDay = d.toDateString() === now.toDateString();
   if (sameDay) return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-}
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
 }
 
 function ChatPage() {
@@ -377,14 +368,11 @@ function ChatPage() {
                   active ? "bg-foreground text-white" : "hover:bg-white active:bg-white",
                 )}
               >
-                <span
-                  className={cn(
-                    "grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-sm font-bold",
-                    active ? "bg-white/15 text-white" : "bg-coral-soft text-coral",
-                  )}
-                >
-                  {initials(name)}
-                </span>
+                <FotoDoContato
+                  nome={name}
+                  url={row.avatarUrl}
+                  className={cn("h-11 w-11", active ? "bg-white/15 text-white" : "bg-coral-soft text-coral")}
+                />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-semibold">{name}</span>
@@ -426,9 +414,11 @@ function ChatPage() {
               >
                 <ArrowLeft className="h-4 w-4" />
               </button>
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-coral-soft text-sm font-bold text-coral">
-                {initials(selected.contactName ?? selected.phone ?? "Contato")}
-              </span>
+              <FotoDoContato
+                nome={selected.contactName ?? selected.phone ?? "Contato"}
+                url={selected.avatarUrl}
+                className="h-10 w-10 bg-coral-soft text-coral"
+              />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{selected.contactName ?? selected.phone ?? "Contato"}</p>
                 {selected.contactName && selected.phone && (

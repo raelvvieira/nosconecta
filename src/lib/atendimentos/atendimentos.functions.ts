@@ -24,6 +24,16 @@ export interface ConversationRow {
   inboxId: string | null;
   contactName: string | null;
   phone: string | null;
+  /**
+   * Foto de perfil do contato, quando o CRM informa.
+   *
+   * `thumbnail` é o campo do Chatwoot, que é a base deste CRM (mesmos
+   * `inbox_id`, `contact_inbox`, `source_id`, `message_type` 0/1). Ainda não
+   * confirmado com o time do CRM que ele vem preenchido a partir do WhatsApp —
+   * até lá, `null` aqui significa "não veio", e a tela mostra as iniciais como
+   * sempre mostrou.
+   */
+  avatarUrl: string | null;
   lastMessagePreview: string | null;
   lastMessageAt: string | null;
   unreadCount: number;
@@ -117,6 +127,12 @@ function mapConversation(row: any): ConversationRow {
     inboxId: inbox ? String(inbox) : null,
     contactName: contact?.name ?? null,
     phone: contact?.phone_number ?? null,
+    // Ler um campo que talvez não exista é inofensivo — vira `null` e a tela
+    // segue com as iniciais. (Diferente de MANDAR um campo inventado numa
+    // requisição, que faz o CRM recusar a chamada inteira.) `thumbnail` é o
+    // nome no Chatwoot; `avatar_url` fica como apelido comum, que não custa
+    // nada tentar.
+    avatarUrl: contact?.thumbnail || contact?.avatar_url || null,
     lastMessagePreview: null,
     lastMessageAt: toIso(row?.created_at),
     unreadCount: row?.unread_count ?? 0,
