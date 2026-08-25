@@ -36,12 +36,10 @@ export function NewCampaignSheet({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Recebe o id do disparo recém-criado, para a página destacá-lo na lista. */
-  onCreated: (broadcastId: string) => void;
+  /** Avisa a página que há um disparo em preparação para acompanhar na lista. */
+  onCreated: () => void;
 }) {
-  const queryClient = useQueryClient();
   const fetchUsage = useServerFn(getDailySendUsage);
-  const doDisparar = useServerFn(criarDisparo);
 
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [disparoSelecao, setDisparoSelecao] = useState<ContatoSelecionado[] | null>(null);
