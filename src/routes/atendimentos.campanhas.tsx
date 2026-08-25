@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -114,12 +114,16 @@ function CampanhasPage() {
   // real aparece na lista com o mesmo id — sem piscar entre um e outro.
   const preparacoes = useDisparosEmPreparacao();
   const disparos = disparosQuery.data ?? [];
+  // Uma invalidação por disparo concluído: sem esta trava, cada resposta nova
+  // da lista disparava outra invalidação, que trazia outra resposta.
+  const jaAvisados = useRef<Set<string>>(new Set());
   useEffect(() => {
     for (const p of preparacoes) {
       if (p.broadcastId && disparos.some((d) => d.id === p.broadcastId)) {
         descartarPreparacao(p.localId);
       }
-      if (p.etapa === "pronto" && p.broadcastId) {
+      if (p.etapa === "pronto" && p.broadcastId && !jaAvisados.current.has(p.localId)) {
+        jaAvisados.current.add(p.localId);
         queryClient.invalidateQueries({ queryKey: ["disparos"] });
         queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
         queryClient.invalidateQueries({ queryKey: ["broadcast-recent-recipients"] });
