@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -37,6 +37,12 @@ import {
 } from "@/lib/atendimentos/campaigns.functions";
 import { cancelarDisparo, listarDisparos } from "@/lib/atendimentos/broadcast.functions";
 import { CartaoDeDisparo } from "@/components/atendimentos/campaigns/CartaoDeDisparo";
+import { CartaoEmPreparacao } from "@/components/atendimentos/campaigns/CartaoEmPreparacao";
+import { DetalhesDoDisparo } from "@/components/atendimentos/campaigns/DetalhesDoDisparo";
+import {
+  descartarPreparacao,
+  useDisparosEmPreparacao,
+} from "@/lib/atendimentos/enfileiramento";
 import { algumEmAndamento } from "@/lib/atendimentos/statusDoDisparo";
 
 const searchSchema = z.object({});
@@ -86,11 +92,7 @@ function CampanhasPage() {
     refetchInterval: (q) => (algumEmAndamento(q.state.data ?? []) ? 5_000 : false),
   });
 
-  const refresh = (broadcastId?: string) => {
-    if (broadcastId) {
-      setRecemCriado(broadcastId);
-      window.setTimeout(() => setRecemCriado((a) => (a === broadcastId ? null : a)), 12_000);
-    }
+  const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
     queryClient.invalidateQueries({ queryKey: ["disparos"] });
@@ -107,6 +109,26 @@ function CampanhasPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  // Enfileiramentos em curso: existem antes de o lote existir no banco, então
+  // vêm de um store local e não da consulta. Somem sozinhos quando o disparo
+  // real aparece na lista com o mesmo id — sem piscar entre um e outro.
+  const preparacoes = useDisparosEmPreparacao();
+  const disparos = disparosQuery.data ?? [];
+  useEffect(() => {
+    for (const p of preparacoes) {
+      if (p.broadcastId && disparos.some((d) => d.id === p.broadcastId)) {
+        descartarPreparacao(p.localId);
+      }
+      if (p.etapa === "pronto" && p.broadcastId) {
+        queryClient.invalidateQueries({ queryKey: ["disparos"] });
+        queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
+        queryClient.invalidateQueries({ queryKey: ["broadcast-recent-recipients"] });
+        setRecemCriado(p.broadcastId);
+      }
+    }
+  }, [preparacoes, disparos, queryClient]);
+
+  const [detalhesId, setDetalhesId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   // O disparo recém-criado ganha destaque por alguns segundos: com vinte na
   // lista, "apareceu no topo" não é suficiente para a pessoa achar o dela.
@@ -183,7 +205,10 @@ function CampanhasPage() {
           Disparos enviados
         </h2>
         <section className="surface-card mt-2.5 divide-y divide-border overflow-hidden">
-          {(disparosQuery.data ?? []).length === 0 && (
+          {preparacoes.map((p) => (
+            <CartaoEmPreparacao key={p.localId} item={p} />
+          ))}
+          {disparos.length === 0 && preparacoes.length === 0 && (
             <div className="grid min-h-32 place-items-center px-6 py-6 text-center">
               <p className="text-sm text-muted-foreground">
                 Nenhum disparo para uma seleção de contatos ainda. Em "Nova campanha",
@@ -191,18 +216,24 @@ function CampanhasPage() {
               </p>
             </div>
           )}
-          {(disparosQuery.data ?? []).map((d) => (
+          {disparos.map((d) => (
             <CartaoDeDisparo
               key={d.id}
               disparo={d}
               destacado={d.id === recemCriado}
               onCancelar={() => setCancelarDisparoId(d.id)}
+              onDetalhes={() => setDetalhesId(d.id)}
             />
           ))}
         </section>
       </main>
 
       <NewCampaignSheet open={formOpen} onOpenChange={setFormOpen} onCreated={refresh} />
+
+      <DetalhesDoDisparo
+        disparo={disparos.find((d) => d.id === detalhesId) ?? null}
+        onOpenChange={(o) => !o && setDetalhesId(null)}
+      />
 
 
       <AlertDialog open={Boolean(cancelarDisparoId)} onOpenChange={(o) => !o && setCancelarDisparoId(null)}>
