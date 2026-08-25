@@ -1,4 +1,4 @@
-import { Check, Clock, Loader2, X } from "lucide-react";
+import { Check, Clock, ListTree, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { BroadcastResumo } from "@/lib/atendimentos/broadcast.functions";
