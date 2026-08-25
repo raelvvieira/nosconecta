@@ -49,11 +49,13 @@ export function CartaoDeDisparo({
   disparo,
   destacado,
   onCancelar,
+  onDetalhes,
 }: {
   disparo: BroadcastResumo;
   /** Recém-criado: chama atenção por alguns segundos. */
   destacado?: boolean;
   onCancelar: () => void;
+  onDetalhes: () => void;
 }) {
   const p = progressoDoDisparo(disparo);
   const fim = terminaPorVoltaDe(disparo);
