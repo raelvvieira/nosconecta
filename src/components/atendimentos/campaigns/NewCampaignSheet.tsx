@@ -127,7 +127,7 @@ export function NewCampaignSheet({
       <BroadcastDialog
         contatos={disparoSelecao}
         usage={usageQuery.data ?? { limit: 200, usedToday: 0 }}
-        isPending={disparoMutation.isPending}
+        isPending={false}
         onOpenChange={(o) => !o && setDisparoSelecao(null)}
         onConfirm={confirmarDisparo}
       />
