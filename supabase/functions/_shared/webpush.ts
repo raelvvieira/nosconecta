@@ -44,15 +44,15 @@ async function hkdf(
   info: Uint8Array,
   length: number,
 ): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey("raw", ikm as ArrayBufferView, "HKDF", false, [
+  const key = await crypto.subtle.importKey("raw", ikm as any, "HKDF", false, [
     "deriveBits",
   ]);
   const bits = await crypto.subtle.deriveBits(
     {
       name: "HKDF",
       hash: "SHA-256",
-      salt: salt as ArrayBufferView,
-      info: info as ArrayBufferView,
+      salt: salt as any,
+      info: info as any,
     },
     key,
     length * 8,
@@ -66,7 +66,7 @@ async function hkdf(
 async function importPublicKey(raw: Uint8Array): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     "raw",
-    raw as ArrayBufferView,
+    raw as any,
     { name: "ECDH", namedCurve: "P-256" },
     true,
     [],
@@ -193,16 +193,16 @@ export async function encryptPayload(
 
   const aesKey = await crypto.subtle.importKey(
     "raw",
-    contentEncryptionKey as ArrayBufferView,
+    contentEncryptionKey as any,
     "AES-GCM",
     false,
     ["encrypt"],
   );
   const ciphertext = new Uint8Array(
     await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv: nonce as ArrayBufferView, tagLength: 128 },
+      { name: "AES-GCM", iv: nonce as any, tagLength: 128 },
       aesKey,
-      record as ArrayBufferView,
+      record as any,
     ),
   );
 
