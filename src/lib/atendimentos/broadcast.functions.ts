@@ -90,6 +90,55 @@ export const criarDisparo = createServerFn({ method: "POST" })
     };
   });
 
+/**
+ * Vincula um bloco de pacientes ao CRM e devolve o mapa `patientId -> contactId`.
+ *
+ * A tela chama isto em blocos para poder mostrar o vínculo andando: numa
+ * seleção de 200, "Vinculando contatos ao CRM" sem número é indistinguível de
+ * travado. Quem o CRM não resolver simplesmente não aparece no mapa.
+ */
+export const vincularAlvos = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { aVincular: AlvoAVincular[] }) => input)
+  .handler(async ({ data, context }): Promise<Record<string, string>> => {
+    return resolverEmLote(context.ownerId, data.aVincular ?? []);
+  });
+
+/** Um destinatário que não recebeu, com o motivo registrado pela fila. */
+export interface FalhaDeDisparo {
+  contactId: string;
+  nome: string | null;
+  phone: string | null;
+  conversationId: string | null;
+  erro: string | null;
+}
+
+/**
+ * Os destinatários que falharam num disparo — nome, telefone e o erro que a
+ * fila gravou. É o que permite reenviar só para eles.
+ */
+export const listarFalhasDoDisparo = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { broadcastId: string }) => input)
+  .handler(async ({ data, context }): Promise<FalhaDeDisparo[]> => {
+    const supabase: any = context.supabase;
+    const { data: linhas, error } = await supabase
+      .from("whatsapp_broadcast_targets")
+      .select("contact_id, contact_name, phone, conversation_id, error, media_skipped_reason")
+      .eq("owner_id", context.ownerId)
+      .eq("broadcast_id", data.broadcastId)
+      .eq("status", "failed")
+      .limit(500);
+    if (error) throw new Error(error.message);
+    return (linhas ?? []).map((l: any) => ({
+      contactId: String(l.contact_id),
+      nome: l.contact_name ?? null,
+      phone: l.phone ?? null,
+      conversationId: l.conversation_id ?? null,
+      erro: l.error ?? l.media_skipped_reason ?? null,
+    }));
+  });
+
 export const cancelarDisparo = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator((input: { broadcastId: string }) => input)

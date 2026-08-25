@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Rocket } from "lucide-react";
-import { toast } from "sonner";
 import {
   Sheet,
   SheetContent,
@@ -11,7 +10,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
-import { criarDisparo, type RitmoDoDisparo } from "@/lib/atendimentos/broadcast.functions";
+import type { RitmoDoDisparo } from "@/lib/atendimentos/broadcast.functions";
+import { enfileirarDisparo } from "@/lib/atendimentos/enfileiramento";
 import { classificarSelecao } from "@/lib/atendimentos/prepararAlvos";
 import { ContactsTab, type ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
 import { BroadcastDialog } from "@/components/atendimentos/contacts/BroadcastDialog";
@@ -36,12 +36,10 @@ export function NewCampaignSheet({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Recebe o id do disparo recém-criado, para a página destacá-lo na lista. */
-  onCreated: (broadcastId: string) => void;
+  /** Avisa a página que há um disparo em preparação para acompanhar na lista. */
+  onCreated: () => void;
 }) {
-  const queryClient = useQueryClient();
   const fetchUsage = useServerFn(getDailySendUsage);
-  const doDisparar = useServerFn(criarDisparo);
 
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [disparoSelecao, setDisparoSelecao] = useState<ContatoSelecionado[] | null>(null);
@@ -60,43 +58,11 @@ export function NewCampaignSheet({
     setDisparoSelecao(null);
   };
 
-  const disparoMutation = useMutation({
-    mutationFn: async (dados: {
-      message: string;
-      name: string;
-      ritmo: RitmoDoDisparo;
-      mediaPath: string | null;
-      alvos: ContatoSelecionado[];
-    }) => {
-      // Classificação pura, instantânea: o vínculo com o CRM acontece no
-      // servidor, em lote. Os alvos vêm por parâmetro porque a tela já fechou
-      // quando esta chamada acontece — o estado da seleção não existe mais.
-      const { alvos, ...envio } = dados;
-      const { prontos, aVincular, foraDoDisparo } = classificarSelecao(alvos);
-      const r = await doDisparar({ data: { ...envio, prontos, aVincular } });
-      return { ...r, foraDoDisparo: [...foraDoDisparo, ...r.foraDoDisparo] };
-    },
-    onSuccess: (r) => {
-      toast.success(`Disparo na fila com ${r.total} contatos.`, { duration: 6000 });
-      if (r.foraDoDisparo.length) {
-        toast.warning(
-          `${r.foraDoDisparo.length} ${r.foraDoDisparo.length === 1 ? "pessoa ficou" : "pessoas ficaram"} de fora: ` +
-            r.foraDoDisparo.map((f) => f.nome).join(", "),
-          { duration: 10000 },
-        );
-      }
-      queryClient.invalidateQueries({ queryKey: ["campaigns-usage"] });
-      queryClient.invalidateQueries({ queryKey: ["disparos"] });
-      queryClient.invalidateQueries({ queryKey: ["broadcast-recent-recipients"] });
-      onCreated(r.broadcastId);
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
   // Confirmou: a tela sai de cena na hora e o acompanhamento passa a ser a
-  // lista de Campanhas, que se atualiza sozinha enquanto a fila anda. Esperar
-  // o servidor com o diálogo aberto prendia a pessoa num "Enfileirando…" que
-  // não conta nada além do que a própria lista já mostra.
+  // lista de Campanhas — o enfileiramento vira um cartão de verdade lá, com
+  // etapa, percentual e, se der errado, o erro e a retentativa. Esperar o
+  // servidor com o diálogo aberto prendia a pessoa num "Enfileirando…" que não
+  // contava nada, e um toast de erro levava embora a seleção inteira.
   const confirmarDisparo = (dados: {
     message: string;
     name: string;
@@ -107,8 +73,19 @@ export function NewCampaignSheet({
     setDisparoSelecao(null);
     onOpenChange(false);
     reset();
-    toast.info("Enfileirando o disparo…", { duration: 3000 });
-    disparoMutation.mutate({ ...dados, alvos });
+    // Classificação pura, instantânea: o vínculo com o CRM acontece em blocos,
+    // no servidor, já com a tela fechada.
+    const { prontos, aVincular, foraDoDisparo } = classificarSelecao(alvos);
+    enfileirarDisparo({
+      nome: dados.name,
+      message: dados.message,
+      ritmo: dados.ritmo,
+      mediaPath: dados.mediaPath,
+      prontos,
+      aVincular,
+      foraDoDisparo,
+    });
+    onCreated();
   };
 
   return (
@@ -150,7 +127,7 @@ export function NewCampaignSheet({
       <BroadcastDialog
         contatos={disparoSelecao}
         usage={usageQuery.data ?? { limit: 200, usedToday: 0 }}
-        isPending={disparoMutation.isPending}
+        isPending={false}
         onOpenChange={(o) => !o && setDisparoSelecao(null)}
         onConfirm={confirmarDisparo}
       />

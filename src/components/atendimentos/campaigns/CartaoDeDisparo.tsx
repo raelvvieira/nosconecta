@@ -1,4 +1,4 @@
-import { Check, Clock, Loader2, X } from "lucide-react";
+import { Check, Clock, ListTree, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { BroadcastResumo } from "@/lib/atendimentos/broadcast.functions";
@@ -49,11 +49,13 @@ export function CartaoDeDisparo({
   disparo,
   destacado,
   onCancelar,
+  onDetalhes,
 }: {
   disparo: BroadcastResumo;
   /** Recém-criado: chama atenção por alguns segundos. */
   destacado?: boolean;
   onCancelar: () => void;
+  onDetalhes: () => void;
 }) {
   const p = progressoDoDisparo(disparo);
   const fim = terminaPorVoltaDe(disparo);
@@ -116,16 +118,16 @@ export function CartaoDeDisparo({
             </span>
           </>
         )}
-        {p.emAndamento && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto h-8 gap-1.5 text-danger"
-            onClick={onCancelar}
-          >
-            <X className="h-3.5 w-3.5" /> Cancelar
+        <div className="ml-auto flex items-center gap-1">
+          <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={onDetalhes}>
+            <ListTree className="h-3.5 w-3.5" /> Ver detalhes
           </Button>
-        )}
+          {p.emAndamento && (
+            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-danger" onClick={onCancelar}>
+              <X className="h-3.5 w-3.5" /> Cancelar
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
