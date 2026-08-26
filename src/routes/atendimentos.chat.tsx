@@ -49,6 +49,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { haptic } from "@/lib/haptics";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { FotoDoContato } from "@/components/atendimentos/chat/FotoDoContato";
+import { AnexoDaMensagem } from "@/components/atendimentos/chat/AnexoDaMensagem";
 
 const searchSchema = z.object({
   conversationId: z.string().optional(),
@@ -573,7 +574,13 @@ function ChatPage() {
                           Nota interna
                         </span>
                       )}
-                      <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                      {/* Anexo ANTES do texto: no WhatsApp a legenda vem
+                          embaixo da foto, e é assim que o disparo com imagem
+                          legendada chegou para quem recebeu. */}
+                      {m.attachments.map((a) => (
+                        <AnexoDaMensagem key={a.id} anexo={a} claro={m.fromMe && !m.isPrivate} />
+                      ))}
+                      {m.body && <p className="mt-1 whitespace-pre-wrap break-words">{m.body}</p>}
                       <span
                         className={cn(
                           "mt-1 flex items-center justify-end gap-1 text-3xs",

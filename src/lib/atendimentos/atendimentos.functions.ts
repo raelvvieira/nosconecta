@@ -1,5 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { mapAttachments, type MessageAttachment } from "./anexos";
+
+export type { MessageAttachment };
 
 export interface WhatsappInstance {
   status: "disconnected" | "connecting" | "open" | "error";
@@ -62,6 +65,17 @@ export interface MessageRow {
   id: string;
   fromMe: boolean;
   body: string | null;
+  /**
+   * Arquivos da mensagem.
+   *
+   * Existia um buraco aqui: a leitura pegava só `content` e descartava o
+   * resto, então NENHUMA imagem aparecia no chat — nem a que o paciente
+   * mandava, nem a que a clínica enviava pelo compositor daqui. O disparo de
+   * 25/08 saiu com a foto legendada para 199 pessoas (está gravado em
+   * `whatsapp_broadcast_targets.sent_via`) e mesmo assim a conversa parecia
+   * só texto, porque o problema nunca foi o envio.
+   */
+  attachments: MessageAttachment[];
   status: "sent" | "received";
   timestamp: string;
   // Nota interna: registrada na conversa dentro do CRM, nunca enviada ao
@@ -151,11 +165,13 @@ function mapMessage(row: any): MessageRow {
     id: String(row?.id),
     fromMe: outgoing,
     body: row?.content ?? null,
+    attachments: mapAttachments(row?.attachments),
     status: outgoing ? "sent" : "received",
     timestamp: toIso(row?.created_at),
     isPrivate: row?.private === true || row?.private === "true",
   };
 }
+
 
 function toIso(value: unknown): string {
   if (!value) return new Date().toISOString();
