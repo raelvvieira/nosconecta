@@ -49,7 +49,12 @@ export function AnexoDaMensagem({ anexo, claro }: { anexo: MessageAttachment; cl
     );
   }
 
-  const rotulo = falhou ? "Não foi possível carregar — abrir" : "Abrir arquivo";
+  // O nome do arquivo é o rótulo sempre que existir: numa conversa com três
+  // documentos, "Abrir arquivo" três vezes obrigaria a baixar os três para
+  // achar o orçamento.
+  const rotulo = falhou
+    ? `Não foi possível carregar ${anexo.nome ?? "o arquivo"} — abrir`
+    : (anexo.nome ?? "Abrir arquivo");
   const Icone = falhou ? ImageOff : FileText;
   return (
     <a
@@ -57,12 +62,13 @@ export function AnexoDaMensagem({ anexo, claro }: { anexo: MessageAttachment; cl
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "mt-1 flex items-center gap-2 rounded-xl px-3 py-2 text-xs underline-offset-2 hover:underline",
+        "mt-1 flex max-w-full items-center gap-2 rounded-xl px-3 py-2 text-xs underline-offset-2 hover:underline",
         claro ? "bg-white/15 text-white" : "bg-muted text-foreground",
       )}
     >
       <Icone className="h-4 w-4 shrink-0" />
-      {rotulo}
+      {/* Nome longo trunca em vez de esticar a bolha para fora da tela. */}
+      <span className="truncate">{rotulo}</span>
     </a>
   );
 }

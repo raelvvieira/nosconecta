@@ -18,6 +18,36 @@ export interface MessageAttachment {
   url: string;
   /** Miniatura, quando existe. Cai para `url` quando não. */
   thumbUrl: string;
+  /**
+   * Nome do arquivo, quando dá para saber.
+   *
+   * A resposta não traz um campo de nome, mas o CRM guarda os anexos no
+   * ActiveStorage do Rails e a URL termina no nome original. Sem isto, três
+   * documentos seguidos na conversa apareceriam como "Abrir arquivo",
+   * "Abrir arquivo", "Abrir arquivo" — e quem atende teria que baixar os três
+   * para achar o orçamento.
+   */
+  nome: string | null;
+}
+
+/**
+ * O nome do arquivo dentro da URL, ou `null`.
+ *
+ * Descarta a query ANTES do último `/`: as URLs do CRM são assinadas, e a
+ * assinatura vai na query — sem tirá-la, o "nome" viria com a assinatura
+ * inteira grudada. Só aceita o que tem extensão, porque um último segmento sem
+ * ponto costuma ser um id opaco, e mostrar um id no lugar do nome é pior do que
+ * não mostrar nome nenhum.
+ */
+export function nomeDoArquivo(url: string): string | null {
+  const semQuery = url.split("?")[0].split("#")[0];
+  const ultimo = semQuery.split("/").filter(Boolean).pop();
+  if (!ultimo || !/\.[a-z0-9]{1,8}$/i.test(ultimo)) return null;
+  try {
+    return decodeURIComponent(ultimo);
+  } catch {
+    return ultimo; // percent-encoding quebrado não justifica perder o nome
+  }
 }
 
 /** Os quatro tipos que o Chatwoot distingue. Qualquer outro vira `file`, que é
@@ -38,6 +68,8 @@ export function mapAttachments(lista: unknown): MessageAttachment[] {
       tipo: (TIPOS_DE_ANEXO.has(bruto) ? bruto : "file") as MessageAttachment["tipo"],
       url: String(url),
       thumbUrl: String(a?.thumb_url ?? url),
+      // Se o CRM um dia mandar um nome de verdade, ele ganha da dedução.
+      nome: (a?.file_name ?? a?.filename ?? null) || nomeDoArquivo(String(url)),
     });
   }
   return anexos;
