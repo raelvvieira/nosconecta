@@ -12,6 +12,7 @@ import {
   MessageCircle,
   Percent,
   Settings,
+  MessageSquare,
   Sparkles,
   Stethoscope,
   TrendingUp,
@@ -38,6 +39,7 @@ export type RotaDoMenu =
   | "/atendimentos"
   | "/agente-ia"
   | "/agente-ia/manual"
+  | "/agente-ia/atendimento"
   | "/agente-ia/procedimentos"
   | "/configuracoes"
   | "/financeiro"
@@ -101,6 +103,7 @@ export const ITENS_FINANCEIRO: ItemDoMenu[] = [
 export const ITENS_AGENTE_IA: Destino[] = [
   { label: "Agente", icon: Sparkles, to: "/agente-ia" },
   { label: "Manual", icon: BookOpen, to: "/agente-ia/manual" },
+  { label: "Atendimento", icon: MessageSquare, to: "/agente-ia/atendimento" },
   { label: "Procedimentos", icon: Stethoscope, to: "/agente-ia/procedimentos" },
 ];
 

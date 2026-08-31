@@ -23,6 +23,7 @@ import { Route as PagamentosRouteImport } from './routes/pagamentos'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
 import { Route as RecebimentosRouteImport } from './routes/recebimentos'
 import { Route as AgenteIaIndexRouteImport } from './routes/agente-ia.index'
+import { Route as AgenteIaAtendimentoRouteImport } from './routes/agente-ia.atendimento'
 import { Route as AgenteIaManualRouteImport } from './routes/agente-ia.manual'
 import { Route as AgenteIaProcedimentosRouteImport } from './routes/agente-ia.procedimentos'
 import { Route as AtendimentosIndexRouteImport } from './routes/atendimentos.index'
@@ -108,6 +109,11 @@ const RecebimentosRoute = RecebimentosRouteImport.update({
 const AgenteIaIndexRoute = AgenteIaIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AgenteIaRoute,
+} as any)
+const AgenteIaAtendimentoRoute = AgenteIaAtendimentoRouteImport.update({
+  id: '/atendimento',
+  path: '/atendimento',
   getParentRoute: () => AgenteIaRoute,
 } as any)
 const AgenteIaManualRoute = AgenteIaManualRouteImport.update({
@@ -210,6 +216,7 @@ export interface FileRoutesByFullPath {
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/agente-ia/atendimento': typeof AgenteIaAtendimentoRoute
   '/agente-ia/manual': typeof AgenteIaManualRoute
   '/agente-ia/procedimentos': typeof AgenteIaProcedimentosRoute
   '/atendimentos/automacoes': typeof AtendimentosAutomacoesRouteWithChildren
@@ -238,6 +245,7 @@ export interface FileRoutesByTo {
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/agente-ia/atendimento': typeof AgenteIaAtendimentoRoute
   '/agente-ia/manual': typeof AgenteIaManualRoute
   '/agente-ia/procedimentos': typeof AgenteIaProcedimentosRoute
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
@@ -270,6 +278,7 @@ export interface FileRoutesById {
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/agente-ia/atendimento': typeof AgenteIaAtendimentoRoute
   '/agente-ia/manual': typeof AgenteIaManualRoute
   '/agente-ia/procedimentos': typeof AgenteIaProcedimentosRoute
   '/atendimentos/automacoes': typeof AtendimentosAutomacoesRouteWithChildren
@@ -304,6 +313,7 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/agente-ia/atendimento'
     | '/agente-ia/manual'
     | '/agente-ia/procedimentos'
     | '/atendimentos/automacoes'
@@ -332,6 +342,7 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/agente-ia/atendimento'
     | '/agente-ia/manual'
     | '/agente-ia/procedimentos'
     | '/atendimentos/campanhas'
@@ -363,6 +374,7 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/agente-ia/atendimento'
     | '/agente-ia/manual'
     | '/agente-ia/procedimentos'
     | '/atendimentos/automacoes'
@@ -498,6 +510,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgenteIaIndexRouteImport
       parentRoute: typeof AgenteIaRoute
     }
+    '/agente-ia/atendimento': {
+      id: '/agente-ia/atendimento'
+      path: '/atendimento'
+      fullPath: '/agente-ia/atendimento'
+      preLoaderRoute: typeof AgenteIaAtendimentoRouteImport
+      parentRoute: typeof AgenteIaRoute
+    }
     '/agente-ia/manual': {
       id: '/agente-ia/manual'
       path: '/manual'
@@ -614,12 +633,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AgenteIaRouteChildren {
+  AgenteIaAtendimentoRoute: typeof AgenteIaAtendimentoRoute
   AgenteIaManualRoute: typeof AgenteIaManualRoute
   AgenteIaProcedimentosRoute: typeof AgenteIaProcedimentosRoute
   AgenteIaIndexRoute: typeof AgenteIaIndexRoute
 }
 
 const AgenteIaRouteChildren: AgenteIaRouteChildren = {
+  AgenteIaAtendimentoRoute: AgenteIaAtendimentoRoute,
   AgenteIaManualRoute: AgenteIaManualRoute,
   AgenteIaProcedimentosRoute: AgenteIaProcedimentosRoute,
   AgenteIaIndexRoute: AgenteIaIndexRoute,

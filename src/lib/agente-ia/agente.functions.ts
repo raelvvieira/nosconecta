@@ -14,6 +14,8 @@ export interface EstadoDoAgente {
   /** Menos de três vendas: o manual existe, mas generaliza demais. */
   confiavel: boolean;
   faltam: number;
+  /** A chave da IA está configurada? Só isso — nunca o valor. */
+  temChave: boolean;
   aprendido: ManualDeVendas;
   correcoes: ManualDeVendas;
   aprendidoEm: string | null;
@@ -52,6 +54,7 @@ export const getEstadoDoAgente = createServerFn({ method: "GET" })
       vendas: Number(json.vendas ?? 0),
       confiavel: !!json.confiavel,
       faltam: Number(json.faltam ?? 0),
+      temChave: !!json.temChave,
       aprendido: (p.learned ?? {}) as ManualDeVendas,
       correcoes: (p.overrides ?? {}) as ManualDeVendas,
       aprendidoEm: p.last_learned_at ?? null,
@@ -215,5 +218,216 @@ export const alternarProcedimentoDoAgente = createServerFn({ method: "POST" })
         .eq("procedure_id", data.procedureId);
       if (error) throw new Error(error.message);
     }
+    return { ok: true };
+  });
+
+// ── Atendimento ────────────────────────────────────────────────────────────
+
+export interface RegraDeComportamento {
+  id: string;
+  tipo: "inatividade" | "transferencia" | "contato" | "pipeline";
+  ativa: boolean;
+  instrucao: string;
+  aposMinutos: number | null;
+  acao: "cutucar" | "encerrar" | null;
+  etapaId: string | null;
+}
+
+export interface ConfigDeAtendimento {
+  modo: "eco" | "ia";
+  mensagemEco: string;
+  debounceSegundos: number;
+  segmentar: boolean;
+  limite: number;
+  minimo: number;
+  msPorCaractere: number;
+  /** Disjuntor aberto até quando, se estiver. */
+  circuitoAbertoAte: string | null;
+  regras: RegraDeComportamento[];
+}
+
+export const getAtendimento = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .handler(async ({ context }): Promise<ConfigDeAtendimento> => {
+    const supabase: any = context.supabase;
+    const { data: agente } = await supabase
+      .from("ai_agents")
+      .select("*")
+      .eq("owner_id", context.ownerId)
+      .maybeSingle();
+    if (!agente) throw new Error("O agente ainda não existe. Abra a página do agente uma vez.");
+
+    const { data: regras } = await supabase
+      .from("ai_agent_rules")
+      .select("*")
+      .eq("agent_id", agente.id)
+      .order("kind");
+
+    return {
+      modo: agente.mode === "ia" ? "ia" : "eco",
+      mensagemEco: agente.echo_message ?? "",
+      debounceSegundos: Number(agente.debounce_seconds ?? 5),
+      segmentar: agente.segment_enabled !== false,
+      limite: Number(agente.segment_limit ?? 300),
+      minimo: Number(agente.segment_min_size ?? 50),
+      msPorCaractere: Number(agente.delay_per_character ?? 50),
+      circuitoAbertoAte: agente.circuit_open_until ?? null,
+      regras: (regras ?? []).map((r: any) => ({
+        id: String(r.id),
+        tipo: r.kind,
+        ativa: !!r.active,
+        instrucao: r.instruction ?? "",
+        aposMinutos: r.after_minutes ?? null,
+        acao: r.action ?? null,
+        etapaId: r.stage_id ?? null,
+      })),
+    };
+  });
+
+export const salvarAtendimento = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator(
+    (input: {
+      modo?: "eco" | "ia";
+      mensagemEco?: string;
+      debounceSegundos?: number;
+      segmentar?: boolean;
+      limite?: number;
+      minimo?: number;
+      msPorCaractere?: number;
+    }) => input,
+  )
+  .handler(async ({ data, context }) => {
+    const supabase: any = context.supabase;
+    const campos: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (data.modo !== undefined) campos.mode = data.modo;
+    if (data.mensagemEco !== undefined) campos.echo_message = data.mensagemEco.trim();
+    if (data.debounceSegundos !== undefined) campos.debounce_seconds = data.debounceSegundos;
+    if (data.segmentar !== undefined) campos.segment_enabled = data.segmentar;
+    if (data.limite !== undefined) campos.segment_limit = data.limite;
+    if (data.minimo !== undefined) campos.segment_min_size = data.minimo;
+    if (data.msPorCaractere !== undefined) campos.delay_per_character = data.msPorCaractere;
+
+    const { error } = await supabase.from("ai_agents").update(campos).eq("owner_id", context.ownerId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/**
+ * Cria ou atualiza uma regra de comportamento.
+ *
+ * Toda regra nasce DESLIGADA — a tela liga depois, num gesto separado. Vale
+ * para todas e especialmente para `pipeline`: um agente que move card sozinho
+ * gera a própria matéria-prima de aprendizado, e ligar isso sem querer é o tipo
+ * de coisa que só se descobre semanas depois, quando o manual já aprendeu com
+ * os próprios enganos.
+ */
+export const salvarRegra = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator(
+    (input: {
+      id?: string;
+      tipo: "inatividade" | "transferencia" | "contato" | "pipeline";
+      ativa?: boolean;
+      instrucao?: string;
+      aposMinutos?: number | null;
+      acao?: "cutucar" | "encerrar" | null;
+      etapaId?: string | null;
+    }) => {
+      if (input.tipo === "inatividade" && input.id === undefined) {
+        if (!input.aposMinutos || !input.acao) {
+          throw new Error("Regra de inatividade precisa de minutos e do que fazer.");
+        }
+      }
+      return input;
+    },
+  )
+  .handler(async ({ data, context }) => {
+    const supabase: any = context.supabase;
+    const { data: agente } = await supabase
+      .from("ai_agents")
+      .select("id")
+      .eq("owner_id", context.ownerId)
+      .maybeSingle();
+    if (!agente) throw new Error("O agente ainda não existe.");
+
+    const linha: Record<string, unknown> = {
+      owner_id: context.ownerId,
+      agent_id: agente.id,
+      kind: data.tipo,
+      updated_at: new Date().toISOString(),
+    };
+    if (data.ativa !== undefined) linha.active = data.ativa;
+    if (data.instrucao !== undefined) linha.instruction = data.instrucao.trim();
+    if (data.aposMinutos !== undefined) linha.after_minutes = data.aposMinutos;
+    if (data.acao !== undefined) linha.action = data.acao;
+    if (data.etapaId !== undefined) linha.stage_id = data.etapaId;
+
+    if (data.id) {
+      const { error } = await supabase.from("ai_agent_rules").update(linha).eq("id", data.id);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await supabase.from("ai_agent_rules").insert(linha);
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true };
+  });
+
+export const excluirRegra = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { id: string }) => input)
+  .handler(async ({ data, context }) => {
+    const supabase: any = context.supabase;
+    const { error } = await supabase
+      .from("ai_agent_rules")
+      .delete()
+      .eq("id", data.id)
+      .eq("owner_id", context.ownerId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/** Roda o atendimento com uma mensagem de mentira. Nada sai para paciente
+ *  nenhum — é o que torna isto testável antes do registro no CRM. */
+export const simularAtendimento = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { texto: string }) => {
+    if (!input.texto?.trim()) throw new Error("Escreva uma mensagem para simular.");
+    return input;
+  })
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{
+      respondeu: boolean;
+      motivo?: string;
+      enviados: { texto: string; esperaMs: number }[];
+    }> => {
+      const json = await chamar({
+        ownerId: context.ownerId,
+        action: "simular",
+        texto: data.texto,
+      });
+      return {
+        respondeu: !!json.respondeu,
+        motivo: json.motivo ?? undefined,
+        enviados: json.enviados ?? [],
+      };
+    },
+  );
+
+/** Devolve a conversa para a IA depois de um humano ter assumido. */
+export const devolverParaIa = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { sessionId: string }) => input)
+  .handler(async ({ data, context }) => {
+    const supabase: any = context.supabase;
+    const { error } = await supabase
+      .from("ai_agent_sessions")
+      .update({ human_took_over_at: null, updated_at: new Date().toISOString() })
+      .eq("id", data.sessionId)
+      .eq("owner_id", context.ownerId);
+    if (error) throw new Error(error.message);
     return { ok: true };
   });

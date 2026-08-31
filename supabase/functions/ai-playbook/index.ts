@@ -17,8 +17,9 @@
 // automação, é mais abrangente que a inferência que substituiu, e não custa
 // nada.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.122.0";
 import { crmFetch } from "../_shared/crm-auth.ts";
+import { atender } from "../_shared/atendimento.ts";
+import { clienteDaIa, responderPaciente, temChave } from "../_shared/modelo-de-atendimento.ts";
 import { unwrap } from "../_shared/crm-client.ts";
 import {
   CAMPOS_DO_MANUAL,
@@ -44,15 +45,6 @@ const MINIMO_PARA_CONFIAR = 3;
 
 // ── O modelo ───────────────────────────────────────────────────────────────
 
-function anthropic(): Anthropic {
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!apiKey) {
-    throw new Error(
-      "A chave da IA não está configurada. No Lovable: Cloud → Secrets → ANTHROPIC_API_KEY.",
-    );
-  }
-  return new Anthropic({ apiKey });
-}
 
 /**
  * O formato exigido da resposta.
@@ -270,7 +262,7 @@ async function aprender(ownerId: string, playbookId: string) {
     return { aprendeu: false, motivo: "as conversas dessas vendas não têm mensagens legíveis" };
   }
 
-  const resposta = await anthropic().messages.create({
+  const resposta = await clienteDaIa().messages.create({
     model: "claude-opus-5",
     max_tokens: 16000,
     // A tarefa é DESCREVER o que está escrito, não inventar método. Esforço
@@ -354,6 +346,9 @@ async function handleEstado(ownerId: string) {
     vendas,
     confiavel: vendas >= MINIMO_PARA_CONFIAR,
     faltam: Math.max(MINIMO_PARA_CONFIAR - vendas, 0),
+    // Só SE existe, nunca o valor. Sem isto, a falta da chave só aparecia como
+    // erro depois de alguém clicar em "Aprender agora".
+    temChave: temChave(),
   };
 }
 
@@ -436,10 +431,49 @@ async function handleInstrucao(ownerId: string) {
   };
 }
 
+/**
+ * Roda o atendimento com uma mensagem escrita na tela.
+ *
+ * Passa pelo MESMO `atender` do webhook — filtros, humanização, segmentação e
+ * modelo. O que muda é só o `enviar`, que aqui coleta numa lista em vez de
+ * falar com o CRM, e o histórico, que vem vazio.
+ *
+ * É o que torna o atendimento testável sem depender do registro no CRM: nada
+ * sai para paciente nenhum.
+ */
+async function handleSimular(ownerId: string, texto: string) {
+  const enviados: { texto: string; esperaMs: number }[] = [];
+  const resultado = await atender(
+    {
+      supabase,
+      ownerId,
+      historico: async () => [],
+      responderComIa: responderPaciente,
+      // Sem `dormir`: a simulação MOSTRA a espera calculada em vez de esperar.
+      // Esperar de verdade aqui só faria a tela travar pelo mesmo tempo.
+      enviar: async (pedaco, esperaMs) => {
+        enviados.push({ texto: pedaco, esperaMs });
+      },
+    },
+    {
+      conversationId: `simulacao-${ownerId}`,
+      contactName: "Simulação",
+      conteudo: texto,
+      daClinica: false,
+      privada: false,
+    },
+  );
+  return { ok: true, ...resultado, enviados };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
   try {
-    const { ownerId, action } = (await req.json()) as { ownerId?: string; action?: string };
+    const { ownerId, action, texto } = (await req.json()) as {
+      ownerId?: string;
+      action?: string;
+      texto?: string;
+    };
     if (!ownerId || !action) {
       return new Response(JSON.stringify({ error: "ownerId e action são obrigatórios" }), {
         status: 400,
@@ -450,6 +484,7 @@ Deno.serve(async (req) => {
     if (action === "estado") result = await handleEstado(ownerId);
     else if (action === "ciclo") result = await handleCiclo(ownerId);
     else if (action === "instrucao") result = await handleInstrucao(ownerId);
+    else if (action === "simular") result = await handleSimular(ownerId, String(texto ?? ""));
     else {
       return new Response(JSON.stringify({ error: `action desconhecida: ${action}` }), {
         status: 400,

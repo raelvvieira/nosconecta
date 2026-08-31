@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Check, Loader2, Sparkles, Stethoscope } from "lucide-react";
+import { BookOpen, Check, Loader2, MessageSquare, Sparkles, Stethoscope } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PageHeading } from "@/components/layout/PageHeading";
@@ -198,7 +198,7 @@ function AgentePage() {
             </div>
           </section>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <Atalho
               to="/agente-ia/manual"
               icon={BookOpen}
@@ -210,6 +210,12 @@ function AgentePage() {
               icon={Stethoscope}
               titulo="Procedimentos"
               descricao="O que ele pode citar e precificar."
+            />
+            <Atalho
+              to="/agente-ia/atendimento"
+              icon={MessageSquare}
+              titulo="Atendimento"
+              descricao="Como responde, com que ritmo — e o teste."
             />
           </div>
         </div>
@@ -224,7 +230,7 @@ function Atalho({
   titulo,
   descricao,
 }: {
-  to: "/agente-ia/manual" | "/agente-ia/procedimentos";
+  to: "/agente-ia/manual" | "/agente-ia/procedimentos" | "/agente-ia/atendimento";
   icon: typeof BookOpen;
   titulo: string;
   descricao: string;
