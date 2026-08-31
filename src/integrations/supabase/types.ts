@@ -14,6 +14,311 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_agent_messages: {
+        Row: {
+          content: string | null
+          created_at: string
+          direction: string
+          id: string
+          owner_id: string
+          session_id: string
+          skipped_reason: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          direction: string
+          id?: string
+          owner_id: string
+          session_id: string
+          skipped_reason?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          owner_id?: string
+          session_id?: string
+          skipped_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_procedures: {
+        Row: {
+          agent_id: string
+          created_at: string
+          id: string
+          owner_id: string
+          procedure_id: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          id?: string
+          owner_id: string
+          procedure_id: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          id?: string
+          owner_id?: string
+          procedure_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_procedures_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_procedures_procedure_id_fkey"
+            columns: ["procedure_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_procedures"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_rules: {
+        Row: {
+          action: string | null
+          active: boolean
+          after_minutes: number | null
+          agent_id: string
+          created_at: string
+          id: string
+          instruction: string
+          kind: string
+          owner_id: string
+          stage_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          action?: string | null
+          active?: boolean
+          after_minutes?: number | null
+          agent_id: string
+          created_at?: string
+          id?: string
+          instruction?: string
+          kind: string
+          owner_id: string
+          stage_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          action?: string | null
+          active?: boolean
+          after_minutes?: number | null
+          agent_id?: string
+          created_at?: string
+          id?: string
+          instruction?: string
+          kind?: string
+          owner_id?: string
+          stage_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_rules_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agent_sessions: {
+        Row: {
+          agent_id: string
+          contact_id: string | null
+          contact_name: string | null
+          conversation_id: string
+          created_at: string
+          human_took_over_at: string | null
+          id: string
+          last_inbound_at: string | null
+          last_outbound_at: string | null
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          contact_id?: string | null
+          contact_name?: string | null
+          conversation_id: string
+          created_at?: string
+          human_took_over_at?: string | null
+          id?: string
+          last_inbound_at?: string | null
+          last_outbound_at?: string | null
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          contact_id?: string | null
+          contact_name?: string | null
+          conversation_id?: string
+          created_at?: string
+          human_took_over_at?: string | null
+          id?: string
+          last_inbound_at?: string | null
+          last_outbound_at?: string | null
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_sessions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agents: {
+        Row: {
+          circuit_open_until: string | null
+          created_at: string
+          debounce_seconds: number
+          delay_per_character: number
+          echo_message: string
+          enabled: boolean
+          failure_count: number
+          id: string
+          mode: string
+          name: string
+          owner_id: string
+          segment_enabled: boolean
+          segment_limit: number
+          segment_min_size: number
+          updated_at: string
+          winning_stage_ids: Json
+        }
+        Insert: {
+          circuit_open_until?: string | null
+          created_at?: string
+          debounce_seconds?: number
+          delay_per_character?: number
+          echo_message?: string
+          enabled?: boolean
+          failure_count?: number
+          id?: string
+          mode?: string
+          name?: string
+          owner_id: string
+          segment_enabled?: boolean
+          segment_limit?: number
+          segment_min_size?: number
+          updated_at?: string
+          winning_stage_ids?: Json
+        }
+        Update: {
+          circuit_open_until?: string | null
+          created_at?: string
+          debounce_seconds?: number
+          delay_per_character?: number
+          echo_message?: string
+          enabled?: boolean
+          failure_count?: number
+          id?: string
+          mode?: string
+          name?: string
+          owner_id?: string
+          segment_enabled?: boolean
+          segment_limit?: number
+          segment_min_size?: number
+          updated_at?: string
+          winning_stage_ids?: Json
+        }
+        Relationships: []
+      }
+      ai_playbook_sources: {
+        Row: {
+          contact_name: string | null
+          conversation_id: string
+          id: string
+          learned_at: string
+          moved_by: string
+          owner_id: string
+          playbook_id: string
+        }
+        Insert: {
+          contact_name?: string | null
+          conversation_id: string
+          id?: string
+          learned_at?: string
+          moved_by?: string
+          owner_id: string
+          playbook_id: string
+        }
+        Update: {
+          contact_name?: string | null
+          conversation_id?: string
+          id?: string
+          learned_at?: string
+          moved_by?: string
+          owner_id?: string
+          playbook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_playbook_sources_playbook_id_fkey"
+            columns: ["playbook_id"]
+            isOneToOne: false
+            referencedRelation: "ai_sales_playbooks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_sales_playbooks: {
+        Row: {
+          created_at: string
+          id: string
+          last_learned_at: string | null
+          last_skip_reason: string | null
+          learned: Json
+          overrides: Json
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_learned_at?: string | null
+          last_skip_reason?: string | null
+          learned?: Json
+          overrides?: Json
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_learned_at?: string | null
+          last_skip_reason?: string | null
+          learned?: Json
+          overrides?: Json
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       appointment_notification_replies: {
         Row: {
           action: string
