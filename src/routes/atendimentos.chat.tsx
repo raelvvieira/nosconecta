@@ -8,6 +8,7 @@ import {
   CheckCheck,
   ChevronDown,
   MessageCircle,
+  PanelRight,
   Search,
   StickyNote,
   X,
@@ -17,6 +18,8 @@ import { z } from "zod";
 import { SeletorDeTags } from "@/components/tags/SeletorDeTags";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { agruparPorContato } from "@/lib/atendimentos/agruparConversas";
+import { PainelDoContato } from "@/components/atendimentos/chat/PainelDoContato";
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { ChatComposer } from "@/components/atendimentos/chat/ChatComposer";
 import type { PendingAttachment } from "@/components/atendimentos/chat/AttachmentTray";
@@ -60,6 +63,9 @@ import { haptic } from "@/lib/haptics";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { FotoDoContato } from "@/components/atendimentos/chat/FotoDoContato";
 import { AnexoDaMensagem } from "@/components/atendimentos/chat/AnexoDaMensagem";
+
+/** Onde a preferência de painel aberto/fechado fica guardada. */
+const CHAVE_DO_PAINEL = "nos:painel-do-contato";
 
 const searchSchema = z.object({
   conversationId: z.string().optional(),
@@ -295,6 +301,50 @@ function ChatPage() {
   });
   const messages = messagesQuery.data ?? [];
 
+  // ── O painel do contato ────────────────────────────────────────────────
+  //
+  // A escolha fica lembrada: quem usa o painel o usa em toda conversa, e
+  // reabrir a cada clique na lista o tornaria mais trabalhoso do que ir até
+  // Pacientes — que é justamente o caminho que ele veio encurtar.
+  //
+  // Lido num `useEffect`, e não no `useState` inicial: `localStorage` não
+  // existe no servidor, e ler ali faria a primeira pintura do cliente divergir
+  // do HTML que veio pronto. `try/catch` porque navegador com dados de site
+  // bloqueados JOGA ao tocar em `localStorage` — e isso não pode derrubar o
+  // chat inteiro por causa de uma preferência de layout.
+  const [painelAberto, setPainelAberto] = useState(false);
+
+  // `xl` é onde a terceira coluna cabe. Precisa ser estado, e não só classe
+  // CSS: a gaveta do celular é um portal com camada escura por cima da tela
+  // inteira — escondê-la com `xl:hidden` esconderia o conteúdo e deixaria a
+  // camada. Começa em `false` para o servidor e o cliente pintarem igual.
+  const [ehTelaLarga, setEhTelaLarga] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1280px)");
+    const aplicar = () => setEhTelaLarga(mq.matches);
+    aplicar();
+    mq.addEventListener("change", aplicar);
+    return () => mq.removeEventListener("change", aplicar);
+  }, []);
+
+  useEffect(() => {
+    try {
+      setPainelAberto(localStorage.getItem(CHAVE_DO_PAINEL) === "1");
+    } catch {
+      /* preferência não lida: segue fechado, que é o padrão */
+    }
+  }, []);
+  const alternarPainel = () =>
+    setPainelAberto((atual) => {
+      const proximo = !atual;
+      try {
+        localStorage.setItem(CHAVE_DO_PAINEL, proximo ? "1" : "0");
+      } catch {
+        /* sem persistir; a sessão atual continua funcionando */
+      }
+      return proximo;
+    });
+
   const [draft, setDraft] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
@@ -520,19 +570,48 @@ function ChatPage() {
               >
                 <ArrowLeft className="h-4 w-4" />
               </button>
-              <FotoDoContato
-                nome={selected.contactName ?? selected.phone ?? "Contato"}
-                url={selected.avatarUrl}
-                className="h-10 w-10 bg-coral-soft text-coral"
-              />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">
-                  {selected.contactName ?? selected.phone ?? "Contato"}
-                </p>
-                {selected.contactName && selected.phone && (
-                  <p className="truncate text-xs text-muted-foreground">{selected.phone}</p>
+              {/* O nome inteiro é o gatilho do painel — é onde a mão vai, e é
+                  onde o sistema de referência colocou. O ícone à direita existe
+                  para quem procura o controle onde ele costuma estar, e para
+                  dar um alvo de toque próprio no celular. */}
+              <button
+                type="button"
+                onClick={alternarPainel}
+                aria-expanded={painelAberto}
+                aria-label="Ver o perfil do contato"
+                className="press flex min-w-0 flex-1 items-center gap-3 rounded-2xl py-1 pr-2 text-left hover:bg-muted/60"
+              >
+                <FotoDoContato
+                  nome={selected.contactName ?? selected.phone ?? "Contato"}
+                  url={selected.avatarUrl}
+                  className="h-10 w-10 shrink-0 bg-coral-soft text-coral"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">
+                    {selected.contactName ?? selected.phone ?? "Contato"}
+                  </span>
+                  {selected.contactName && selected.phone && (
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {selected.phone}
+                    </span>
+                  )}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={alternarPainel}
+                aria-expanded={painelAberto}
+                aria-label={painelAberto ? "Fechar o perfil" : "Abrir o perfil"}
+                className={cn(
+                  "press grid h-9 w-9 shrink-0 place-items-center rounded-xl transition-colors",
+                  painelAberto
+                    ? "bg-foreground text-white"
+                    : "text-muted-foreground hover:bg-muted",
                 )}
-              </div>
+              >
+                <PanelRight className="h-4 w-4" />
+              </button>
               {/* Tags ficam FORA do bloco do funil: elas não dependem de o
                   pipeline estar configurado, e uma clínica que nunca conectou o
                   CRM continua podendo categorizar quem fala com ela. */}
@@ -727,6 +806,39 @@ function ChatPage() {
           </>
         )}
       </section>
+
+      {/* ── O perfil do contato ─────────────────────────────────────────────
+          Terceira coluna a partir de `xl`. Abaixo disso não cabe: espremer a
+          conversa para caber o painel destruiria justamente o que a pessoa
+          está lendo. Em tela menor ele vira gaveta, como as outras do sistema.
+          `shrink-0` com largura fixa para a conversa ceder o espaço, e não o
+          painel — num painel de 200px os cards de financeiro se empilham. */}
+      {selected && painelAberto && (
+        <aside className="hidden w-[340px] shrink-0 border-l border-border xl:flex">
+          <PainelDoContato
+            conversa={selected}
+            chaveDoDesfecho={chaveDoDesfecho}
+            onFechar={alternarPainel}
+            className="w-full"
+          />
+        </aside>
+      )}
+
+      {selected && (
+        <Drawer open={painelAberto && !ehTelaLarga} onOpenChange={(o) => !o && alternarPainel()}>
+          <DrawerContent className="h-[88dvh] xl:hidden">
+            {/* Exigido pelo Radix por baixo do vaul: sem título acessível o
+                leitor de tela anuncia uma gaveta sem nome. Escondido porque o
+                próprio painel já mostra "Perfil" no cabeçalho dele. */}
+            <DrawerTitle className="sr-only">Perfil do contato</DrawerTitle>
+            <PainelDoContato
+              conversa={selected}
+              chaveDoDesfecho={chaveDoDesfecho}
+              className="min-h-0 flex-1"
+            />
+          </DrawerContent>
+        </Drawer>
+      )}
 
       {/* Mesmo formulário e mesma gravação da Agenda — um agendamento feito
           aqui aparece lá igual a qualquer outro. O nome do contato do

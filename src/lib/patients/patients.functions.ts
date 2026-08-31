@@ -103,6 +103,9 @@ export interface PatientDetail extends PatientSummary {
    *  e é ela que permite mostrar a conversa de WhatsApp dentro da ficha, sem
    *  nenhuma consulta nova. */
   crmContactId: string | null;
+  /** Quando a ficha foi criada. Já vinha no `select("*")` e era descartada —
+   *  é o "paciente desde" que o painel do chat mostra. */
+  createdAt: string | null;
   treatmentId: string | null;
   timeline: CareEvent[];
   appointments: PatientAppointment[];
@@ -294,6 +297,7 @@ export const getPatientDetail = createServerFn({ method: "GET" })
       ...summary,
       professionalName: professionalsRes.data?.name ?? null,
       crmContactId: row.crm_contact_id ?? null,
+      createdAt: row.created_at ?? null,
       treatmentId: null,
       timeline: [],
       appointments: [],
