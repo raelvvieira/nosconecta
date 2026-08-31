@@ -2,15 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  BookOpen,
-  Check,
-  Loader2,
-  MessageSquare,
-  Sparkles,
-  Stethoscope,
-  Trophy,
-} from "lucide-react";
+import { Check, Loader2, Sparkles, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PageHeading } from "@/components/layout/PageHeading";
@@ -35,7 +27,9 @@ export const Route = createFileRoute("/agente-ia/")({
       semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />,
+  notFoundComponent: () => (
+    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
+  ),
   component: AgentePage,
 });
 
@@ -103,17 +97,22 @@ function AgentePage() {
   // Número, sempre. Foi assim que a tela chegou a escrever "undefined conversas
   // aprendidas": interpolar direto um campo que pode não ter vindo.
   const vendas = Number(estado?.vendas ?? 0) || 0;
-  const semFonte =
-    !!estado && !estado.aprenderDeGanhos && estado.etapasDeVitoria.length === 0;
+  const semFonte = !!estado && !estado.aprenderDeGanhos && estado.etapasDeVitoria.length === 0;
   const progresso = Math.min(100, Math.round((vendas / META_DE_APRENDIZADO) * 100));
   const pronto = vendas >= META_DE_APRENDIZADO;
 
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 px-4 pb-28 pt-6 sm:px-6 lg:pb-10">
+    // Largura cheia e recuos do sistema (`px-4 sm:px-6 lg:px-10`). Antes era
+    // `mx-auto max-w-4xl`: o cabeçalho ficava flutuando no meio do monitor
+    // enquanto o resto do produto alinha o dele à esquerda, e sobrava metade da
+    // tela vazia à direita dos cartões.
+    <main className="w-full min-w-0 flex-1 px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
+      {/* Sem kicker: nenhuma outra tela de módulo usa um, e "AGENTE DE IA"
+          acima de "Assistente" repetia o nome que já está aceso no menu. */}
       <PageHeading
+        className="pr-16 lg:pr-0"
         icon={Sparkles}
-        kicker="Agente de IA"
-        title="Assistente"
+        title="Agente de IA"
         subtitle="Aprende a atender lendo as conversas que fecharam tratamento."
         actions={
           estado && (
@@ -121,6 +120,7 @@ function AgentePage() {
               <span className="text-sm font-medium">{estado.ligado ? "Ativo" : "Pausado"}</span>
               <Switch
                 checked={estado.ligado}
+                disabled={ligarDesligar.isPending}
                 onCheckedChange={(v) => ligarDesligar.mutate(v)}
                 aria-label="Ativar o agente"
               />
@@ -134,7 +134,10 @@ function AgentePage() {
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="mt-8 grid gap-4">
+        /* Duas colunas no monitor largo: prontidão e fontes são cartões
+           curtos, e sobrava espaço à direita de cada um. O painel do funil é
+           largo por natureza e ocupa a linha inteira. */
+        <div className="mt-8 grid gap-4 xl:grid-cols-2 xl:items-start">
           {/* ── Prontidão ───────────────────────────────────────────────────
               A barra responde à única pergunta que importa antes de ligar:
               "dá para confiar nisso?". Abaixo da meta o manual existe, mas
@@ -177,8 +180,8 @@ function AgentePage() {
                 pergunta quando o número surpreende. */}
             {vendas > 0 && (
               <p className="mt-3 text-xs text-muted-foreground">
-                {estado?.porFonte.ganho ?? 0} marcada(s) como Ganho ·{" "}
-                {estado?.porFonte.etapa ?? 0} por etapa do funil
+                {estado?.porFonte.ganho ?? 0} marcada(s) como Ganho · {estado?.porFonte.etapa ?? 0}{" "}
+                por etapa do funil
               </p>
             )}
 
@@ -283,57 +286,11 @@ function AgentePage() {
             )}
           </section>
 
-          <PainelDoFunil painel={painelQuery.data} carregando={painelQuery.isPending} />
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Atalho
-              to="/agente-ia/manual"
-              icon={BookOpen}
-              titulo="Manual"
-              descricao="O método que ele aprendeu — e o que você corrigiu."
-            />
-            <Atalho
-              to="/agente-ia/procedimentos"
-              icon={Stethoscope}
-              titulo="Procedimentos"
-              descricao="O que ele pode citar e precificar."
-            />
-            <Atalho
-              to="/agente-ia/atendimento"
-              icon={MessageSquare}
-              titulo="Atendimento"
-              descricao="Como responde, com que ritmo — e o teste."
-            />
+          <div className="xl:col-span-2">
+            <PainelDoFunil painel={painelQuery.data} carregando={painelQuery.isPending} />
           </div>
         </div>
       )}
     </main>
-  );
-}
-
-function Atalho({
-  to,
-  icon: Icon,
-  titulo,
-  descricao,
-}: {
-  to: "/agente-ia/manual" | "/agente-ia/procedimentos" | "/agente-ia/atendimento";
-  icon: typeof BookOpen;
-  titulo: string;
-  descricao: string;
-}) {
-  return (
-    <Link
-      to={to}
-      className="press flex items-start gap-3.5 rounded-3xl border border-border bg-white/70 p-5 transition hover:bg-white"
-    >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-coral-soft text-coral">
-        <Icon className="h-4.5 w-4.5" />
-      </span>
-      <span className="min-w-0">
-        <span className="block text-sm font-semibold">{titulo}</span>
-        <span className="mt-0.5 block text-sm text-muted-foreground">{descricao}</span>
-      </span>
-    </Link>
   );
 }

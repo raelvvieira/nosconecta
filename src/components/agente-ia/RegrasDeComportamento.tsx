@@ -153,7 +153,8 @@ export function RegrasDeComportamento({ regras }: { regras: RegraDeComportamento
                         <p className="text-sm leading-5">{r.instrucao || "(sem instrução)"}</p>
                         {r.tipo === "inatividade" && r.aposMinutos && (
                           <p className="mt-0.5 text-xs text-muted-foreground">
-                            após {r.aposMinutos} min · {r.acao === "encerrar" ? "encerrar" : "cutucar"}
+                            após {r.aposMinutos} min ·{" "}
+                            {r.acao === "encerrar" ? "encerrar" : "cutucar"}
                           </p>
                         )}
                       </div>

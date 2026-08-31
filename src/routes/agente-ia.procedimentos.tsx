@@ -22,7 +22,9 @@ export const Route = createFileRoute("/agente-ia/procedimentos")({
       semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />,
+  notFoundComponent: () => (
+    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
+  ),
   component: ProcedimentosPage,
 });
 
@@ -64,10 +66,10 @@ function ProcedimentosPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 pt-6 sm:px-6 lg:pb-10">
+    <main className="w-full min-w-0 flex-1 px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
       <PageHeading
+        className="pr-16 lg:pr-0"
         icon={Stethoscope}
-        kicker="Agente de IA"
         title="Procedimentos"
         subtitle="O que o agente pode citar e precificar."
       />
@@ -75,20 +77,24 @@ function ProcedimentosPage() {
       {/* A consequência de deixar tudo desligado não é "nada acontece": o agente
           fica proibido de falar preço e passa a conversa adiante. Dizer isso
           aqui evita a leitura de que a lista é opcional. */}
-      <p className="mt-4 rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">
-        {liberados === 0
-          ? "Nenhum liberado — ele vai passar toda pergunta de preço para uma pessoa."
-          : `${liberados} de ${lista.length} liberados. Fora da lista, ele chama uma pessoa.`}
-      </p>
+      {/* Aviso e busca dividem a linha no monitor largo — esticar um campo de
+          busca por 1400px não ajuda ninguém a buscar. */}
+      <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center">
+        <p className="min-w-0 flex-1 rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">
+          {liberados === 0
+            ? "Nenhum liberado — ele vai passar toda pergunta de preço para uma pessoa."
+            : `${liberados} de ${lista.length} liberados. Fora da lista, ele chama uma pessoa.`}
+        </p>
 
-      <div className="relative mt-5">
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar procedimento"
-          className="pl-10"
-        />
+        <div className="relative shrink-0 lg:w-72">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar procedimento"
+            className="pl-10"
+          />
+        </div>
       </div>
 
       {query.isPending ? (
@@ -104,9 +110,12 @@ function ProcedimentosPage() {
           .
         </p>
       ) : (
-        <ul className="mt-4 divide-y divide-border overflow-hidden rounded-3xl border border-border bg-white/70">
+        <ul className="mt-4 grid gap-2.5 sm:grid-cols-2 2xl:grid-cols-3">
           {filtrados.map((p) => (
-            <li key={p.id} className="flex items-center gap-4 px-5 py-3.5">
+            <li
+              key={p.id}
+              className="flex items-center gap-4 rounded-2xl border border-border bg-white/70 px-4 py-3.5"
+            >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{p.nome}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">

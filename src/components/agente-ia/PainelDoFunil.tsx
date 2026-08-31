@@ -99,12 +99,7 @@ function Numero({
   return (
     <div className={cn("rounded-2xl px-4 py-3.5", destaque ? "bg-coral-soft" : "bg-muted/60")}>
       <p className="text-xs text-muted-foreground">{rotulo}</p>
-      <p
-        className={cn(
-          "mt-0.5 text-2xl font-semibold tabular-nums",
-          destaque && "text-coral",
-        )}
-      >
+      <p className={cn("mt-0.5 text-2xl font-semibold tabular-nums", destaque && "text-coral")}>
         {texto ?? valor ?? 0}
       </p>
     </div>

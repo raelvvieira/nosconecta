@@ -28,7 +28,9 @@ export const Route = createFileRoute("/agente-ia/atendimento")({
       semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />,
+  notFoundComponent: () => (
+    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
+  ),
   component: AtendimentoPage,
 });
 
@@ -46,9 +48,11 @@ function AtendimentoPage() {
   const [eco, setEco] = useState("");
   const [texto, setTexto] = useState("");
   const [simulando, setSimulando] = useState(false);
-  const [saida, setSaida] = useState<
-    { respondeu: boolean; motivo?: string; enviados: { texto: string; esperaMs: number }[] } | null
-  >(null);
+  const [saida, setSaida] = useState<{
+    respondeu: boolean;
+    motivo?: string;
+    enviados: { texto: string; esperaMs: number }[];
+  } | null>(null);
 
   useEffect(() => {
     if (config) setEco(config.mensagemEco);
@@ -83,10 +87,10 @@ function AtendimentoPage() {
     config?.circuitoAbertoAte && new Date(config.circuitoAbertoAte) > new Date();
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 pt-6 sm:px-6 lg:pb-10">
+    <main className="w-full min-w-0 flex-1 px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
       <PageHeading
+        className="pr-16 lg:pr-0"
         icon={MessageSquare}
-        kicker="Agente de IA"
         title="Atendimento"
         subtitle="Como ele responde, e com que ritmo."
       />
@@ -104,157 +108,168 @@ function AtendimentoPage() {
             </p>
           )}
 
-          {/* ── Modo ────────────────────────────────────────────────────────
+          {/* Duas pilhas, e não um grid de quatro células: as seções têm
+              alturas bem diferentes, e num grid comum a linha inteira cresce
+              até a mais alta, deixando buraco embaixo da menor. */}
+          <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+            <div className="grid gap-4">
+              {/* ── Modo ────────────────────────────────────────────────────────
               Eco existe para provar o contrato antes de envolver o modelo:
               vínculo, entrega, autenticação, criação da mensagem. Com isso de
               pé, trocar a frase fixa pela IA é a parte fácil — e nunca se
               depura contrato e prompt ao mesmo tempo. */}
-          <section className="rounded-3xl border border-border bg-white/70 p-6">
-            <h2 className="text-base font-semibold">Como ele responde</h2>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <BotaoDeModo
-                ativo={!modoIa}
-                titulo="Frase fixa"
-                descricao="Sempre a mesma resposta. Prova o caminho sem gastar IA."
-                onClick={() => void gravar({ modo: "eco" })}
-              />
-              <BotaoDeModo
-                ativo={modoIa}
-                titulo="Inteligência"
-                descricao="Responde pelo manual aprendido."
-                onClick={() => void gravar({ modo: "ia" })}
-              />
-            </div>
+              <section className="rounded-3xl border border-border bg-white/70 p-6">
+                <h2 className="text-base font-semibold">Como ele responde</h2>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <BotaoDeModo
+                    ativo={!modoIa}
+                    titulo="Frase fixa"
+                    descricao="Sempre a mesma resposta. Prova o caminho sem gastar IA."
+                    onClick={() => void gravar({ modo: "eco" })}
+                  />
+                  <BotaoDeModo
+                    ativo={modoIa}
+                    titulo="Inteligência"
+                    descricao="Responde pelo manual aprendido."
+                    onClick={() => void gravar({ modo: "ia" })}
+                  />
+                </div>
 
-            {!modoIa && (
-              <div className="mt-4">
-                <label className="text-xs font-medium text-muted-foreground">A frase</label>
-                <Input
-                  value={eco}
-                  onChange={(e) => setEco(e.target.value)}
-                  onBlur={() => eco !== config?.mensagemEco && void gravar({ mensagemEco: eco })}
-                  className="mt-1.5"
-                />
-              </div>
-            )}
+                {!modoIa && (
+                  <div className="mt-4">
+                    <label className="text-xs font-medium text-muted-foreground">A frase</label>
+                    <Input
+                      value={eco}
+                      onChange={(e) => setEco(e.target.value)}
+                      onBlur={() =>
+                        eco !== config?.mensagemEco && void gravar({ mensagemEco: eco })
+                      }
+                      className="mt-1.5"
+                    />
+                  </div>
+                )}
 
-            {modoIa && semChave && (
-              <p className="mt-4 flex items-center gap-2.5 rounded-2xl bg-warning-soft px-4 py-3 text-sm">
-                <KeyRound className="h-4 w-4 shrink-0 text-warning" />
-                Falta a chave da IA — Lovable → Cloud → Secrets → ANTHROPIC_API_KEY.
-              </p>
-            )}
-          </section>
+                {modoIa && semChave && (
+                  <p className="mt-4 flex items-center gap-2.5 rounded-2xl bg-warning-soft px-4 py-3 text-sm">
+                    <KeyRound className="h-4 w-4 shrink-0 text-warning" />
+                    Falta a chave da IA — Lovable → Cloud → Secrets → ANTHROPIC_API_KEY.
+                  </p>
+                )}
+              </section>
 
-          {/* ── Ritmo ───────────────────────────────────────────────────────
+              {/* ── Ritmo ───────────────────────────────────────────────────────
               Não é enfeite: um agente que responde em 200 ms com oito
               parágrafos se denuncia por melhor que seja o texto. */}
-          <section className="rounded-3xl border border-border bg-white/70 p-6">
-            <h2 className="text-base font-semibold">Ritmo</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              O que faz parecer alguém digitando, e não um sistema respondendo.
-            </p>
+              <section className="rounded-3xl border border-border bg-white/70 p-6">
+                <h2 className="text-base font-semibold">Ritmo</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  O que faz parecer alguém digitando, e não um sistema respondendo.
+                </p>
 
-            <div className="mt-5 grid gap-4">
-              <Campo
-                rotulo="Esperar antes de responder"
-                sufixo="s"
-                valor={config?.debounceSegundos ?? 5}
-                dica="Deixa a pessoa terminar de escrever quando manda várias mensagens seguidas."
-                onSalvar={(v) => void gravar({ debounceSegundos: v })}
-              />
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">Quebrar respostas longas</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Em mensagens menores, como uma pessoa faria.
-                  </p>
+                <div className="mt-5 grid gap-4">
+                  <Campo
+                    rotulo="Esperar antes de responder"
+                    sufixo="s"
+                    valor={config?.debounceSegundos ?? 5}
+                    dica="Deixa a pessoa terminar de escrever quando manda várias mensagens seguidas."
+                    onSalvar={(v) => void gravar({ debounceSegundos: v })}
+                  />
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Quebrar respostas longas</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Em mensagens menores, como uma pessoa faria.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={config?.segmentar ?? true}
+                      onCheckedChange={(v) => void gravar({ segmentar: v })}
+                      aria-label="Quebrar respostas longas"
+                    />
+                  </div>
+                  {config?.segmentar && (
+                    <>
+                      <Campo
+                        rotulo="Máximo por mensagem"
+                        sufixo="caracteres"
+                        valor={config?.limite ?? 300}
+                        onSalvar={(v) => void gravar({ limite: v })}
+                      />
+                      <Campo
+                        rotulo="Mínimo por mensagem"
+                        sufixo="caracteres"
+                        valor={config?.minimo ?? 50}
+                        dica="Abaixo disso, o pedaço se junta ao anterior em vez de sair sozinho."
+                        onSalvar={(v) => void gravar({ minimo: v })}
+                      />
+                    </>
+                  )}
+                  <Campo
+                    rotulo="Tempo de digitação"
+                    sufixo="ms por caractere"
+                    valor={config?.msPorCaractere ?? 50}
+                    onSalvar={(v) => void gravar({ msPorCaractere: v })}
+                  />
                 </div>
-                <Switch
-                  checked={config?.segmentar ?? true}
-                  onCheckedChange={(v) => void gravar({ segmentar: v })}
-                  aria-label="Quebrar respostas longas"
-                />
-              </div>
-              {config?.segmentar && (
-                <>
-                  <Campo
-                    rotulo="Máximo por mensagem"
-                    sufixo="caracteres"
-                    valor={config?.limite ?? 300}
-                    onSalvar={(v) => void gravar({ limite: v })}
-                  />
-                  <Campo
-                    rotulo="Mínimo por mensagem"
-                    sufixo="caracteres"
-                    valor={config?.minimo ?? 50}
-                    dica="Abaixo disso, o pedaço se junta ao anterior em vez de sair sozinho."
-                    onSalvar={(v) => void gravar({ minimo: v })}
-                  />
-                </>
-              )}
-              <Campo
-                rotulo="Tempo de digitação"
-                sufixo="ms por caractere"
-                valor={config?.msPorCaractere ?? 50}
-                onSalvar={(v) => void gravar({ msPorCaractere: v })}
-              />
+              </section>
             </div>
-          </section>
 
-          <RegrasDeComportamento regras={config?.regras ?? []} />
+            <div className="grid gap-4">
+              <RegrasDeComportamento regras={config?.regras ?? []} />
 
-          {/* ── Simulação ───────────────────────────────────────────────────
+              {/* ── Simulação ───────────────────────────────────────────────────
               Passa pelo MESMO caminho do atendimento real — filtros, modelo,
               segmentação. O que muda é só o destino: nada sai daqui. */}
-          <section className="rounded-3xl border border-border bg-white/70 p-6">
-            <h2 className="text-base font-semibold">Testar</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Escreva como um paciente escreveria. Nada é enviado a ninguém.
-            </p>
-            <div className="mt-4 flex gap-2">
-              <Input
-                value={texto}
-                onChange={(e) => setTexto(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && texto.trim() && void rodar()}
-                placeholder="Oi, quanto custa a limpeza?"
-              />
-              <Button
-                variant="premium"
-                disabled={simulando || !texto.trim()}
-                onClick={() => void rodar()}
-              >
-                {simulando ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Play className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
+              <section className="rounded-3xl border border-border bg-white/70 p-6">
+                <h2 className="text-base font-semibold">Testar</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Escreva como um paciente escreveria. Nada é enviado a ninguém.
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <Input
+                    value={texto}
+                    onChange={(e) => setTexto(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && texto.trim() && void rodar()}
+                    placeholder="Oi, quanto custa a limpeza?"
+                  />
+                  <Button
+                    variant="premium"
+                    disabled={simulando || !texto.trim()}
+                    onClick={() => void rodar()}
+                  >
+                    {simulando ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Play className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
 
-            {saida && (
-              <div className="mt-5">
-                {saida.respondeu ? (
-                  <div className="grid gap-2">
-                    {saida.enviados.map((m, i) => (
-                      <div key={i} className="flex justify-end">
-                        <div className="max-w-[80%] rounded-2xl bg-gradient-primary px-4 py-2.5 text-sm text-white">
-                          {m.texto}
-                          <span className="mt-1 block text-2xs text-white/70">
-                            após {(m.esperaMs / 1000).toFixed(1)}s digitando
-                          </span>
-                        </div>
+                {saida && (
+                  <div className="mt-5">
+                    {saida.respondeu ? (
+                      <div className="grid gap-2">
+                        {saida.enviados.map((m, i) => (
+                          <div key={i} className="flex justify-end">
+                            <div className="max-w-[80%] rounded-2xl bg-gradient-primary px-4 py-2.5 text-sm text-white">
+                              {m.texto}
+                              <span className="mt-1 block text-2xs text-white/70">
+                                após {(m.esperaMs / 1000).toFixed(1)}s digitando
+                              </span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    ) : (
+                      <p className="rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">
+                        Não respondeu — {saida.motivo}.
+                      </p>
+                    )}
                   </div>
-                ) : (
-                  <p className="rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">
-                    Não respondeu — {saida.motivo}.
-                  </p>
                 )}
-              </div>
-            )}
-          </section>
+              </section>
+            </div>
+          </div>
         </div>
       )}
     </main>
@@ -279,11 +294,15 @@ function BotaoDeModo({
       aria-pressed={ativo}
       className={cn(
         "press rounded-2xl border p-4 text-left transition",
-        ativo ? "border-transparent bg-foreground text-white" : "border-border bg-white hover:bg-muted",
+        ativo
+          ? "border-transparent bg-foreground text-white"
+          : "border-border bg-white hover:bg-muted",
       )}
     >
       <span className="block text-sm font-semibold">{titulo}</span>
-      <span className={cn("mt-0.5 block text-xs", ativo ? "text-white/70" : "text-muted-foreground")}>
+      <span
+        className={cn("mt-0.5 block text-xs", ativo ? "text-white/70" : "text-muted-foreground")}
+      >
         {descricao}
       </span>
     </button>

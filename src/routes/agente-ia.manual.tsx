@@ -31,7 +31,9 @@ export const Route = createFileRoute("/agente-ia/manual")({
       semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />,
+  notFoundComponent: () => (
+    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
+  ),
   component: ManualPage,
 });
 
@@ -79,10 +81,10 @@ function ManualPage() {
   const vazio = estado && estado.vendas === 0;
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 pt-6 sm:px-6 lg:pb-10">
+    <main className="w-full min-w-0 flex-1 px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
       <PageHeading
+        className="pr-16 lg:pr-0"
         icon={BookOpen}
-        kicker="Agente de IA"
         title="Manual"
         subtitle="O jeito desta clínica atender, escrito a partir do que deu certo."
         actions={
@@ -101,7 +103,7 @@ function ManualPage() {
           Nada aprendido ainda. Marque as etapas de vitória no Agente e mova alguns cards até lá.
         </p>
       ) : (
-        <div className="mt-8 grid gap-3">
+        <div className="mt-8 grid gap-3 xl:grid-cols-2 xl:items-start">
           {SECOES.map(({ campo, titulo, pergunta }) => {
             const texto = estado ? textoDoCampo(campo, estado.aprendido, estado.correcoes) : "";
             const corrigido = estado ? foiCorrigido(campo, estado.correcoes) : false;
