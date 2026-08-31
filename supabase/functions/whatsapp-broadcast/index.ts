@@ -35,12 +35,40 @@ async function handleCreate(
   ownerId: string,
   message: string,
   ritmoBruto: Partial<Ritmo> | null,
-  alvos: AlvoEntrada[],
+  alvosEntrada: AlvoEntrada[],
   mediaPath: string | null,
   nome: string | null,
 ) {
   if (!message?.trim()) throw new Error("Escreva a mensagem antes de disparar.");
-  if (!alvos?.length) throw new Error("Selecione ao menos um contato.");
+  if (!alvosEntrada?.length) throw new Error("Selecione ao menos um contato.");
+
+  // ── Um alvo por contato ────────────────────────────────────────────────
+  //
+  // Última rede antes do banco, e a que vale para qualquer tela — presente ou
+  // futura. O front já deduplica (`pessoasUnicas`), mas foi justamente a falta
+  // de rede aqui que deixou o disparo de 31/08 criar DUAS conversas para a
+  // mesma pessoa: dois alvos com o mesmo `contact_id` viram duas mensagens,
+  // duas conversas no CRM e cota debitada em dobro.
+  //
+  // Vem ANTES da conferência de cota de propósito: cobrar por uma linha que
+  // não vai virar mensagem é o mesmo erro, só que no dinheiro.
+  //
+  // Entre repetidos, ganha o que JÁ TEM conversa: mandar numa conversa que
+  // existe é o caminho confirmado; o outro abriria uma nova sem precisar.
+  const porContato = new Map<string, AlvoEntrada>();
+  for (const a of alvosEntrada) {
+    const chave = String(a?.contactId ?? "");
+    if (!chave) continue;
+    const atual = porContato.get(chave);
+    if (!atual || (!atual.conversationId && a.conversationId)) porContato.set(chave, a);
+  }
+  const alvos = [...porContato.values()];
+  if (!alvos.length) throw new Error("Selecione ao menos um contato.");
+  if (alvos.length < alvosEntrada.length) {
+    console.warn(
+      `[whatsapp-broadcast] ${alvosEntrada.length - alvos.length} alvo(s) repetido(s) descartado(s)`,
+    );
+  }
 
   // Confere ANTES de enfileirar: enfileirar e recusar depois deixaria metade
   // das mensagens saindo antes de alguém perceber.

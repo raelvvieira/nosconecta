@@ -268,6 +268,16 @@ export const getConversations = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<ConversationRow[]> => {
     const json = await callEdgeFunction("crm-conversations", { ownerId: context.ownerId, action: "list" });
+    // Leitura truncada (teto de páginas ou prazo) faz um contato que TEM
+    // conversa ser lido como se não tivesse — e o disparo abriria uma nova para
+    // ele. Quem impede isso de virar conversa duplicada é a checagem em
+    // `_shared/whatsapp-send.ts`, que pergunta ao CRM antes de criar; este log
+    // existe para o caso não ficar invisível quando acontecer.
+    if (json.truncado) {
+      console.warn(
+        `[getConversations] leitura truncada em ${(json.conversations ?? []).length} conversas de ${json.total ?? "?"}`,
+      );
+    }
     const linhas: ConversationRow[] = (json.conversations ?? []).map(mapConversation);
     // Abertas primeiro, e dentro de cada grupo a mais recente no topo. A ordem
     // importa agora que as resolvidas também vêm: sem isto, uma conversa

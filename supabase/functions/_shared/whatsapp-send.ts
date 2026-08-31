@@ -6,6 +6,7 @@
 // explícito, nunca client de módulo por closure, porque este arquivo é
 // importado por mais de uma função e cada uma tem o seu.
 import { crmFetch } from "./crm-auth.ts";
+import { unwrap } from "./crm-client.ts";
 
 /** Para quem a mensagem vai.
  *
@@ -93,6 +94,32 @@ export async function enviarWhatsapp(
     );
   }
 
+  // ── Antes de abrir conversa nova, perguntar se já existe uma ───────────
+  //
+  // A decisão de "esta pessoa não tem conversa" foi tomada no navegador, minutos
+  // antes, e congelada na coluna `conversation_id` da fila. Ela erra em pelo
+  // menos dois casos reais:
+  //
+  //  - dois alvos do mesmo contato entraram na fila (o bug de 31/08). O
+  //    primeiro cria a conversa; o segundo ainda acha que não existe nenhuma e
+  //    cria a segunda.
+  //  - a leitura de conversas truncou (teto de 5000 ou 45s em
+  //    `crm-conversations`) e quem tem conversa foi lido como se não tivesse.
+  //
+  // Reusar também conversa RESOLVIDA é de propósito: é a mesma pessoa e o
+  // mesmo histórico. Abrir outra por ela estar encerrada é exatamente como a
+  // caixa de entrada enche de linhas repetidas.
+  const existente = await conversaExistente(supabase, ownerId, alvo.contact_id);
+  if (existente) {
+    return await enviarWhatsapp(
+      supabase,
+      ownerId,
+      { ...alvo, conversation_id: existente },
+      message,
+      midia,
+    );
+  }
+
   // NÃO mandar `source_id`: o CRM deriva do telefone do contato, e um valor
   // próprio faz a requisição ser recusada (confirmado pelo time do CRM, 18/08).
   //
@@ -138,6 +165,37 @@ export async function enviarWhatsapp(
 
   await criarConversaSoTexto(supabase, ownerId, alvo.contact_id, inboxId, message);
   return { via: "conversation_new" };
+}
+
+/**
+ * Id de uma conversa que o contato já tenha, ou `null`.
+ *
+ * **Endpoint não confirmado com o Wavy.** Se ele não existir, qualquer falha
+ * devolve `null` e o envio segue criando a conversa como sempre fez — esta
+ * checagem só pode EVITAR uma conversa duplicada, nunca impedir um envio.
+ * Engolir o erro aqui é a decisão certa pela mesma razão: uma pessoa deixar de
+ * receber porque uma consulta opcional falhou seria pior do que a duplicata que
+ * ela previne.
+ *
+ * Prefere conversa aberta; cai para qualquer uma, inclusive resolvida.
+ */
+async function conversaExistente(
+  supabase: any,
+  ownerId: string,
+  contactId: string,
+): Promise<string | null> {
+  try {
+    const res = await crmFetch(supabase, ownerId, `/api/v1/contacts/${contactId}/conversations`);
+    const linhas = unwrap(res);
+    if (!Array.isArray(linhas) || linhas.length === 0) return null;
+    const aberta = linhas.find((c: any) => c?.status !== "resolved");
+    const escolhida = aberta ?? linhas[0];
+    const id = escolhida?.id;
+    return id ? String(id) : null;
+  } catch (e) {
+    console.warn("[whatsapp-send] não deu para checar conversa existente:", String(e).slice(0, 200));
+    return null;
+  }
 }
 
 async function criarConversaSoTexto(

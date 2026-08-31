@@ -19,6 +19,8 @@ import { getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
 import { getPatientContacts } from "@/lib/patients/patients.functions";
 import { contatosDaCaixa, daParaSepararPorNumero } from "@/lib/atendimentos/inboxSnapshot";
 import { calcularLote } from "@/lib/atendimentos/loteDeDisparo";
+import { pessoasUnicas } from "@/lib/atendimentos/prepararAlvos";
+import { conversaPorContato } from "@/lib/atendimentos/agruparConversas";
 import { listarTags, mapaDeTags, todasAsAtribuicoes } from "@/lib/tags/tags.functions";
 import { FichasDeTag } from "@/components/tags/FichasDeTag";
 import { FiltrosDeContatos } from "./FiltrosDeContatos";
@@ -202,25 +204,48 @@ export function ContactsTab({
   // que o CRM tem, mesmo quando não veio para cá.
   const semTelefone = (patientsQuery.data ?? SEM_PACIENTES).filter((p) => !p.phone).length;
 
+  // `pessoasUnicas` fecha a lista aqui, e não só na hora de enfileirar, por dois
+  // motivos: a MESMA pessoa aparecia duas vezes na tela (uma como contato do
+  // CRM, outra como paciente local do mesmo telefone), e a seleção é um `Set`
+  // de ids enquanto o mapeamento para alvos é um `filter` sobre este array —
+  // com o id repetido, um clique virava dois alvos, duas mensagens e duas
+  // conversas criadas no CRM. Deduplicando na fonte, o número que a revisão do
+  // disparo mostra é o número de pessoas que vai receber.
   const contatos = useMemo<ContatoUnificado[]>(
-    () => [
-      ...contatosEstado.contatos.map((c) => ({ id: c.id, name: c.name, phone: c.phone, origem: "crm" as const, patientId: null })),
-      ...(patientsQuery.data ?? SEM_PACIENTES)
-        .filter((p) => !!p.phone)
-        .map((p) => ({ id: p.id, name: p.name, phone: p.phone, origem: "paciente" as const, patientId: p.id })),
-    ],
+    () =>
+      pessoasUnicas([
+        ...contatosEstado.contatos.map((c) => ({
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          origem: "crm" as const,
+          patientId: null,
+        })),
+        ...(patientsQuery.data ?? SEM_PACIENTES)
+          .filter((p) => !!p.phone)
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            phone: p.phone,
+            origem: "paciente" as const,
+            patientId: p.id,
+          })),
+      ]),
     [contatosEstado.contatos, patientsQuery.data],
   );
 
   // Contato → conversa. É o que decide, no disparo, por qual caminho a mensagem
   // sai; e o que a linha mostra como "com conversa".
-  const conversaPorContato = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const c of conversationsQuery.data ?? SEM_CONVERSAS) {
-      if (c.contactId) m.set(c.contactId, c.id);
-    }
-    return m;
-  }, [conversationsQuery.data]);
+  //
+  // O mapa era montado aqui com `m.set` num laço — e como a lista chega
+  // ordenada *abertas primeiro, resolvidas depois*, o último `set` vencia: o
+  // disparo saía pela conversa RESOLVIDA de quem também tinha uma aberta. O
+  // funil fazia `find` e acertava; os dois discordavam. Agora é a mesma função
+  // para os dois.
+  const mapaDeConversas = useMemo(
+    () => conversaPorContato(conversationsQuery.data ?? SEM_CONVERSAS),
+    [conversationsQuery.data],
+  );
 
   const conversas = conversationsQuery.data ?? SEM_CONVERSAS;
   const conectadaId = inboxesQuery.data?.conectadaId ?? null;
@@ -238,11 +263,12 @@ export function ContactsTab({
   );
 
   const noEscopo = useMemo(
-    () => (separavel && soDoNumeroAtual && daCaixaAtual
-      // Paciente sem CRM nunca é filtrado por caixa: não veio de sincronização
-      // nenhuma, então não tem como ser "do número antigo".
-      ? contatos.filter((c) => c.origem === "paciente" || daCaixaAtual.has(c.id))
-      : contatos),
+    () =>
+      separavel && soDoNumeroAtual && daCaixaAtual
+        ? // Paciente sem CRM nunca é filtrado por caixa: não veio de sincronização
+          // nenhuma, então não tem como ser "do número antigo".
+          contatos.filter((c) => c.origem === "paciente" || daCaixaAtual.has(c.id))
+        : contatos,
     [contatos, separavel, soDoNumeroAtual, daCaixaAtual],
   );
   const omitidos = contatos.length - noEscopo.length;
@@ -343,7 +369,8 @@ export function ContactsTab({
   const todosFiltradosSelecionados =
     filtrados.length > 0 && filtrados.every((c) => selecionados.has(c.id));
 
-  const alternarTodos = () => onSelecionadosChange(alternarSelecaoDoRecorte(selecionados, filtrados));
+  const alternarTodos = () =>
+    onSelecionadosChange(alternarSelecaoDoRecorte(selecionados, filtrados));
 
   const alternarUm = (id: string) => {
     const next = new Set(selecionados);
@@ -361,7 +388,7 @@ export function ContactsTab({
 
   const comConversa = (c: ContatoUnificado): ContatoSelecionado => ({
     ...c,
-    conversationId: conversaPorContato.get(c.id) ?? null,
+    conversationId: mapaDeConversas.get(c.id) ?? null,
   });
 
   const paraDisparo = (): ContatoSelecionado[] =>
@@ -411,7 +438,8 @@ export function ContactsTab({
         >
           <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" strokeWidth={2} />
           Ainda carregando mais contatos
-          {contatosEstado.progresso && ` — página ${contatosEstado.progresso.feitas} de ${contatosEstado.progresso.totalPaginas}`}
+          {contatosEstado.progresso &&
+            ` — página ${contatosEstado.progresso.feitas} de ${contatosEstado.progresso.totalPaginas}`}
           . Os {contatos.length} já carregados já podem ser buscados e selecionados.
         </p>
       )}
@@ -419,8 +447,8 @@ export function ContactsTab({
       {!contatosEstado.carregando && contatosEstado.erro && (
         <p className="mt-5 flex gap-2 rounded-xl bg-warning-soft px-3 py-2 text-2xs leading-4 text-warning">
           <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-          Parou de carregar mais páginas: {contatosEstado.erro}. Os {contatos.length} já
-          carregados continuam disponíveis.
+          Parou de carregar mais páginas: {contatosEstado.erro}. Os {contatos.length} já carregados
+          continuam disponíveis.
         </p>
       )}
 
@@ -429,8 +457,8 @@ export function ContactsTab({
       {patientsQuery.isError && (
         <p className="mt-3 flex gap-2 rounded-xl bg-warning-soft px-3 py-2 text-2xs leading-4 text-warning">
           <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-          Não foi possível ler os pacientes sem conversa: {(patientsQuery.error as Error).message}. A
-          lista abaixo tem só os contatos do CRM.
+          Não foi possível ler os pacientes sem conversa: {(patientsQuery.error as Error).message}.
+          A lista abaixo tem só os contatos do CRM.
         </p>
       )}
 
@@ -520,10 +548,9 @@ export function ContactsTab({
 
       {!contatosEstado.carregando && contatosEstado.truncado && (
         <p className="mt-3 flex gap-2 rounded-xl bg-warning-soft px-3 py-2 text-2xs leading-4 text-warning">
-          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-          A base tem {contatosEstado.total} contatos e só os primeiros{" "}
-          {contatos.length} foram carregados. O filtro e a seleção valem apenas
-          sobre esses.
+          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />A base tem{" "}
+          {contatosEstado.total} contatos e só os primeiros {contatos.length} foram carregados. O
+          filtro e a seleção valem apenas sobre esses.
         </p>
       )}
 
@@ -563,7 +590,7 @@ export function ContactsTab({
         ) : (
           <ul className="divide-y divide-border">
             {filtrados.map((c) => {
-              const temConversa = conversaPorContato.has(c.id);
+              const temConversa = mapaDeConversas.has(c.id);
               // Só chega a existir uma linha pra badgear quando o toggle de
               // ocultar está desligado — com ele ligado, quem recebeu recente
               // já nem está em `filtrados`.
@@ -581,7 +608,9 @@ export function ContactsTab({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold">{c.name}</p>
                       <p className="mt-0.5 flex items-center gap-1.5 truncate text-2xs text-muted-foreground">
-                        <span className="font-mono">{formatWhatsappNumber(c.phone) || "sem telefone"}</span>
+                        <span className="font-mono">
+                          {formatWhatsappNumber(c.phone) || "sem telefone"}
+                        </span>
                         {c.origem === "paciente" ? (
                           <span className="flex items-center gap-1 text-foreground-secondary">
                             <UserRound className="h-3 w-3" /> paciente, sem conversa
@@ -660,7 +689,9 @@ function FichaDdd({
       onClick={onClick}
       className={cn(
         "h-11 shrink-0 rounded-full border px-4 text-sm font-medium transition-colors",
-        ativa ? "border-coral bg-coral-soft text-coral" : "border-border bg-white text-foreground-secondary",
+        ativa
+          ? "border-coral bg-coral-soft text-coral"
+          : "border-border bg-white text-foreground-secondary",
       )}
     >
       {rotulo} <span className="text-muted-foreground">({contagem})</span>

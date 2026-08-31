@@ -2,11 +2,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, CheckCheck, ChevronDown, MessageCircle, Search, StickyNote, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  CheckCheck,
+  ChevronDown,
+  MessageCircle,
+  Search,
+  StickyNote,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { SeletorDeTags } from "@/components/tags/SeletorDeTags";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
+import { agruparPorContato } from "@/lib/atendimentos/agruparConversas";
 import { Input } from "@/components/ui/input";
 import { ChatComposer } from "@/components/atendimentos/chat/ChatComposer";
 import type { PendingAttachment } from "@/components/atendimentos/chat/AttachmentTray";
@@ -65,15 +75,16 @@ export const Route = createFileRoute("/atendimentos/chat")({
     ],
   }),
   errorComponent: ({ error }) => (
-    <ResponsiveRouteState error={error}
+    <ResponsiveRouteState
+      error={error}
       title="Não foi possível carregar os atendimentos"
       description="Houve uma falha ao buscar as conversas. Tente novamente em instantes."
       semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
-  semSidebar
-/>,
+  notFoundComponent: () => (
+    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
+  ),
   component: ChatPage,
 });
 
@@ -120,8 +131,26 @@ function ChatPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("pt-BR");
     if (!q) return conversations;
-    return conversations.filter((c) => `${c.contactName ?? ""} ${c.phone ?? ""}`.toLocaleLowerCase("pt-BR").includes(q));
+    return conversations.filter((c) =>
+      `${c.contactName ?? ""} ${c.phone ?? ""}`.toLocaleLowerCase("pt-BR").includes(q),
+    );
   }, [conversations, query]);
+
+  // Uma linha por pessoa. A busca roda ANTES de agrupar, sobre as conversas
+  // cruas: filtrar depois faria uma conversa antiga escapar do filtro só por
+  // estar escondida dentro de um grupo.
+  const grupos = useMemo(() => agruparPorContato(filtered), [filtered]);
+
+  // Grupos com a conversa aberta ficam expandidos, para a pessoa enxergar em
+  // qual das conversas dela está.
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  const alternarGrupo = (chave: string) =>
+    setExpandidos((atual) => {
+      const proximo = new Set(atual);
+      if (proximo.has(chave)) proximo.delete(chave);
+      else proximo.add(chave);
+      return proximo;
+    });
 
   const selected = conversations.find((c) => c.id === conversationId) ?? null;
 
@@ -300,7 +329,8 @@ function ChatPage() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const selectConversation = (row: ConversationRow) => navigate({ search: { conversationId: row.id } });
+  const selectConversation = (row: ConversationRow) =>
+    navigate({ search: { conversationId: row.id } });
 
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -340,7 +370,10 @@ function ChatPage() {
               caminho pra resolver, sem repetir o texto. */}
           {!connected && (
             <p className="mt-3 text-xs text-muted-foreground">
-              <Link to="/atendimentos" className="underline underline-offset-2 hover:text-foreground">
+              <Link
+                to="/atendimentos"
+                className="underline underline-offset-2 hover:text-foreground"
+              >
                 Conecte pelo Dashboard
               </Link>{" "}
               para ver as conversas aqui.
@@ -356,43 +389,113 @@ function ChatPage() {
               </p>
             </div>
           )}
-          {filtered.map((row) => {
+          {grupos.map((g) => {
+            const row = g.principal;
             const name = row.contactName ?? row.phone ?? "Contato";
-            const active = row.id === conversationId;
+            const aberto = expandidos.has(g.chave);
+            // O grupo fica "aceso" pela conversa aberta, seja ela a principal
+            // ou uma das antigas — senão, abrir uma conversa antiga apagaria a
+            // marca de onde a pessoa está.
+            const ativo =
+              row.id === conversationId || g.outras.some((o) => o.id === conversationId);
             return (
-              <button
-                key={row.id}
-                type="button"
-                onClick={() => selectConversation(row)}
-                className={cn(
-                  "press flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left",
-                  active ? "bg-foreground text-white" : "hover:bg-white active:bg-white",
-                )}
-              >
-                <FotoDoContato
-                  nome={name}
-                  url={row.avatarUrl}
-                  className={cn("h-11 w-11", active ? "bg-white/15 text-white" : "bg-coral-soft text-coral")}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-semibold">{name}</span>
-                    <span className={cn("shrink-0 text-2xs", active ? "text-white/70" : "text-muted-foreground")}>
-                      {formatTime(row.lastMessageAt)}
-                    </span>
-                  </span>
-                  <span className="mt-0.5 flex items-center justify-between gap-2">
-                    <span className={cn("truncate text-xs", active ? "text-white/70" : "text-muted-foreground")}>
-                      {row.lastMessagePreview ?? "—"}
-                    </span>
-                    {row.unreadCount > 0 && (
-                      <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-gradient-primary px-1.5 text-3xs font-bold text-white">
-                        {row.unreadCount}
-                      </span>
+              <div key={g.chave}>
+                <button
+                  type="button"
+                  onClick={() => selectConversation(row)}
+                  className={cn(
+                    "press flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left",
+                    ativo ? "bg-foreground text-white" : "hover:bg-white active:bg-white",
+                  )}
+                >
+                  <FotoDoContato
+                    nome={name}
+                    url={row.avatarUrl}
+                    className={cn(
+                      "h-11 w-11",
+                      ativo ? "bg-white/15 text-white" : "bg-coral-soft text-coral",
                     )}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-semibold">{name}</span>
+                      <span
+                        className={cn(
+                          "shrink-0 text-2xs",
+                          ativo ? "text-white/70" : "text-muted-foreground",
+                        )}
+                      >
+                        {formatTime(row.lastMessageAt)}
+                      </span>
+                    </span>
+                    <span className="mt-0.5 flex items-center justify-between gap-2">
+                      <span
+                        className={cn(
+                          "truncate text-xs",
+                          ativo ? "text-white/70" : "text-muted-foreground",
+                        )}
+                      >
+                        {row.lastMessagePreview ?? "—"}
+                      </span>
+                      {/* A soma do grupo, não só da principal: esconder a
+                          contagem de uma conversa recolhida esconderia
+                          justamente o aviso de que tem gente esperando. */}
+                      {g.naoLidas > 0 && (
+                        <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-gradient-primary px-1.5 text-3xs font-bold text-white">
+                          {g.naoLidas}
+                        </span>
+                      )}
+                    </span>
                   </span>
-                </span>
-              </button>
+                </button>
+
+                {/* Só aparece quando a pessoa tem mais de uma conversa no CRM —
+                    o que acontece porque conversa encerrada não some de lá.
+                    Some da lista, mas continua alcançável: escondê-la de vez
+                    perderia histórico. */}
+                {g.outras.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => alternarGrupo(g.chave)}
+                      aria-expanded={aberto}
+                      className="press ml-14 mt-0.5 flex items-center gap-1 rounded-lg px-2 py-1 text-2xs text-muted-foreground hover:bg-white"
+                    >
+                      <ChevronDown
+                        className={cn("h-3 w-3 transition-transform", aberto && "rotate-180")}
+                      />
+                      {g.outras.length + 1} conversas
+                    </button>
+                    {aberto && (
+                      <div className="ml-14 grid gap-0.5 border-l border-border pl-2">
+                        {g.outras.map((o) => (
+                          <button
+                            key={o.id}
+                            type="button"
+                            onClick={() => selectConversation(o)}
+                            className={cn(
+                              "press flex items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left text-xs",
+                              o.id === conversationId
+                                ? "bg-foreground text-white"
+                                : "text-muted-foreground hover:bg-white",
+                            )}
+                          >
+                            <span className="truncate">
+                              {o.status === "resolved" ? "Encerrada" : "Aberta"} ·{" "}
+                              {formatTime(o.lastMessageAt)}
+                            </span>
+                            {o.unreadCount > 0 && (
+                              <span className="grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-gradient-primary px-1 text-3xs font-bold text-white">
+                                {o.unreadCount}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             );
           })}
         </div>
@@ -402,7 +505,9 @@ function ChatPage() {
       <section className={cn("flex min-w-0 flex-1 flex-col", !conversationId && "hidden lg:flex")}>
         {!selected ? (
           <div className="hidden flex-1 items-center justify-center lg:flex">
-            <p className="text-sm text-muted-foreground">Selecione uma conversa para ver as mensagens.</p>
+            <p className="text-sm text-muted-foreground">
+              Selecione uma conversa para ver as mensagens.
+            </p>
           </div>
         ) : (
           <>
@@ -421,7 +526,9 @@ function ChatPage() {
                 className="h-10 w-10 bg-coral-soft text-coral"
               />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{selected.contactName ?? selected.phone ?? "Contato"}</p>
+                <p className="truncate text-sm font-semibold">
+                  {selected.contactName ?? selected.phone ?? "Contato"}
+                </p>
                 {selected.contactName && selected.phone && (
                   <p className="truncate text-xs text-muted-foreground">{selected.phone}</p>
                 )}
@@ -446,7 +553,9 @@ function ChatPage() {
                       >
                         <span
                           className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: currentStage?.color ?? "var(--foreground-subtle)" }}
+                          style={{
+                            backgroundColor: currentStage?.color ?? "var(--foreground-subtle)",
+                          }}
                         />
                         {currentStage?.name ?? "Sem etapa"}
                         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -475,7 +584,8 @@ function ChatPage() {
                           data-desfecho=""
                           className={cn(
                             "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold",
-                            dealStatus === "won" && "border-success/30 bg-success-soft text-success",
+                            dealStatus === "won" &&
+                              "border-success/30 bg-success-soft text-success",
                             dealStatus === "lost" && "border-danger/30 bg-danger-soft text-danger",
                             dealStatus === "negotiating" && "border-border bg-white",
                           )}
@@ -520,7 +630,9 @@ function ChatPage() {
                       onClick={() => setLossReason(r)}
                       className={cn(
                         "rounded-full border px-2.5 py-1 text-2xs",
-                        lossReason === r ? "border-danger bg-danger-soft text-danger" : "border-border bg-white",
+                        lossReason === r
+                          ? "border-danger bg-danger-soft text-danger"
+                          : "border-border bg-white",
                       )}
                     >
                       {r}
@@ -557,7 +669,10 @@ function ChatPage() {
                   esticar demais e ficar cansativa de ler. */}
               <div className="flex max-w-[760px] flex-col gap-2">
                 {messages.map((m) => (
-                  <div key={m.id} className={cn("flex", m.fromMe ? "justify-end" : "justify-start")}>
+                  <div
+                    key={m.id}
+                    className={cn("flex", m.fromMe ? "justify-end" : "justify-start")}
+                  >
                     <div
                       className={cn(
                         "max-w-[78%] rounded-2xl px-4 py-2.5 text-sm leading-6 shadow-soft",
@@ -624,9 +739,7 @@ function ChatPage() {
           origin={`Agendamento a partir da conversa de WhatsApp com ${
             selected.contactName ?? selected.phone ?? "este contato"
           }.`}
-          defaultPatient={
-            selected.contactName ? { id: "", name: selected.contactName } : null
-          }
+          defaultPatient={selected.contactName ? { id: "", name: selected.contactName } : null}
           contact={{
             name: selected.contactName,
             phone: selected.phone,
