@@ -25,7 +25,11 @@ async function pushContactToCrm(
       body: JSON.stringify({ ownerId, action: "upsert", patient: { patientId, name, phone } }),
     });
     if (!res.ok) {
-      console.error("[pushContactToCrm] crm-contacts respondeu", res.status, await res.text().catch(() => ""));
+      console.error(
+        "[pushContactToCrm] crm-contacts respondeu",
+        res.status,
+        await res.text().catch(() => ""),
+      );
     }
   } catch (e) {
     console.error("[pushContactToCrm]", e);
@@ -33,7 +37,11 @@ async function pushContactToCrm(
 }
 
 export type PatientStatus =
-  "active" | "in_treatment" | "return_pending" | "delinquent" | "inactive";
+  | "active"
+  | "in_treatment"
+  | "return_pending"
+  | "delinquent"
+  | "inactive";
 export type PatientFilter = "all" | PatientStatus;
 
 export interface PatientAppointment {
@@ -159,9 +167,7 @@ function buildSummary(row: any, transactions: any[]): PatientSummary {
   const today = clinicTodayStr();
   const overdueAmount = patientTransactions
     .filter(
-      (item) =>
-        item.status === "overdue" ||
-        (item.status === "pending" && item.due_date < today),
+      (item) => item.status === "overdue" || (item.status === "pending" && item.due_date < today),
     )
     .reduce((sum, item) => sum + money(item.amount), 0);
   const pendingAmount = patientTransactions
@@ -207,7 +213,12 @@ function buildSummary(row: any, transactions: any[]): PatientSummary {
  * papel de qualquer forma.
  */
 async function fetchBase(supabase: any, ownerId: string, unitId: string | null) {
-  let patientsQuery = supabase.from("patients").select("*").eq("owner_id", ownerId).order("name").limit(10000);
+  let patientsQuery = supabase
+    .from("patients")
+    .select("*")
+    .eq("owner_id", ownerId)
+    .order("name")
+    .limit(10000);
   if (unitId) patientsQuery = patientsQuery.eq("unit_id", unitId);
   const [patientsRes, transactionsRes] = await Promise.all([
     patientsQuery,
@@ -656,6 +667,28 @@ export const getPatientContacts = createServerFn({ method: "GET" })
   });
 
 /**
+ * Quais contatos do CRM já viraram ficha de paciente.
+ *
+ * Só a coluna do vínculo, sem nome nem telefone: o filtro "paciente ou lead" da
+ * caixa de entrada precisa responder uma pergunta de sim/não sobre centenas de
+ * conversas de uma vez, e é o oposto de `getPatientByCrmContact`, que responde
+ * sobre UMA pessoa. Perguntar uma por uma seria uma ida ao servidor por linha
+ * da lista.
+ */
+export const getContatosComPaciente = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .handler(async ({ context }): Promise<string[]> => {
+    const supabase: any = context.supabase;
+    const { data, error } = await supabase
+      .from("patients")
+      .select("crm_contact_id")
+      .eq("owner_id", context.ownerId)
+      .not("crm_contact_id", "is", null);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((p: any) => String(p.crm_contact_id)).filter(Boolean);
+  });
+
+/**
  * Cria (ou acha) o contato no CRM pra um paciente que ainda não tinha um —
  * é o que torna um paciente "sem conversa" disparável de verdade: o motor de
  * envio (whatsapp-broadcast) só sabe falar com um `contactId` do CRM, nunca
@@ -693,7 +726,8 @@ export const garantirContatoCrm = createServerFn({ method: "POST" })
         // Erro de regra (4xx que não seja timeout) não melhora repetindo.
         if (res.status < 500 && !/demorou|timeout|timed out/i.test(String(ultimoErro))) break;
       } catch {
-        ultimoErro = "O CRM demorou demais para responder ao cadastrar o contato. Tente novamente em instantes.";
+        ultimoErro =
+          "O CRM demorou demais para responder ao cadastrar o contato. Tente novamente em instantes.";
       }
     }
     throw new Error(ultimoErro);
@@ -711,7 +745,9 @@ export const garantirContatoCrm = createServerFn({ method: "POST" })
 export const backfillCrmContactLinks = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .handler(
-    async ({ context }): Promise<{ pacientesSemVinculo: number; linkados: number; baseTruncada: boolean }> => {
+    async ({
+      context,
+    }): Promise<{ pacientesSemVinculo: number; linkados: number; baseTruncada: boolean }> => {
       if (!context.isAdmin) throw new Error("Apenas administradores podem rodar isto.");
       const url = process.env.SUPABASE_URL;
       const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

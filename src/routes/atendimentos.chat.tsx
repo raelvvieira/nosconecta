@@ -19,6 +19,20 @@ import { SeletorDeTags } from "@/components/tags/SeletorDeTags";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { agruparPorContato } from "@/lib/atendimentos/agruparConversas";
 import { PainelDoContato } from "@/components/atendimentos/chat/PainelDoContato";
+import { FiltrosDaConversa } from "@/components/atendimentos/chat/FiltrosDaConversa";
+import {
+  CONTEXTO_VAZIO,
+  FILTROS_VAZIOS,
+  ORDENACOES,
+  filtrarGrupos,
+  itemDoFunil,
+  negociacaoDa,
+  ordenarGrupos,
+  type Filtros,
+  type Ordenacao,
+} from "@/lib/atendimentos/filtrosDeConversa";
+import { listarTags, mapaDeTags, todasAsAtribuicoes } from "@/lib/tags/tags.functions";
+import { getContatosComPaciente } from "@/lib/patients/patients.functions";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { ChatComposer } from "@/components/atendimentos/chat/ChatComposer";
@@ -55,7 +69,7 @@ import {
   LOSS_REASONS,
   type DealStatus,
 } from "@/lib/atendimentos/deals.functions";
-import { chaveDaNegociacao, chavesDaNegociacao } from "@/lib/atendimentos/deal-key";
+import { chaveDaNegociacao } from "@/lib/atendimentos/deal-key";
 import { ConfirmarGanho, type DadosGanho } from "@/components/atendimentos/pipeline/ConfirmarGanho";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,6 +80,8 @@ import { AnexoDaMensagem } from "@/components/atendimentos/chat/AnexoDaMensagem"
 
 /** Onde a preferência de painel aberto/fechado fica guardada. */
 const CHAVE_DO_PAINEL = "nos:painel-do-contato";
+/** A ordem escolhida é lembrada; o filtro NÃO — ver `FiltrosDaConversa`. */
+const CHAVE_DA_ORDEM = "nos:ordem-das-conversas";
 
 const searchSchema = z.object({
   conversationId: z.string().optional(),
@@ -145,7 +161,58 @@ function ChatPage() {
   // Uma linha por pessoa. A busca roda ANTES de agrupar, sobre as conversas
   // cruas: filtrar depois faria uma conversa antiga escapar do filtro só por
   // estar escondida dentro de um grupo.
-  const grupos = useMemo(() => agruparPorContato(filtered), [filtered]);
+  const todosOsGrupos = useMemo(() => agruparPorContato(filtered), [filtered]);
+
+  // ── Recortes e ordem ───────────────────────────────────────────────────
+  //
+  // O filtro NÃO é lembrado, a ordem é. Filtro esquecido ligado esconde
+  // conversas: no dia seguinte a caixa parece vazia e alguém deixa de responder
+  // um paciente. A ordem muda a sequência, nunca o conjunto.
+  const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS);
+  const [ordem, setOrdem] = useState<Ordenacao>("sem-resposta");
+  useEffect(() => {
+    try {
+      const guardada = localStorage.getItem(CHAVE_DA_ORDEM) as Ordenacao | null;
+      // Confere contra a lista: um valor antigo de uma versão anterior faria a
+      // lista cair no `default` sem ninguém entender por quê.
+      if (guardada && (ORDENACOES as readonly string[]).includes(guardada)) setOrdem(guardada);
+    } catch {
+      /* preferência não lida: fica no padrão */
+    }
+  }, []);
+  const trocarOrdem = (o: Ordenacao) => {
+    setOrdem(o);
+    try {
+      localStorage.setItem(CHAVE_DA_ORDEM, o);
+    } catch {
+      /* sem persistir; a sessão atual continua funcionando */
+    }
+  };
+
+  // Etapa, desfecho, etiqueta e paciente/lead só são buscados quando o recorte
+  // que precisa deles está ligado — quem nunca abre o filtro não paga por eles.
+  const precisaDoFunil = filtros.etapaIds.length > 0 || filtros.desfechos.length > 0;
+  const fetchTags = useServerFn(listarTags);
+  const fetchAtribuicoes = useServerFn(todasAsAtribuicoes);
+  const fetchContatosComPaciente = useServerFn(getContatosComPaciente);
+
+  const tagsQuery = useQuery({
+    queryKey: ["tags"],
+    queryFn: () => fetchTags(),
+    staleTime: 5 * 60_000,
+  });
+  const atribuicoesQuery = useQuery({
+    queryKey: ["tag-assignments"],
+    queryFn: () => fetchAtribuicoes(),
+    enabled: filtros.tagIds.length > 0,
+    staleTime: 60_000,
+  });
+  const pacientesQuery = useQuery({
+    queryKey: ["contatos-com-paciente"],
+    queryFn: () => fetchContatosComPaciente(),
+    enabled: filtros.vinculo !== "todos",
+    staleTime: 60_000,
+  });
 
   // Grupos com a conversa aberta ficam expandidos, para a pessoa enxergar em
   // qual das conversas dela está.
@@ -172,7 +239,9 @@ function ChatPage() {
   const pipelineStagesQuery = useQuery({
     queryKey: ["pipeline-stages"],
     queryFn: () => fetchPipelineStages(),
-    enabled: !!selected,
+    // Sempre: o popover de filtros lista as etapas do funil, e antes isto só
+    // rodava com uma conversa aberta — o filtro apareceria sem a seção de
+    // etapa até alguém clicar em alguém.
     staleTime: 30_000,
   });
   const pipelineConfigured = pipelineStagesQuery.data?.configured ?? false;
@@ -181,37 +250,47 @@ function ChatPage() {
   const pipelineItemsQuery = useQuery({
     queryKey: ["pipeline-items"],
     queryFn: () => fetchPipelineItems(),
-    enabled: !!selected && pipelineConfigured,
+    enabled: (!!selected || precisaDoFunil) && pipelineConfigured,
     staleTime: 8_000,
   });
-  // Casa pelos dois lados, como o funil já faz: um card criado a partir do
-  // contato (`type: "contact"`) ficava invisível aqui, mostrando "Sem etapa" —
-  // e escolher uma etapa criaria um SEGUNDO card para a mesma pessoa.
-  const currentPipelineItem = pipelineItemsQuery.data?.items.find(
-    (i) =>
-      (i.type === "conversation" && i.itemId === selected?.id) ||
-      (i.type === "contact" && selected?.contactId && i.itemId === selected.contactId),
-  );
+  // `itemDoFunil` casa pelos dois lados — pelo id da conversa e pelo do contato.
+  // A regra era escrita aqui à mão e o filtro da lista precisava dela também;
+  // com duas cópias, a lista diria que alguém está numa etapa e o cabeçalho
+  // diria outra.
+  const currentPipelineItem = selected
+    ? itemDoFunil(pipelineItemsQuery.data?.items ?? [], selected)
+    : null;
   const currentStage = pipelineStages.find((s) => s.id === currentPipelineItem?.stageId);
 
   const dealsQuery = useQuery({
     queryKey: ["deals"],
     queryFn: () => fetchDeals(),
-    enabled: !!selected && pipelineConfigured,
+    enabled: (!!selected || precisaDoFunil) && pipelineConfigured,
     staleTime: 8_000,
   });
   // A negociação pode estar pendurada no card do funil OU na própria conversa
   // (quando foi marcada sem card). A ordem de `chavesDaNegociacao` decide quem
   // ganha se, por algum motivo, existirem as duas.
-  const chavesDoDesfecho = chavesDaNegociacao({
-    pipelineItemId: currentPipelineItem?.id,
-    conversationId: selected?.id,
-  });
-  const currentDeal =
-    chavesDoDesfecho
-      .map((chave) => dealsQuery.data?.find((d) => d.itemId === chave))
-      .find(Boolean) ?? null;
+  // Mesma função que o filtro da lista usa, pelo mesmo motivo do card acima.
+  const currentDeal = selected
+    ? negociacaoDa(dealsQuery.data ?? [], pipelineItemsQuery.data?.items ?? [], selected)
+    : null;
   const dealStatus: DealStatus = currentDeal?.status ?? "negotiating";
+  const contexto = useMemo(
+    () => ({
+      ...CONTEXTO_VAZIO,
+      tagsPorChave: mapaDeTags(atribuicoesQuery.data ?? []),
+      itens: pipelineItemsQuery.data?.items ?? [],
+      deals: dealsQuery.data ?? [],
+      pacientes: new Set(pacientesQuery.data ?? []),
+    }),
+    [atribuicoesQuery.data, pipelineItemsQuery.data, dealsQuery.data, pacientesQuery.data],
+  );
+
+  const grupos = useMemo(
+    () => ordenarGrupos(filtrarGrupos(todosOsGrupos, filtros, contexto), ordem),
+    [todosOsGrupos, filtros, contexto, ordem],
+  );
   // Chave em que um desfecho novo será gravado. Nunca nula aqui: `selected`
   // existe sempre que este cabeçalho está na tela.
   const chaveDoDesfecho = chaveDaNegociacao({
@@ -416,6 +495,19 @@ function ChatPage() {
               placeholder="Buscar conversa"
             />
           </div>
+
+          <div className="mt-3">
+            <FiltrosDaConversa
+              filtros={filtros}
+              onFiltros={setFiltros}
+              ordem={ordem}
+              onOrdem={trocarOrdem}
+              tags={tagsQuery.data ?? []}
+              etapas={pipelineStages}
+              quantidade={grupos.length}
+              total={todosOsGrupos.length}
+            />
+          </div>
           {/* O status em si já aparece no indicador acima — aqui só o
               caminho pra resolver, sem repetir o texto. */}
           {!connected && (
@@ -432,11 +524,27 @@ function ChatPage() {
         </header>
 
         <div className="flex-1 overflow-y-auto px-2 pb-4 lg:px-2">
-          {filtered.length === 0 && (
-            <div className="grid min-h-40 place-items-center px-6 text-center">
+          {/* Três vazios diferentes, e dizer qual é o certo importa: "nada
+              encontrado" numa caixa que tem 200 conversas escondidas por um
+              filtro faz a pessoa achar que perdeu as conversas. */}
+          {grupos.length === 0 && (
+            <div className="grid min-h-40 place-items-center gap-2 px-6 text-center">
               <p className="text-sm text-muted-foreground">
-                {conversations.length === 0 ? "Nenhuma conversa ainda." : "Nada encontrado."}
+                {conversations.length === 0
+                  ? "Nenhuma conversa ainda."
+                  : todosOsGrupos.length === 0
+                    ? "Nada encontrado."
+                    : "Nenhuma conversa neste recorte."}
               </p>
+              {todosOsGrupos.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFiltros({ ...FILTROS_VAZIOS, busca: filtros.busca })}
+                  className="press rounded-lg px-2 py-1 text-xs font-medium text-primary hover:bg-muted"
+                >
+                  Limpar filtros
+                </button>
+              )}
             </div>
           )}
           {grupos.map((g) => {
