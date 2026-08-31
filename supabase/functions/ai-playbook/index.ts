@@ -146,52 +146,109 @@ async function itensDoFunil(ownerId: string): Promise<Map<string, ItemDoFunil>> 
   return mapa;
 }
 
+/** `pipeline_deals.item_id` guarda `conv:<id>` quando o desfecho foi marcado
+ *  numa conversa sem card no funil. Ver `src/lib/atendimentos/deal-key.ts`. */
+const PREFIXO_CONVERSA = "conv:";
+
 /**
- * As vendas novas desde a última rodada.
+ * As vendas novas desde a última rodada, de DUAS fontes.
  *
- * Lê `pipeline_deal_events` — o registro LOCAL de movimentação de etapa, que é
- * onde `movePipelineItem` grava toda mudança. `item_id` ali é o id do CARD, não
- * da conversa, por isso o cruzamento com a lista de itens do funil.
+ * ── Por que duas ─────────────────────────────────────────────────────────
+ *
+ * `ganho`: alguém marcou a negociação como Ganho — no card ou direto na
+ * conversa. Nesta clínica é a fonte principal, porque o desfecho é marcado no
+ * chat e muitas vezes sem card nenhum no funil. Ler só etapa deixava a maior
+ * parte das vitórias invisível para o aprendizado, e o manual aprendia de uma
+ * amostra enviesada sem que ninguém tivesse como perceber.
+ *
+ * `etapa`: o card entrou numa etapa escolhida como vitória. Continua valendo
+ * para quem trabalha pelo funil.
+ *
+ * A mesma conversa nunca entra duas vezes: o índice único de
+ * `ai_playbook_sources` cuida disso, e a leitura de conhecidas evita a ida ao
+ * banco à toa.
  */
-async function coletarVendas(ownerId: string, playbookId: string, etapasDeVitoria: string[]) {
-  if (!etapasDeVitoria.length) {
-    return { novas: 0, motivo: "nenhuma etapa de vitória escolhida" };
-  }
-
-  const { data: eventos } = await supabase
-    .from("pipeline_deal_events")
-    .select("item_id, meta, created_at")
-    .eq("owner_id", ownerId)
-    .eq("kind", "stage")
-    .order("created_at", { ascending: false })
-    .limit(500);
-
-  const ganhos = (eventos ?? []).filter((e: any) =>
-    etapasDeVitoria.includes(String(e?.meta?.stageId ?? "")),
-  );
-  if (!ganhos.length) return { novas: 0, motivo: "nenhum card entrou numa etapa de vitória" };
-
+async function coletarVendas(
+  ownerId: string,
+  playbookId: string,
+  etapasDeVitoria: string[],
+  aprenderDeGanhos: boolean,
+) {
   const { data: jaConhecidas } = await supabase
     .from("ai_playbook_sources")
     .select("conversation_id")
     .eq("playbook_id", playbookId);
   const conhecidas = new Set((jaConhecidas ?? []).map((s: any) => String(s.conversation_id)));
 
-  const itens = await itensDoFunil(ownerId);
-  const novas: { conversation_id: string; contact_name: string | null }[] = [];
+  const novas: {
+    conversation_id: string;
+    contact_name: string | null;
+    source: "ganho" | "etapa";
+  }[] = [];
   const vistas = new Set<string>();
+  const registrar = (id: string, nome: string | null, source: "ganho" | "etapa") => {
+    if (!id || conhecidas.has(id) || vistas.has(id)) return;
+    vistas.add(id);
+    novas.push({ conversation_id: id, contact_name: nome, source });
+  };
 
-  for (const ev of ganhos) {
-    const item = itens.get(String(ev.item_id));
-    // Card que só existe como contato não tem transcrição para aprender. Some
-    // em silêncio de propósito: não é erro, é um card de outro tipo.
-    if (!item || item.tipo !== "conversation" || !item.itemId) continue;
-    if (conhecidas.has(item.itemId) || vistas.has(item.itemId)) continue;
-    vistas.add(item.itemId);
-    novas.push({ conversation_id: item.itemId, contact_name: item.titulo });
+  // Itens do funil só são buscados se alguma das fontes precisar deles — é uma
+  // ida ao CRM, e a fonte de Ganho marcado em conversa dispensa.
+  let itens: Map<string, ItemDoFunil> | null = null;
+  const doFunil = async () => (itens ??= await itensDoFunil(ownerId));
+
+  // ── Fonte 1: marcado como Ganho ─────────────────────────────────────────
+  if (aprenderDeGanhos) {
+    const { data: ganhos } = await supabase
+      .from("pipeline_deals")
+      .select("item_id, updated_at")
+      .eq("owner_id", ownerId)
+      .eq("status", "won")
+      .order("updated_at", { ascending: false })
+      .limit(500);
+
+    for (const d of ganhos ?? []) {
+      const chave = String(d?.item_id ?? "");
+      if (!chave) continue;
+      if (chave.startsWith(PREFIXO_CONVERSA)) {
+        // Ganho marcado na conversa: a chave JÁ é o id da conversa.
+        registrar(chave.slice(PREFIXO_CONVERSA.length), null, "ganho");
+        continue;
+      }
+      // Ganho no card: a chave é o id do card, e a conversa vem do funil.
+      const item = (await doFunil()).get(chave);
+      if (item?.tipo === "conversation") registrar(item.itemId, item.titulo, "ganho");
+    }
   }
 
-  if (!novas.length) return { novas: 0, motivo: "nenhuma venda nova desde a última rodada" };
+  // ── Fonte 2: entrou numa etapa de vitória ───────────────────────────────
+  if (etapasDeVitoria.length) {
+    const { data: eventos } = await supabase
+      .from("pipeline_deal_events")
+      .select("item_id, meta, created_at")
+      .eq("owner_id", ownerId)
+      .eq("kind", "stage")
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    const emEtapaDeVitoria = (eventos ?? []).filter((e: any) =>
+      etapasDeVitoria.includes(String(e?.meta?.stageId ?? "")),
+    );
+    for (const ev of emEtapaDeVitoria) {
+      // `item_id` aqui é o id do CARD, não da conversa — por isso o cruzamento.
+      // Card que só existe como contato não tem transcrição para aprender e some
+      // em silêncio: não é erro, é card de outro tipo.
+      const item = (await doFunil()).get(String(ev.item_id));
+      if (item?.tipo === "conversation") registrar(item.itemId, item.titulo, "etapa");
+    }
+  }
+
+  if (!novas.length) {
+    if (!aprenderDeGanhos && !etapasDeVitoria.length) {
+      return { novas: 0, motivo: "nenhuma fonte de aprendizado escolhida" };
+    }
+    return { novas: 0, motivo: "nenhuma venda nova desde a última rodada" };
+  }
 
   const { error } = await supabase.from("ai_playbook_sources").insert(
     novas.map((n) => ({
@@ -199,14 +256,23 @@ async function coletarVendas(ownerId: string, playbookId: string, etapasDeVitori
       playbook_id: playbookId,
       conversation_id: n.conversation_id,
       contact_name: n.contact_name,
-      // Toda fonte nasce como `pessoa`: hoje quem move card é gente. Quando o
-      // agente ganhar regra de mover card sozinho, quem gravar a movimentação
-      // dele marca `agente` — e o aprendizado continua lendo só as de pessoa.
+      source: n.source,
+      // Toda fonte nasce como `pessoa`: hoje quem marca Ganho e move card é
+      // gente. Quando o agente ganhar regra de mover card sozinho, quem gravar
+      // a movimentação dele marca `agente` — e o aprendizado continua lendo só
+      // as de pessoa.
       moved_by: "pessoa",
     })),
   );
   if (error) throw new Error(error.message);
-  return { novas: novas.length, motivo: null };
+  return {
+    novas: novas.length,
+    motivo: null,
+    porFonte: {
+      ganho: novas.filter((n) => n.source === "ganho").length,
+      etapa: novas.filter((n) => n.source === "etapa").length,
+    },
+  };
 }
 
 // ── Transcrição ────────────────────────────────────────────────────────────
@@ -333,12 +399,13 @@ async function garantirAgente(ownerId: string) {
 
 async function handleEstado(ownerId: string) {
   const [agente, playbook] = [await garantirAgente(ownerId), await garantirPlaybook(ownerId)];
-  const { count } = await supabase
+  const { data: fontes } = await supabase
     .from("ai_playbook_sources")
-    .select("id", { count: "exact", head: true })
+    .select("source")
     .eq("playbook_id", playbook.id)
     .eq("moved_by", "pessoa");
-  const vendas = count ?? 0;
+  const lista = fontes ?? [];
+  const vendas = lista.length;
   return {
     ok: true,
     agente,
@@ -349,6 +416,12 @@ async function handleEstado(ownerId: string) {
     // Só SE existe, nunca o valor. Sem isto, a falta da chave só aparecia como
     // erro depois de alguém clicar em "Aprender agora".
     temChave: temChave(),
+    // De onde o manual aprendeu. Responde "aprendeu com o quê?" — a pergunta
+    // que aparece assim que o número surpreende.
+    porFonte: {
+      ganho: lista.filter((f: any) => f.source === "ganho").length,
+      etapa: lista.filter((f: any) => f.source !== "ganho").length,
+    },
   };
 }
 
@@ -360,7 +433,7 @@ async function handleCiclo(ownerId: string) {
     ? agente.winning_stage_ids.map(String)
     : [];
 
-  const coleta = await coletarVendas(ownerId, playbook.id, etapas);
+  const coleta = await coletarVendas(ownerId, playbook.id, etapas, agente.learn_from_won !== false);
   if (coleta.novas === 0) {
     // Para aqui de propósito: reaprender sem venda nova gastaria uma chamada
     // de modelo para produzir o mesmo texto.

@@ -9,8 +9,12 @@ export interface EstadoDoAgente {
   nome: string;
   ligado: boolean;
   etapasDeVitoria: string[];
+  /** Aprender com conversas marcadas como Ganho. Ligado por padrão. */
+  aprenderDeGanhos: boolean;
   /** Quantas vendas sustentam o manual hoje. */
   vendas: number;
+  /** De onde vieram — responde "aprendeu com o quê?". */
+  porFonte: { ganho: number; etapa: number };
   /** Menos de três vendas: o manual existe, mas generaliza demais. */
   confiavel: boolean;
   faltam: number;
@@ -51,7 +55,12 @@ export const getEstadoDoAgente = createServerFn({ method: "GET" })
       nome: a.name ?? "Assistente da NÓS",
       ligado: !!a.enabled,
       etapasDeVitoria: Array.isArray(a.winning_stage_ids) ? a.winning_stage_ids.map(String) : [],
+      aprenderDeGanhos: a.learn_from_won !== false,
       vendas: Number(json.vendas ?? 0),
+      porFonte: {
+        ganho: Number(json.porFonte?.ganho ?? 0),
+        etapa: Number(json.porFonte?.etapa ?? 0),
+      },
       confiavel: !!json.confiavel,
       faltam: Number(json.faltam ?? 0),
       temChave: !!json.temChave,
@@ -91,13 +100,21 @@ export const aprenderAgora = createServerFn({ method: "POST" })
 
 export const salvarConfiguracaoDoAgente = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
-  .inputValidator((input: { nome?: string; ligado?: boolean; etapasDeVitoria?: string[] }) => input)
+  .inputValidator(
+    (input: {
+      nome?: string;
+      ligado?: boolean;
+      etapasDeVitoria?: string[];
+      aprenderDeGanhos?: boolean;
+    }) => input,
+  )
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
     const campos: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (data.nome !== undefined) campos.name = data.nome.trim() || "Assistente da NÓS";
     if (data.ligado !== undefined) campos.enabled = data.ligado;
     if (data.etapasDeVitoria !== undefined) campos.winning_stage_ids = data.etapasDeVitoria;
+    if (data.aprenderDeGanhos !== undefined) campos.learn_from_won = data.aprenderDeGanhos;
 
     const { error } = await supabase.from("ai_agents").update(campos).eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
@@ -430,4 +447,61 @@ export const devolverParaIa = createServerFn({ method: "POST" })
       .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+// ── Painel ─────────────────────────────────────────────────────────────────
+
+export interface PainelDoFunil {
+  ganhos: number;
+  perdidos: number;
+  emNegociacao: number;
+  /** Ganhos ÷ (ganhos + perdidos). Nulo enquanto não houver desfecho nenhum. */
+  conversao: number | null;
+  valorGanho: number;
+  /** Os motivos de perda mais frequentes, do maior para o menor. */
+  motivosDePerda: { motivo: string; quantos: number }[];
+}
+
+/**
+ * O retrato do funil, calculado sem IA nenhuma.
+ *
+ * É contagem e aritmética sobre `pipeline_deals`, que é local. Não chama
+ * modelo e não vai ao CRM: um painel que custa uma chamada de IA por abertura
+ * de página é um painel que ninguém deixa aberto.
+ */
+export const getPainelDoFunil = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .handler(async ({ context }): Promise<PainelDoFunil> => {
+    const supabase: any = context.supabase;
+    const { data, error } = await supabase
+      .from("pipeline_deals")
+      .select("status, value, loss_reason")
+      .eq("owner_id", context.ownerId);
+    if (error) throw new Error(error.message);
+
+    const linhas = data ?? [];
+    const ganhos = linhas.filter((d: any) => d.status === "won");
+    const perdidos = linhas.filter((d: any) => d.status === "lost");
+
+    const porMotivo = new Map<string, number>();
+    for (const p of perdidos) {
+      const m = String(p.loss_reason ?? "").trim();
+      if (!m) continue;
+      porMotivo.set(m, (porMotivo.get(m) ?? 0) + 1);
+    }
+
+    const desfechos = ganhos.length + perdidos.length;
+    return {
+      ganhos: ganhos.length,
+      perdidos: perdidos.length,
+      emNegociacao: linhas.filter((d: any) => d.status === "negotiating").length,
+      // Nulo, não zero: sem desfecho nenhum a taxa não existe, e mostrar 0%
+      // faria parecer que a clínica não fecha nada.
+      conversao: desfechos > 0 ? ganhos.length / desfechos : null,
+      valorGanho: ganhos.reduce((s: number, d: any) => s + Number(d.value ?? 0), 0),
+      motivosDePerda: [...porMotivo.entries()]
+        .map(([motivo, quantos]) => ({ motivo, quantos }))
+        .sort((a, b) => b.quantos - a.quantos)
+        .slice(0, 4),
+    };
   });
