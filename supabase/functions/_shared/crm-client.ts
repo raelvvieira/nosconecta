@@ -14,7 +14,10 @@ export interface RawResponse {
 // pipeline): virava TimeoutError mesmo quando o CRM ia responder. 30s por
 // tentativa, com uma segunda tentativa automática, cabe folgado dentro do
 // limite de quem chama (55s no lado do app) e some com a maioria dos erros.
-const REQUEST_TIMEOUT_MS = 30_000;
+// 30s por tentativa somava 60s com a segunda tentativa e estourava o teto de
+// 55s de quem chama — o app cancelava antes e a tela quebrava. 20s x2 = 40s
+// cabe dentro do orçamento e ainda dá folga para listas grandes.
+const REQUEST_TIMEOUT_MS = 20_000;
 
 export async function rawFetch(baseUrl: string, path: string, init: RequestInit = {}, attempt = 1): Promise<RawResponse> {
   // Com FormData (envio de anexo), o content-type NÃO pode ser definido por
