@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgendaRouteImport } from './routes/agenda'
+import { Route as AgenteIaRouteImport } from './routes/agente-ia'
 import { Route as AtendimentosRouteImport } from './routes/atendimentos'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CadastroEquipeRouteImport } from './routes/cadastro-equipe'
@@ -21,6 +22,9 @@ import { Route as PacientesRouteImport } from './routes/pacientes'
 import { Route as PagamentosRouteImport } from './routes/pagamentos'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
 import { Route as RecebimentosRouteImport } from './routes/recebimentos'
+import { Route as AgenteIaIndexRouteImport } from './routes/agente-ia.index'
+import { Route as AgenteIaManualRouteImport } from './routes/agente-ia.manual'
+import { Route as AgenteIaProcedimentosRouteImport } from './routes/agente-ia.procedimentos'
 import { Route as AtendimentosIndexRouteImport } from './routes/atendimentos.index'
 import { Route as AtendimentosAutomacoesRouteImport } from './routes/atendimentos.automacoes'
 import { Route as AtendimentosCampanhasRouteImport } from './routes/atendimentos.campanhas'
@@ -44,6 +48,11 @@ const IndexRoute = IndexRouteImport.update({
 const AgendaRoute = AgendaRouteImport.update({
   id: '/agenda',
   path: '/agenda',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgenteIaRoute = AgenteIaRouteImport.update({
+  id: '/agente-ia',
+  path: '/agente-ia',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AtendimentosRoute = AtendimentosRouteImport.update({
@@ -95,6 +104,21 @@ const RecebimentosRoute = RecebimentosRouteImport.update({
   id: '/recebimentos',
   path: '/recebimentos',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AgenteIaIndexRoute = AgenteIaIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AgenteIaRoute,
+} as any)
+const AgenteIaManualRoute = AgenteIaManualRouteImport.update({
+  id: '/manual',
+  path: '/manual',
+  getParentRoute: () => AgenteIaRoute,
+} as any)
+const AgenteIaProcedimentosRoute = AgenteIaProcedimentosRouteImport.update({
+  id: '/procedimentos',
+  path: '/procedimentos',
+  getParentRoute: () => AgenteIaRoute,
 } as any)
 const AtendimentosIndexRoute = AtendimentosIndexRouteImport.update({
   id: '/',
@@ -175,6 +199,7 @@ const AtendimentosAutomacoesFunilFunilRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
+  '/agente-ia': typeof AgenteIaRouteWithChildren
   '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
   '/cadastro-equipe': typeof CadastroEquipeRoute
@@ -185,6 +210,8 @@ export interface FileRoutesByFullPath {
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/agente-ia/manual': typeof AgenteIaManualRoute
+  '/agente-ia/procedimentos': typeof AgenteIaProcedimentosRoute
   '/atendimentos/automacoes': typeof AtendimentosAutomacoesRouteWithChildren
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
@@ -193,6 +220,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
+  '/agente-ia/': typeof AgenteIaIndexRoute
   '/atendimentos/': typeof AtendimentosIndexRoute
   '/configuracoes/': typeof ConfiguracoesIndexRoute
   '/pacientes/': typeof PacientesIndexRoute
@@ -210,6 +238,8 @@ export interface FileRoutesByTo {
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/agente-ia/manual': typeof AgenteIaManualRoute
+  '/agente-ia/procedimentos': typeof AgenteIaProcedimentosRoute
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
@@ -217,6 +247,7 @@ export interface FileRoutesByTo {
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
+  '/agente-ia': typeof AgenteIaIndexRoute
   '/atendimentos': typeof AtendimentosIndexRoute
   '/configuracoes': typeof ConfiguracoesIndexRoute
   '/pacientes': typeof PacientesIndexRoute
@@ -228,6 +259,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
+  '/agente-ia': typeof AgenteIaRouteWithChildren
   '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
   '/cadastro-equipe': typeof CadastroEquipeRoute
@@ -238,6 +270,8 @@ export interface FileRoutesById {
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
+  '/agente-ia/manual': typeof AgenteIaManualRoute
+  '/agente-ia/procedimentos': typeof AgenteIaProcedimentosRoute
   '/atendimentos/automacoes': typeof AtendimentosAutomacoesRouteWithChildren
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
@@ -246,6 +280,7 @@ export interface FileRoutesById {
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
+  '/agente-ia/': typeof AgenteIaIndexRoute
   '/atendimentos/': typeof AtendimentosIndexRoute
   '/configuracoes/': typeof ConfiguracoesIndexRoute
   '/pacientes/': typeof PacientesIndexRoute
@@ -258,6 +293,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/agenda'
+    | '/agente-ia'
     | '/atendimentos'
     | '/auth'
     | '/cadastro-equipe'
@@ -268,6 +304,8 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/agente-ia/manual'
+    | '/agente-ia/procedimentos'
     | '/atendimentos/automacoes'
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
@@ -276,6 +314,7 @@ export interface FileRouteTypes {
     | '/configuracoes/notificacoes'
     | '/configuracoes/tags'
     | '/pacientes/$patientId'
+    | '/agente-ia/'
     | '/atendimentos/'
     | '/configuracoes/'
     | '/pacientes/'
@@ -293,6 +332,8 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/agente-ia/manual'
+    | '/agente-ia/procedimentos'
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
@@ -300,6 +341,7 @@ export interface FileRouteTypes {
     | '/configuracoes/notificacoes'
     | '/configuracoes/tags'
     | '/pacientes/$patientId'
+    | '/agente-ia'
     | '/atendimentos'
     | '/configuracoes'
     | '/pacientes'
@@ -310,6 +352,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/agenda'
+    | '/agente-ia'
     | '/atendimentos'
     | '/auth'
     | '/cadastro-equipe'
@@ -320,6 +363,8 @@ export interface FileRouteTypes {
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
+    | '/agente-ia/manual'
+    | '/agente-ia/procedimentos'
     | '/atendimentos/automacoes'
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
@@ -328,6 +373,7 @@ export interface FileRouteTypes {
     | '/configuracoes/notificacoes'
     | '/configuracoes/tags'
     | '/pacientes/$patientId'
+    | '/agente-ia/'
     | '/atendimentos/'
     | '/configuracoes/'
     | '/pacientes/'
@@ -339,6 +385,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
+  AgenteIaRoute: typeof AgenteIaRouteWithChildren
   AtendimentosRoute: typeof AtendimentosRouteWithChildren
   AuthRoute: typeof AuthRoute
   CadastroEquipeRoute: typeof CadastroEquipeRoute
@@ -365,6 +412,13 @@ declare module '@tanstack/react-router' {
       path: '/agenda'
       fullPath: '/agenda'
       preLoaderRoute: typeof AgendaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agente-ia': {
+      id: '/agente-ia'
+      path: '/agente-ia'
+      fullPath: '/agente-ia'
+      preLoaderRoute: typeof AgenteIaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/atendimentos': {
@@ -436,6 +490,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/recebimentos'
       preLoaderRoute: typeof RecebimentosRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/agente-ia/': {
+      id: '/agente-ia/'
+      path: '/'
+      fullPath: '/agente-ia/'
+      preLoaderRoute: typeof AgenteIaIndexRouteImport
+      parentRoute: typeof AgenteIaRoute
+    }
+    '/agente-ia/manual': {
+      id: '/agente-ia/manual'
+      path: '/manual'
+      fullPath: '/agente-ia/manual'
+      preLoaderRoute: typeof AgenteIaManualRouteImport
+      parentRoute: typeof AgenteIaRoute
+    }
+    '/agente-ia/procedimentos': {
+      id: '/agente-ia/procedimentos'
+      path: '/procedimentos'
+      fullPath: '/agente-ia/procedimentos'
+      preLoaderRoute: typeof AgenteIaProcedimentosRouteImport
+      parentRoute: typeof AgenteIaRoute
     }
     '/atendimentos/': {
       id: '/atendimentos/'
@@ -538,6 +613,22 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AgenteIaRouteChildren {
+  AgenteIaManualRoute: typeof AgenteIaManualRoute
+  AgenteIaProcedimentosRoute: typeof AgenteIaProcedimentosRoute
+  AgenteIaIndexRoute: typeof AgenteIaIndexRoute
+}
+
+const AgenteIaRouteChildren: AgenteIaRouteChildren = {
+  AgenteIaManualRoute: AgenteIaManualRoute,
+  AgenteIaProcedimentosRoute: AgenteIaProcedimentosRoute,
+  AgenteIaIndexRoute: AgenteIaIndexRoute,
+}
+
+const AgenteIaRouteWithChildren = AgenteIaRoute._addFileChildren(
+  AgenteIaRouteChildren,
+)
+
 interface AtendimentosAutomacoesRouteChildren {
   AtendimentosAutomacoesAutomationIdRoute: typeof AtendimentosAutomacoesAutomationIdRoute
   AtendimentosAutomacoesIndexRoute: typeof AtendimentosAutomacoesIndexRoute
@@ -613,6 +704,7 @@ const PacientesRouteWithChildren = PacientesRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
+  AgenteIaRoute: AgenteIaRouteWithChildren,
   AtendimentosRoute: AtendimentosRouteWithChildren,
   AuthRoute: AuthRoute,
   CadastroEquipeRoute: CadastroEquipeRoute,

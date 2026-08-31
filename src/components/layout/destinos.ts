@@ -2,6 +2,7 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Bot,
+  BookOpen,
   CalendarDays,
   Home,
   LayoutDashboard,
@@ -11,6 +12,8 @@ import {
   MessageCircle,
   Percent,
   Settings,
+  Sparkles,
+  Stethoscope,
   TrendingUp,
   Users,
   Wallet,
@@ -33,6 +36,9 @@ export type RotaDoMenu =
   | "/agenda"
   | "/pacientes"
   | "/atendimentos"
+  | "/agente-ia"
+  | "/agente-ia/manual"
+  | "/agente-ia/procedimentos"
   | "/configuracoes"
   | "/financeiro"
   | "/recebimentos"
@@ -71,6 +77,7 @@ export const MODULOS: Destino[] = [
   { label: "Agenda", icon: CalendarDays, to: "/agenda" },
   { label: "Pacientes", icon: Users, to: "/pacientes" },
   { label: "Atendimentos", icon: MessageCircle, to: "/atendimentos" },
+  { label: "Agente de IA", icon: Sparkles, to: "/agente-ia" },
   { label: "Financeiro", icon: Wallet, to: "/financeiro" },
   { label: "Configurações", icon: Settings, to: "/configuracoes" },
 ];
@@ -81,6 +88,20 @@ export const ITENS_FINANCEIRO: ItemDoMenu[] = [
   { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" },
   { label: "Planejamento", icon: TrendingUp, to: "/planejamento" },
   { label: "Comissões", icon: Percent, to: "/comissoes", placeholder: true },
+];
+
+/** O agente e as duas coisas que uma pessoa configura nele: o manual que ele
+ *  aprendeu e o recorte do catálogo que ele pode citar.
+ *
+ *  Procedimentos aparece aqui, e NÃO como módulo próprio, porque não é um
+ *  catálogo novo: é o mesmo `clinic_procedures` da Agenda e do Financeiro, com
+ *  a marcação do que o agente tem permissão de precificar. Um segundo catálogo
+ *  divergiria do primeiro, e preço errado dito a um paciente é o pior defeito
+ *  possível aqui. */
+export const ITENS_AGENTE_IA: Destino[] = [
+  { label: "Agente", icon: Sparkles, to: "/agente-ia" },
+  { label: "Manual", icon: BookOpen, to: "/agente-ia/manual" },
+  { label: "Procedimentos", icon: Stethoscope, to: "/agente-ia/procedimentos" },
 ];
 
 export const ITENS_ATENDIMENTOS: Destino[] = [
@@ -101,13 +122,15 @@ export const ITENS_ATENDIMENTOS: Destino[] = [
 export const SUBMENUS: Record<string, { titulo: string; itens: ItemDoMenu[] }> = {
   financeiro: { titulo: "Financeiro", itens: ITENS_FINANCEIRO },
   atendimentos: { titulo: "Atendimentos", itens: ITENS_ATENDIMENTOS },
+  "agente-ia": { titulo: "Agente de IA", itens: ITENS_AGENTE_IA },
 };
 
 /** Grupos da gaveta "Mais" do celular. Deriva das mesmas listas acima, então
  *  não tem como um item existir aqui com outro ícone — ou nem existir. */
 export const GRUPOS_DO_MAIS: { label: string; itens: ItemDoMenu[] }[] = [
-  { label: "Módulos", itens: MODULOS.filter((m) => m.to !== "/atendimentos" && m.to !== "/financeiro") },
+  { label: "Módulos", itens: MODULOS.filter((m) => m.to !== "/atendimentos" && m.to !== "/financeiro" && m.to !== "/agente-ia") },
   { label: "Atendimentos", itens: ITENS_ATENDIMENTOS },
+  { label: "Agente de IA", itens: ITENS_AGENTE_IA },
   { label: "Financeiro", itens: ITENS_FINANCEIRO.filter((i) => i.placeholder !== true) },
 ];
 
