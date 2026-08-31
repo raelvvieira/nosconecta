@@ -34,7 +34,14 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
+        // `max-h` + rolagem: o diálogo é `top-50%` com `translate-y-[-50%]` e
+        // não tinha teto de altura nenhum. Conteúdo maior que a tela crescia
+        // para os dois lados e o rodapé — onde fica o botão que confirma a
+        // ação — saía por baixo da janela, sem barra de rolagem para
+        // alcançá-lo: a página atrás está travada enquanto o diálogo abre.
+        // `dvh` e não `vh` porque no celular a barra do navegador entra na
+        // conta de `vh` e o rodapé ficaria embaixo dela.
+        "fixed left-[50%] top-[50%] z-50 grid max-h-[90dvh] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
         className,
       )}
       {...props}

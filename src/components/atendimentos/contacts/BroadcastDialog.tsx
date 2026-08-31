@@ -27,10 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  getMessageTemplates,
-  saveMessageTemplate,
-} from "@/lib/atendimentos/campaigns.functions";
+import { getMessageTemplates, saveMessageTemplate } from "@/lib/atendimentos/campaigns.functions";
 import type { RitmoDoDisparo } from "@/lib/atendimentos/broadcast.functions";
 import {
   VARIAVEIS_DE_DISPARO,
@@ -224,8 +221,18 @@ export function BroadcastDialog({
 
   return (
     <AlertDialog open={aberto} onOpenChange={(o) => !o && onOpenChange(false)}>
-      <AlertDialogContent className="max-w-[640px]" data-disparo-revisao="">
-        <AlertDialogHeader>
+      {/* Três faixas: título, miolo que rola, rodapé preso embaixo.
+          O diálogo cresce até 90% da altura da tela e para — antes ele crescia
+          junto com a mensagem e o botão "Disparar" saía por baixo da janela.
+          `overflow-hidden` aqui em vez da rolagem herdada: quem rola é o miolo,
+          para o rodapé continuar visível o tempo todo.
+          Mais largo no monitor grande: largura tira altura, e é altura que
+          faltava. */}
+      <AlertDialogContent
+        className="flex max-h-[90dvh] w-[calc(100vw-2rem)] max-w-[640px] flex-col gap-0 overflow-hidden p-0 lg:max-w-[880px]"
+        data-disparo-revisao=""
+      >
+        <AlertDialogHeader className="shrink-0 border-b border-border px-6 py-5">
           <AlertDialogTitle>
             Disparar para {total} contato{total === 1 ? "" : "s"}?
           </AlertDialogTitle>
@@ -234,269 +241,284 @@ export function BroadcastDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className="grid gap-5 sm:grid-cols-[1fr_auto]">
-          <div className="space-y-5">
-            {/* ── Nome ─────────────────────────────────────────────────── */}
-            <section className="space-y-2">
-              <Label htmlFor="disparo-nome" className="text-sm font-medium">
-                Nome do disparo
-              </Label>
-              <Input
-                id="disparo-nome"
-                data-disparo-nome=""
-                value={nome}
-                maxLength={60}
-                onChange={(e) => setNome(e.target.value)}
-                placeholder="Combo clareamento"
-                className="h-11 rounded-xl bg-white"
-              />
-              <p className="text-2xs text-muted-foreground">
-                É por ele que você acompanha o envio na lista de Campanhas.
-              </p>
-            </section>
-
-            {/* ── Mensagem ─────────────────────────────────────────────── */}
-            <section className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label htmlFor="disparo-msg" className="text-sm font-medium">
-                  Mensagem
+        <div className="custom-scroll min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="space-y-5">
+              {/* ── Nome ─────────────────────────────────────────────────── */}
+              <section className="space-y-2">
+                <Label htmlFor="disparo-nome" className="text-sm font-medium">
+                  Nome do disparo
                 </Label>
-                {(modelosQuery.data ?? []).length > 0 && (
-                  <Select
-                    onValueChange={(id) => {
-                      const m = (modelosQuery.data ?? []).find((t) => t.id === id);
-                      if (m) {
-                        setMensagem(m.content);
-                        setErro(null);
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-48 rounded-full text-2xs">
-                      <SelectValue placeholder="Usar um modelo salvo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(modelosQuery.data ?? []).map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-
-              <Textarea
-                id="disparo-msg"
-                ref={caixaRef}
-                data-disparo-mensagem=""
-                value={mensagem}
-                onChange={(e) => {
-                  setMensagem(e.target.value);
-                  if (erro) setErro(null);
-                }}
-                placeholder="Oi {{primeiro_nome}}, tudo bem? Temos um horário…"
-                className="min-h-28 rounded-xl bg-white"
-              />
-
-              {/* As variáveis ficam colados na caixa, não num painel à parte:
-                  é aqui que se percebe que dá para chamar a pessoa pelo nome. */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-2xs text-muted-foreground">Inserir:</span>
-                {VARIAVEIS_DE_DISPARO.map((v) => (
-                  <button
-                    key={v.chave}
-                    type="button"
-                    data-variavel={v.chave}
-                    onClick={() => inserirVariavel(v.chave)}
-                    className={cn(
-                      "press h-8 rounded-full border border-border bg-white px-3 font-mono text-2xs",
-                      "text-foreground-secondary transition-colors hover:border-coral hover:text-coral",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coral focus-visible:ring-offset-1",
-                    )}
-                    title={`${v.rotulo} — ex.: ${v.exemplo}`}
-                  >
-                    {`{{${v.chave}}}`}
-                  </button>
-                ))}
-              </div>
-
-              {erro && (
-                <p data-disparo-erro="" className="text-2xs text-danger">
-                  {erro}
-                </p>
-              )}
-
-              {desconhecidas.length > 0 && (
-                <p className="flex gap-2 rounded-xl bg-warning-soft px-3 py-2 text-2xs leading-4 text-warning">
-                  <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-                  {desconhecidas.map((d) => `{{${d}}}`).join(", ")}{" "}
-                  {desconhecidas.length === 1 ? "não existe" : "não existem"} num disparo e{" "}
-                  {desconhecidas.length === 1 ? "vai sair" : "vão sair"} escrito assim mesmo na
-                  mensagem. Um disparo só conhece o nome do contato.
-                </p>
-              )}
-
-              <label className="flex items-center gap-2 pt-0.5">
-                <Checkbox
-                  checked={salvarComoModelo}
-                  onCheckedChange={(v) => setSalvarComoModelo(v === true)}
-                  disabled={!mensagem.trim()}
+                <Input
+                  id="disparo-nome"
+                  data-disparo-nome=""
+                  value={nome}
+                  maxLength={60}
+                  onChange={(e) => setNome(e.target.value)}
+                  placeholder="Combo clareamento"
+                  className="h-11 rounded-xl bg-white"
                 />
-                <span className="text-2xs text-muted-foreground">Salvar como modelo</span>
-              </label>
-              {salvarComoModelo && (
-                <div className="flex gap-2">
-                  <Input
-                    value={nomeDoModelo}
-                    onChange={(e) => setNomeDoModelo(e.target.value)}
-                    placeholder="Nome do modelo"
-                    className="h-9 flex-1 text-2xs"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-9 text-2xs"
-                    disabled={!nomeDoModelo.trim() || guardarModelo.isPending}
-                    onClick={() => guardarModelo.mutate()}
-                  >
-                    {guardarModelo.isPending ? "Salvando…" : "Salvar"}
-                  </Button>
-                </div>
-              )}
-            </section>
-
-            {/* ── Imagem ───────────────────────────────────────────────── */}
-            <section className="space-y-2">
-              <Label className="flex items-center gap-1.5 text-sm font-medium">
-                <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                Imagem <span className="font-normal text-muted-foreground">(opcional)</span>
-              </Label>
-              <CampoDeImagem imagem={imagem} onChange={setImagem} disabled={isPending} />
-              {imagem && semConversa > 0 && (
-                <p
-                  data-imagem-limite=""
-                  className="flex gap-2 rounded-xl bg-warning-soft px-3 py-2 text-2xs leading-4 text-warning"
-                >
-                  <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-                  <span>
-                    <strong>{semConversa}</strong> {semConversa === 1 ? "contato" : "contatos"} sem
-                    conversa aberta {semConversa === 1 ? "recebe" : "recebem"} só o texto — a imagem
-                    só pode ser anexada a uma conversa que já existe. Os {comConversa} com conversa
-                    recebem a foto com a mensagem como legenda.
-                  </span>
+                <p className="text-2xs text-muted-foreground">
+                  É por ele que você acompanha o envio na lista de Campanhas.
                 </p>
-              )}
-            </section>
+              </section>
 
-            {/* ── Ritmo ────────────────────────────────────────────────── */}
-            <section className="space-y-2">
-              <Label className="flex items-center gap-1.5 text-sm font-medium">
-                <Gauge className="h-3.5 w-3.5 text-muted-foreground" />
-                Ritmo do envio
-              </Label>
-              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Ritmo do envio">
-                {RITMOS.map((r) => {
-                  const ativo = r.id === ritmoId;
-                  return (
-                    <button
-                      key={r.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={ativo}
-                      data-ritmo={r.id}
-                      onClick={() => setRitmoId(r.id)}
-                      className={cn(
-                        "press rounded-xl border px-3 py-2.5 text-left transition-colors",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coral focus-visible:ring-offset-1",
-                        ativo
-                          ? "border-coral bg-coral-soft"
-                          : "border-border bg-white hover:border-foreground-secondary/40",
-                      )}
+              {/* ── Mensagem ─────────────────────────────────────────────── */}
+              <section className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label htmlFor="disparo-msg" className="text-sm font-medium">
+                    Mensagem
+                  </Label>
+                  {(modelosQuery.data ?? []).length > 0 && (
+                    <Select
+                      onValueChange={(id) => {
+                        const m = (modelosQuery.data ?? []).find((t) => t.id === id);
+                        if (m) {
+                          setMensagem(m.content);
+                          setErro(null);
+                        }
+                      }}
                     >
-                      <span
+                      <SelectTrigger className="h-9 w-48 rounded-full text-2xs">
+                        <SelectValue placeholder="Usar um modelo salvo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(modelosQuery.data ?? []).map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                <Textarea
+                  id="disparo-msg"
+                  ref={caixaRef}
+                  data-disparo-mensagem=""
+                  value={mensagem}
+                  onChange={(e) => {
+                    setMensagem(e.target.value);
+                    if (erro) setErro(null);
+                  }}
+                  placeholder="Oi {{primeiro_nome}}, tudo bem? Temos um horário…"
+                  className="min-h-28 rounded-xl bg-white"
+                />
+
+                {/* As variáveis ficam colados na caixa, não num painel à parte:
+                  é aqui que se percebe que dá para chamar a pessoa pelo nome. */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-2xs text-muted-foreground">Inserir:</span>
+                  {VARIAVEIS_DE_DISPARO.map((v) => (
+                    <button
+                      key={v.chave}
+                      type="button"
+                      data-variavel={v.chave}
+                      onClick={() => inserirVariavel(v.chave)}
+                      className={cn(
+                        "press h-8 rounded-full border border-border bg-white px-3 font-mono text-2xs",
+                        "text-foreground-secondary transition-colors hover:border-coral hover:text-coral",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coral focus-visible:ring-offset-1",
+                      )}
+                      title={`${v.rotulo} — ex.: ${v.exemplo}`}
+                    >
+                      {`{{${v.chave}}}`}
+                    </button>
+                  ))}
+                </div>
+
+                {erro && (
+                  <p data-disparo-erro="" className="text-2xs text-danger">
+                    {erro}
+                  </p>
+                )}
+
+                {desconhecidas.length > 0 && (
+                  <p className="flex gap-2 rounded-xl bg-warning-soft px-3 py-2 text-2xs leading-4 text-warning">
+                    <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                    {desconhecidas.map((d) => `{{${d}}}`).join(", ")}{" "}
+                    {desconhecidas.length === 1 ? "não existe" : "não existem"} num disparo e{" "}
+                    {desconhecidas.length === 1 ? "vai sair" : "vão sair"} escrito assim mesmo na
+                    mensagem. Um disparo só conhece o nome do contato.
+                  </p>
+                )}
+
+                <label className="flex items-center gap-2 pt-0.5">
+                  <Checkbox
+                    checked={salvarComoModelo}
+                    onCheckedChange={(v) => setSalvarComoModelo(v === true)}
+                    disabled={!mensagem.trim()}
+                  />
+                  <span className="text-2xs text-muted-foreground">Salvar como modelo</span>
+                </label>
+                {salvarComoModelo && (
+                  <div className="flex gap-2">
+                    <Input
+                      value={nomeDoModelo}
+                      onChange={(e) => setNomeDoModelo(e.target.value)}
+                      placeholder="Nome do modelo"
+                      className="h-9 flex-1 text-2xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 text-2xs"
+                      disabled={!nomeDoModelo.trim() || guardarModelo.isPending}
+                      onClick={() => guardarModelo.mutate()}
+                    >
+                      {guardarModelo.isPending ? "Salvando…" : "Salvar"}
+                    </Button>
+                  </div>
+                )}
+              </section>
+
+              {/* ── Imagem ───────────────────────────────────────────────── */}
+              <section className="space-y-2">
+                <Label className="flex items-center gap-1.5 text-sm font-medium">
+                  <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                  Imagem <span className="font-normal text-muted-foreground">(opcional)</span>
+                </Label>
+                <CampoDeImagem imagem={imagem} onChange={setImagem} disabled={isPending} />
+                {imagem && semConversa > 0 && (
+                  <p
+                    data-imagem-limite=""
+                    className="flex gap-2 rounded-xl bg-warning-soft px-3 py-2 text-2xs leading-4 text-warning"
+                  >
+                    <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                    <span>
+                      <strong>{semConversa}</strong> {semConversa === 1 ? "contato" : "contatos"}{" "}
+                      sem conversa aberta {semConversa === 1 ? "recebe" : "recebem"} só o texto — a
+                      imagem só pode ser anexada a uma conversa que já existe. Os {comConversa} com
+                      conversa recebem a foto com a mensagem como legenda.
+                    </span>
+                  </p>
+                )}
+              </section>
+
+              {/* ── Ritmo ────────────────────────────────────────────────── */}
+              <section className="space-y-2">
+                <Label className="flex items-center gap-1.5 text-sm font-medium">
+                  <Gauge className="h-3.5 w-3.5 text-muted-foreground" />
+                  Ritmo do envio
+                </Label>
+                <div
+                  className="grid grid-cols-3 gap-2"
+                  role="radiogroup"
+                  aria-label="Ritmo do envio"
+                >
+                  {RITMOS.map((r) => {
+                    const ativo = r.id === ritmoId;
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={ativo}
+                        data-ritmo={r.id}
+                        onClick={() => setRitmoId(r.id)}
                         className={cn(
-                          "block text-sm font-semibold",
-                          ativo ? "text-coral" : "text-foreground",
+                          "press rounded-xl border px-3 py-2.5 text-left transition-colors",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coral focus-visible:ring-offset-1",
+                          ativo
+                            ? "border-coral bg-coral-soft"
+                            : "border-border bg-white hover:border-foreground-secondary/40",
                         )}
                       >
-                        {r.rotulo}
-                      </span>
-                      <span className="mt-0.5 block text-2xs leading-4 text-muted-foreground">
-                        {r.nota}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-2xs leading-4 text-muted-foreground">
-                O intervalo sorteia dentro da faixa a cada mensagem — cadência exata é o que
-                denuncia envio automático. A fila leva cerca de{" "}
-                <strong className="text-foreground">{textoDeDuracao(minutos)}</strong> e continua
-                mesmo com o aplicativo fechado.
-              </p>
-            </section>
+                        <span
+                          className={cn(
+                            "block text-sm font-semibold",
+                            ativo ? "text-coral" : "text-foreground",
+                          )}
+                        >
+                          {r.rotulo}
+                        </span>
+                        <span className="mt-0.5 block text-2xs leading-4 text-muted-foreground">
+                          {r.nota}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-2xs leading-4 text-muted-foreground">
+                  O intervalo sorteia dentro da faixa a cada mensagem — cadência exata é o que
+                  denuncia envio automático. A fila leva cerca de{" "}
+                  <strong className="text-foreground">{textoDeDuracao(minutos)}</strong> e continua
+                  mesmo com o aplicativo fechado.
+                </p>
+              </section>
 
-            {/* ── Quem recebe e por onde ───────────────────────────────── */}
-            <div className="space-y-1.5 rounded-xl bg-surface px-3 py-2.5 text-2xs leading-4">
-              <p className="flex items-center gap-2 text-foreground-secondary">
-                <MessageCircle className="h-3.5 w-3.5 shrink-0 text-success" />
-                <span data-com-conversa="">
-                  <strong>{comConversa}</strong> com conversa aberta — envio direto.
-                </span>
-              </p>
-              {semConversa > 0 && (
-                <p className="flex items-center gap-2 text-foreground-secondary">
-                  <UserX className="h-3.5 w-3.5 shrink-0 text-warning" />
-                  <span data-sem-conversa="">
-                    <strong>{semConversa}</strong> sem conversa — tentamos abrir pelo contato, mas
-                    esse caminho ainda não foi confirmado pelo CRM e pode falhar.
+              {/* ── Quem recebe, e o que sobra ───────────────────────────────
+                Eram quatro caixas empilhadas — quem recebe, sobra hoje, o aviso
+                de limite e a nota da cota. Todas texto de referência, nenhuma
+                editável, e juntas empurravam o rodapé para fora da tela. Viram
+                um bloco só, com a cota na mesma linha do título. */}
+              <div className="space-y-2 rounded-xl bg-surface px-3.5 py-3">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm font-medium">Quem recebe</span>
+                  <span className="text-2xs text-muted-foreground">
+                    sobra hoje{" "}
+                    <strong
+                      className={cn(
+                        "tabular-nums",
+                        estouraLimite ? "text-danger" : "text-foreground",
+                      )}
+                    >
+                      {restante} de {usage.limit}
+                    </strong>
                   </span>
+                </div>
+
+                <p className="flex items-center gap-2 text-2xs leading-4 text-foreground-secondary">
+                  <MessageCircle className="h-3.5 w-3.5 shrink-0 text-success" />
+                  <span data-com-conversa="">
+                    <strong>{comConversa}</strong> com conversa aberta — envio direto.
+                  </span>
+                </p>
+                {semConversa > 0 && (
+                  <p className="flex items-center gap-2 text-2xs leading-4 text-foreground-secondary">
+                    <UserX className="h-3.5 w-3.5 shrink-0 text-warning" />
+                    <span data-sem-conversa="">
+                      <strong>{semConversa}</strong> sem conversa — tentamos abrir pelo contato, mas
+                      esse caminho ainda não foi confirmado pelo CRM e pode falhar.
+                    </span>
+                  </p>
+                )}
+                <p className="flex gap-2 text-2xs leading-4 text-muted-foreground">
+                  <Info className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />A cota do dia é
+                  debitada inteira no disparo — cancelar no meio não devolve.
+                </p>
+              </div>
+
+              {estouraLimite && (
+                <p className="flex gap-2 rounded-xl bg-danger-soft px-3 py-2 text-2xs leading-4 text-danger">
+                  <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />A seleção
+                  passa do limite diário. O disparo será recusado.
                 </p>
               )}
             </div>
 
-            <div className="flex items-baseline justify-between gap-3 text-sm">
-              <span className="text-muted-foreground">Sobra hoje</span>
-              <span
-                className={cn(
-                  "font-semibold tabular-nums",
-                  estouraLimite ? "text-danger" : "text-foreground",
-                )}
-              >
-                {restante} de {usage.limit}
-              </span>
-            </div>
-
-            {estouraLimite && (
-              <p className="flex gap-2 rounded-xl bg-danger-soft px-3 py-2 text-2xs leading-4 text-danger">
-                <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-                A seleção passa do limite diário. O disparo será recusado.
-              </p>
-            )}
-
-            <p className="flex gap-2 rounded-xl bg-surface px-3 py-2 text-2xs leading-4 text-muted-foreground">
-              <Info className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-              A cota do dia é debitada inteira no disparo — cancelar no meio não devolve.
-            </p>
-          </div>
-
-          <div className="sm:w-[210px]">
-            {/* A prévia mostra a mensagem JÁ com as variáveis trocadas, pelo nome
+            {/* Grudada no topo enquanto o miolo rola: a prévia é o que se confere
+              ao mexer no texto e na imagem, e rolar até ela para depois voltar
+              ao campo torna a conferência inútil. */}
+            <div className="sm:sticky sm:top-0 sm:w-[210px] sm:self-start lg:w-[240px]">
+              {/* A prévia mostra a mensagem JÁ com as variáveis trocadas, pelo nome
                 de alguém real da seleção — é o único jeito de perceber antes de
                 disparar que {{primeiro_nome}} vai sair torto num contato salvo
                 como "Consultório Centro". */}
-            <PhonePreview content={previa} mediaUrl={imagem?.previa ?? null} />
-            {exemploDeNome && mensagem.includes("{{") && (
-              <p className="mt-2 text-center text-2xs leading-4 text-muted-foreground">
-                Prévia com o nome de <strong className="text-foreground">{exemploDeNome}</strong>,
-                da sua seleção.
-              </p>
-            )}
+              <PhonePreview content={previa} mediaUrl={imagem?.previa ?? null} />
+              {exemploDeNome && mensagem.includes("{{") && (
+                <p className="mt-2 text-center text-2xs leading-4 text-muted-foreground">
+                  Prévia com o nome de <strong className="text-foreground">{exemploDeNome}</strong>,
+                  da sua seleção.
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
-        <AlertDialogFooter>
+        <AlertDialogFooter className="shrink-0 border-t border-border bg-background px-6 py-4">
           <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
             data-disparo-confirmar=""
