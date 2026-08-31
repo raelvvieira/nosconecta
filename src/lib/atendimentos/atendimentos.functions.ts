@@ -185,8 +185,15 @@ function toIso(value: unknown): string {
 export const getWhatsappInstance = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<WhatsappInstance | null> => {
-    const json = await callEdgeFunction("crm-whatsapp", { ownerId: context.ownerId, action: "status" });
-    return json.instance ? mapInstance(json.instance) : null;
+    // Consulta de status é informativa: se o CRM estiver lento, devolvemos
+    // "desconhecido" em vez de deixar o erro estourar e apagar a tela inteira.
+    try {
+      const json = await callEdgeFunction("crm-whatsapp", { ownerId: context.ownerId, action: "status" });
+      return json.instance ? mapInstance(json.instance) : null;
+    } catch (err) {
+      console.warn("[getWhatsappInstance] status indisponível:", err);
+      return null;
+    }
   });
 
 export interface CrmInbox {
