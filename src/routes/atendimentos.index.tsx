@@ -119,7 +119,13 @@ function DashboardPage() {
           <SalesPlaybookCard playbook={playbookQuery.data ?? null} />
         </section>
 
-        <section className="max-w-md">
+        {/* As duas ações de manutenção dividem a última linha. Antes era uma
+            coluna `max-w-md` sozinha à esquerda, com dois terços da linha
+            vazios ao lado. Ficam numa seção própria, e não junto das de cima,
+            porque num grid comum a linha inteira cresce até o card mais alto —
+            e a lista de conversas travadas pode ser longa, o que esticaria
+            estes dois com o botão boiando lá embaixo. */}
+        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <CrmBackfillCard />
         </section>
       </div>
