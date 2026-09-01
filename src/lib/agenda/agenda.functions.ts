@@ -35,9 +35,10 @@ function mapAppointment(row: any, notifications: AppointmentNotification[]): App
     type: row.type,
     expectedRevenue: Number(row.expected_revenue),
     // Nulo continua nulo: é o que distingue "não confirmado" de "foi de graça".
-    actualRevenue: row.actual_revenue === null || row.actual_revenue === undefined
-      ? null
-      : Number(row.actual_revenue),
+    actualRevenue:
+      row.actual_revenue === null || row.actual_revenue === undefined
+        ? null
+        : Number(row.actual_revenue),
     notes: row.notes ?? undefined,
     generateFinancial: row.generate_financial,
     notifications,
@@ -192,7 +193,9 @@ export const getHomeToday = createServerFn({ method: "GET" })
       pending: conta("pending"),
       missed: conta("missed"),
       next: lista
-        .filter((a) => a.status === "pending" || a.status === "confirmed" || a.status === "in_progress")
+        .filter(
+          (a) => a.status === "pending" || a.status === "confirmed" || a.status === "in_progress",
+        )
         .slice(0, 3)
         .map((a) => ({
           id: a.id,
@@ -209,13 +212,26 @@ export const getHomeToday = createServerFn({ method: "GET" })
 
 /** Colunas lidas depois de gravar, para decidir a transição de status. */
 const COLUNAS_TRANSICAO = [
-  "status", "patient_id", "patient_name", "procedure_name", "professional_id",
-  "date", "actual_revenue", "expected_revenue", "generate_financial",
-  "room_id", "room_name", "professional_name", "start_time", "end_time",
+  "status",
+  "patient_id",
+  "patient_name",
+  "procedure_name",
+  "professional_id",
+  "date",
+  "actual_revenue",
+  "expected_revenue",
+  "generate_financial",
+  "room_id",
+  "room_name",
+  "professional_name",
+  "start_time",
+  "end_time",
   "unit_id",
 ];
 const SELECT_TRANSICAO = COLUNAS_TRANSICAO.join(", ");
-const SELECT_TRANSICAO_SEM_VALOR = COLUNAS_TRANSICAO.filter((c) => c !== "actual_revenue").join(", ");
+const SELECT_TRANSICAO_SEM_VALOR = COLUNAS_TRANSICAO.filter((c) => c !== "actual_revenue").join(
+  ", ",
+);
 
 /**
  * Um atendimento só é dado como realizado com o valor cobrado junto.
@@ -345,30 +361,40 @@ export async function criarAgendamento(
     contactName: row.patient_name,
     amount: row.expected_revenue,
   });
+  // Mesma regra da confirmação, agora também para as automações: registrar um
+  // atendimento de ontem — para ter o histórico e mandar a conversão à Meta —
+  // não pode disparar "seu horário foi marcado" para quem já foi atendido.
+  // A Meta CAPI acima fica de fora da guarda de propósito: é justamente o
+  // motivo de o registro retroativo existir.
   const { dispatchAutomationEvent } = await import("@/lib/atendimentos/automations.server");
-  await dispatchAutomationEvent(ownerId, "appointment.created", {
-    entityId: inserted.id,
-    patientId: row.patient_id,
-    contactName: row.patient_name,
-    amount: row.expected_revenue,
-    appointment: {
-      date: row.date ?? null,
-      startTime: row.start_time ?? null,
-      procedureName: row.procedure_name ?? null,
-      professionalName: row.professional_name ?? null,
-      unitId: row.unit_id ?? null,
-    },
-  });
+  if (!jaAconteceu)
+    await dispatchAutomationEvent(ownerId, "appointment.created", {
+      entityId: inserted.id,
+      patientId: row.patient_id,
+      contactName: row.patient_name,
+      amount: row.expected_revenue,
+      appointment: {
+        date: row.date ?? null,
+        startTime: row.start_time ?? null,
+        procedureName: row.procedure_name ?? null,
+        professionalName: row.professional_name ?? null,
+        unitId: row.unit_id ?? null,
+      },
+    });
 
   // Nascendo já concluído (registro retroativo pela agenda, ou um Ganho do
   // funil), a conversão e o recebimento saem do mesmo lugar que qualquer outra
   // conclusão — `statusAnterior` nulo conta como transição.
   if (row.status === "completed") {
     await onStatusTransition(
-      supabase, ownerId, inserted.id, null,
+      supabase,
+      ownerId,
+      inserted.id,
+      null,
       { ...row, actual_revenue: row.actual_revenue ?? null } as any,
       opcoes.retornoEm,
       opcoes.receberEm,
+      jaAconteceu,
     );
   }
   return { id: inserted.id };
@@ -384,15 +410,26 @@ export const createAppointment = createServerFn({ method: "POST" })
   }))
   .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const { id: _ignored, __skipConfirmation: skipConfirmation, __retornoEm: retornoEm, unitId: rawUnitId, ...row } = data;
+    const {
+      id: _ignored,
+      __skipConfirmation: skipConfirmation,
+      __retornoEm: retornoEm,
+      unitId: rawUnitId,
+      ...row
+    } = data;
     const unitId = await resolveUnitId(context, rawUnitId);
     // types.ts é gerado pelo Lovable a partir do banco e só passa a conhecer
     // actual_revenue depois que a migration rodar lá. Mesmo escape que
     // patients.functions.ts já usa, até a regeneração.
-    return criarAgendamento(context.supabase as any, context.ownerId, { ...row, unit_id: unitId }, {
-      skipConfirmation,
-      retornoEm,
-    });
+    return criarAgendamento(
+      context.supabase as any,
+      context.ownerId,
+      { ...row, unit_id: unitId },
+      {
+        skipConfirmation,
+        retornoEm,
+      },
+    );
   });
 
 /**
@@ -432,6 +469,9 @@ async function onStatusTransition(
   retornoEm?: string | null,
   /** Data em que o valor entrou no caixa. Presente só no "Ganho" do funil. */
   receberEm?: string | null,
+  /** Registro retroativo: o agendamento NASCEU com data no passado, só para
+   *  ficar no histórico. Silencia as automações; a Meta continua recebendo. */
+  registroRetroativo?: boolean,
 ): Promise<{ patientName: string; startTime: string }[]> {
   if (statusAnterior === row.status) return [];
 
@@ -443,21 +483,25 @@ async function onStatusTransition(
     contactName: row.patient_name,
     amount: row.actual_revenue ?? row.expected_revenue ?? null,
   });
+  // Marcar como concluído um atendimento de ontem é rotina (a recepção esquece
+  // no dia e lança depois), e a automação de pós-atendimento DEVE disparar
+  // nesse caso. Silenciar só quando o agendamento nasceu retroativo.
   const { dispatchAutomationEvent } = await import("@/lib/atendimentos/automations.server");
-  await dispatchAutomationEvent(ownerId, "appointment.status_changed", {
-    entityId: `${id}:${row.status}`,
-    status: row.status,
-    patientId: row.patient_id,
-    contactName: row.patient_name,
-    amount: row.actual_revenue ?? row.expected_revenue ?? null,
-    appointment: {
-      date: row.date ?? null,
-      startTime: row.start_time ?? null,
-      procedureName: row.procedure_name ?? null,
-      professionalName: row.professional_name ?? null,
-      unitId: row.unit_id ?? null,
-    },
-  });
+  if (!registroRetroativo)
+    await dispatchAutomationEvent(ownerId, "appointment.status_changed", {
+      entityId: `${id}:${row.status}`,
+      status: row.status,
+      patientId: row.patient_id,
+      contactName: row.patient_name,
+      amount: row.actual_revenue ?? row.expected_revenue ?? null,
+      appointment: {
+        date: row.date ?? null,
+        startTime: row.start_time ?? null,
+        procedureName: row.procedure_name ?? null,
+        professionalName: row.professional_name ?? null,
+        unitId: row.unit_id ?? null,
+      },
+    });
 
   // Cumpre o que o interruptor "Gerar cobrança ao concluir" sempre prometeu.
   // Dentro da guarda de transição: reconfirmar ou reeditar não gera segunda
@@ -465,7 +509,8 @@ async function onStatusTransition(
   // desfazer a conclusão do atendimento, que já aconteceu no mundo real.
   if (row.status === "completed" && row.generate_financial) {
     try {
-      if (!row.unit_id) throw new Error("Agendamento sem unidade — não é possível gerar o recebimento.");
+      if (!row.unit_id)
+        throw new Error("Agendamento sem unidade — não é possível gerar o recebimento.");
       const { createAppointmentReceivable } = await import("@/lib/finance/receivables.functions");
       await createAppointmentReceivable(supabase, ownerId, row.unit_id, {
         amount: row.actual_revenue ?? 0,
@@ -522,7 +567,10 @@ async function onStatusTransition(
       type: "return",
       expected_revenue: row.expected_revenue ?? 0,
       actual_revenue: null,
-      notes: `Retorno do atendimento de ${String(row.date ?? "").split("-").reverse().join("/")}.`,
+      notes: `Retorno do atendimento de ${String(row.date ?? "")
+        .split("-")
+        .reverse()
+        .join("/")}.`,
       generate_financial: true,
     };
     // O retorno nasce pendente, sem valor cobrado — pode ir sem a coluna.
@@ -580,7 +628,12 @@ export const updateAppointment = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     const conflitos = await onStatusTransition(
-      supabase, context.ownerId, id, antes?.status, updated, retornoEm,
+      supabase,
+      context.ownerId,
+      id,
+      antes?.status,
+      updated,
+      retornoEm,
     );
     return { ok: true, conflitos };
   });
@@ -635,7 +688,12 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
 
     const conflitos = await onStatusTransition(
-      supabase, context.ownerId, data.id, antes?.status, updated, data.retornoEm,
+      supabase,
+      context.ownerId,
+      data.id,
+      antes?.status,
+      updated,
+      data.retornoEm,
     );
     return { ok: true, conflitos };
   });
@@ -741,7 +799,8 @@ export const deleteBlockedTime = createServerFn({ method: "POST" })
  */
 export const findConflicts = createServerFn({ method: "GET" })
   .inputValidator(
-    (input: { date: string; startTime: string; endTime: string; professionalId?: string | null }) => input,
+    (input: { date: string; startTime: string; endTime: string; professionalId?: string | null }) =>
+      input,
   )
   .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<{ patientName: string; startTime: string }[]> => {
