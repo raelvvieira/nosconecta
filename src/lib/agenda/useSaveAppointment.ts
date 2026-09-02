@@ -108,12 +108,22 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
 
     // O telefone é gravado no mesmo formato em que foi conferido na tela. O
     // normPhone da Meta tira a pontuação e valida o E.164 depois.
+    // A unidade sai da CADEIRA, igual à do agendamento logo abaixo.
+    //
+    // Aqui ia só o `selectedUnitId` — o seletor global do menu, que começa em
+    // "todas as unidades". Com duas unidades cadastradas, agendar alguém que
+    // ainda não é paciente falhava com "Selecione a unidade." num formulário
+    // que não tem campo de unidade nenhum, e que na linha de cima já dizia
+    // "Este agendamento entra na unidade NÓS Florianópolis".
+    //
+    // O agendamento nunca foi o problema: ele já derivava certo. Quem estourava
+    // era a criação do PACIENTE, um passo antes — e o erro não dizia isso.
     const criado = await createPatientFn({
       data: {
         name,
         phone: contact.phone ? formatWhatsappNumber(contact.phone) : undefined,
         crmContactId: contact.crmContactId ?? undefined,
-        unitId: selectedUnitId ?? undefined,
+        unitId: unidadeDaCadeira(data.roomId) ?? selectedUnitId ?? undefined,
       },
     });
     return criado.id;
@@ -143,7 +153,10 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       const r: any = existingId
         ? await updateFn({ data: { ...payload, retornoEm } })
         : await createFn({
-            data: { ...payload, unitId: unidadeDaCadeira(data.roomId) ?? selectedUnitId ?? undefined },
+            data: {
+              ...payload,
+              unitId: unidadeDaCadeira(data.roomId) ?? selectedUnitId ?? undefined,
+            },
           });
       return { existingId, retornoEm: retornoEm ?? null, conflitos: r?.conflitos ?? [] };
     },

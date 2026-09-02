@@ -6,12 +6,7 @@ export type AppointmentStatus =
   | "missed"
   | "cancelled";
 
-export type AppointmentType =
-  | "consultation"
-  | "evaluation"
-  | "procedure"
-  | "return"
-  | "emergency";
+export type AppointmentType = "consultation" | "evaluation" | "procedure" | "return" | "emergency";
 
 export type ViewMode = "day" | "week" | "month" | "professionals" | "rooms";
 
@@ -30,6 +25,11 @@ export interface Room {
   unitId?: string | null;
   /** Nome da unidade, para mostrar junto do nome da cadeira na escolha. */
   unitName?: string | null;
+  /** Cadeira e sala CRUAS, separadas do `name` — que já vem com as duas
+   *  juntas. O seletor precisa das partes soltas para não repetir a unidade
+   *  quando a sala tem o nome dela (ver `rotuloDeSala`). */
+  chairName?: string | null;
+  roomName?: string | null;
 }
 
 export interface Procedure {

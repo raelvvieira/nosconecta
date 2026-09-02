@@ -25,6 +25,7 @@ import { NOTIFICATION_KINDS, NotificationRow } from "./notification-utils";
 import { ConfirmCompletion } from "./ConfirmCompletion";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { localDateStr, durationBetween, endTimeFrom } from "@/lib/date";
+import { rotuloDeSala } from "@/lib/agenda/rotuloDeSala";
 
 interface Props {
   open: boolean;
@@ -228,7 +229,9 @@ export function AppointmentDrawer({
             <h2 className="text-lg font-semibold text-foreground">
               {isEdit ? "Detalhes do Agendamento" : "Novo Agendamento"}
             </h2>
-            {isEdit && <p className="text-sm text-muted-foreground mt-0.5">{appointment?.patientName}</p>}
+            {isEdit && (
+              <p className="text-sm text-muted-foreground mt-0.5">{appointment?.patientName}</p>
+            )}
           </div>
           <button
             type="button"
@@ -259,15 +262,17 @@ export function AppointmentDrawer({
           )}
 
           {origin && (
-            <p className="rounded-xl bg-coral-soft px-3 py-2 text-xs leading-5 text-coral">{origin}</p>
+            <p className="rounded-xl bg-coral-soft px-3 py-2 text-xs leading-5 text-coral">
+              {origin}
+            </p>
           )}
 
           {/* Data já passada num agendamento novo: é registro retroativo, e a
               tela precisa dizer que ninguém vai ser avisado disso. */}
           {!isEdit && dataNoPassado && (
             <p className="rounded-xl bg-surface px-3 py-2 text-xs leading-5 text-foreground-secondary">
-              Esta data já passou. O agendamento entra como registro — o paciente
-              não recebe confirmação nem lembretes.
+              Esta data já passou. O agendamento entra como registro — o paciente não recebe
+              confirmação nem lembretes.
             </p>
           )}
 
@@ -431,7 +436,11 @@ export function AppointmentDrawer({
                     // A unidade entra no rótulo: é ela que decide a unidade do
                     // agendamento, então precisa estar visível na hora de
                     // escolher — e não escondida no cadastro da cadeira.
-                    label: r.unitName ? `${r.name} — ${r.unitName}` : r.name,
+                    //
+                    // Pelas partes CRUAS, e não concatenando por cima de
+                    // `r.name`: quando a sala se chama como a unidade, o nome
+                    // saía "Cadeira · NÓS Florianópolis — NÓS Florianópolis".
+                    label: rotuloDeSala([r.chairName ?? r.name, r.roomName, r.unitName]),
                   }))}
                   placeholder="Selecionar..."
                   searchPlaceholder="Buscar sala ou unidade..."

@@ -7,6 +7,7 @@ import {
   rooms as fallbackRooms,
 } from "@/components/agenda/mock-data";
 import type { Room } from "@/components/agenda/types";
+import { rotuloDeSala } from "./rotuloDeSala";
 
 // Catálogo de profissionais/salas/procedimentos vindo das Configurações.
 // Estava montado dentro da página de Agenda; virou hook porque agora o chat
@@ -23,7 +24,8 @@ export function useAgendaCatalog() {
   const professionals =
     settings?.professionals
       .filter((item) => item.active)
-      .map((item) => ({ id: item.id, name: item.name, specialty: item.specialty })) ?? fallbackProfessionals;
+      .map((item) => ({ id: item.id, name: item.name, specialty: item.specialty })) ??
+    fallbackProfessionals;
 
   // A unidade da cadeira vem junto: é dela que o agendamento tira a própria
   // unidade, em vez de depender do seletor global do menu — que começa em
@@ -35,7 +37,9 @@ export function useAgendaCatalog() {
       .filter((item) => item.active)
       .map((item) => ({
         id: item.id,
-        name: item.roomName ? `${item.name} · ${item.roomName}` : item.name,
+        name: rotuloDeSala([item.name, item.roomName]),
+        chairName: item.name,
+        roomName: item.roomName ?? null,
         unitId: item.unitId,
         unitName: item.unitId ? (unidadePorId.get(item.unitId) ?? null) : null,
       })) ?? fallbackRooms;
