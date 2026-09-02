@@ -233,7 +233,7 @@ function ChatPage() {
   const doMovePipelineItem = useServerFn(movePipelineItem);
   const fetchDeals = useServerFn(getDeals);
   const doConfirmarGanho = useServerFn(confirmarGanho);
-  const { selectedUnitId } = useUnitSelection();
+  const { selectedUnitId, units, isAdmin } = useUnitSelection();
   const doSaveStatus = useServerFn(saveDealStatus);
 
   const pipelineStagesQuery = useQuery({
@@ -319,7 +319,7 @@ function ChatPage() {
           realizadoEm: dados.realizadoEm,
           gerarCobranca: dados.gerarCobranca,
           pagamentoRecebido: dados.pagamentoRecebido,
-          unitId: selectedUnitId ?? undefined,
+          unitId: dados.unitId ?? selectedUnitId ?? undefined,
         },
       }),
     onSuccess: (r) => {
@@ -985,6 +985,9 @@ function ChatPage() {
         phone={selected?.phone ?? null}
         valorSugerido={currentDeal?.value ?? null}
         isPending={ganhoMutation.isPending}
+        units={units}
+        isAdmin={isAdmin}
+        unitIdInicial={selectedUnitId}
         onOpenChange={(o) => !o && setConfirmandoGanho(false)}
         onConfirm={(dados) => ganhoMutation.mutate(dados)}
       />

@@ -8,6 +8,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +31,9 @@ export interface DadosGanho {
   /** Ganho com valor é dinheiro que entrou na data do evento — por isso vem
    *  marcado. Desmarcado, o recebimento nasce em aberto. */
   pagamentoRecebido: boolean;
+  /** Unidade escolhida no diálogo. Só existe pra admin com 2+ unidades; nos
+   *  demais casos é null e o servidor resolve sozinho. */
+  unitId: string | null;
 }
 
 /** Hoje pela data local. `toISOString` é UTC e viraria o dia depois das 21h. */
@@ -51,6 +61,9 @@ export function ConfirmarGanho({
   phone,
   valorSugerido,
   isPending,
+  units = [],
+  isAdmin = false,
+  unitIdInicial = null,
   onOpenChange,
   onConfirm,
 }: {
@@ -61,16 +74,28 @@ export function ConfirmarGanho({
   /** Valor da negociação já registrado, se houver, para pré-preencher. */
   valorSugerido?: number | null;
   isPending?: boolean;
+  /** Unidades ativas da clínica — só usadas quando `isAdmin`. */
+  units?: { id: string; name: string }[];
+  isAdmin?: boolean;
+  /** Unidade já selecionada na sidebar, para pré-preencher. */
+  unitIdInicial?: string | null;
   onOpenChange: (open: boolean) => void;
   onConfirm: (dados: DadosGanho) => void;
 }) {
   const idValor = useId();
   const idData = useId();
   const idFone = useId();
+  const idUnidade = useId();
+
+  // Só admin com mais de uma unidade escolhe aqui — é o caso em que o
+  // servidor não tem como adivinhar e devolvia "Selecione a unidade." num
+  // toast sem saída. Nos demais casos o servidor resolve sozinho.
+  const mostrarUnidade = isAdmin && units.length >= 2;
 
   const [valor, setValor] = useState("");
   const [data, setData] = useState(hoje());
   const [fone, setFone] = useState("");
+  const [unidade, setUnidade] = useState<string | null>(null);
   const [gerarCobranca, setGerarCobranca] = useState(true);
   const [pagamentoRecebido, setPagamentoRecebido] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -82,10 +107,11 @@ export function ConfirmarGanho({
     setValor(valorSugerido ? String(valorSugerido).replace(".", ",") : "");
     setData(hoje());
     setFone(formatWhatsappNumber(phone));
+    setUnidade(unitIdInicial ?? null);
     setGerarCobranca(true);
     setPagamentoRecebido(true);
     setErro(null);
-  }, [open, valorSugerido, phone]);
+  }, [open, valorSugerido, phone, unitIdInicial]);
 
   const lido = parseBRLInput(valor);
   const valorValido = !Number.isNaN(lido) && lido >= 0;
@@ -103,6 +129,10 @@ export function ConfirmarGanho({
       setErro("Informe a data em que o atendimento foi realizado.");
       return;
     }
+    if (mostrarUnidade && !unidade) {
+      setErro("Selecione a unidade.");
+      return;
+    }
     setErro(null);
     onConfirm({
       valor: lido,
@@ -110,6 +140,7 @@ export function ConfirmarGanho({
       phone: fone.trim() ? fone.trim() : null,
       gerarCobranca,
       pagamentoRecebido,
+      unitId: mostrarUnidade ? unidade : null,
     });
   };
 
@@ -133,6 +164,36 @@ export function ConfirmarGanho({
             </p>
             <p className="text-sm font-medium text-foreground">{contactName}</p>
           </div>
+
+          {mostrarUnidade && (
+            <div className="space-y-2">
+              <Label htmlFor={idUnidade} className="text-sm text-foreground-secondary">
+                Unidade *
+              </Label>
+              <Select
+                value={unidade ?? ""}
+                onValueChange={(v) => {
+                  setUnidade(v);
+                  if (erro) setErro(null);
+                }}
+              >
+                <SelectTrigger
+                  id={idUnidade}
+                  data-ganho-unidade=""
+                  className="w-full min-w-0 rounded-xl border-border"
+                >
+                  <SelectValue placeholder="Selecione a unidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  {units.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor={idFone} className="text-sm text-foreground-secondary">
