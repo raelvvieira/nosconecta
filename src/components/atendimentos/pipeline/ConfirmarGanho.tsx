@@ -61,6 +61,9 @@ export function ConfirmarGanho({
   phone,
   valorSugerido,
   isPending,
+  units = [],
+  isAdmin = false,
+  unitIdInicial = null,
   onOpenChange,
   onConfirm,
 }: {
@@ -71,16 +74,28 @@ export function ConfirmarGanho({
   /** Valor da negociação já registrado, se houver, para pré-preencher. */
   valorSugerido?: number | null;
   isPending?: boolean;
+  /** Unidades ativas da clínica — só usadas quando `isAdmin`. */
+  units?: { id: string; name: string }[];
+  isAdmin?: boolean;
+  /** Unidade já selecionada na sidebar, para pré-preencher. */
+  unitIdInicial?: string | null;
   onOpenChange: (open: boolean) => void;
   onConfirm: (dados: DadosGanho) => void;
 }) {
   const idValor = useId();
   const idData = useId();
   const idFone = useId();
+  const idUnidade = useId();
+
+  // Só admin com mais de uma unidade escolhe aqui — é o caso em que o
+  // servidor não tem como adivinhar e devolvia "Selecione a unidade." num
+  // toast sem saída. Nos demais casos o servidor resolve sozinho.
+  const mostrarUnidade = isAdmin && units.length >= 2;
 
   const [valor, setValor] = useState("");
   const [data, setData] = useState(hoje());
   const [fone, setFone] = useState("");
+  const [unidade, setUnidade] = useState<string | null>(null);
   const [gerarCobranca, setGerarCobranca] = useState(true);
   const [pagamentoRecebido, setPagamentoRecebido] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -92,10 +107,11 @@ export function ConfirmarGanho({
     setValor(valorSugerido ? String(valorSugerido).replace(".", ",") : "");
     setData(hoje());
     setFone(formatWhatsappNumber(phone));
+    setUnidade(unitIdInicial ?? null);
     setGerarCobranca(true);
     setPagamentoRecebido(true);
     setErro(null);
-  }, [open, valorSugerido, phone]);
+  }, [open, valorSugerido, phone, unitIdInicial]);
 
   const lido = parseBRLInput(valor);
   const valorValido = !Number.isNaN(lido) && lido >= 0;
