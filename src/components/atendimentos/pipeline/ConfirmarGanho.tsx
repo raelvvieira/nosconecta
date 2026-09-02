@@ -8,6 +8,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +31,9 @@ export interface DadosGanho {
   /** Ganho com valor é dinheiro que entrou na data do evento — por isso vem
    *  marcado. Desmarcado, o recebimento nasce em aberto. */
   pagamentoRecebido: boolean;
+  /** Unidade escolhida no diálogo. Só existe pra admin com 2+ unidades; nos
+   *  demais casos é null e o servidor resolve sozinho. */
+  unitId: string | null;
 }
 
 /** Hoje pela data local. `toISOString` é UTC e viraria o dia depois das 21h. */
