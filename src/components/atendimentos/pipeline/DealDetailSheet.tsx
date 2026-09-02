@@ -83,7 +83,7 @@ export function DealDetailSheet({
   const fetchPatient = useServerFn(getPatientByCrmContact);
   const doSaveStatus = useServerFn(saveDealStatus);
   const doConfirmarGanho = useServerFn(confirmarGanho);
-  const { selectedUnitId } = useUnitSelection();
+  const { selectedUnitId, units, isAdmin } = useUnitSelection();
   const doSaveValue = useServerFn(saveDealValue);
   const doAddNote = useServerFn(addDealNote);
   const doLogAppointment = useServerFn(logDealAppointment);
@@ -178,7 +178,7 @@ export function DealDetailSheet({
           realizadoEm: dados.realizadoEm,
           gerarCobranca: dados.gerarCobranca,
           pagamentoRecebido: dados.pagamentoRecebido,
-          unitId: selectedUnitId ?? undefined,
+          unitId: dados.unitId ?? selectedUnitId ?? undefined,
         },
       }),
     onSuccess: (r) => {
@@ -539,6 +539,9 @@ export function DealDetailSheet({
         phone={phone}
         valorSugerido={deal?.value ?? null}
         isPending={ganhoMutation.isPending}
+        units={units}
+        isAdmin={isAdmin}
+        unitIdInicial={selectedUnitId}
         onOpenChange={(o) => !o && setConfirmandoGanho(false)}
         onConfirm={(dados) => ganhoMutation.mutate(dados)}
       />
