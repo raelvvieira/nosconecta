@@ -165,6 +165,36 @@ export function ConfirmarGanho({
             <p className="text-sm font-medium text-foreground">{contactName}</p>
           </div>
 
+          {mostrarUnidade && (
+            <div className="space-y-2">
+              <Label htmlFor={idUnidade} className="text-sm text-foreground-secondary">
+                Unidade *
+              </Label>
+              <Select
+                value={unidade ?? ""}
+                onValueChange={(v) => {
+                  setUnidade(v);
+                  if (erro) setErro(null);
+                }}
+              >
+                <SelectTrigger
+                  id={idUnidade}
+                  data-ganho-unidade=""
+                  className="w-full min-w-0 rounded-xl border-border"
+                >
+                  <SelectValue placeholder="Selecione a unidade" />
+                </SelectTrigger>
+                <SelectContent>
+                  {units.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor={idFone} className="text-sm text-foreground-secondary">
               Telefone
