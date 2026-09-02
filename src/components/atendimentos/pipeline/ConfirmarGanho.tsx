@@ -129,6 +129,10 @@ export function ConfirmarGanho({
       setErro("Informe a data em que o atendimento foi realizado.");
       return;
     }
+    if (mostrarUnidade && !unidade) {
+      setErro("Selecione a unidade.");
+      return;
+    }
     setErro(null);
     onConfirm({
       valor: lido,
@@ -136,6 +140,7 @@ export function ConfirmarGanho({
       phone: fone.trim() ? fone.trim() : null,
       gerarCobranca,
       pagamentoRecebido,
+      unitId: mostrarUnidade ? unidade : null,
     });
   };
 
