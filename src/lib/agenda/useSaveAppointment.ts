@@ -96,6 +96,8 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
   const resolvePatientId = async (
     data: Partial<Appointment>,
     contact: OriginContact,
+    /** Nome e sobrenome como o formulário os separou, quando os separou. */
+    nome?: { primeiro: string; sobrenome: string },
   ): Promise<string | null> => {
     if (data.patientId) return data.patientId;
     const name = data.patientName?.trim();
@@ -121,6 +123,11 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
     const criado = await createPatientFn({
       data: {
         name,
+        // As partes vêm do formulário quando ele as tem. Sem elas o servidor
+        // divide sozinho pela primeira palavra — que é o que a Meta já fazia,
+        // e acerta na maioria; erra em nome composto ("Ana Paula").
+        firstName: nome?.primeiro || undefined,
+        lastName: nome?.sobrenome || undefined,
         phone: contact.phone ? formatWhatsappNumber(contact.phone) : undefined,
         crmContactId: contact.crmContactId ?? undefined,
         unitId: unidadeDaCadeira(data.roomId) ?? selectedUnitId ?? undefined,
@@ -135,16 +142,21 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       existingId,
       contact,
       retornoEm,
+      nome,
     }: {
       data: Partial<Appointment>;
       existingId?: string;
       contact?: OriginContact;
       /** Data do retorno pré-agendado, quando o atendimento foi confirmado. */
       retornoEm?: string | null;
+      /** Nome e sobrenome separados no formulário, para a ficha nascer certa. */
+      nome?: { primeiro: string; sobrenome: string };
     }) => {
       // Só ao criar: editar um agendamento existente não deve inventar paciente.
       const patientId =
-        !existingId && contact ? await resolvePatientId(data, contact) : (data.patientId ?? null);
+        !existingId && contact
+          ? await resolvePatientId(data, contact, nome)
+          : (data.patientId ?? null);
 
       const payload = { id: existingId, ...appointmentPayload(data, patientId) };
       // O retorno é criado no servidor, dentro da transição de status — é o

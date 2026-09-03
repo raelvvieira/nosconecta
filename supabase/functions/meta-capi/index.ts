@@ -43,6 +43,10 @@ interface DispatchContext {
 
 interface RawPerson {
   name?: string | null;
+  /** Preenchidos na ficha do paciente; ausentes quando o evento vem de um
+   *  contato de WhatsApp que ainda não virou paciente. */
+  firstName?: string | null;
+  lastName?: string | null;
   email?: string | null;
   phone?: string | null;
   zip?: string | null;
@@ -139,13 +143,23 @@ async function buildUserData(raw: RawPerson) {
   await add("em", raw.email, normEmail, true);
   await add("ph", raw.phone, normPhone, true);
 
-  // Primeira palavra em fn e TODO o resto junto em ln ("Maria Silva Souza"
-  // → fn=maria, ln=silvasouza). Mandar só a última palavra em ln muda o hash
-  // inteiro e o match falha sem avisar.
-  const parts = (raw.name ?? "").trim().split(/\s+/).filter(Boolean);
-  if (parts.length) {
-    await add("fn", parts[0], normName);
-    if (parts.length > 1) await add("ln", parts.slice(1).join(""), normName);
+  // O cadastro tem `first_name` e `last_name` separados desde a migration
+  // 20260902120000, e é quem preencheu a ficha que sabe onde é a divisão —
+  // "Ana Paula Silva" é fn "Ana Paula", não fn "Ana".
+  //
+  // A divisão automática continua como reserva, para o evento que sai de um
+  // contato de WhatsApp sem ficha (o `resolvePerson` devolve só `name`):
+  // primeira palavra em fn e TODO o resto junto em ln. Mandar só a última
+  // palavra em ln muda o hash inteiro e o match falha sem avisar.
+  if (raw.firstName?.trim() || raw.lastName?.trim()) {
+    await add("fn", raw.firstName, normName);
+    await add("ln", raw.lastName, normName);
+  } else {
+    const parts = (raw.name ?? "").trim().split(/\s+/).filter(Boolean);
+    if (parts.length) {
+      await add("fn", parts[0], normName);
+      if (parts.length > 1) await add("ln", parts.slice(1).join(""), normName);
+    }
   }
 
   await add("zp", raw.zip, normZip);
@@ -346,13 +360,48 @@ async function handleTestConnection(ownerId: string) {
   return { ok: true, testMode: Boolean(creds.test_event_code?.trim()), mode: target.mode };
 }
 
+const COLUNAS_DA_PESSOA =
+  "id, name, email, phone, birth_date, gender, city, state, zip_code";
+
+/**
+ * Esta função e a migration que criou `first_name`/`last_name` sobem em passos
+ * separados — a Edge Function é publicada por um prompt, a migration por
+ * outro. Pedir uma coluna que ainda não existe derruba a consulta inteira, e a
+ * conversão sairia sem NENHUM dado da pessoa: nem telefone, nem e-mail.
+ *
+ * Então tenta com as colunas novas e, na primeira falha, desce para as antigas
+ * e não tenta mais — a partir daí é a divisão automática do nome que vale,
+ * exatamente como era antes.
+ */
+let temNomeSeparado = true;
+
+async function lerPaciente(
+  coluna: "id" | "crm_contact_id",
+  valor: string,
+  ownerId: string,
+): Promise<any | null> {
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
+    const colunas = temNomeSeparado
+      ? `${COLUNAS_DA_PESSOA}, first_name, last_name`
+      : COLUNAS_DA_PESSOA;
+    const { data, error } = await supabase
+      .from("patients").select(colunas)
+      .eq(coluna, valor).eq("owner_id", ownerId).maybeSingle();
+    if (!error) return data ?? null;
+    if (!temNomeSeparado) return null;
+    temNomeSeparado = false;
+  }
+  return null;
+}
+
 // Busca os dados pessoais no banco em vez de recebê-los do chamador: mantém
 // o tratamento de PII num lugar só e evita que dado sensível trafegue entre
 // a server function e a Edge Function.
 async function resolvePerson(ownerId: string, ctx: DispatchContext): Promise<RawPerson> {
-  const columns = "id, name, email, phone, birth_date, gender, city, state, zip_code";
   const toRaw = (row: any): RawPerson => ({
     name: row.name,
+    firstName: row.first_name,
+    lastName: row.last_name,
     email: row.email,
     phone: row.phone,
     zip: row.zip_code,
@@ -364,16 +413,12 @@ async function resolvePerson(ownerId: string, ctx: DispatchContext): Promise<Raw
   });
 
   if (ctx.patientId) {
-    const { data } = await supabase
-      .from("patients").select(columns)
-      .eq("id", ctx.patientId).eq("owner_id", ownerId).maybeSingle();
-    if (data) return toRaw(data);
+    const row = await lerPaciente("id", ctx.patientId, ownerId);
+    if (row) return toRaw(row);
   }
   if (ctx.crmContactId) {
-    const { data } = await supabase
-      .from("patients").select(columns)
-      .eq("crm_contact_id", ctx.crmContactId).eq("owner_id", ownerId).maybeSingle();
-    if (data) return toRaw(data);
+    const row = await lerPaciente("crm_contact_id", ctx.crmContactId, ownerId);
+    if (row) return toRaw(row);
   }
   return { name: ctx.contactName ?? null };
 }

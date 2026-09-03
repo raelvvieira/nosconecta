@@ -2,6 +2,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
+import { dividirNome, montarNome } from "./nome";
+import { gravarTolerandoColunaAusente, semColuna } from "@/lib/schema-fallback";
 import { normalizeBrazilianPhone } from "@/lib/atendimentos/phone";
 import { clinicTodayStr } from "@/lib/date";
 
@@ -58,6 +60,10 @@ export type PatientGender = "M" | "F";
 export interface PatientSummary {
   id: string;
   name: string;
+  /** Nome e sobrenome como o cadastro os separou — é o que a Meta recebe em
+   *  `fn` e `ln`. Em ficha antiga vem da divisão automática do nome inteiro. */
+  firstName: string;
+  lastName: string;
   initials: string;
   phone: string | null;
   email: string | null;
@@ -127,6 +133,9 @@ export interface PatientsOverview {
   attention: { returns: number; delinquent: number };
 }
 
+/** As duas colunas que a migration 20260902120000 cria, juntas. */
+const NOME_SEPARADO = ["first_name", "last_name"];
+
 const cleanDigits = (value?: string | null) => value?.replace(/\D/g, "") ?? "";
 const initialsOf = (name: string) =>
   name
@@ -163,6 +172,15 @@ function effectiveStatus(row: any, overdueAmount: number): PatientStatus {
 }
 
 function buildSummary(row: any, transactions: any[]): PatientSummary {
+  // Enquanto a migration não roda, `first_name`/`last_name` nem existem na
+  // linha e chegam `undefined`; `montarNome` cai na divisão automática do nome
+  // inteiro, e o formulário de edição já abre com as duas partes preenchidas
+  // em vez de um campo vazio.
+  const nome = montarNome({
+    name: row.name,
+    firstName: row.first_name,
+    lastName: row.last_name,
+  });
   const patientTransactions = transactions.filter((item) => item.patient_id === row.id);
   const today = clinicTodayStr();
   const overdueAmount = patientTransactions
@@ -176,6 +194,8 @@ function buildSummary(row: any, transactions: any[]): PatientSummary {
   return {
     id: row.id,
     name: row.name,
+    firstName: nome.primeiro,
+    lastName: nome.sobrenome,
     initials: initialsOf(row.name),
     phone: row.phone ?? null,
     email: row.email ?? null,
@@ -321,7 +341,15 @@ export const getPatientDetail = createServerFn({ method: "GET" })
 
 const patientInput = (input: {
   id?: string;
-  name: string;
+  /**
+   * O nome inteiro numa linha. Continua aceito porque nem todo caminho tem os
+   * dois campos: o painel do chat cria a ficha com o nome que veio do
+   * WhatsApp, e ali não há o que separar. Quando `firstName` vem junto, ele
+   * manda — ver `montarNome`.
+   */
+  name?: string;
+  firstName?: string;
+  lastName?: string;
   phone?: string;
   email?: string;
   cpf?: string;
@@ -352,31 +380,39 @@ const patientInput = (input: {
   /** Só é lido de fato pra admin — quem não é admin sempre cai na própria
    *  unidade, carimbada pelo servidor. */
   unitId?: string;
-}) => ({
-  id: input.id,
-  name: input.name.trim(),
-  crmContactId: input.crmContactId?.trim() || null,
-  unitId: input.unitId?.trim() || null,
-  // Completa o "55" quando falta — telefone sem código do país faz o CRM
-  // interpretar o DDD como de outro país e criar um contato pro qual o
-  // WhatsApp nunca entrega (ver normalizeBrazilianPhone).
-  phone: input.phone?.trim() ? normalizeBrazilianPhone(input.phone) : null,
-  email: input.email?.trim().toLowerCase() || null,
-  cpf: input.cpf?.trim() || null,
-  birthDate: input.birthDate || null,
-  status: input.status ?? "active",
-  allergyNotes: input.allergyNotes?.trim() || null,
-  notes: input.notes?.trim() || null,
-  gender: (input.gender || null) as PatientGender | null,
-  neighborhood: input.neighborhood?.trim() || null,
-  zipCode: input.zipCode?.trim() || null,
-  city: input.city?.trim() || null,
-  address: input.address?.trim() || null,
-  state: input.state?.trim() || null,
-  addressComplement: input.addressComplement?.trim() || null,
-  guardianName: input.guardianName?.trim() || null,
-  guardianCpf: input.guardianCpf?.trim() || null,
-});
+}) => {
+  // Um lugar só decide o nome: aqui. `createPatient` e `updatePatient`
+  // gravam o que sair daqui, e o gatilho do banco é a rede embaixo — para a
+  // escrita que não passa por esta função (importação, interface do Lovable).
+  const nome = montarNome(input);
+  return {
+    id: input.id,
+    name: nome.completo,
+    firstName: nome.primeiro || null,
+    lastName: nome.sobrenome || null,
+    crmContactId: input.crmContactId?.trim() || null,
+    unitId: input.unitId?.trim() || null,
+    // Completa o "55" quando falta — telefone sem código do país faz o CRM
+    // interpretar o DDD como de outro país e criar um contato pro qual o
+    // WhatsApp nunca entrega (ver normalizeBrazilianPhone).
+    phone: input.phone?.trim() ? normalizeBrazilianPhone(input.phone) : null,
+    email: input.email?.trim().toLowerCase() || null,
+    cpf: input.cpf?.trim() || null,
+    birthDate: input.birthDate || null,
+    status: input.status ?? "active",
+    allergyNotes: input.allergyNotes?.trim() || null,
+    notes: input.notes?.trim() || null,
+    gender: (input.gender || null) as PatientGender | null,
+    neighborhood: input.neighborhood?.trim() || null,
+    zipCode: input.zipCode?.trim() || null,
+    city: input.city?.trim() || null,
+    address: input.address?.trim() || null,
+    state: input.state?.trim() || null,
+    addressComplement: input.addressComplement?.trim() || null,
+    guardianName: input.guardianName?.trim() || null,
+    guardianCpf: input.guardianCpf?.trim() || null,
+  };
+};
 
 // Caminho inverso do pushContactToCrm: dado um contato do CRM, acha o
 // paciente local correspondente. Até agora esse lookup só existia dentro da
@@ -430,7 +466,8 @@ export async function resolverPacienteDoContato(
   // por id/crm_contact_id não é usado — a linha já tem a unidade dela.
   unitId: string,
 ): Promise<{ id: string; name: string; phone: string | null } | null> {
-  const nome = contato.name?.trim();
+  const partes = dividirNome(contato.name);
+  const nome = partes.completo;
   // Completa o "55" quando falta — mesmo cuidado do patientInput/PatientFormSheet,
   // aqui pro caminho de quem nasce de uma conversa (Agenda por chat, funil "Ganho").
   const telefone = contato.phone ? normalizeBrazilianPhone(contato.phone) : null;
@@ -467,18 +504,32 @@ export async function resolverPacienteDoContato(
   // Sem nome não se inventa paciente — ficaria uma linha órfã sem serventia.
   if (!nome) return null;
 
-  const { data: criado, error } = await supabase
-    .from("patients")
-    .insert({
-      owner_id: ownerId,
-      unit_id: unitId,
-      name: nome,
-      phone: telefone,
-      crm_contact_id: contato.crmContactId || null,
-      status: "active",
-    })
-    .select("id, name, phone")
-    .single();
+  const linha = {
+    owner_id: ownerId,
+    unit_id: unitId,
+    name: partes.completo,
+    // Nome do WhatsApp não vem separado, então a divisão é a automática — a
+    // mesma que a Meta já fazia sozinha. Gravar aqui em vez de deixar só pro
+    // gatilho deixa a divisão visível e corrigível na ficha.
+    first_name: partes.primeiro || null,
+    last_name: partes.sobrenome || null,
+    phone: telefone,
+    crm_contact_id: contato.crmContactId || null,
+    status: "active",
+  };
+  const { data: criado, error } = await gravarTolerandoColunaAusente({
+    coluna: NOME_SEPARADO,
+    // Nada se perde sem elas: `name` já leva o nome inteiro, e a Meta volta a
+    // dividir sozinha, como fazia antes.
+    exigida: false,
+    motivo: "Nome e sobrenome separados.",
+    tentar: (sem) =>
+      supabase
+        .from("patients")
+        .insert(sem ? semColuna(linha, NOME_SEPARADO) : linha)
+        .select("id, name, phone")
+        .single(),
+  });
   if (error) throw new Error(error.message);
 
   // Mesmos efeitos do createPatient, pelos mesmos motivos (ver comentários lá).
@@ -507,32 +558,44 @@ export const createPatient = createServerFn({ method: "POST" })
     // Não-admin: sempre a própria unidade, ignora qualquer unitId do payload.
     const unitId = await resolveUnitId(context, data.unitId);
     const supabase: any = context.supabase;
-    const { data: created, error } = await supabase
-      .from("patients")
-      .insert({
-        owner_id: context.ownerId,
-        unit_id: unitId,
-        name: data.name,
-        phone: data.phone,
-        email: data.email,
-        cpf: data.cpf,
-        birth_date: data.birthDate,
-        status: data.status,
-        allergy_notes: data.allergyNotes,
-        notes: data.notes,
-        gender: data.gender,
-        neighborhood: data.neighborhood,
-        zip_code: data.zipCode,
-        city: data.city,
-        address: data.address,
-        state: data.state,
-        address_complement: data.addressComplement,
-        guardian_name: data.guardianName,
-        guardian_cpf: data.guardianCpf,
-        crm_contact_id: data.crmContactId,
-      })
-      .select("id")
-      .single();
+    const linha = {
+      owner_id: context.ownerId,
+      unit_id: unitId,
+      name: data.name,
+      first_name: data.firstName,
+      last_name: data.lastName,
+      phone: data.phone,
+      email: data.email,
+      cpf: data.cpf,
+      birth_date: data.birthDate,
+      status: data.status,
+      allergy_notes: data.allergyNotes,
+      notes: data.notes,
+      gender: data.gender,
+      neighborhood: data.neighborhood,
+      zip_code: data.zipCode,
+      city: data.city,
+      address: data.address,
+      state: data.state,
+      address_complement: data.addressComplement,
+      guardian_name: data.guardianName,
+      guardian_cpf: data.guardianCpf,
+      crm_contact_id: data.crmContactId,
+    };
+    // Nome e sobrenome não podem impedir um cadastro: enquanto a migration não
+    // roda, `name` sozinho já sustenta tudo que existia antes (ver
+    // `schema-fallback`).
+    const { data: created, error } = await gravarTolerandoColunaAusente({
+      coluna: NOME_SEPARADO,
+      exigida: false,
+      motivo: "Nome e sobrenome separados.",
+      tentar: (sem) =>
+        supabase
+          .from("patients")
+          .insert(sem ? semColuna(linha, NOME_SEPARADO) : linha)
+          .select("id")
+          .single(),
+    });
     if (error) throw new Error(error.message);
     // Aguarda (mas nunca propaga erro) — em runtime serverless (Cloudflare
     // Workers) uma promise não aguardada pode ser cancelada assim que a
@@ -559,29 +622,38 @@ export const updatePatient = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     if (!data.id) throw new Error("Paciente inválido.");
     const supabase: any = context.supabase;
-    const { error } = await supabase
-      .from("patients")
-      .update({
-        name: data.name,
-        phone: data.phone,
-        email: data.email,
-        cpf: data.cpf,
-        birth_date: data.birthDate,
-        status: data.status,
-        allergy_notes: data.allergyNotes,
-        notes: data.notes,
-        gender: data.gender,
-        neighborhood: data.neighborhood,
-        zip_code: data.zipCode,
-        city: data.city,
-        address: data.address,
-        state: data.state,
-        address_complement: data.addressComplement,
-        guardian_name: data.guardianName,
-        guardian_cpf: data.guardianCpf,
-      })
-      .eq("id", data.id)
-      .eq("owner_id", context.ownerId);
+    const mudancas = {
+      name: data.name,
+      first_name: data.firstName,
+      last_name: data.lastName,
+      phone: data.phone,
+      email: data.email,
+      cpf: data.cpf,
+      birth_date: data.birthDate,
+      status: data.status,
+      allergy_notes: data.allergyNotes,
+      notes: data.notes,
+      gender: data.gender,
+      neighborhood: data.neighborhood,
+      zip_code: data.zipCode,
+      city: data.city,
+      address: data.address,
+      state: data.state,
+      address_complement: data.addressComplement,
+      guardian_name: data.guardianName,
+      guardian_cpf: data.guardianCpf,
+    };
+    const { error } = await gravarTolerandoColunaAusente({
+      coluna: NOME_SEPARADO,
+      exigida: false,
+      motivo: "Nome e sobrenome separados.",
+      tentar: (sem) =>
+        supabase
+          .from("patients")
+          .update(sem ? semColuna(mudancas, NOME_SEPARADO) : mudancas)
+          .eq("id", data.id!)
+          .eq("owner_id", context.ownerId),
+    });
     if (error) throw new Error(error.message);
     await pushContactToCrm(context.ownerId, data.id, data.name, data.phone);
     return { ok: true };

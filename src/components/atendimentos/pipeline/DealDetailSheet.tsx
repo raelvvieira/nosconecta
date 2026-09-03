@@ -2,19 +2,17 @@ import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  CalendarPlus,
-  Check,
-  MessageCircle,
-  Phone,
-  StickyNote,
-  UserRound,
-  X,
-} from "lucide-react";
+import { CalendarPlus, Check, MessageCircle, Phone, StickyNote, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { AppointmentDrawer } from "@/components/agenda/AppointmentDrawer";
 import { ConfirmarGanho, type DadosGanho } from "./ConfirmarGanho";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -391,9 +389,7 @@ export function DealDetailSheet({
                 </div>
               )}
               {status === "lost" && deal?.lossReason && !askingLoss && (
-                <p className="mt-2 text-2xs text-muted-foreground">
-                  Motivo: {deal.lossReason}
-                </p>
+                <p className="mt-2 text-2xs text-muted-foreground">Motivo: {deal.lossReason}</p>
               )}
               {/* Ganho é afirmação; a data e o valor são a prova. Sem isto o
                   painel diria "Ganho" sem dizer de quando. */}
@@ -529,7 +525,9 @@ export function DealDetailSheet({
           }
           isSaving={saveAppointment.isPending}
           onClose={() => setAppointmentOpen(false)}
-          onSave={(data) => saveAppointment.mutate({ data, contact: { phone, crmContactId: contactId } })}
+          onSave={(data, _retornoEm, nome) =>
+            saveAppointment.mutate({ data, contact: { phone, crmContactId: contactId }, nome })
+          }
         />
       )}
 
@@ -608,7 +606,9 @@ function TimelineRow({ event, stages }: { event: DealEvent; stages: PipelineStag
           })}
         </span>
       </div>
-      {event.body && <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{event.body}</p>}
+      {event.body && (
+        <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{event.body}</p>
+      )}
     </li>
   );
 }

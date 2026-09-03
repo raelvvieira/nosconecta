@@ -26,6 +26,7 @@ import { ConfirmCompletion } from "./ConfirmCompletion";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { localDateStr, durationBetween, endTimeFrom } from "@/lib/date";
 import { rotuloDeSala } from "@/lib/agenda/rotuloDeSala";
+import { dividirNome, juntarNome } from "@/lib/patients/nome";
 
 interface Props {
   open: boolean;
@@ -45,8 +46,20 @@ interface Props {
    */
   contact?: { name: string | null; phone: string | null; crmContactId: string | null } | null;
   onClose: () => void;
-  /** `retornoEm` só vem quando o atendimento foi confirmado com retorno. */
-  onSave: (data: Partial<Appointment>, retornoEm?: string | null) => void;
+  /**
+   * `retornoEm` só vem quando o atendimento foi confirmado com retorno.
+   *
+   * `nome` só vem quando o paciente ainda não existe e vai ser criado a partir
+   * daqui: são as duas partes como quem preencheu separou. A Meta casa a
+   * conversão por `fn` e `ln`, dois hashes distintos, e "Ana Paula Silva"
+   * dividido no automático viraria fn "Ana" / ln "Paula Silva" — errado, e
+   * errado em silêncio.
+   */
+  onSave: (
+    data: Partial<Appointment>,
+    retornoEm?: string | null,
+    nome?: { primeiro: string; sobrenome: string },
+  ) => void;
   /**
    * Trocar para o formulário de compromisso. Só a Agenda passa: no chat e no
    * funil o agendamento é sempre consulta de um contato, e oferecer
@@ -124,6 +137,21 @@ export function AppointmentDrawer({
   // um agendamento já salvo, o campo volta a ser o combobox de sempre.
   const modoContato = Boolean(contact) && !isEdit && !form.patientId && !buscandoPaciente;
 
+  // As duas partes do nome, só usadas no modo contato — é o único caminho
+  // daqui que CRIA paciente, e é na criação que a separação importa.
+  // `form.patientName` continua sendo a junção das duas: é ele que vira o
+  // `patient_name` do agendamento e o rótulo no calendário.
+  const [partesDoNome, setPartesDoNome] = useState(() =>
+    dividirNome(appointment?.patientName ?? defaultPatient?.name ?? contact?.name ?? ""),
+  );
+  const mudarParte = (parte: "primeiro" | "sobrenome", valor: string) =>
+    setPartesDoNome((atual) => {
+      const proximo = { ...atual, [parte]: valor };
+      const completo = juntarNome(proximo.primeiro, proximo.sobrenome);
+      setForm((f) => ({ ...f, patientName: completo }));
+      return { ...proximo, completo };
+    });
+
   useEffect(() => {
     if (!open) return;
     setBuscandoPaciente(false);
@@ -145,7 +173,10 @@ export function AppointmentDrawer({
       notes: appointment?.notes ?? "",
       generateFinancial: appointment?.generateFinancial ?? true,
     });
-  }, [open, appointment, defaultDate, defaultPatient?.id, defaultPatient?.name]);
+    setPartesDoNome(
+      dividirNome(appointment?.patientName ?? defaultPatient?.name ?? contact?.name ?? ""),
+    );
+  }, [open, appointment, defaultDate, defaultPatient?.id, defaultPatient?.name, contact?.name]);
 
   // A duração é derivada do que está gravado (início e fim), e o fim volta a
   // ser derivado dela sempre que qualquer um dos dois muda. Uma direção só.
@@ -199,7 +230,10 @@ export function AppointmentDrawer({
       toast.error("Informe o nome do paciente");
       return;
     }
-    onSave(form);
+    // As partes só sobem no modo contato: nos outros o paciente já existe, e
+    // reescrever o nome dele a partir de um campo que ninguém editou seria
+    // desfazer a separação que o cadastro já tem.
+    onSave(form, undefined, modoContato ? partesDoNome : undefined);
   };
 
   if (!open) return null;
@@ -319,16 +353,28 @@ export function AppointmentDrawer({
               </Label>
               {modoContato ? (
                 <>
-                  {/* Campo de texto comum, não o combobox: o nome que veio do
+                  {/* Campos de texto comuns, não o combobox: o nome que veio do
                       WhatsApp quase nunca é o nome da pessoa, e o que se quer
-                      aqui é corrigir o que está escrito — não procurar alguém. */}
-                  <Input
-                    id="patient"
-                    value={form.patientName ?? ""}
-                    onChange={(e) => setForm((f) => ({ ...f, patientName: e.target.value }))}
-                    placeholder="Nome completo do paciente"
-                    className="rounded-xl border-border"
-                  />
+                      aqui é corrigir o que está escrito — não procurar alguém.
+                      Separados porque é daqui que a ficha nasce, e a Meta
+                      recebe nome e sobrenome como dois hashes distintos. */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      id="patient"
+                      value={partesDoNome.primeiro}
+                      onChange={(e) => mudarParte("primeiro", e.target.value)}
+                      placeholder="Nome"
+                      className="rounded-xl border-border"
+                    />
+                    <Input
+                      id="patient-sobrenome"
+                      aria-label="Sobrenome do paciente"
+                      value={partesDoNome.sobrenome}
+                      onChange={(e) => mudarParte("sobrenome", e.target.value)}
+                      placeholder="Sobrenome"
+                      className="rounded-xl border-border"
+                    />
+                  </div>
                   {/* `relative tap-44` porque o texto sozinho dá 16px de alvo,
                       bem abaixo do mínimo que o resto do app já respeita. */}
                   <button

@@ -967,13 +967,14 @@ function ChatPage() {
           }}
           isSaving={saveAppointment.isPending}
           onClose={() => setAppointmentOpen(false)}
-          onSave={(data) =>
+          onSave={(data, _retornoEm, nome) =>
             saveAppointment.mutate({
               data,
               contact: {
                 phone: selected.phone,
                 crmContactId: selected.contactId,
               },
+              nome,
             })
           }
         />

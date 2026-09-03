@@ -38,7 +38,8 @@ type Props = {
 };
 
 const EMPTY = {
-  name: "",
+  firstName: "",
+  lastName: "",
   phone: "",
   email: "",
   cpf: "",
@@ -68,7 +69,8 @@ export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props
     setForm(
       patient
         ? {
-            name: patient.name,
+            firstName: patient.firstName,
+            lastName: patient.lastName,
             phone: patient.phone ?? "",
             email: patient.email ?? "",
             cpf: patient.cpf ?? "",
@@ -92,7 +94,7 @@ export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!form.name.trim()) throw new Error("Informe o nome do paciente.");
+      if (!form.firstName.trim()) throw new Error("Informe o nome do paciente.");
       if (!patient && isAdmin && units.length > 1 && !selectedUnitId) {
         throw new Error("Selecione a unidade.");
       }
@@ -142,17 +144,34 @@ export function PatientFormSheet({ open, patient, onOpenChange, onSaved }: Props
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               Identificação
             </p>
-            <div className="space-y-2">
-              <Label htmlFor="patient-name">Nome completo *</Label>
-              <Input
-                id="patient-name"
-                value={form.name}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, name: event.target.value }))
-                }
-                placeholder="Nome do paciente"
-                autoFocus
-              />
+            {/* Dois campos, não um. A Meta casa a conversão com a pessoa por
+                hash, e são dois: `fn` e `ln`. Com um campo só, era a integração
+                que tinha que adivinhar onde o nome termina — e adivinhação
+                errada não dá erro, só derruba o casamento em silêncio. */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="patient-first-name">Nome *</Label>
+                <Input
+                  id="patient-first-name"
+                  value={form.firstName}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, firstName: event.target.value }))
+                  }
+                  placeholder="Maria"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="patient-last-name">Sobrenome</Label>
+                <Input
+                  id="patient-last-name"
+                  value={form.lastName}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, lastName: event.target.value }))
+                  }
+                  placeholder="Silva Souza"
+                />
+              </div>
             </div>
             {!patient && isAdmin && units.length > 1 && (
               <div className="space-y-2">

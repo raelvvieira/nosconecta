@@ -15,21 +15,29 @@
  * tentativa passa e a segunda nunca acontece.
  */
 
-/** O erro é "essa coluna não existe", e não outra falha qualquer? */
+/**
+ * O erro é "essa coluna não existe", e não outra falha qualquer?
+ *
+ * Aceita uma lista quando a mesma migration cria mais de uma coluna: o
+ * PostgREST reclama de UMA delas, e não há como saber de qual — bater só na
+ * primeira deixaria metade dos casos passando direto.
+ */
 export function faltaColuna(
   error: { code?: string; message?: string } | null | undefined,
-  coluna: string,
+  coluna: string | string[],
 ): boolean {
   if (!error) return false;
   // PGRST204 é o código do PostgREST para coluna desconhecida; o nome é
   // conferido junto porque o mesmo código serve para qualquer coluna.
-  return error.code === "PGRST204" && String(error.message ?? "").includes(coluna);
+  if (error.code !== "PGRST204") return false;
+  const mensagem = String(error.message ?? "");
+  return (Array.isArray(coluna) ? coluna : [coluna]).some((c) => mensagem.includes(c));
 }
 
-/** O mesmo registro sem a coluna que o banco ainda não conhece. */
-export function semColuna<T extends Record<string, unknown>>(row: T, coluna: string): T {
+/** O mesmo registro sem a coluna (ou colunas) que o banco ainda não conhece. */
+export function semColuna<T extends Record<string, unknown>>(row: T, coluna: string | string[]): T {
   const resto = { ...row };
-  delete resto[coluna];
+  for (const c of Array.isArray(coluna) ? coluna : [coluna]) delete resto[c];
   return resto;
 }
 
@@ -47,7 +55,7 @@ export async function gravarTolerandoColunaAusente<T = any>({
   exigida,
   motivo,
 }: {
-  coluna: string;
+  coluna: string | string[];
   /** `semColuna` avisa a chamada para montar o payload reduzido. */
   tentar: (semColuna: boolean) => PromiseLike<{ data: any; error: any }>;
   /** A gravação perde o sentido sem esta coluna? */
@@ -59,10 +67,13 @@ export async function gravarTolerandoColunaAusente<T = any>({
   if (!faltaColuna(primeira.error, coluna)) return primeira;
   if (exigida) {
     throw new Error(
-      `${motivo} Falta aplicar a migration pendente do banco (coluna ${coluna}) — ` +
+      `${motivo} Falta aplicar a migration pendente do banco ` +
+        `(coluna ${[coluna].flat().join(", ")}) — ` +
         "peça isso no Lovable e tente de novo depois.",
     );
   }
-  console.warn(`[schema] ${coluna} ausente no banco; gravando sem ela até a migration rodar.`);
+  console.warn(
+    `[schema] ${[coluna].flat().join(", ")} ausente no banco; gravando sem ela até a migration rodar.`,
+  );
   return tentar(true);
 }
