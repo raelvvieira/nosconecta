@@ -201,6 +201,7 @@ export type Database = {
           enabled: boolean
           failure_count: number
           id: string
+          learn_from_won: boolean
           mode: string
           name: string
           owner_id: string
@@ -219,6 +220,7 @@ export type Database = {
           enabled?: boolean
           failure_count?: number
           id?: string
+          learn_from_won?: boolean
           mode?: string
           name?: string
           owner_id: string
@@ -237,6 +239,7 @@ export type Database = {
           enabled?: boolean
           failure_count?: number
           id?: string
+          learn_from_won?: boolean
           mode?: string
           name?: string
           owner_id?: string
@@ -257,6 +260,7 @@ export type Database = {
           moved_by: string
           owner_id: string
           playbook_id: string
+          source: string
         }
         Insert: {
           contact_name?: string | null
@@ -266,6 +270,7 @@ export type Database = {
           moved_by?: string
           owner_id: string
           playbook_id: string
+          source?: string
         }
         Update: {
           contact_name?: string | null
@@ -275,6 +280,7 @@ export type Database = {
           moved_by?: string
           owner_id?: string
           playbook_id?: string
+          source?: string
         }
         Relationships: [
           {
