@@ -28,6 +28,9 @@ export interface PayableRow {
   is_recurring: boolean;
   recurrence_type: string | null;
   notes: string | null;
+  /** Preenchido só na linha que PAGA uma fatura de cartão. É o que faz a linha
+   *  abrir mostrando as compras em vez do formulário de edição comum. */
+  settles_card_invoice_id: string | null;
 }
 
 export interface PayablesOverview {
@@ -147,7 +150,12 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
         supabase
           .from("financial_transactions")
           .select(
-            "id, description, amount, due_date, paid_date, status, payment_method, supplier_name, category_id, account_id, installment_number, installment_total, is_recurring, recurrence_type, notes, financial_categories(name), financial_accounts(name,type,last_digits)",
+            // A coluna de fatura só entra quando ela existe: pedir uma coluna
+            // desconhecida ao PostgREST não devolve nulo, devolve erro — e a
+            // lista de Pagamentos inteira sumiria na janela entre o deploy e a
+            // migration.
+            "id, description, amount, due_date, paid_date, status, payment_method, supplier_name, category_id, account_id, installment_number, installment_total, is_recurring, recurrence_type, notes, financial_categories(name), financial_accounts(name,type,last_digits)" +
+              (cartao ? ", settles_card_invoice_id" : ""),
             { count: "exact" },
           )
           .eq("owner_id", context.ownerId)
@@ -414,6 +422,7 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
         is_recurring: t.is_recurring,
         recurrence_type: t.recurrence_type,
         notes: t.notes,
+        settles_card_invoice_id: t.settles_card_invoice_id ?? null,
       };
     });
 
@@ -693,6 +702,25 @@ export const updatePayable = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     // types.ts ainda não conhece unit_id/company_id opcional.
     const supabase: any = context.supabase;
+
+    // A linha da fatura não se edita: o valor dela é a soma das compras, e o
+    // gatilho a sobrescreveria no instante seguinte — o usuário veria o número
+    // que digitou desaparecer sem explicação. O vencimento é do ciclo do
+    // cartão, não uma escolha.
+    if (await temColunasDeCartao(supabase)) {
+      const { data: linha } = await supabase
+        .from("financial_transactions")
+        .select("settles_card_invoice_id")
+        .eq("id", data.id)
+        .eq("owner_id", context.ownerId)
+        .maybeSingle();
+      if (linha?.settles_card_invoice_id) {
+        throw new Error(
+          "O valor da fatura é a soma das compras dentro dela, e o vencimento vem do ciclo do cartão. Edite a compra, ou o cartão.",
+        );
+      }
+    }
+
     const { error } = await supabase
       .from("financial_transactions")
       .update({
@@ -767,6 +795,39 @@ export const deletePayable = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     // types.ts ainda não conhece unit_id/company_id opcional.
     const supabase: any = context.supabase;
+
+    if (await temColunasDeCartao(supabase)) {
+      const { data: linha } = await supabase
+        .from("financial_transactions")
+        .select("settles_card_invoice_id, card_invoice_id, purchase_group_id")
+        .eq("id", data.id)
+        .eq("owner_id", context.ownerId)
+        .maybeSingle();
+
+      // A linha da fatura não se apaga sozinha: a fatura ficaria órfã —
+      // invisível, impagável, com as compras penduradas nela. Quem se apaga é
+      // a compra; a fatura some junto quando esvazia.
+      if (linha?.settles_card_invoice_id) {
+        throw new Error(
+          "Esta linha é a fatura do cartão e não pode ser excluída direto. Exclua as compras dentro dela, ou arquive o cartão.",
+        );
+      }
+
+      // Apagar uma parcela apaga a COMPRA inteira. Deixar as outras onze
+      // espalhadas por onze faturas seria pior do que qualquer confirmação: a
+      // pessoa acharia que removeu a compra e continuaria pagando por ela.
+      if (linha?.purchase_group_id) {
+        const { error: erroGrupo } = await supabase
+          .from("financial_transactions")
+          .delete()
+          .eq("purchase_group_id", linha.purchase_group_id)
+          .eq("owner_id", context.ownerId);
+        if (erroGrupo) throw erroGrupo;
+        await limparFaturasVazias(supabase, context.ownerId);
+        return { ok: true };
+      }
+    }
+
     const { error } = await supabase
       .from("financial_transactions")
       .delete()
@@ -775,3 +836,29 @@ export const deletePayable = createServerFn({ method: "POST" })
     if (error) throw error;
     return { ok: true };
   });
+
+/**
+ * Fatura sem nenhuma compra deixa de existir.
+ *
+ * Um ciclo vazio não é uma dívida: é uma linha de R$ 0,00 que a pessoa não
+ * pode pagar nem entender. A lista já a esconde, mas deixá-la no banco faria a
+ * próxima compra do mesmo ciclo reencontrar uma fatura fantasma em vez de
+ * criar uma limpa.
+ *
+ * Faturas pagas nunca entram aqui — `amount` zero e `status` pago não coexistem
+ * (`payCardInvoice` recusa fatura sem compras).
+ */
+async function limparFaturasVazias(supabase: any, ownerId: string): Promise<void> {
+  const { data: linhas } = await supabase
+    .from("financial_transactions")
+    .select("id, settles_card_invoice_id")
+    .eq("owner_id", ownerId)
+    .not("settles_card_invoice_id", "is", null)
+    .eq("amount", 0)
+    .neq("status", "paid");
+
+  for (const linha of (linhas ?? []) as any[]) {
+    await supabase.from("financial_transactions").delete().eq("id", linha.id);
+    await supabase.from("card_invoices").delete().eq("id", linha.settles_card_invoice_id);
+  }
+}

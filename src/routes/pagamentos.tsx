@@ -4,7 +4,22 @@ import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { useState } from "react";
 import { z } from "zod";
-import { ArrowDownRight, ArrowUpCircle, ArrowUpRight, CalendarDays, Check, Download, Filter, MoreHorizontal, Pencil, Plus, Search, Trash2, TrendingUp, Upload } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpCircle,
+  ArrowUpRight,
+  CalendarDays,
+  Check,
+  Download,
+  Filter,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  TrendingUp,
+  Upload,
+} from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 
@@ -16,6 +31,7 @@ import { KpiCard } from "@/components/finance/KpiCard";
 import { DateRangePicker } from "@/components/finance/DateRangePicker";
 import { NewPaymentSheet } from "@/components/finance/payables/NewPaymentSheet";
 import { EditPaymentSheet } from "@/components/finance/payables/EditPaymentSheet";
+import { FaturaSheet } from "@/components/finance/payables/FaturaSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -92,7 +108,9 @@ export const Route = createFileRoute("/pagamentos")({
   // evita que o esqueleto apareça e suma num susto.
   pendingMs: 150,
   pendingMinMs: 400,
-  errorComponent: ({ error }) => <ResponsiveRouteState error={error} title="Não foi possível carregar os pagamentos" />,
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error} title="Não foi possível carregar os pagamentos" />
+  ),
   notFoundComponent: () => <ResponsiveRouteState title="Pagamentos não encontrados" notFound />,
   component: PagamentosPage,
 });
@@ -144,6 +162,17 @@ function PagamentosPage() {
   const { data } = useSuspenseQuery(overviewOpts(fetchOverview as any, search));
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<PayableRow | null>(null);
+  const [faturaAberta, setFaturaAberta] = useState<string | null>(null);
+
+  /**
+   * Abrir uma linha de fatura no editor comum seria oferecer para mudar um
+   * valor que o gatilho recalcula no instante seguinte — edição fantasma. A
+   * fatura abre o painel dela, com as compras dentro.
+   */
+  const abrir = (t: PayableRow) => {
+    if (t.settles_card_invoice_id) setFaturaAberta(t.settles_card_invoice_id);
+    else setEditing(t);
+  };
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [qLocal, setQLocal] = useState(search.q ?? "");
 
@@ -187,19 +216,19 @@ function PagamentosPage() {
           subtitle="Gerencie todas as despesas da clínica"
           actions={
             <>
-            <Button
-              onClick={() => setSheetOpen(true)}
-              variant="premium"
-              className="hidden lg:inline-flex"
-            >
-              <Plus className="h-4 w-4" /> Novo Pagamento
-            </Button>
-            <Button variant="secondary" className="hidden md:inline-flex">
-              <Upload className="h-4 w-4" /> Importar
-            </Button>
-            <Button variant="secondary" className="hidden md:inline-flex">
-              <Download className="h-4 w-4" /> Exportar
-            </Button>
+              <Button
+                onClick={() => setSheetOpen(true)}
+                variant="premium"
+                className="hidden lg:inline-flex"
+              >
+                <Plus className="h-4 w-4" /> Novo Pagamento
+              </Button>
+              <Button variant="secondary" className="hidden md:inline-flex">
+                <Upload className="h-4 w-4" /> Importar
+              </Button>
+              <Button variant="secondary" className="hidden md:inline-flex">
+                <Download className="h-4 w-4" /> Exportar
+              </Button>
             </>
           }
         />
@@ -393,7 +422,7 @@ function PagamentosPage() {
                     <PayableActions
                       status={status}
                       onMark={() => markMutation.mutate(t.id)}
-                      onEdit={() => setEditing(t)}
+                      onEdit={() => abrir(t)}
                       onDelete={() => deleteMutation.mutate(t.id)}
                     />
                   </li>
@@ -488,7 +517,9 @@ function PagamentosPage() {
                           {t.category_name && <Badge variant="default">{t.category_name}</Badge>}
                         </td>
                         <td className="pr-4 text-muted-foreground">{t.account_name ?? "—"}</td>
-                        <td className="pr-4 text-right tabular-nums font-semibold">{formatBRL(t.amount)}</td>
+                        <td className="pr-4 text-right tabular-nums font-semibold">
+                          {formatBRL(t.amount)}
+                        </td>
                         <td className="pr-4">
                           <Badge variant={STATUS_BADGE[status]}>{STATUS_LABEL[status]}</Badge>
                         </td>
@@ -499,7 +530,7 @@ function PagamentosPage() {
                           <PayableActions
                             status={status}
                             onMark={() => markMutation.mutate(t.id)}
-                            onEdit={() => setEditing(t)}
+                            onEdit={() => abrir(t)}
                             onDelete={() => deleteMutation.mutate(t.id)}
                           />
                         </td>
@@ -576,6 +607,8 @@ function PagamentosPage() {
         onAccountsChanged={invalidate}
       />
 
+      <FaturaSheet invoiceId={faturaAberta} onOpenChange={(o) => !o && setFaturaAberta(null)} />
+
       <EditPaymentSheet
         open={!!editing}
         payment={editing}
@@ -637,9 +670,7 @@ function PayableActions({
 function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5 min-w-0">
-      <p className="text-2xs font-medium tracking-wider text-muted-foreground uppercase">
-        {label}
-      </p>
+      <p className="text-2xs font-medium tracking-wider text-muted-foreground uppercase">{label}</p>
       {children}
     </div>
   );
