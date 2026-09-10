@@ -35,6 +35,10 @@ function CustomTooltip({ active, payload, label }: any) {
     { label: "Entradas", value: p.entradas, color: COLORS.entradas },
     { label: "Saídas", value: -p.saidas, color: COLORS.saidas },
     { label: "Receb. futuro", value: p.receb_futuro, color: COLORS.futuro },
+    // Sinal invertido só na exibição, igual ao que já é feito com `saidas`:
+    // é dinheiro que vai SAIR, e mostrá-lo positivo ao lado das entradas
+    // faria a linha parecer uma receita.
+    { label: "Saída prevista", value: -p.saida_futura, color: COLORS.saidas },
     { label: "Saldo", value: p.saldo, color: COLORS.saldo },
   ];
   return (
@@ -75,9 +79,12 @@ export function CashFlowChart({
         <div className="flex items-center gap-4">
           <Legend
             content={() => (
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm" style={{ background: COLORS.entradas }} />
+                  <span
+                    className="h-2.5 w-2.5 rounded-sm"
+                    style={{ background: COLORS.entradas }}
+                  />
                   Entradas
                 </span>
                 <span className="flex items-center gap-1.5">
@@ -90,6 +97,13 @@ export function CashFlowChart({
                     style={{ borderColor: COLORS.futuro }}
                   />
                   Receb. futuro
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="h-2.5 w-2.5 rounded-sm border-2 border-dashed"
+                    style={{ borderColor: COLORS.saidas }}
+                  />
+                  Saída prevista
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="h-[2px] w-3" style={{ background: COLORS.saldo }} />
@@ -132,13 +146,27 @@ export function CashFlowChart({
               tickFormatter={(v) => formatBRL(v, { compact: true })}
               width={70}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--surface-muted)", fillOpacity: 0.6 }} />
+            <Tooltip
+              content={<CustomTooltip />}
+              cursor={{ fill: "var(--surface-muted)", fillOpacity: 0.6 }}
+            />
             <Bar dataKey="entradas" fill={COLORS.entradas} radius={[6, 6, 0, 0]} barSize={10} />
             <Bar dataKey="saidas" fill={COLORS.saidas} radius={[6, 6, 0, 0]} barSize={10} />
             <Bar
               dataKey="receb_futuro"
               fill="transparent"
               stroke={COLORS.futuro}
+              strokeDasharray="4 4"
+              radius={[6, 6, 0, 0]}
+              barSize={10}
+            />
+            {/* Tracejada como a de recebimento futuro, e na cor de saída: o
+                tracejo diz "ainda não aconteceu", a cor diz de que lado é.
+                É aqui que a fatura do cartão aparece chegando. */}
+            <Bar
+              dataKey="saida_futura"
+              fill="transparent"
+              stroke={COLORS.saidas}
               strokeDasharray="4 4"
               radius={[6, 6, 0, 0]}
               barSize={10}

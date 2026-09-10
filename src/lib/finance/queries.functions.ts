@@ -20,6 +20,9 @@ export interface CashFlowPoint {
   entradas: number;
   saidas: number;
   receb_futuro: number;
+  /** Pagamento pendente por vencimento — a fatura do cartão entra aqui.
+   *  Chega indefinido enquanto a migration da RPC não roda, e vira zero. */
+  saida_futura: number;
   saldo: number;
 }
 
@@ -377,6 +380,9 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
       income: number | string;
       expense: number | string;
       future_receivable: number | string;
+      // Opcional: a RPC só devolve esta coluna depois da migration
+      // 20260910140000. Antes dela o campo chega indefinido e vira zero.
+      future_payable?: number | string;
     }[];
     const buckets = new Map<string, CashFlowPoint>();
     for (const r of cashRows) {
@@ -388,11 +394,13 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
         entradas: 0,
         saidas: 0,
         receb_futuro: 0,
+        saida_futura: 0,
         saldo: 0,
       };
       existing.entradas += Number(r.income);
       existing.saidas += Number(r.expense);
       existing.receb_futuro += Number(r.future_receivable);
+      existing.saida_futura += Number(r.future_payable ?? 0);
       buckets.set(key, existing);
     }
     const series = Array.from(buckets.values()).sort((a, b) => (a.key < b.key ? -1 : 1));
