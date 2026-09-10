@@ -201,6 +201,7 @@ export type Database = {
           enabled: boolean
           failure_count: number
           id: string
+          learn_from_won: boolean
           mode: string
           name: string
           owner_id: string
@@ -219,6 +220,7 @@ export type Database = {
           enabled?: boolean
           failure_count?: number
           id?: string
+          learn_from_won?: boolean
           mode?: string
           name?: string
           owner_id: string
@@ -237,6 +239,7 @@ export type Database = {
           enabled?: boolean
           failure_count?: number
           id?: string
+          learn_from_won?: boolean
           mode?: string
           name?: string
           owner_id?: string
@@ -257,6 +260,7 @@ export type Database = {
           moved_by: string
           owner_id: string
           playbook_id: string
+          source: string
         }
         Insert: {
           contact_name?: string | null
@@ -266,6 +270,7 @@ export type Database = {
           moved_by?: string
           owner_id: string
           playbook_id: string
+          source?: string
         }
         Update: {
           contact_name?: string | null
@@ -275,6 +280,7 @@ export type Database = {
           moved_by?: string
           owner_id?: string
           playbook_id?: string
+          source?: string
         }
         Relationships: [
           {
@@ -757,6 +763,54 @@ export type Database = {
           },
         ]
       }
+      card_invoices: {
+        Row: {
+          card_id: string
+          closing_date: string
+          created_at: string
+          due_date: string
+          id: string
+          owner_id: string
+          unit_id: string
+          updated_at: string
+        }
+        Insert: {
+          card_id: string
+          closing_date: string
+          created_at?: string
+          due_date: string
+          id?: string
+          owner_id?: string
+          unit_id: string
+          updated_at?: string
+        }
+        Update: {
+          card_id?: string
+          closing_date?: string
+          created_at?: string
+          due_date?: string
+          id?: string
+          owner_id?: string
+          unit_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "card_invoices_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "credit_cards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "card_invoices_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_chairs: {
         Row: {
           active: boolean
@@ -1108,6 +1162,63 @@ export type Database = {
           },
         ]
       }
+      credit_cards: {
+        Row: {
+          account_id: string | null
+          archived_at: string | null
+          closing_day: number
+          created_at: string
+          due_day: number
+          id: string
+          last_digits: string | null
+          name: string
+          owner_id: string
+          unit_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_id?: string | null
+          archived_at?: string | null
+          closing_day: number
+          created_at?: string
+          due_day: number
+          id?: string
+          last_digits?: string | null
+          name: string
+          owner_id?: string
+          unit_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string | null
+          archived_at?: string | null
+          closing_day?: number
+          created_at?: string
+          due_day?: number
+          id?: string
+          last_digits?: string | null
+          name?: string
+          owner_id?: string
+          unit_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_cards_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "financial_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_cards_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       crm_campaign_sends: {
         Row: {
           campaign_id: string
@@ -1366,9 +1477,11 @@ export type Database = {
         Row: {
           account_id: string | null
           amount: number
+          card_invoice_id: string | null
           category_id: string | null
           company_id: string | null
           created_at: string
+          credit_card_id: string | null
           description: string
           due_date: string
           id: string
@@ -1382,7 +1495,10 @@ export type Database = {
           patient_id: string | null
           payment_method: string | null
           professional_id: string | null
+          purchase_date: string | null
+          purchase_group_id: string | null
           recurrence_type: string | null
+          settles_card_invoice_id: string | null
           source_id: string | null
           source_type: string | null
           status: Database["public"]["Enums"]["transaction_status"]
@@ -1394,9 +1510,11 @@ export type Database = {
         Insert: {
           account_id?: string | null
           amount: number
+          card_invoice_id?: string | null
           category_id?: string | null
           company_id?: string | null
           created_at?: string
+          credit_card_id?: string | null
           description: string
           due_date: string
           id?: string
@@ -1410,7 +1528,10 @@ export type Database = {
           patient_id?: string | null
           payment_method?: string | null
           professional_id?: string | null
+          purchase_date?: string | null
+          purchase_group_id?: string | null
           recurrence_type?: string | null
+          settles_card_invoice_id?: string | null
           source_id?: string | null
           source_type?: string | null
           status: Database["public"]["Enums"]["transaction_status"]
@@ -1422,9 +1543,11 @@ export type Database = {
         Update: {
           account_id?: string | null
           amount?: number
+          card_invoice_id?: string | null
           category_id?: string | null
           company_id?: string | null
           created_at?: string
+          credit_card_id?: string | null
           description?: string
           due_date?: string
           id?: string
@@ -1438,7 +1561,10 @@ export type Database = {
           patient_id?: string | null
           payment_method?: string | null
           professional_id?: string | null
+          purchase_date?: string | null
+          purchase_group_id?: string | null
           recurrence_type?: string | null
+          settles_card_invoice_id?: string | null
           source_id?: string | null
           source_type?: string | null
           status?: Database["public"]["Enums"]["transaction_status"]
@@ -1456,10 +1582,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "financial_transactions_card_invoice_id_fkey"
+            columns: ["card_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "card_invoices"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "financial_transactions_category_id_fkey"
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "financial_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_transactions_credit_card_id_fkey"
+            columns: ["credit_card_id"]
+            isOneToOne: false
+            referencedRelation: "credit_cards"
             referencedColumns: ["id"]
           },
           {
@@ -1488,6 +1628,13 @@ export type Database = {
             columns: ["professional_id"]
             isOneToOne: false
             referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_transactions_settles_card_invoice_id_fkey"
+            columns: ["settles_card_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "card_invoices"
             referencedColumns: ["id"]
           },
           {
@@ -1903,10 +2050,12 @@ export type Database = {
           created_at: string
           crm_contact_id: string | null
           email: string | null
+          first_name: string | null
           gender: string | null
           guardian_cpf: string | null
           guardian_name: string | null
           id: string
+          last_name: string | null
           legacy_patient_id: string | null
           name: string
           neighborhood: string | null
@@ -1931,10 +2080,12 @@ export type Database = {
           created_at?: string
           crm_contact_id?: string | null
           email?: string | null
+          first_name?: string | null
           gender?: string | null
           guardian_cpf?: string | null
           guardian_name?: string | null
           id?: string
+          last_name?: string | null
           legacy_patient_id?: string | null
           name: string
           neighborhood?: string | null
@@ -1959,10 +2110,12 @@ export type Database = {
           created_at?: string
           crm_contact_id?: string | null
           email?: string | null
+          first_name?: string | null
           gender?: string | null
           guardian_cpf?: string | null
           guardian_name?: string | null
           id?: string
+          last_name?: string | null
           legacy_patient_id?: string | null
           name?: string
           neighborhood?: string | null
@@ -2562,6 +2715,10 @@ export type Database = {
       can_access_row:
         | { Args: { _owner_id: string }; Returns: boolean }
         | { Args: { _owner_id: string; _unit_id: string }; Returns: boolean }
+      card_invoice_recalc: {
+        Args: { p_invoice_id: string }
+        Returns: undefined
+      }
       current_owner_id: { Args: never; Returns: string }
       current_unit_id: { Args: never; Returns: string }
       finance_cash_flow_series: {
@@ -2575,6 +2732,7 @@ export type Database = {
         Returns: {
           bucket: string
           expense: number
+          future_payable: number
           future_receivable: number
           income: number
         }[]
@@ -2625,6 +2783,10 @@ export type Database = {
       }
       is_clinic_admin: { Args: never; Returns: boolean }
       normalize_br_phone: { Args: { raw: string }; Returns: string }
+      person_name_parts: {
+        Args: { raw: string }
+        Returns: Record<string, unknown>
+      }
       primary_clinic_owner: { Args: never; Returns: string }
     }
     Enums: {
@@ -2657,12 +2819,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2686,11 +2848,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2711,11 +2873,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2736,11 +2898,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2753,11 +2915,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
