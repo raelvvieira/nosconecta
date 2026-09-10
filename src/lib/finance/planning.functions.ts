@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { soCaixa, temColunasDeCartao } from "./schema-cartao";
 import { localDateStr } from "@/lib/date";
 
 /* ---------- Types ---------- */
@@ -58,7 +59,8 @@ export interface FinancialGoal {
   percentage: number;
 }
 
-export type ScenarioKind = "hire_employee" | "equipment_purchase" | "new_professional" | "marketing_investment" | "custom";
+export type ScenarioKind =
+  "hire_employee" | "equipment_purchase" | "new_professional" | "marketing_investment" | "custom";
 
 export interface ScenarioRow {
   id: string;
@@ -98,9 +100,26 @@ export interface PlanningOverview {
 // centralizado aqui porque o módulo inteiro passa `supabase` como parâmetro.
 type Supabase = any;
 
-const MONTHS_PT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const MONTHS_PT = [
+  "Jan",
+  "Fev",
+  "Mar",
+  "Abr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Set",
+  "Out",
+  "Nov",
+  "Dez",
+];
 const iso = (d: Date) => localDateStr(d);
-const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const addDays = (d: Date, n: number) => {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+};
 const fmtLabel = (d: Date) => `${String(d.getDate()).padStart(2, "0")} ${MONTHS_PT[d.getMonth()]}`;
 
 const ICON_BY_TYPE: Record<ScenarioKind, "user" | "device" | "tooth"> = {
@@ -118,55 +137,84 @@ function scenarioImpact90(monthlyCost: number, monthlyRevenue: number, oneTimeCo
 function scenarioSubtitle(s: { scenario_type: ScenarioKind; description: string | null }) {
   if (s.description) return s.description;
   switch (s.scenario_type) {
-    case "hire_employee": return "Contratação";
-    case "equipment_purchase": return "Compra de equipamento";
-    case "new_professional": return "Novo profissional";
-    case "marketing_investment": return "Investimento em marketing";
-    default: return "Cenário personalizado";
+    case "hire_employee":
+      return "Contratação";
+    case "equipment_purchase":
+      return "Compra de equipamento";
+    case "new_professional":
+      return "Novo profissional";
+    case "marketing_investment":
+      return "Investimento em marketing";
+    default:
+      return "Cenário personalizado";
   }
 }
 
-function scenarioBaseValue(s: { monthly_cost: number; monthly_revenue: number; one_time_cost: number }) {
+function scenarioBaseValue(s: {
+  monthly_cost: number;
+  monthly_revenue: number;
+  one_time_cost: number;
+}) {
   const parts: string[] = [];
-  if (s.one_time_cost > 0) parts.push(`Investimento único: R$ ${s.one_time_cost.toLocaleString("pt-BR")}`);
+  if (s.one_time_cost > 0)
+    parts.push(`Investimento único: R$ ${s.one_time_cost.toLocaleString("pt-BR")}`);
   if (s.monthly_cost > 0) parts.push(`R$ ${s.monthly_cost.toLocaleString("pt-BR")}/mês`);
-  if (s.monthly_revenue > 0) parts.push(`Receita estimada: R$ ${s.monthly_revenue.toLocaleString("pt-BR")}/mês`);
+  if (s.monthly_revenue > 0)
+    parts.push(`Receita estimada: R$ ${s.monthly_revenue.toLocaleString("pt-BR")}/mês`);
   return parts.join(" · ") || "—";
 }
 
 /** `unitId` nulo = admin sem escolha, olhando todas as unidades. */
 async function fetchCompanyData(supabase: Supabase, ownerId: string, unitId: string | null) {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const horizonEnd = addDays(today, 180);
   const past90 = addDays(today, -90);
   const cu = (q: any): any => (unitId ? q.eq("unit_id", unitId) : q);
+  // O ponto de maior alavancagem do arquivo: `fetchCompanyData` alimenta o
+  // resumo, a projeção de caixa, a previsão e a linha do tempo. Um filtro aqui
+  // conserta os quatro. E `paidPast90` é a base do fôlego financeiro — sem
+  // ele, a média diária de despesa dobraria e o runway cairia pela metade.
+  const cartao = await temColunasDeCartao(supabase);
+  const caixa = (q: any): any => soCaixa(q, cartao);
 
   const [accountsRes, pendingRes, paidPast90Res] = await Promise.all([
     cu(supabase.from("financial_accounts").select("current_balance").eq("owner_id", ownerId)),
-    cu(
-      supabase.from("financial_transactions")
-        .select("id, type, amount, due_date, description, status, financial_categories(name)")
-        .eq("owner_id", ownerId)
-        .in("status", ["pending", "overdue"])
-        .gte("due_date", iso(today))
-        .lte("due_date", iso(horizonEnd))
-        .order("due_date", { ascending: true }),
+    caixa(
+      cu(
+        supabase
+          .from("financial_transactions")
+          .select("id, type, amount, due_date, description, status, financial_categories(name)")
+          .eq("owner_id", ownerId)
+          .in("status", ["pending", "overdue"])
+          .gte("due_date", iso(today))
+          .lte("due_date", iso(horizonEnd))
+          .order("due_date", { ascending: true }),
+      ),
     ),
-    cu(
-      supabase.from("financial_transactions")
-        .select("type, amount, paid_date, category_id, professional_id, financial_categories(name), professionals(name)")
-        .eq("owner_id", ownerId)
-        .eq("status", "paid")
-        .gte("paid_date", iso(past90))
-        .lte("paid_date", iso(today)),
+    caixa(
+      cu(
+        supabase
+          .from("financial_transactions")
+          .select(
+            "type, amount, paid_date, category_id, professional_id, financial_categories(name), professionals(name)",
+          )
+          .eq("owner_id", ownerId)
+          .eq("status", "paid")
+          .gte("paid_date", iso(past90))
+          .lte("paid_date", iso(today)),
+      ),
     ),
   ]);
 
   // `as any[]`: chamar método num valor `any` puro (não um array) não dá
   // contexto nenhum pro parâmetro do callback, e o `noImplicitAny` acusa —
   // isso aqui é o que devolve um array de verdade pra tipar o `.reduce`/`.map`.
-  const currentBalance = ((accountsRes.data ?? []) as any[]).reduce((s, a) => s + Number(a.current_balance), 0);
-  const pending = ((pendingRes.data ?? []) as any[]).map(r => ({
+  const currentBalance = ((accountsRes.data ?? []) as any[]).reduce(
+    (s, a) => s + Number(a.current_balance),
+    0,
+  );
+  const pending = ((pendingRes.data ?? []) as any[]).map((r) => ({
     id: r.id,
     type: r.type as "receivable" | "payable",
     amount: Number(r.amount),
@@ -174,7 +222,7 @@ async function fetchCompanyData(supabase: Supabase, ownerId: string, unitId: str
     description: r.description,
     category: (r as any).financial_categories?.name ?? null,
   }));
-  const paid = ((paidPast90Res.data ?? []) as any[]).map(r => ({
+  const paid = ((paidPast90Res.data ?? []) as any[]).map((r) => ({
     type: r.type as "receivable" | "payable",
     amount: Number(r.amount),
     paid_date: r.paid_date as string,
@@ -193,22 +241,36 @@ export const getPlanningSummary = createServerFn({ method: "GET" })
   .inputValidator(inputUnit)
   .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<PlanningSummary> => {
-    const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
-    const { today, currentBalance, pending, paid } = await fetchCompanyData(context.supabase, context.ownerId, unitFilter);
+    const unitFilter = context.isAdmin ? (data.unitId ?? null) : context.unitId;
+    const { today, currentBalance, pending, paid } = await fetchCompanyData(
+      context.supabase,
+      context.ownerId,
+      unitFilter,
+    );
     const horizon30 = addDays(today, 30);
     const horizon90 = addDays(today, 90);
 
-    const sumIn = (until: Date) => pending.filter(p => p.type === "receivable" && new Date(p.due_date) <= until).reduce((s, p) => s + p.amount, 0);
-    const sumOut = (until: Date) => pending.filter(p => p.type === "payable" && new Date(p.due_date) <= until).reduce((s, p) => s + p.amount, 0);
+    const sumIn = (until: Date) =>
+      pending
+        .filter((p) => p.type === "receivable" && new Date(p.due_date) <= until)
+        .reduce((s, p) => s + p.amount, 0);
+    const sumOut = (until: Date) =>
+      pending
+        .filter((p) => p.type === "payable" && new Date(p.due_date) <= until)
+        .reduce((s, p) => s + p.amount, 0);
 
     const projectedBalance30 = currentBalance + sumIn(horizon30) - sumOut(horizon30);
     const projectedBalance90 = currentBalance + sumIn(horizon90) - sumOut(horizon90);
 
-    const payablesPaid90 = paid.filter(p => p.type === "payable").reduce((s, p) => s + p.amount, 0);
+    const payablesPaid90 = paid
+      .filter((p) => p.type === "payable")
+      .reduce((s, p) => s + p.amount, 0);
     const dailyAvgExpense = payablesPaid90 / 90;
-    const financialRunwayDays = dailyAvgExpense > 0 ? Math.floor(currentBalance / dailyAvgExpense) : 999;
+    const financialRunwayDays =
+      dailyAvgExpense > 0 ? Math.floor(currentBalance / dailyAvgExpense) : 999;
 
-    const pct = (cur: number, base: number) => base === 0 ? 0 : ((cur - base) / Math.abs(base)) * 100;
+    const pct = (cur: number, base: number) =>
+      base === 0 ? 0 : ((cur - base) / Math.abs(base)) * 100;
 
     // "vs. mês anterior" era a constante 12 — a mesma variação para toda
     // clínica, todo mês. Agora é calculada: desfaz o que entrou e saiu desde o
@@ -239,19 +301,27 @@ export const getCashProjection = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<ProjectionPoint[]> => {
     const supabase: any = context.supabase;
-    const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
-    const { today, currentBalance, pending } = await fetchCompanyData(supabase, context.ownerId, unitFilter);
+    const unitFilter = context.isAdmin ? (data.unitId ?? null) : context.unitId;
+    const { today, currentBalance, pending } = await fetchCompanyData(
+      supabase,
+      context.ownerId,
+      unitFilter,
+    );
     const back = 14;
 
     // history: paid transactions over last 14 days for actual line
     const histStart = addDays(today, -back);
-    let histQuery = supabase.from("financial_transactions")
+    let histQuery = supabase
+      .from("financial_transactions")
       .select("type, amount, paid_date")
       .eq("owner_id", context.ownerId)
       .eq("status", "paid")
       .gte("paid_date", iso(histStart))
       .lte("paid_date", iso(today));
     if (unitFilter) histQuery = histQuery.eq("unit_id", unitFilter);
+    // A linha real do gráfico é reconstruída de trás para frente a partir do
+    // saldo. Contar compra e fatura faria o passado descer o dobro.
+    histQuery = soCaixa(histQuery, await temColunasDeCartao(supabase));
     const { data: paidHist } = await histQuery;
 
     // Compute daily net for history walking backwards from current balance
@@ -263,13 +333,19 @@ export const getCashProjection = createServerFn({ method: "GET" })
     }
 
     // Goal value (active cash goal) — clínica inteira, sem unidade.
-    const { data: cashGoal } = await supabase.from("financial_goals")
-      .select("target_amount").eq("owner_id", context.ownerId).eq("goal_type", "cash").limit(1).maybeSingle();
+    const { data: cashGoal } = await supabase
+      .from("financial_goals")
+      .select("target_amount")
+      .eq("owner_id", context.ownerId)
+      .eq("goal_type", "cash")
+      .limit(1)
+      .maybeSingle();
     // Sem meta cadastrada não se desenha meta nenhuma: um valor inventado
     // (era R$ 50.000 fixos) é lido como decisão da clínica.
-    const goal = cashGoal?.target_amount === null || cashGoal?.target_amount === undefined
-      ? null
-      : Number(cashGoal.target_amount);
+    const goal =
+      cashGoal?.target_amount === null || cashGoal?.target_amount === undefined
+        ? null
+        : Number(cashGoal.target_amount);
 
     // Build per-day map of future pending
     const futureNet = new Map<string, number>();
@@ -337,12 +413,24 @@ export const getForecastSummary = createServerFn({ method: "GET" })
   .inputValidator(inputUnit)
   .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<ForecastSummary> => {
-    const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
-    const { today, pending } = await fetchCompanyData(context.supabase, context.ownerId, unitFilter);
+    const unitFilter = context.isAdmin ? (data.unitId ?? null) : context.unitId;
+    const { today, pending } = await fetchCompanyData(
+      context.supabase,
+      context.ownerId,
+      unitFilter,
+    );
     const horizon = addDays(today, 90);
-    const expectedReceivables = pending.filter(p => p.type === "receivable" && new Date(p.due_date) <= horizon).reduce((s, p) => s + p.amount, 0);
-    const expectedPayables = pending.filter(p => p.type === "payable" && new Date(p.due_date) <= horizon).reduce((s, p) => s + p.amount, 0);
-    return { expectedReceivables, expectedPayables, projectedNet: expectedReceivables - expectedPayables };
+    const expectedReceivables = pending
+      .filter((p) => p.type === "receivable" && new Date(p.due_date) <= horizon)
+      .reduce((s, p) => s + p.amount, 0);
+    const expectedPayables = pending
+      .filter((p) => p.type === "payable" && new Date(p.due_date) <= horizon)
+      .reduce((s, p) => s + p.amount, 0);
+    return {
+      expectedReceivables,
+      expectedPayables,
+      projectedNet: expectedReceivables - expectedPayables,
+    };
   });
 
 export const getFinancialTimeline = createServerFn({ method: "GET" })
@@ -352,11 +440,15 @@ export const getFinancialTimeline = createServerFn({ method: "GET" })
   }))
   .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<TimelineEvent[]> => {
-    const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
-    const { currentBalance, pending } = await fetchCompanyData(context.supabase, context.ownerId, unitFilter);
+    const unitFilter = context.isAdmin ? (data.unitId ?? null) : context.unitId;
+    const { currentBalance, pending } = await fetchCompanyData(
+      context.supabase,
+      context.ownerId,
+      unitFilter,
+    );
     const sorted = [...pending].sort((a, b) => a.due_date.localeCompare(b.due_date));
     let bal = currentBalance;
-    const events: TimelineEvent[] = sorted.slice(0, data.limit).map(p => {
+    const events: TimelineEvent[] = sorted.slice(0, data.limit).map((p) => {
       const signed = p.type === "receivable" ? p.amount : -p.amount;
       bal += signed;
       return {
@@ -377,43 +469,91 @@ export const listGoals = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ data, context }): Promise<FinancialGoal[]> => {
     const supabase: any = context.supabase;
-    const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
+    const unitFilter = context.isAdmin ? (data.unitId ?? null) : context.unitId;
     const cu = (q: any): any => (unitFilter ? q.eq("unit_id", unitFilter) : q);
     // Meta é clínica inteira — sem unidade.
-    const { data: rows } = await supabase.from("financial_goals").select("*").eq("owner_id", context.ownerId).order("created_at", { ascending: false });
+    const { data: rows } = await supabase
+      .from("financial_goals")
+      .select("*")
+      .eq("owner_id", context.ownerId)
+      .order("created_at", { ascending: false });
 
     // Current month range
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
+    // A meta de lucro subtrai despesa: sem filtro, ela contaria a compra e a
+    // fatura e a clínica pareceria estar perdendo dinheiro que não perdeu.
+    const temCartao = await temColunasDeCartao(supabase);
+    const soCx = (q: any): any => soCaixa(q, temCartao);
     const [paidThisMonth, pendingThisMonth] = await Promise.all([
-      cu(supabase.from("financial_transactions").select("type, amount").eq("owner_id", context.ownerId).eq("status", "paid").gte("paid_date", iso(monthStart)).lte("paid_date", iso(monthEnd))),
-      cu(supabase.from("financial_transactions").select("type, amount").eq("owner_id", context.ownerId).in("status", ["pending", "overdue"]).gte("due_date", iso(monthStart)).lte("due_date", iso(monthEnd))),
+      soCx(
+        cu(
+          supabase
+            .from("financial_transactions")
+            .select("type, amount")
+            .eq("owner_id", context.ownerId)
+            .eq("status", "paid")
+            .gte("paid_date", iso(monthStart))
+            .lte("paid_date", iso(monthEnd)),
+        ),
+      ),
+      soCx(
+        cu(
+          supabase
+            .from("financial_transactions")
+            .select("type, amount")
+            .eq("owner_id", context.ownerId)
+            .in("status", ["pending", "overdue"])
+            .gte("due_date", iso(monthStart))
+            .lte("due_date", iso(monthEnd)),
+        ),
+      ),
     ]);
 
     const paidRows = (paidThisMonth.data ?? []) as any[];
     const pendingRows = (pendingThisMonth.data ?? []) as any[];
-    const revenuePaid = paidRows.filter(r => r.type === "receivable").reduce((s, r) => s + Number(r.amount), 0);
-    const expensePaid = paidRows.filter(r => r.type === "payable").reduce((s, r) => s + Number(r.amount), 0);
-    const revenuePending = pendingRows.filter(r => r.type === "receivable").reduce((s, r) => s + Number(r.amount), 0);
-    const expensePending = pendingRows.filter(r => r.type === "payable").reduce((s, r) => s + Number(r.amount), 0);
+    const revenuePaid = paidRows
+      .filter((r) => r.type === "receivable")
+      .reduce((s, r) => s + Number(r.amount), 0);
+    const expensePaid = paidRows
+      .filter((r) => r.type === "payable")
+      .reduce((s, r) => s + Number(r.amount), 0);
+    const revenuePending = pendingRows
+      .filter((r) => r.type === "receivable")
+      .reduce((s, r) => s + Number(r.amount), 0);
+    const expensePending = pendingRows
+      .filter((r) => r.type === "payable")
+      .reduce((s, r) => s + Number(r.amount), 0);
 
-    return ((rows ?? []) as any[]).map(g => {
-      let realized = 0, projection = 0;
+    return ((rows ?? []) as any[]).map((g) => {
+      let realized = 0,
+        projection = 0;
       switch (g.goal_type) {
         case "revenue":
-          realized = revenuePaid; projection = revenuePaid + revenuePending; break;
+          realized = revenuePaid;
+          projection = revenuePaid + revenuePending;
+          break;
         case "profit":
-          realized = revenuePaid - expensePaid; projection = (revenuePaid + revenuePending) - (expensePaid + expensePending); break;
+          realized = revenuePaid - expensePaid;
+          projection = revenuePaid + revenuePending - (expensePaid + expensePending);
+          break;
         case "receivables":
-          realized = revenuePaid; projection = revenuePaid + revenuePending; break;
+          realized = revenuePaid;
+          projection = revenuePaid + revenuePending;
+          break;
         case "cash":
-          realized = revenuePaid - expensePaid; projection = realized; break;
+          realized = revenuePaid - expensePaid;
+          projection = realized;
+          break;
       }
       const target = Number(g.target_amount);
       return {
-        id: g.id, name: g.name, goal_type: g.goal_type as GoalType, period: g.period as GoalPeriod,
+        id: g.id,
+        name: g.name,
+        goal_type: g.goal_type as GoalType,
+        period: g.period as GoalPeriod,
         target_amount: target,
         realized: Math.round(realized),
         projection: Math.round(projection),
@@ -427,8 +567,12 @@ export const listScenarios = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<ScenarioRow[]> => {
     const supabase: any = context.supabase;
-    const { data: rows } = await supabase.from("financial_scenarios").select("*").eq("owner_id", context.ownerId).order("created_at", { ascending: false });
-    return ((rows ?? []) as any[]).map(r => {
+    const { data: rows } = await supabase
+      .from("financial_scenarios")
+      .select("*")
+      .eq("owner_id", context.ownerId)
+      .order("created_at", { ascending: false });
+    return ((rows ?? []) as any[]).map((r) => {
       const monthly_cost = Number(r.monthly_cost);
       const monthly_revenue = Number(r.monthly_revenue);
       const one_time_cost = Number(r.one_time_cost);
@@ -437,9 +581,14 @@ export const listScenarios = createServerFn({ method: "GET" })
         name: r.name,
         scenario_type: r.scenario_type as ScenarioKind,
         description: r.description,
-        monthly_cost, monthly_revenue, one_time_cost,
+        monthly_cost,
+        monthly_revenue,
+        one_time_cost,
         impact90d: scenarioImpact90(monthly_cost, monthly_revenue, one_time_cost),
-        subtitle: scenarioSubtitle({ scenario_type: r.scenario_type as ScenarioKind, description: r.description }),
+        subtitle: scenarioSubtitle({
+          scenario_type: r.scenario_type as ScenarioKind,
+          description: r.description,
+        }),
         baseValue: scenarioBaseValue({ monthly_cost, monthly_revenue, one_time_cost }),
         icon: ICON_BY_TYPE[r.scenario_type as ScenarioKind],
       };
@@ -447,17 +596,23 @@ export const listScenarios = createServerFn({ method: "GET" })
   });
 
 export const createScenario = createServerFn({ method: "POST" })
-  .inputValidator((input: {
-    name: string; scenario_type: ScenarioKind; description?: string;
-    monthly_cost?: number; monthly_revenue?: number; one_time_cost?: number;
-  }) => ({
-    name: input.name,
-    scenario_type: input.scenario_type,
-    description: input.description ?? null,
-    monthly_cost: input.monthly_cost ?? 0,
-    monthly_revenue: input.monthly_revenue ?? 0,
-    one_time_cost: input.one_time_cost ?? 0,
-  }))
+  .inputValidator(
+    (input: {
+      name: string;
+      scenario_type: ScenarioKind;
+      description?: string;
+      monthly_cost?: number;
+      monthly_revenue?: number;
+      one_time_cost?: number;
+    }) => ({
+      name: input.name,
+      scenario_type: input.scenario_type,
+      description: input.description ?? null,
+      monthly_cost: input.monthly_cost ?? 0,
+      monthly_revenue: input.monthly_revenue ?? 0,
+      one_time_cost: input.one_time_cost ?? 0,
+    }),
+  )
   .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
@@ -488,45 +643,109 @@ export const deleteScenario = createServerFn({ method: "POST" })
   });
 
 export const simulateScenario = createServerFn({ method: "POST" })
-  .inputValidator((input: {
-    unitId?: string; scenario_type: ScenarioKind;
-    monthly_cost?: number; monthly_revenue?: number; one_time_cost?: number; period?: RangeDays;
-  }) => ({
-    unitId: input.unitId,
-    scenario_type: input.scenario_type,
-    monthly_cost: input.monthly_cost ?? 0,
-    monthly_revenue: input.monthly_revenue ?? 0,
-    one_time_cost: input.one_time_cost ?? 0,
-    period: (input.period ?? 90) as RangeDays,
-  }))
+  .inputValidator(
+    (input: {
+      unitId?: string;
+      scenario_type: ScenarioKind;
+      monthly_cost?: number;
+      monthly_revenue?: number;
+      one_time_cost?: number;
+      period?: RangeDays;
+    }) => ({
+      unitId: input.unitId,
+      scenario_type: input.scenario_type,
+      monthly_cost: input.monthly_cost ?? 0,
+      monthly_revenue: input.monthly_revenue ?? 0,
+      one_time_cost: input.one_time_cost ?? 0,
+      period: (input.period ?? 90) as RangeDays,
+    }),
+  )
   .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
-    const { today, currentBalance, pending } = await fetchCompanyData(context.supabase, context.ownerId, unitFilter);
+    const unitFilter = context.isAdmin ? (data.unitId ?? null) : context.unitId;
+    const { today, currentBalance, pending } = await fetchCompanyData(
+      context.supabase,
+      context.ownerId,
+      unitFilter,
+    );
     const horizon = addDays(today, data.period);
-    const inAmt = pending.filter(p => p.type === "receivable" && new Date(p.due_date) <= horizon).reduce((s, p) => s + p.amount, 0);
-    const outAmt = pending.filter(p => p.type === "payable" && new Date(p.due_date) <= horizon).reduce((s, p) => s + p.amount, 0);
+    const inAmt = pending
+      .filter((p) => p.type === "receivable" && new Date(p.due_date) <= horizon)
+      .reduce((s, p) => s + p.amount, 0);
+    const outAmt = pending
+      .filter((p) => p.type === "payable" && new Date(p.due_date) <= horizon)
+      .reduce((s, p) => s + p.amount, 0);
     const currentProjection = currentBalance + inAmt - outAmt;
     const months = data.period / 30;
     const impact = (data.monthly_revenue - data.monthly_cost) * months - data.one_time_cost;
-    return { currentProjection, simulatedProjection: Math.round(currentProjection + impact), impact: Math.round(impact) };
+    return {
+      currentProjection,
+      simulatedProjection: Math.round(currentProjection + impact),
+      impact: Math.round(impact),
+    };
   });
 
 /* ---------- Insights ---------- */
 
-async function computeInsights(supabase: Supabase, ownerId: string, unitId: string | null): Promise<Insight[]> {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+async function computeInsights(
+  supabase: Supabase,
+  ownerId: string,
+  unitId: string | null,
+): Promise<Insight[]> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
   const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
   const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
   const cu = (q: any): any => (unitId ? q.eq("unit_id", unitId) : q);
 
-  const [{ data: paidThis }, { data: paidPrev }, { data: pendingAll }, { data: catRevenue }] = await Promise.all([
-    cu(supabase.from("financial_transactions").select("type, amount").eq("owner_id", ownerId).eq("status", "paid").eq("type", "receivable").gte("paid_date", iso(monthStart)).lte("paid_date", iso(today))),
-    cu(supabase.from("financial_transactions").select("amount").eq("owner_id", ownerId).eq("status", "paid").eq("type", "receivable").gte("paid_date", iso(prevMonthStart)).lte("paid_date", iso(prevMonthEnd))),
-    cu(supabase.from("financial_transactions").select("type, amount, due_date").eq("owner_id", ownerId).in("status", ["pending", "overdue"]).gte("due_date", iso(today))),
-    cu(supabase.from("financial_transactions").select("amount, financial_categories(name)").eq("owner_id", ownerId).eq("status", "paid").eq("type", "receivable").gte("paid_date", iso(monthStart)).lte("paid_date", iso(today))),
-  ]);
+  const [{ data: paidThis }, { data: paidPrev }, { data: pendingAll }, { data: catRevenue }] =
+    await Promise.all([
+      cu(
+        supabase
+          .from("financial_transactions")
+          .select("type, amount")
+          .eq("owner_id", ownerId)
+          .eq("status", "paid")
+          .eq("type", "receivable")
+          .gte("paid_date", iso(monthStart))
+          .lte("paid_date", iso(today)),
+      ),
+      cu(
+        supabase
+          .from("financial_transactions")
+          .select("amount")
+          .eq("owner_id", ownerId)
+          .eq("status", "paid")
+          .eq("type", "receivable")
+          .gte("paid_date", iso(prevMonthStart))
+          .lte("paid_date", iso(prevMonthEnd)),
+      ),
+      // `pendingAll` alimenta o aviso "seu saldo ficará negativo em ..." — com
+      // contagem dupla ele dispararia falso e a pessoa cancelaria compra por
+      // causa de um número inventado.
+      soCaixa(
+        cu(
+          supabase
+            .from("financial_transactions")
+            .select("type, amount, due_date")
+            .eq("owner_id", ownerId)
+            .in("status", ["pending", "overdue"])
+            .gte("due_date", iso(today)),
+        ),
+        await temColunasDeCartao(supabase),
+      ),
+      cu(
+        supabase
+          .from("financial_transactions")
+          .select("amount, financial_categories(name)")
+          .eq("owner_id", ownerId)
+          .eq("status", "paid")
+          .eq("type", "receivable")
+          .gte("paid_date", iso(monthStart))
+          .lte("paid_date", iso(today)),
+      ),
+    ]);
 
   const thisRev = ((paidThis ?? []) as any[]).reduce((s, r) => s + Number(r.amount), 0);
   const prevRev = ((paidPrev ?? []) as any[]).reduce((s, r) => s + Number(r.amount), 0);
@@ -534,19 +753,40 @@ async function computeInsights(supabase: Supabase, ownerId: string, unitId: stri
 
   if (prevRev > 0) {
     const pct = Math.round(((thisRev - prevRev) / prevRev) * 100);
-    if (pct >= 0) insights.push({ id: "rev-up", tone: "success", icon: "trend", text: `Receita projetada ${pct}% maior que o mês anterior.` });
-    else insights.push({ id: "rev-down", tone: "warning", icon: "alert", text: `Receita ${Math.abs(pct)}% abaixo do mês anterior.` });
+    if (pct >= 0)
+      insights.push({
+        id: "rev-up",
+        tone: "success",
+        icon: "trend",
+        text: `Receita projetada ${pct}% maior que o mês anterior.`,
+      });
+    else
+      insights.push({
+        id: "rev-down",
+        tone: "warning",
+        icon: "alert",
+        text: `Receita ${Math.abs(pct)}% abaixo do mês anterior.`,
+      });
   }
 
   // Risk: running balance negative in next 90 days
-  const { data: accounts } = await cu(supabase.from("financial_accounts").select("current_balance").eq("owner_id", ownerId));
+  const { data: accounts } = await cu(
+    supabase.from("financial_accounts").select("current_balance").eq("owner_id", ownerId),
+  );
   let bal = ((accounts ?? []) as any[]).reduce((s, a) => s + Number(a.current_balance), 0);
-  const sorted = [...((pendingAll ?? []) as any[])].sort((a, b) => a.due_date.localeCompare(b.due_date));
+  const sorted = [...((pendingAll ?? []) as any[])].sort((a, b) =>
+    a.due_date.localeCompare(b.due_date),
+  );
   for (const t of sorted) {
     bal += (t.type === "receivable" ? 1 : -1) * Number(t.amount);
     if (bal < 0) {
       const d = new Date(t.due_date + "T00:00:00");
-      insights.push({ id: "risk", tone: "warning", icon: "alert", text: `Saldo ficará negativo em ${d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}.` });
+      insights.push({
+        id: "risk",
+        tone: "warning",
+        icon: "alert",
+        text: `Saldo ficará negativo em ${d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}.`,
+      });
       break;
     }
   }
@@ -560,10 +800,20 @@ async function computeInsights(supabase: Supabase, ownerId: string, unitId: stri
   const topCat = [...catMap.entries()].sort((a, b) => b[1] - a[1])[0];
   if (topCat && thisRev > 0) {
     const pct = Math.round((topCat[1] / thisRev) * 100);
-    insights.push({ id: "top-cat", tone: "violet", icon: "pie", text: `${topCat[0]} representa ${pct}% da receita do mês.` });
+    insights.push({
+      id: "top-cat",
+      tone: "violet",
+      icon: "pie",
+      text: `${topCat[0]} representa ${pct}% da receita do mês.`,
+    });
   }
 
-  insights.push({ id: "tip", tone: "info", icon: "spark", text: "Acompanhe as projeções semanalmente para antecipar decisões." });
+  insights.push({
+    id: "tip",
+    tone: "info",
+    icon: "spark",
+    text: "Acompanhe as projeções semanalmente para antecipar decisões.",
+  });
   return insights;
 }
 
@@ -571,7 +821,7 @@ export const getInsights = createServerFn({ method: "GET" })
   .inputValidator(inputUnit)
   .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
-    const unitFilter = context.isAdmin ? data.unitId ?? null : context.unitId;
+    const unitFilter = context.isAdmin ? (data.unitId ?? null) : context.unitId;
     return computeInsights(context.supabase, context.ownerId, unitFilter);
   });
 
@@ -586,14 +836,16 @@ export const getPlanningOverview = createServerFn({ method: "GET" })
     // (mesma requisição HTTP ambiente, mesmo padrão de composição já usado
     // no resto do módulo financeiro) — só precisa repassar `unitId`, que é
     // escolha de tela, não algo que o contexto resolveria sozinho.
-    const [summary, projection, forecast, timeline, goals, scenarios, insights] = await Promise.all([
-      getPlanningSummary({ data: { unitId: data.unitId } }),
-      getCashProjection({ data: { unitId: data.unitId, period: data.period } }),
-      getForecastSummary({ data: { unitId: data.unitId } }),
-      getFinancialTimeline({ data: { unitId: data.unitId, limit: 7 } }),
-      listGoals({ data: { unitId: data.unitId } }),
-      listScenarios({ data: {} }),
-      getInsights({ data: { unitId: data.unitId } }),
-    ]);
+    const [summary, projection, forecast, timeline, goals, scenarios, insights] = await Promise.all(
+      [
+        getPlanningSummary({ data: { unitId: data.unitId } }),
+        getCashProjection({ data: { unitId: data.unitId, period: data.period } }),
+        getForecastSummary({ data: { unitId: data.unitId } }),
+        getFinancialTimeline({ data: { unitId: data.unitId, limit: 7 } }),
+        listGoals({ data: { unitId: data.unitId } }),
+        listScenarios({ data: {} }),
+        getInsights({ data: { unitId: data.unitId } }),
+      ],
+    );
     return { summary, projection, forecast, timeline, goals, scenarios, insights };
   });

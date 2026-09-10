@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { soCaixa, soNatureza, temColunasDeCartao } from "./schema-cartao";
 import { localDateStr } from "@/lib/date";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 
@@ -60,11 +61,9 @@ export interface PayablesOverview {
 }
 
 function sb() {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false, storage: undefined } },
-  );
+  return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
+  });
 }
 
 const todayStr = () => localDateStr();
@@ -131,30 +130,44 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
     const unitFilter = context.isAdmin ? data.unitId : context.unitId;
     const cu = (q: any): any => (unitFilter ? q.eq("unit_id", unitFilter) : q);
 
+    // Compra no cartão não é saída de caixa: quem sai do caixa é a FATURA, uma
+    // vez por mês, somando todas. Contar as duas coisas seria contar em dobro.
+    // Enquanto a migration do cartão não roda, `cartao` é falso e todo filtro
+    // abaixo vira no-op — correto, porque sem as colunas não existe compra de
+    // cartão nenhuma.
+    const cartao = await temColunasDeCartao(supabase);
+    const caixa = (q: any): any => soCaixa(q, cartao);
+
     // Base query for the list. When the user picked an explicit period, filter
     // and sort by due_date within it; otherwise show everything, most recently
     // added first (created_at desc), unconstrained by the KPI date range.
     const hasExplicitRange = !!(data.from && data.to);
-    let listQuery = cu(
-      supabase
-        .from("financial_transactions")
-        .select(
-          "id, description, amount, due_date, paid_date, status, payment_method, supplier_name, category_id, account_id, installment_number, installment_total, is_recurring, recurrence_type, notes, financial_categories(name), financial_accounts(name,type,last_digits)",
-          { count: "exact" },
-        )
-        .eq("owner_id", context.ownerId)
-        .eq("type", "payable"),
+    let listQuery = caixa(
+      cu(
+        supabase
+          .from("financial_transactions")
+          .select(
+            "id, description, amount, due_date, paid_date, status, payment_method, supplier_name, category_id, account_id, installment_number, installment_total, is_recurring, recurrence_type, notes, financial_categories(name), financial_accounts(name,type,last_digits)",
+            { count: "exact" },
+          )
+          .eq("owner_id", context.ownerId)
+          .eq("type", "payable"),
+      ),
     );
 
     listQuery = hasExplicitRange
-      ? listQuery.gte("due_date", range.from).lte("due_date", range.to).order("due_date", { ascending: false })
+      ? listQuery
+          .gte("due_date", range.from)
+          .lte("due_date", range.to)
+          .order("due_date", { ascending: false })
       : listQuery.order("created_at", { ascending: false });
 
     if (data.category) listQuery = listQuery.eq("category_id", data.category);
     if (data.account) listQuery = listQuery.eq("account_id", data.account);
     if (data.supplier) listQuery = listQuery.eq("supplier_name", data.supplier);
     if (data.method) listQuery = listQuery.eq("payment_method", data.method);
-    if (data.q) listQuery = listQuery.or(`description.ilike.%${data.q}%,supplier_name.ilike.%${data.q}%`);
+    if (data.q)
+      listQuery = listQuery.or(`description.ilike.%${data.q}%,supplier_name.ilike.%${data.q}%`);
 
     const [
       listRes,
@@ -171,50 +184,157 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
       suppliersRes,
     ] = await Promise.all([
       listQuery.limit(1000),
-      cu(supabase.from("financial_transactions").select("amount")
-        .eq("owner_id", context.ownerId).eq("type", "payable").eq("status", "paid")
-        .gte("paid_date", range.from).lte("paid_date", range.to)),
-      cu(supabase.from("financial_transactions").select("amount")
-        .eq("owner_id", context.ownerId).eq("type", "payable").eq("status", "paid")
-        .gte("paid_date", prev.from).lte("paid_date", prev.to)),
+      caixa(
+        cu(
+          supabase
+            .from("financial_transactions")
+            .select("amount")
+            .eq("owner_id", context.ownerId)
+            .eq("type", "payable")
+            .eq("status", "paid")
+            .gte("paid_date", range.from)
+            .lte("paid_date", range.to),
+        ),
+      ),
+      caixa(
+        cu(
+          supabase
+            .from("financial_transactions")
+            .select("amount")
+            .eq("owner_id", context.ownerId)
+            .eq("type", "payable")
+            .eq("status", "paid")
+            .gte("paid_date", prev.from)
+            .lte("paid_date", prev.to),
+        ),
+      ),
       // Duas leituras diferentes de propósito: "Total previsto no período" é o
       // que cai dentro do intervalo escolhido; "A pagar" é tudo que ainda vai
       // vencer, independente do intervalo. Antes as duas saíam da mesma
       // consulta, e como o intervalo termina hoje, "A pagar" só via o dia.
-      cu(supabase.from("financial_transactions").select("amount,due_date,status")
-        .eq("owner_id", context.ownerId).eq("type", "payable").in("status", ["pending", "overdue"])
-        .gte("due_date", range.from).lte("due_date", range.to)),
-      cu(supabase.from("financial_transactions").select("amount,due_date,status")
-        .eq("owner_id", context.ownerId).eq("type", "payable").in("status", ["pending", "overdue"])
-        .gte("due_date", today)),
-      cu(supabase.from("financial_transactions").select("amount,due_date,status")
-        .eq("owner_id", context.ownerId).eq("type", "payable").in("status", ["pending", "overdue"])),
-      cu(supabase.from("financial_transactions")
-        .select("amount, category_id, financial_categories(name)")
-        .eq("owner_id", context.ownerId).eq("type", "payable").neq("status", "cancelled")
-        .gte("due_date", range.from).lte("due_date", range.to)),
-      cu(supabase.from("financial_transactions")
-        .select("id, description, amount, due_date")
-        .eq("owner_id", context.ownerId).eq("type", "payable").eq("status", "pending")
-        .gte("due_date", today).order("due_date", { ascending: true }).limit(5)),
-      cu(supabase.from("financial_transactions")
-        .select("id, description, amount, recurrence_type, due_date")
-        .eq("owner_id", context.ownerId).eq("type", "payable").eq("is_recurring", true)
-        .order("due_date", { ascending: true }).limit(8)),
-      cu(supabase.from("financial_accounts").select("id,name,type,last_digits")
-        .eq("owner_id", context.ownerId).order("name")),
+      caixa(
+        cu(
+          supabase
+            .from("financial_transactions")
+            .select("amount,due_date,status")
+            .eq("owner_id", context.ownerId)
+            .eq("type", "payable")
+            .in("status", ["pending", "overdue"])
+            .gte("due_date", range.from)
+            .lte("due_date", range.to),
+        ),
+      ),
+      caixa(
+        cu(
+          supabase
+            .from("financial_transactions")
+            .select("amount,due_date,status")
+            .eq("owner_id", context.ownerId)
+            .eq("type", "payable")
+            .in("status", ["pending", "overdue"])
+            .gte("due_date", today),
+        ),
+      ),
+      caixa(
+        cu(
+          supabase
+            .from("financial_transactions")
+            .select("amount,due_date,status")
+            .eq("owner_id", context.ownerId)
+            .eq("type", "payable")
+            .in("status", ["pending", "overdue"]),
+        ),
+      ),
+      // O ÚNICO ponto invertido do arquivo: a categoria mora na COMPRA. A
+      // fatura é a soma de compras de categorias diferentes e não tem uma
+      // própria — mantê-la aqui transformaria todo gasto no cartão numa fatia
+      // cinza e mataria a categorização.
+      soNatureza(
+        cu(
+          supabase
+            .from("financial_transactions")
+            .select("amount, category_id, financial_categories(name)")
+            .eq("owner_id", context.ownerId)
+            .eq("type", "payable")
+            .neq("status", "cancelled")
+            .gte("due_date", range.from)
+            .lte("due_date", range.to),
+        ),
+        cartao,
+      ),
+      // Sem o filtro, doze parcelas de uma compra parcelada ocupariam os
+      // cinco lugares e esconderiam o aluguel que vence amanhã.
+      caixa(
+        cu(
+          supabase
+            .from("financial_transactions")
+            .select("id, description, amount, due_date")
+            .eq("owner_id", context.ownerId)
+            .eq("type", "payable")
+            .eq("status", "pending")
+            .gte("due_date", today)
+            .order("due_date", { ascending: true })
+            .limit(5),
+        ),
+      ),
+      cu(
+        supabase
+          .from("financial_transactions")
+          .select("id, description, amount, recurrence_type, due_date")
+          .eq("owner_id", context.ownerId)
+          .eq("type", "payable")
+          .eq("is_recurring", true)
+          .order("due_date", { ascending: true })
+          .limit(8),
+      ),
+      cu(
+        supabase
+          .from("financial_accounts")
+          .select("id,name,type,last_digits")
+          .eq("owner_id", context.ownerId)
+          .order("name"),
+      ),
       // Categoria é clínica inteira — sem filtro de unidade.
-      supabase.from("financial_categories").select("id,name")
-        .eq("owner_id", context.ownerId).eq("type", "expense").order("name"),
-      cu(supabase.from("financial_transactions").select("supplier_name")
-        .eq("owner_id", context.ownerId).eq("type", "payable").not("supplier_name", "is", null)),
+      supabase
+        .from("financial_categories")
+        .select("id,name")
+        .eq("owner_id", context.ownerId)
+        .eq("type", "expense")
+        .order("name"),
+      cu(
+        supabase
+          .from("financial_transactions")
+          .select("supplier_name")
+          .eq("owner_id", context.ownerId)
+          .eq("type", "payable")
+          .not("supplier_name", "is", null),
+      ),
     ]);
 
-    const errs = [listRes, paidCurRes, paidPrevRes, pendingInRangeRes, pendingFutureRes, overdueAllRes, catAggRes, upcomingRes, recurringRes, accountsRes, categoriesRes, suppliersRes];
+    const errs = [
+      listRes,
+      paidCurRes,
+      paidPrevRes,
+      pendingInRangeRes,
+      pendingFutureRes,
+      overdueAllRes,
+      catAggRes,
+      upcomingRes,
+      recurringRes,
+      accountsRes,
+      categoriesRes,
+      suppliersRes,
+    ];
     for (const r of errs) if ((r as any).error) throw (r as any).error;
 
-    const paidCurrent = ((paidCurRes.data ?? []) as any[]).reduce((a, r) => a + Number(r.amount), 0);
-    const paidPrevious = ((paidPrevRes.data ?? []) as any[]).reduce((a, r) => a + Number(r.amount), 0);
+    const paidCurrent = ((paidCurRes.data ?? []) as any[]).reduce(
+      (a, r) => a + Number(r.amount),
+      0,
+    );
+    const paidPrevious = ((paidPrevRes.data ?? []) as any[]).reduce(
+      (a, r) => a + Number(r.amount),
+      0,
+    );
 
     const pendingRows = (pendingInRangeRes.data ?? []) as any[];
     const pendingFuture = (pendingFutureRes.data ?? []) as any[];
@@ -223,11 +343,11 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
 
     const allUnpaid = (overdueAllRes.data ?? []) as any[];
     const overdueCurrent = allUnpaid
-      .filter(r => r.status === "overdue" || (r.status === "pending" && r.due_date < today))
+      .filter((r) => r.status === "overdue" || (r.status === "pending" && r.due_date < today))
       .reduce((a, r) => a + Number(r.amount), 0);
     // simple previous-period proxy: count overdue items whose due_date fell in prev range
     const overduePrevious = allUnpaid
-      .filter(r => r.due_date >= prev.from && r.due_date <= prev.to)
+      .filter((r) => r.due_date >= prev.from && r.due_date <= prev.to)
       .reduce((a, r) => a + Number(r.amount), 0);
 
     const forecastTotal = paidCurrent + pendingRows.reduce((a, r) => a + Number(r.amount), 0);
@@ -244,9 +364,9 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
     const catTotal = Array.from(catMap.values()).reduce((a, c) => a + c.total, 0) || 1;
     const categoryBreakdown = Array.from(catMap.values())
       .sort((a, b) => b.total - a.total)
-      .map(c => ({ ...c, pct: (c.total / catTotal) * 100 }));
+      .map((c) => ({ ...c, pct: (c.total / catTotal) * 100 }));
 
-    const upcomingDueDates = ((upcomingRes.data ?? []) as any[]).map(t => {
+    const upcomingDueDates = ((upcomingRes.data ?? []) as any[]).map((t) => {
       const d = new Date(t.due_date + "T00:00:00").getTime();
       const now = new Date(today + "T00:00:00").getTime();
       return {
@@ -258,7 +378,7 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
       };
     });
 
-    const recurringPayments = ((recurringRes.data ?? []) as any[]).map(t => ({
+    const recurringPayments = ((recurringRes.data ?? []) as any[]).map((t) => ({
       id: t.id,
       description: t.description,
       amount: Number(t.amount),
@@ -266,7 +386,7 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
       day_of_month: t.due_date ? new Date(t.due_date + "T00:00:00").getDate() : null,
     }));
 
-    const transactions: PayableRow[] = ((listRes.data ?? []) as any[]).map(t => {
+    const transactions: PayableRow[] = ((listRes.data ?? []) as any[]).map((t) => {
       const effective: PayableRow["effective_status"] =
         t.status === "pending" && t.due_date < today ? "overdue" : t.status;
       return {
@@ -292,12 +412,14 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
       };
     });
 
-    const filteredTransactions = data.status === "all"
-      ? transactions
-      : transactions.filter(t => t.effective_status === data.status);
+    const filteredTransactions =
+      data.status === "all"
+        ? transactions
+        : transactions.filter((t) => t.effective_status === data.status);
 
     const supplierSet = new Set<string>();
-    for (const r of (suppliersRes.data ?? []) as any[]) if (r.supplier_name) supplierSet.add(r.supplier_name);
+    for (const r of (suppliersRes.data ?? []) as any[])
+      if (r.supplier_name) supplierSet.add(r.supplier_name);
 
     return {
       range,
@@ -349,7 +471,8 @@ export const createPayable = createServerFn({ method: "POST" })
       if (!(input.amount > 0)) throw new Error("Valor deve ser maior que zero");
       if (!input.due_date) throw new Error("Vencimento obrigatório");
       const downPayment = Math.max(0, input.downPayment ?? 0);
-      if (downPayment >= input.amount) throw new Error("A entrada deve ser menor que o valor total");
+      if (downPayment >= input.amount)
+        throw new Error("A entrada deve ser menor que o valor total");
       return {
         unitId: input.unitId,
         description: input.description.trim(),
@@ -415,7 +538,10 @@ export const createPayable = createServerFn({ method: "POST" })
         installment_total: null as number | null,
       };
       const { data: parent, error: eErr } = await supabase
-        .from("financial_transactions").insert(entradaRow).select("id").single();
+        .from("financial_transactions")
+        .insert(entradaRow)
+        .select("id")
+        .single();
       if (eErr) throw eErr;
 
       // Parcelas do restante começam no mês seguinte à entrada.
@@ -464,7 +590,10 @@ export const createPayable = createServerFn({ method: "POST" })
         installment_total: n,
       };
       const { data: parent, error: pErr } = await supabase
-        .from("financial_transactions").insert(baseRow).select("id").single();
+        .from("financial_transactions")
+        .insert(baseRow)
+        .select("id")
+        .single();
       if (pErr) throw pErr;
 
       const rest = Array.from({ length: n - 1 }, (_, i) => {
@@ -474,7 +603,7 @@ export const createPayable = createServerFn({ method: "POST" })
         const paid = installmentPaid(dueDate);
         return {
           owner_id: context.ownerId,
-        unit_id: unitId,
+          unit_id: unitId,
           type: "payable" as const,
           description: `${data.description} (${idx}/${n})`,
           amount: isLast ? lastAmount : perAmount,
@@ -513,7 +642,10 @@ export const createPayable = createServerFn({ method: "POST" })
       recurrence_type: data.isRecurring ? data.recurrenceType : null,
     };
     const { data: inserted, error } = await supabase
-      .from("financial_transactions").insert(row).select("id").single();
+      .from("financial_transactions")
+      .insert(row)
+      .select("id")
+      .single();
     if (error) throw error;
     return { id: inserted.id, count: 1 };
   });

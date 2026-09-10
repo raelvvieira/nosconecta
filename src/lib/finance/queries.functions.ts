@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { soCaixa, temColunasDeCartao } from "./schema-cartao";
 import { localDateStr } from "@/lib/date";
 
 export type Period = "today" | "7d" | "30d" | "90d";
@@ -68,14 +69,16 @@ export interface OverviewData {
 }
 
 function getServerSupabase() {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_PUBLISHABLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false, storage: undefined } },
-  );
+  return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false, storage: undefined },
+  });
 }
 
-function periodToRange(period: Period, customFrom?: string, customTo?: string): { from: Date; to: Date } {
+function periodToRange(
+  period: Period,
+  customFrom?: string,
+  customTo?: string,
+): { from: Date; to: Date } {
   if (customFrom && customTo) {
     const f = new Date(customFrom + "T00:00:00");
     const t = new Date(customTo + "T23:59:59");
@@ -143,6 +146,10 @@ async function sumAmount(
     .gte(fromCol, from)
     .lte(fromCol, to);
   if (unitId) query = query.eq("unit_id", unitId);
+  // Aqui dentro, e não em cada chamada: este helper alimenta receita e despesa
+  // do período atual e do anterior — quatro usos, e esquecer de um faria a
+  // margem de lucro mentir sem nenhum sinal na tela.
+  query = soCaixa(query, await temColunasDeCartao(supabase));
   const { data, error } = await query;
   if (error) throw error;
   return ((data ?? []) as any[]).reduce((acc, r) => acc + Number(r.amount), 0);
@@ -150,7 +157,13 @@ async function sumAmount(
 
 export const getFinanceOverview = createServerFn({ method: "GET" })
   .inputValidator(
-    (input: { unitId?: string; period?: Period; granularity?: Granularity; from?: string; to?: string }) => ({
+    (input: {
+      unitId?: string;
+      period?: Period;
+      granularity?: Granularity;
+      from?: string;
+      to?: string;
+    }) => ({
       unitId: input.unitId,
       period: input.period ?? "30d",
       granularity: input.granularity ?? "daily",
@@ -163,7 +176,7 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
     const supabase: any = context.supabase;
     const ownerId = context.ownerId;
     // Conta/transação e profissional são por unidade; categoria não é.
-    const unitId = context.isAdmin ? data.unitId ?? null : context.unitId;
+    const unitId = context.isAdmin ? (data.unitId ?? null) : context.unitId;
     const { period, granularity, from, to } = data;
     const range = periodToRange(period, from, to);
     const prev = previousRange(range);
@@ -173,69 +186,112 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
     const prevToStr = toDateStr(prev.to);
 
     const cu = (q: any): any => (unitId ? q.eq("unit_id", unitId) : q);
+    // Ver `schema-cartao`: compra no cartão não é caixa; quem é caixa é a fatura.
+    const cartao = await temColunasDeCartao(supabase);
+    const caixa = (q: any): any => soCaixa(q, cartao);
 
     // --- KPIs (parallel) ---
     const [
-      revCur, revPrev, expCur, expPrev,
-      overdueRes, accountsRes, procRes, profRes,
-      upRecRes, upPayRes, cashRes, paidByDayRes,
+      revCur,
+      revPrev,
+      expCur,
+      expPrev,
+      overdueRes,
+      accountsRes,
+      procRes,
+      profRes,
+      upRecRes,
+      upPayRes,
+      cashRes,
+      paidByDayRes,
     ] = await Promise.all([
       sumAmount(supabase, ownerId, unitId, "receivable", "paid", "paid_date", fromStr, toStr),
-      sumAmount(supabase, ownerId, unitId, "receivable", "paid", "paid_date", prevFromStr, prevToStr),
+      sumAmount(
+        supabase,
+        ownerId,
+        unitId,
+        "receivable",
+        "paid",
+        "paid_date",
+        prevFromStr,
+        prevToStr,
+      ),
       sumAmount(supabase, ownerId, unitId, "payable", "paid", "paid_date", fromStr, toStr),
       sumAmount(supabase, ownerId, unitId, "payable", "paid", "paid_date", prevFromStr, prevToStr),
       // Atraso é DERIVADO, nunca gravado: nada no sistema escreve
       // `status: 'overdue'` (o valor só existe no enum). Filtrar por ele
       // zerava a inadimplência em toda tela que lê esta overview. A regra
       // aqui é a mesma de receivables/payables: pendente e já vencido.
-      cu(supabase
-        .from("financial_transactions")
-        .select("amount, patient_id")
-        .eq("owner_id", ownerId)
-        .eq("type", "receivable")
-        .eq("status", "pending")
-        .lt("due_date", toDateStr(new Date()))),
-      cu(supabase
-        .from("financial_accounts")
-        .select("id,name,type,last_digits,current_balance")
-        .eq("owner_id", ownerId)
-        .order("name")),
+      cu(
+        supabase
+          .from("financial_transactions")
+          .select("amount, patient_id")
+          .eq("owner_id", ownerId)
+          .eq("type", "receivable")
+          .eq("status", "pending")
+          .lt("due_date", toDateStr(new Date())),
+      ),
+      cu(
+        supabase
+          .from("financial_accounts")
+          .select("id,name,type,last_digits,current_balance")
+          .eq("owner_id", ownerId)
+          .order("name"),
+      ),
       supabase.rpc("finance_revenue_by_category", {
-        p_owner_id: ownerId, p_unit_id: unitId, p_from: fromStr, p_to: toStr,
+        p_owner_id: ownerId,
+        p_unit_id: unitId,
+        p_from: fromStr,
+        p_to: toStr,
       }),
       supabase.rpc("finance_revenue_by_professional", {
-        p_owner_id: ownerId, p_unit_id: unitId, p_from: fromStr, p_to: toStr,
+        p_owner_id: ownerId,
+        p_unit_id: unitId,
+        p_from: fromStr,
+        p_to: toStr,
       }),
-      cu(supabase
-        .from("financial_transactions")
-        .select("id, description, amount, due_date, patient_id, patients(name)")
-        .eq("owner_id", ownerId)
-        .eq("type", "receivable")
-        .eq("status", "pending")
-        .gte("due_date", toDateStr(new Date()))
-        .order("due_date", { ascending: true })
-        .limit(5)),
-      cu(supabase
-        .from("financial_transactions")
-        .select("id, description, amount, due_date, category_id, financial_categories(name)")
-        .eq("owner_id", ownerId)
-        .eq("type", "payable")
-        .eq("status", "pending")
-        .gte("due_date", toDateStr(new Date()))
-        .order("due_date", { ascending: true })
-        .limit(5)),
+      cu(
+        supabase
+          .from("financial_transactions")
+          .select("id, description, amount, due_date, patient_id, patients(name)")
+          .eq("owner_id", ownerId)
+          .eq("type", "receivable")
+          .eq("status", "pending")
+          .gte("due_date", toDateStr(new Date()))
+          .order("due_date", { ascending: true })
+          .limit(5),
+      ),
+      caixa(
+        cu(
+          supabase
+            .from("financial_transactions")
+            .select("id, description, amount, due_date, category_id, financial_categories(name)")
+            .eq("owner_id", ownerId)
+            .eq("type", "payable")
+            .eq("status", "pending")
+            .gte("due_date", toDateStr(new Date()))
+            .order("due_date", { ascending: true })
+            .limit(5),
+        ),
+      ),
       supabase.rpc("finance_cash_flow_series", {
-        p_owner_id: ownerId, p_unit_id: unitId, p_from: fromStr, p_to: toStr, p_granularity: granularity,
+        p_owner_id: ownerId,
+        p_unit_id: unitId,
+        p_from: fromStr,
+        p_to: toStr,
+        p_granularity: granularity,
       }),
       // Day-of-week revenue for insight
-      cu(supabase
-        .from("financial_transactions")
-        .select("amount, paid_date")
-        .eq("owner_id", ownerId)
-        .eq("type", "receivable")
-        .eq("status", "paid")
-        .gte("paid_date", fromStr)
-        .lte("paid_date", toStr)),
+      cu(
+        supabase
+          .from("financial_transactions")
+          .select("amount, paid_date")
+          .eq("owner_id", ownerId)
+          .eq("type", "receivable")
+          .eq("status", "paid")
+          .gte("paid_date", fromStr)
+          .lte("paid_date", toStr),
+      ),
     ]);
 
     if (overdueRes.error) throw overdueRes.error;
@@ -265,7 +321,11 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
     }));
     const totalAvailable = accounts.reduce((a, b) => a + b.current_balance, 0);
 
-    const procRows = (procRes.data ?? []) as { category_id: string; name: string; total: number | string }[];
+    const procRows = (procRes.data ?? []) as {
+      category_id: string;
+      name: string;
+      total: number | string;
+    }[];
     const procTotal = procRows.reduce((a, r) => a + Number(r.total), 0) || 1;
     const procedures = procRows
       .map((r) => ({
@@ -277,7 +337,10 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
       .filter((p) => p.value > 0);
 
     const profRows = (profRes.data ?? []) as {
-      professional_id: string; name: string; total: number | string; commission_pct: number | string;
+      professional_id: string;
+      name: string;
+      total: number | string;
+      commission_pct: number | string;
     }[];
     const profMax = Math.max(1, ...profRows.map((r) => Number(r.total)));
     const dentists = profRows.map((r) => ({
@@ -310,7 +373,10 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
 
     // Cash flow series — re-bucket if weekly/monthly because RPC returns daily-aligned buckets per row.
     const cashRows = (cashRes.data ?? []) as {
-      bucket: string; income: number | string; expense: number | string; future_receivable: number | string;
+      bucket: string;
+      income: number | string;
+      expense: number | string;
+      future_receivable: number | string;
     }[];
     const buckets = new Map<string, CashFlowPoint>();
     for (const r of cashRows) {
@@ -319,7 +385,10 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
       const existing = buckets.get(key) ?? {
         key,
         label: bucketLabel(key, granularity),
-        entradas: 0, saidas: 0, receb_futuro: 0, saldo: 0,
+        entradas: 0,
+        saidas: 0,
+        receb_futuro: 0,
+        saldo: 0,
       };
       existing.entradas += Number(r.income);
       existing.saidas += Number(r.expense);
@@ -341,7 +410,15 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
       dayMap.set(d, (dayMap.get(d) ?? 0) + Number(r.amount));
     }
     const bestDay = Array.from(dayMap.entries()).sort((a, b) => b[1] - a[1])[0];
-    const dayNames = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
+    const dayNames = [
+      "Domingo",
+      "Segunda-feira",
+      "Terça-feira",
+      "Quarta-feira",
+      "Quinta-feira",
+      "Sexta-feira",
+      "Sábado",
+    ];
     const topProc = procedures[0];
 
     const insights: Insight[] = [
