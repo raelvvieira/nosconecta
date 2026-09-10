@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { DollarSign, TrendingDown, BarChart3, Users } from "lucide-react";
 
 import { Sidebar } from "@/components/finance/Sidebar";
@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/finance/PageHeader";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { CashFlowChart } from "@/components/finance/CashFlowChart";
 import { BankAccountsCard } from "@/components/finance/BankAccountsCard";
+import { GerenciarContasSheet } from "@/components/finance/GerenciarContasSheet";
 import { UpcomingReceivables } from "@/components/finance/UpcomingReceivables";
 import { UpcomingPayables } from "@/components/finance/UpcomingPayables";
 import { InsightsCard } from "@/components/finance/InsightsCard";
@@ -31,7 +32,6 @@ const searchSchema = z.object({
   from: z.string().optional(),
   to: z.string().optional(),
 });
-
 
 const overviewQueryOptions = (
   fetcher: (args: {
@@ -73,7 +73,9 @@ export const Route = createFileRoute("/financeiro")({
   // evita que o esqueleto apareça e suma num susto.
   pendingMs: 150,
   pendingMinMs: 400,
-  errorComponent: ({ error }) => <ResponsiveRouteState error={error} title="Não foi possível carregar o dashboard" />,
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error} title="Não foi possível carregar o dashboard" />
+  ),
   notFoundComponent: () => <ResponsiveRouteState title="Dashboard não encontrado" notFound />,
   component: FinanceiroVisaoGeral,
 });
@@ -100,6 +102,8 @@ function FinanceiroVisaoGeral() {
     navigate({
       search: (prev: FinanceiroSearch) => ({ ...prev, from: r.from, to: r.to }),
     });
+
+  const [contasAbertas, setContasAbertas] = useState(false);
 
   const { kpis } = data;
   // No celular esta rota mostra a tela inicial — os mesmos números de /inicio,
@@ -169,7 +173,11 @@ function FinanceiroVisaoGeral() {
             granularity={granularity}
             onGranularityChange={setGranularity}
           />
-          <BankAccountsCard accounts={data.accounts} total={data.totalAvailable} />
+          <BankAccountsCard
+            accounts={data.accounts}
+            total={data.totalAvailable}
+            onManage={() => setContasAbertas(true)}
+          />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -183,6 +191,7 @@ function FinanceiroVisaoGeral() {
           <RevenueByDentist data={data.dentists} />
           <CommissionsTable data={data.commissions} />
         </div>
+        <GerenciarContasSheet open={contasAbertas} onOpenChange={setContasAbertas} />
       </main>
     </div>
   );

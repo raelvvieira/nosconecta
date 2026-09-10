@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
+import { tabelaDeCartaoAusente } from "./schema-cartao";
 
 type AccountType = "bank" | "cash" | "pix" | "credit";
 
@@ -22,19 +23,27 @@ export const listAccounts = createServerFn({ method: "GET" })
     if (unitFilter) query = query.eq("unit_id", unitFilter);
     const { data: rows, error } = await query;
     if (error) throw error;
-    return (rows ?? []) as { id: string; name: string; type: string; last_digits: string | null; unit_id: string }[];
+    return (rows ?? []) as {
+      id: string;
+      name: string;
+      type: string;
+      last_digits: string | null;
+      unit_id: string;
+    }[];
   });
 
 export const createAccount = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
-  .inputValidator((input: { name: string; type?: AccountType; last_digits?: string | null; unitId?: string }) => {
-    const name = input.name?.trim();
-    if (!name) throw new Error("Informe o nome da conta");
-    if (name.length > 60) throw new Error("Nome muito longo (máx. 60)");
-    const type: AccountType =
-      input.type && ["bank", "cash", "pix", "credit"].includes(input.type) ? input.type : "bank";
-    return { name, type, last_digits: input.last_digits?.trim() || null, unitId: input.unitId };
-  })
+  .inputValidator(
+    (input: { name: string; type?: AccountType; last_digits?: string | null; unitId?: string }) => {
+      const name = input.name?.trim();
+      if (!name) throw new Error("Informe o nome da conta");
+      if (name.length > 60) throw new Error("Nome muito longo (máx. 60)");
+      const type: AccountType =
+        input.type && ["bank", "cash", "pix", "credit"].includes(input.type) ? input.type : "bank";
+      return { name, type, last_digits: input.last_digits?.trim() || null, unitId: input.unitId };
+    },
+  )
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
     const unitId = await resolveUnitId(context, data.unitId);
@@ -63,6 +72,51 @@ export const createAccount = createServerFn({ method: "POST" })
     return row as { id: string; name: string; type: string };
   });
 
+export const updateAccount = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator(
+    (input: { id: string; name: string; type?: AccountType; last_digits?: string | null }) => {
+      if (!input.id) throw new Error("Conta inválida");
+      const name = input.name?.trim();
+      if (!name) throw new Error("Informe o nome da conta");
+      if (name.length > 60) throw new Error("Nome muito longo (máx. 60)");
+      const type: AccountType =
+        input.type && ["bank", "cash", "pix", "credit"].includes(input.type) ? input.type : "bank";
+      return { id: input.id, name, type, last_digits: input.last_digits?.trim() || null };
+    },
+  )
+  .handler(async ({ data, context }) => {
+    const supabase: any = context.supabase;
+
+    // Mesmo cuidado da criação: dois nomes iguais na mesma unidade tornam o
+    // seletor de conta impossível de usar.
+    const { data: atual } = await supabase
+      .from("financial_accounts")
+      .select("unit_id")
+      .eq("id", data.id)
+      .eq("owner_id", context.ownerId)
+      .maybeSingle();
+    if (!atual) throw new Error("Conta não encontrada");
+
+    const { data: existing } = await supabase
+      .from("financial_accounts")
+      .select("id")
+      .eq("owner_id", context.ownerId)
+      .eq("unit_id", atual.unit_id)
+      .ilike("name", data.name)
+      .neq("id", data.id)
+      .maybeSingle();
+    if (existing) throw new Error("Já existe uma conta com esse nome nesta unidade");
+
+    const { error } = await supabase
+      .from("financial_accounts")
+      .update({ name: data.name, type: data.type, last_digits: data.last_digits })
+      .eq("id", data.id)
+      .eq("owner_id", context.ownerId);
+    if (error) throw error;
+    return { ok: true };
+  });
+
 export const deleteAccount = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator((input: { id: string }) => {
@@ -70,14 +124,38 @@ export const deleteAccount = createServerFn({ method: "POST" })
     return { id: input.id };
   })
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const supabase: any = context.supabase;
 
-    // Desvincula transações que usam a conta antes de remover (evita erro de FK)
-    await supabase
+    // Conta que paga cartão não se apaga por baixo dele. `credit_cards.account_id`
+    // é `ON DELETE SET NULL`, então o banco deixaria passar — e o cartão ficaria
+    // sem quem pague a fatura, em silêncio.
+    const { data: cartoes, error: erroCartoes } = await supabase
+      .from("credit_cards")
+      .select("name")
+      .eq("owner_id", context.ownerId)
+      .eq("account_id", data.id)
+      .is("archived_at", null);
+    // Migration ainda não aplicada: não há cartão nenhum para proteger.
+    if (erroCartoes && !tabelaDeCartaoAusente(erroCartoes)) throw erroCartoes;
+    if ((cartoes ?? []).length > 0) {
+      const nomes = (cartoes as any[]).map((c) => c.name).join(", ");
+      throw new Error(
+        `Esta conta paga o cartão ${nomes}. Aponte o cartão para outra conta (ou arquive-o) antes de excluir.`,
+      );
+    }
+
+    // Desvincula transações que usam a conta antes de remover (evita erro de FK).
+    //
+    // O `unit_id` aqui não é zelo: sem ele o update varria as transações de
+    // TODAS as unidades do dono, e apagar uma conta de Florianópolis
+    // desvincularia lançamentos de Porto Alegre.
+    let desvincular = supabase
       .from("financial_transactions")
       .update({ account_id: null })
       .eq("owner_id", context.ownerId)
       .eq("account_id", data.id);
+    if (context.unitId) desvincular = desvincular.eq("unit_id", context.unitId);
+    await desvincular;
 
     const { error } = await supabase
       .from("financial_accounts")

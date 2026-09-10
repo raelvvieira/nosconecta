@@ -1,4 +1,4 @@
-import { Landmark, Banknote, Zap } from "lucide-react";
+import { Landmark, Banknote, CreditCard, Zap } from "lucide-react";
 import { formatBRL } from "@/lib/finance/format";
 
 const iconFor = (type: string) => {
@@ -7,6 +7,10 @@ const iconFor = (type: string) => {
       return { Icon: Zap, bg: "bg-success-soft", color: "text-success" };
     case "cash":
       return { Icon: Banknote, bg: "bg-info-soft", color: "text-info" };
+    // Cartão caía no `default` e aparecia como banco. Agora que dá para
+    // cadastrar conta do tipo crédito, ele precisa de cara própria.
+    case "credit":
+      return { Icon: CreditCard, bg: "bg-coral-soft", color: "text-coral" };
     default:
       return { Icon: Landmark, bg: "bg-danger-soft", color: "text-danger" };
   }
@@ -23,15 +27,24 @@ export interface BankAccountItem {
 export function BankAccountsCard({
   accounts,
   total,
+  onManage,
 }: {
   accounts: BankAccountItem[];
   total: number;
+  /** Abre o gerenciador de contas e cartões. Era um botão sem ação nenhuma. */
+  onManage?: () => void;
 }) {
   return (
     <section className="surface-card p-6 flex flex-col">
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-base font-semibold">Contas Bancárias</h2>
-        <button className="text-xs text-primary hover:underline font-medium">Gerenciar contas</button>
+        <button
+          type="button"
+          onClick={onManage}
+          className="text-xs text-primary hover:underline font-medium"
+        >
+          Gerenciar contas
+        </button>
       </div>
 
       <ul className="space-y-4 flex-1">
@@ -45,7 +58,9 @@ export function BankAccountsCard({
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{acc.name}</p>
                 {acc.last_digits && (
-                  <p className="text-xs text-muted-foreground tabular-nums">•••• {acc.last_digits}</p>
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    •••• {acc.last_digits}
+                  </p>
                 )}
               </div>
               <p className="text-sm font-semibold tabular-nums">{formatBRL(acc.current_balance)}</p>
