@@ -168,6 +168,11 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
     if (data.method) listQuery = listQuery.eq("payment_method", data.method);
     if (data.q)
       listQuery = listQuery.or(`description.ilike.%${data.q}%,supplier_name.ilike.%${data.q}%`);
+    // Fatura nasce valendo zero e só ganha valor quando a primeira compra do
+    // ciclo entra. Mostrar "R$ 0,00" nesse intervalo seria uma linha que a
+    // pessoa não pode pagar nem entender. Pagamento comum nunca vale zero
+    // (`createPayable` exige valor), então o primeiro ramo não esconde nada.
+    if (cartao) listQuery = listQuery.or("settles_card_invoice_id.is.null,amount.gt.0");
 
     const [
       listRes,
@@ -718,12 +723,41 @@ export const markPayablePaid = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     // types.ts ainda não conhece unit_id/company_id opcional.
     const supabase: any = context.supabase;
+
+    // Esta linha é uma FATURA? O botão genérico "marcar como pago" da lista
+    // aparece nela como em qualquer pagamento — e sem isto marcaria só a
+    // fatura, deixando as quarenta compras de dentro pendentes para sempre.
+    let faturaId: string | null = null;
+    if (await temColunasDeCartao(supabase)) {
+      const { data: linha } = await supabase
+        .from("financial_transactions")
+        .select("settles_card_invoice_id")
+        .eq("id", data.id)
+        .eq("owner_id", context.ownerId)
+        .maybeSingle();
+      faturaId = linha?.settles_card_invoice_id ?? null;
+    }
+
     const { error } = await supabase
       .from("financial_transactions")
       .update({ status: "paid", paid_date: data.paid_date })
       .eq("id", data.id)
       .eq("owner_id", context.ownerId);
     if (error) throw error;
+
+    if (faturaId) {
+      // A ordem importa: o gatilho recusa mudança de VALOR numa fatura paga,
+      // mas deixa passar mudança de status — é essa folga que permite marcar
+      // as compras logo depois.
+      const { error: erroCompras } = await supabase
+        .from("financial_transactions")
+        .update({ status: "paid", paid_date: data.paid_date })
+        .eq("card_invoice_id", faturaId)
+        .eq("owner_id", context.ownerId)
+        .neq("status", "cancelled");
+      if (erroCompras) throw erroCompras;
+    }
+
     return { ok: true };
   });
 
