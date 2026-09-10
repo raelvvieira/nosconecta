@@ -19,12 +19,24 @@ export interface PayableItem {
   category_name: string | null;
 }
 
-export function UpcomingPayables({ items }: { items: PayableItem[] }) {
+export function UpcomingPayables({
+  items,
+  onVerTodos,
+}: {
+  items: PayableItem[];
+  onVerTodos?: () => void;
+}) {
   return (
     <section className="surface-card p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-base font-semibold">Próximos Pagamentos</h2>
-        <button className="text-xs text-primary hover:underline font-medium">Ver todos</button>
+        <button
+          type="button"
+          onClick={onVerTodos}
+          className="text-xs text-primary hover:underline font-medium"
+        >
+          Ver todos
+        </button>
       </div>
 
       <div className="grid grid-cols-[1.2fr_1.2fr_0.9fr_0.9fr] text-2xs uppercase tracking-wider text-muted-foreground pb-2 border-b border-border/60">
@@ -46,7 +58,9 @@ export function UpcomingPayables({ items }: { items: PayableItem[] }) {
               <span className="text-muted-foreground truncate">{t.category_name ?? "—"}</span>
               <span className="text-right tabular-nums font-medium">{formatBRL(t.amount)}</span>
               <span className="text-right flex items-center justify-end gap-2">
-                <span className="text-muted-foreground tabular-nums">{formatDateBRFull(t.due_date)}</span>
+                <span className="text-muted-foreground tabular-nums">
+                  {formatDateBRFull(t.due_date)}
+                </span>
                 <span
                   className={cn(
                     "h-2 w-2 rounded-full",

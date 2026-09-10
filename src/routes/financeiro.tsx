@@ -12,6 +12,7 @@ import { KpiCard } from "@/components/finance/KpiCard";
 import { CashFlowChart } from "@/components/finance/CashFlowChart";
 import { BankAccountsCard } from "@/components/finance/BankAccountsCard";
 import { GerenciarContasSheet } from "@/components/finance/GerenciarContasSheet";
+import { LancamentoRapido } from "@/components/finance/LancamentoRapido";
 import { UpcomingReceivables } from "@/components/finance/UpcomingReceivables";
 import { UpcomingPayables } from "@/components/finance/UpcomingPayables";
 import { InsightsCard } from "@/components/finance/InsightsCard";
@@ -118,6 +119,7 @@ function FinanceiroVisaoGeral() {
 
       <main className="hidden lg:block flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-nav lg:pb-8">
         <PageHeader
+          acoes={<LancamentoRapido />}
           period={period}
           onPeriodChange={setPeriod}
           from={from}
@@ -181,8 +183,16 @@ function FinanceiroVisaoGeral() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <UpcomingReceivables items={data.upcomingReceivables} />
-          <UpcomingPayables items={data.upcomingPayables} />
+          {/* "Ver todos" leva para a tela cheia do assunto. Eram dois botões
+              sem `onClick` — presentes na tela e mortos ao clique. */}
+          <UpcomingReceivables
+            items={data.upcomingReceivables}
+            onVerTodos={() => navigate({ to: "/recebimentos" })}
+          />
+          <UpcomingPayables
+            items={data.upcomingPayables}
+            onVerTodos={() => navigate({ to: "/pagamentos" })}
+          />
           <InsightsCard insights={data.insights} />
         </div>
 

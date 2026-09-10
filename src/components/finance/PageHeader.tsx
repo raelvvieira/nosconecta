@@ -15,12 +15,16 @@ export function PageHeader({
   from,
   to,
   onRangeChange,
+  acoes,
 }: {
   period: Period;
   onPeriodChange: (p: Period) => void;
   from?: string;
   to?: string;
   onRangeChange: (r: { from?: string; to?: string }) => void;
+  /** Ações da tela — entram à ESQUERDA dos controles de período, porque
+   *  registrar algo é decisão, e escolher período é ajuste de vista. */
+  acoes?: React.ReactNode;
 }) {
   const isCustom = !!(from && to);
   return (
@@ -31,6 +35,8 @@ export function PageHeader({
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
+        {acoes}
+
         <DateRangePicker from={from} to={to} onChange={onRangeChange} />
 
         <div className="flex items-center p-1 rounded-xl bg-card/70 backdrop-blur border border-border/70 shadow-sm">

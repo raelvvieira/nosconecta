@@ -28,12 +28,24 @@ export interface ReceivableItem {
   patient_name: string | null;
 }
 
-export function UpcomingReceivables({ items }: { items: ReceivableItem[] }) {
+export function UpcomingReceivables({
+  items,
+  onVerTodos,
+}: {
+  items: ReceivableItem[];
+  onVerTodos?: () => void;
+}) {
   return (
     <section className="surface-card p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-base font-semibold">Próximos Recebimentos</h2>
-        <button className="text-xs text-primary hover:underline font-medium">Ver todos</button>
+        <button
+          type="button"
+          onClick={onVerTodos}
+          className="text-xs text-primary hover:underline font-medium"
+        >
+          Ver todos
+        </button>
       </div>
 
       <div className="grid grid-cols-[1.4fr_1.4fr_0.9fr_0.9fr] text-2xs uppercase tracking-wider text-muted-foreground pb-2 border-b border-border/60">
