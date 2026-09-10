@@ -32,6 +32,7 @@ import { Route as AtendimentosCampanhasRouteImport } from './routes/atendimentos
 import { Route as AtendimentosChatRouteImport } from './routes/atendimentos.chat'
 import { Route as AtendimentosPipelineRouteImport } from './routes/atendimentos.pipeline'
 import { Route as ConfiguracoesIndexRouteImport } from './routes/configuracoes.index'
+import { Route as ConfiguracoesContasRouteImport } from './routes/configuracoes.contas'
 import { Route as ConfiguracoesIntegracoesRouteImport } from './routes/configuracoes.integracoes'
 import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
 import { Route as ConfiguracoesTagsRouteImport } from './routes/configuracoes.tags'
@@ -156,6 +157,11 @@ const ConfiguracoesIndexRoute = ConfiguracoesIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ConfiguracoesRoute,
 } as any)
+const ConfiguracoesContasRoute = ConfiguracoesContasRouteImport.update({
+  id: '/contas',
+  path: '/contas',
+  getParentRoute: () => ConfiguracoesRoute,
+} as any)
 const ConfiguracoesIntegracoesRoute =
   ConfiguracoesIntegracoesRouteImport.update({
     id: '/integracoes',
@@ -223,6 +229,7 @@ export interface FileRoutesByFullPath {
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
+  '/configuracoes/contas': typeof ConfiguracoesContasRoute
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
@@ -251,6 +258,7 @@ export interface FileRoutesByTo {
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
+  '/configuracoes/contas': typeof ConfiguracoesContasRoute
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
@@ -285,6 +293,7 @@ export interface FileRoutesById {
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
+  '/configuracoes/contas': typeof ConfiguracoesContasRoute
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
@@ -320,6 +329,7 @@ export interface FileRouteTypes {
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
+    | '/configuracoes/contas'
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
     | '/configuracoes/tags'
@@ -348,6 +358,7 @@ export interface FileRouteTypes {
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
+    | '/configuracoes/contas'
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
     | '/configuracoes/tags'
@@ -381,6 +392,7 @@ export interface FileRouteTypes {
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
+    | '/configuracoes/contas'
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
     | '/configuracoes/tags'
@@ -573,6 +585,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfiguracoesIndexRouteImport
       parentRoute: typeof ConfiguracoesRoute
     }
+    '/configuracoes/contas': {
+      id: '/configuracoes/contas'
+      path: '/contas'
+      fullPath: '/configuracoes/contas'
+      preLoaderRoute: typeof ConfiguracoesContasRouteImport
+      parentRoute: typeof ConfiguracoesRoute
+    }
     '/configuracoes/integracoes': {
       id: '/configuracoes/integracoes'
       path: '/integracoes'
@@ -691,6 +710,7 @@ const AtendimentosRouteWithChildren = AtendimentosRoute._addFileChildren(
 )
 
 interface ConfiguracoesRouteChildren {
+  ConfiguracoesContasRoute: typeof ConfiguracoesContasRoute
   ConfiguracoesIntegracoesRoute: typeof ConfiguracoesIntegracoesRoute
   ConfiguracoesNotificacoesRoute: typeof ConfiguracoesNotificacoesRoute
   ConfiguracoesTagsRoute: typeof ConfiguracoesTagsRoute
@@ -698,6 +718,7 @@ interface ConfiguracoesRouteChildren {
 }
 
 const ConfiguracoesRouteChildren: ConfiguracoesRouteChildren = {
+  ConfiguracoesContasRoute: ConfiguracoesContasRoute,
   ConfiguracoesIntegracoesRoute: ConfiguracoesIntegracoesRoute,
   ConfiguracoesNotificacoesRoute: ConfiguracoesNotificacoesRoute,
   ConfiguracoesTagsRoute: ConfiguracoesTagsRoute,

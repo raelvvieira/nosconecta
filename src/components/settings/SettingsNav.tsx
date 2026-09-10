@@ -11,10 +11,15 @@ import {
   Share2,
   ShieldCheck,
   Stethoscope,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getSettings, type SettingsData, type SettingsSection } from "@/lib/settings/settings.functions";
+import {
+  getSettings,
+  type SettingsData,
+  type SettingsSection,
+} from "@/lib/settings/settings.functions";
 
 type SettingsFetcher = () => Promise<SettingsData>;
 export const settingsQuery = (fetcher: SettingsFetcher) =>
@@ -22,7 +27,14 @@ export const settingsQuery = (fetcher: SettingsFetcher) =>
 
 type PageSection = SettingsSection | "members";
 type NavItem =
-  | { kind: "section"; value: PageSection; label: string; description: string; icon: LucideIcon; adminOnly?: boolean }
+  | {
+      kind: "section";
+      value: PageSection;
+      label: string;
+      description: string;
+      icon: LucideIcon;
+      adminOnly?: boolean;
+    }
   | { kind: "link"; to: string; label: string; description: string; icon: LucideIcon };
 
 // Fonte única da navegação de Configurações. Antes existiam duas listas
@@ -54,6 +66,16 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
         label: "Procedimentos",
         description: "Duração, preço e custo",
         icon: BriefcaseMedical,
+      },
+      {
+        // Rota própria pelo mesmo motivo das tags: a CRUD genérica grava três
+        // campos numa tabela, e conta tem tipo, dígitos e — o que importa —
+        // uma lista de cartões dentro, cada um com dois dias de ciclo.
+        kind: "link",
+        to: "/configuracoes/contas",
+        label: "Contas e cartões",
+        description: "Bancos e faturas de cartão de crédito",
+        icon: Wallet,
       },
       {
         // Rota própria, e não `section`, porque a CRUD genérica desta tela
@@ -128,7 +150,8 @@ export function SettingsNav() {
   const counts = settingsResult.data;
   // Unidades e Usuários e permissões só administram — enquanto ainda não se
   // sabe (`counts` carregando), fica escondido por padrão em vez de piscar.
-  const visible = (item: NavItem) => item.kind !== "section" || !item.adminOnly || !!counts?.isAdmin;
+  const visible = (item: NavItem) =>
+    item.kind !== "section" || !item.adminOnly || !!counts?.isAdmin;
 
   const activeSection: PageSection = search.section ?? "professionals";
   const isActive = (item: NavItem) =>

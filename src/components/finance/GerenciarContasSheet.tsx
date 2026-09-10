@@ -84,6 +84,32 @@ export function GerenciarContasSheet({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+        <ContasECartoes ativo={open} comCabecalho />
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+/**
+ * O miolo, sem a casca.
+ *
+ * Existe separado porque o mesmo painel mora em dois lugares: o atalho da
+ * Visão Geral (dentro de um Sheet) e a página de Configurações → Contas e
+ * cartões, que é onde as pessoas procuram cadastro. Duas implementações
+ * divergiriam no dia em que alguém acrescentasse um campo numa delas.
+ */
+export function ContasECartoes({
+  ativo = true,
+  comCabecalho = false,
+}: {
+  /** Só busca quando está à vista — o Sheet passa `open`. */
+  ativo?: boolean;
+  comCabecalho?: boolean;
+}) {
+  const open = ativo;
   const queryClient = useQueryClient();
   const { selectedUnitId } = useUnitSelection();
 
@@ -126,92 +152,97 @@ export function GerenciarContasSheet({
   const lista = contas.data ?? [];
   const listaDeCartoes = cartoes.data ?? [];
 
+  const titulo =
+    aba === "lista"
+      ? "Contas e cartões"
+      : aba === "conta"
+        ? contaEmEdicao
+          ? "Editar conta"
+          : "Nova conta"
+        : cartaoEmEdicao
+          ? "Editar cartão"
+          : "Novo cartão";
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-        <SheetHeader className="mb-6 text-left">
-          <div className="flex items-center gap-2">
-            {aba !== "lista" && (
-              <button
-                type="button"
-                onClick={() => setAba("lista")}
-                aria-label="Voltar"
-                className="press -ml-1 grid h-8 w-8 place-items-center rounded-xl text-muted-foreground hover:bg-muted"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-            )}
-            <SheetTitle>
-              {aba === "lista" && "Contas e cartões"}
-              {aba === "conta" && (contaEmEdicao ? "Editar conta" : "Nova conta")}
-              {aba === "cartao" && (cartaoEmEdicao ? "Editar cartão" : "Novo cartão")}
-            </SheetTitle>
-          </div>
-        </SheetHeader>
+    <div>
+      {(comCabecalho || aba !== "lista") && (
+        <div className="mb-6 flex items-center gap-2">
+          {aba !== "lista" && (
+            <button
+              type="button"
+              onClick={() => setAba("lista")}
+              aria-label="Voltar"
+              className="press -ml-1 grid h-8 w-8 place-items-center rounded-xl text-muted-foreground hover:bg-muted"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          )}
+          <h2 className="text-lg font-semibold">{titulo}</h2>
+        </div>
+      )}
 
-        {aba === "lista" && (
-          <ListaDeContas
-            contas={lista}
-            cartoes={listaDeCartoes}
-            carregando={contas.isPending}
-            onNovaConta={() => {
-              setContaEmEdicao(null);
-              setAba("conta");
-            }}
-            onEditarConta={(id) => {
-              setContaEmEdicao(id);
-              setAba("conta");
-            }}
-            onNovoCartao={(contaId) => {
-              setContaDoCartao(contaId);
-              setCartaoEmEdicao(null);
-              setAba("cartao");
-            }}
-            onEditarCartao={(c) => {
-              setContaDoCartao(c.accountId);
-              setCartaoEmEdicao(c);
-              setAba("cartao");
-            }}
-            onMudou={recarregar}
-          />
-        )}
+      {aba === "lista" && (
+        <ListaDeContas
+          contas={lista}
+          cartoes={listaDeCartoes}
+          carregando={contas.isPending}
+          onNovaConta={() => {
+            setContaEmEdicao(null);
+            setAba("conta");
+          }}
+          onEditarConta={(id) => {
+            setContaEmEdicao(id);
+            setAba("conta");
+          }}
+          onNovoCartao={(contaId) => {
+            setContaDoCartao(contaId);
+            setCartaoEmEdicao(null);
+            setAba("cartao");
+          }}
+          onEditarCartao={(c) => {
+            setContaDoCartao(c.accountId);
+            setCartaoEmEdicao(c);
+            setAba("cartao");
+          }}
+          onMudou={recarregar}
+        />
+      )}
 
-        {aba === "conta" && (
-          <FormularioDeConta
-            conta={lista.find((c) => c.id === contaEmEdicao) ?? null}
-            cartoesDaConta={listaDeCartoes.filter((c) => c.accountId === contaEmEdicao)}
-            unitId={selectedUnitId}
-            onNovoCartao={(contaId) => {
-              setContaDoCartao(contaId);
-              setCartaoEmEdicao(null);
-              setAba("cartao");
-            }}
-            onEditarCartao={(c) => {
-              setContaDoCartao(c.accountId);
-              setCartaoEmEdicao(c);
-              setAba("cartao");
-            }}
-            onSalvo={() => {
-              recarregar();
-              setAba("lista");
-            }}
-          />
-        )}
+      {aba === "conta" && (
+        <FormularioDeConta
+          conta={lista.find((c) => c.id === contaEmEdicao) ?? null}
+          cartoesDaConta={listaDeCartoes.filter((c) => c.accountId === contaEmEdicao)}
+          unitId={selectedUnitId}
+          onNovoCartao={(contaId) => {
+            setContaDoCartao(contaId);
+            setCartaoEmEdicao(null);
+            setAba("cartao");
+          }}
+          onEditarCartao={(c) => {
+            setContaDoCartao(c.accountId);
+            setCartaoEmEdicao(c);
+            setAba("cartao");
+          }}
+          onSalvo={() => {
+            recarregar();
+            setAba("lista");
+          }}
+        />
+      )}
 
-        {aba === "cartao" && (
-          <FormularioDeCartao
-            cartao={cartaoEmEdicao}
-            contas={lista}
-            contaPadrao={contaDoCartao}
-            unitId={selectedUnitId}
-            onSalvo={() => {
-              recarregar();
-              setAba("lista");
-            }}
-          />
-        )}
-      </SheetContent>
-    </Sheet>
+      {aba === "cartao" && (
+        <FormularioDeCartao
+          cartao={cartaoEmEdicao}
+          contas={lista}
+          contaPadrao={contaDoCartao}
+          unitId={selectedUnitId}
+          onSalvo={() => {
+            recarregar();
+            setAba("lista");
+          }}
+        />
+      )}
+    </div>
   );
 }
 
