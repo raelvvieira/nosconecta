@@ -1909,10 +1909,12 @@ export type Database = {
           created_at: string
           crm_contact_id: string | null
           email: string | null
+          first_name: string | null
           gender: string | null
           guardian_cpf: string | null
           guardian_name: string | null
           id: string
+          last_name: string | null
           legacy_patient_id: string | null
           name: string
           neighborhood: string | null
@@ -1937,10 +1939,12 @@ export type Database = {
           created_at?: string
           crm_contact_id?: string | null
           email?: string | null
+          first_name?: string | null
           gender?: string | null
           guardian_cpf?: string | null
           guardian_name?: string | null
           id?: string
+          last_name?: string | null
           legacy_patient_id?: string | null
           name: string
           neighborhood?: string | null
@@ -1965,10 +1969,12 @@ export type Database = {
           created_at?: string
           crm_contact_id?: string | null
           email?: string | null
+          first_name?: string | null
           gender?: string | null
           guardian_cpf?: string | null
           guardian_name?: string | null
           id?: string
+          last_name?: string | null
           legacy_patient_id?: string | null
           name?: string
           neighborhood?: string | null
@@ -2631,6 +2637,10 @@ export type Database = {
       }
       is_clinic_admin: { Args: never; Returns: boolean }
       normalize_br_phone: { Args: { raw: string }; Returns: string }
+      person_name_parts: {
+        Args: { raw: string }
+        Returns: Record<string, unknown>
+      }
       primary_clinic_owner: { Args: never; Returns: string }
     }
     Enums: {
