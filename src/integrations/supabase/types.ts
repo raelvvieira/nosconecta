@@ -2732,6 +2732,7 @@ export type Database = {
         Returns: {
           bucket: string
           expense: number
+          future_payable: number
           future_receivable: number
           income: number
         }[]
