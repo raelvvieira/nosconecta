@@ -1,7 +1,6 @@
 import {
   Home,
   LogOut,
-  Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -297,23 +296,6 @@ export function Sidebar() {
             collapsed ? "flex-col items-center" : "flex-col items-stretch",
           )}
         >
-          {/* Selo de plano, não botão: não havia `onClick` nenhum aqui — era um
-              botão que não fazia nada, e o degradê ainda disputava atenção com
-              a ação principal de cada tela. Como informação, o mesmo conteúdo
-              é honesto e para de competir. */}
-          {maybeTooltip(
-            <div
-              className={cn(
-                "flex items-center rounded-xl bg-coral-soft text-coral",
-                collapsed ? "h-11 w-11 justify-center" : "h-11 w-full px-3 gap-3",
-              )}
-            >
-              <Sparkles className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-              {!collapsed && <span className="text-sm font-semibold">Plano Premium</span>}
-            </div>,
-            "Plano Premium",
-          )}
-
           {maybeTooltip(
             <div
               className={cn(
