@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
-import { tabelaDeCartaoAusente } from "./schema-cartao";
+import { tabelaDeCartaoAusente, traduzirErroDeCartao } from "./schema-cartao";
 
 /**
  * Cartões de crédito da clínica.
@@ -146,14 +146,7 @@ export const createCard = createServerFn({ method: "POST" })
       })
       .select("id")
       .single();
-    if (error) {
-      if (tabelaDeCartaoAusente(error)) {
-        throw new Error(
-          "Falta aplicar a migration pendente do banco (cartões de crédito) — peça isso no Lovable e tente de novo depois.",
-        );
-      }
-      throw error;
-    }
+    if (error) throw traduzirErroDeCartao(error);
     return { id: row.id as string };
   });
 
@@ -195,7 +188,7 @@ export const updateCard = createServerFn({ method: "POST" })
       })
       .eq("id", data.id)
       .eq("owner_id", context.ownerId);
-    if (error) throw error;
+    if (error) throw traduzirErroDeCartao(error);
 
     // Mudar os dias vale só para compras FUTURAS: as faturas já criadas
     // guardam as próprias datas e não se mexem. Quem chama avisa isso na tela,
@@ -239,7 +232,7 @@ export const archiveCard = createServerFn({ method: "POST" })
       })
       .eq("id", data.id)
       .eq("owner_id", context.ownerId);
-    if (error) throw error;
+    if (error) throw traduzirErroDeCartao(error);
     return { ok: true };
   });
 
@@ -271,6 +264,6 @@ export const deleteCard = createServerFn({ method: "POST" })
       .delete()
       .eq("id", data.id)
       .eq("owner_id", context.ownerId);
-    if (error) throw error;
+    if (error) throw traduzirErroDeCartao(error);
     return { ok: true };
   });

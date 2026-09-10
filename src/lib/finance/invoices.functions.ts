@@ -3,7 +3,7 @@ import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 import { clinicTodayStr } from "@/lib/date";
 import { estadoDaFatura, faturasDasParcelas, valorDasParcelas } from "./fatura";
-import { tabelaDeCartaoAusente } from "./schema-cartao";
+import { tabelaDeCartaoAusente, traduzirErroDeCartao } from "./schema-cartao";
 
 /**
  * Compras no cartão e as faturas que as recebem.
@@ -80,7 +80,7 @@ async function garantirFatura(
     )
     .select("id")
     .single();
-  if (error) throw error;
+  if (error) throw traduzirErroDeCartao(error);
 
   // A linha de pagamento nasce com valor zero: o gatilho a preenche assim que
   // a primeira compra entrar. Sem ela o gatilho não teria alvo.
@@ -153,12 +153,7 @@ export const createCardPurchase = createServerFn({ method: "POST" })
       .eq("id", data.cardId)
       .eq("owner_id", context.ownerId)
       .maybeSingle();
-    if (erroCartao && tabelaDeCartaoAusente(erroCartao)) {
-      throw new Error(
-        "Falta aplicar a migration pendente do banco (cartões de crédito) — peça isso no Lovable e tente de novo depois.",
-      );
-    }
-    if (erroCartao) throw erroCartao;
+    if (erroCartao) throw traduzirErroDeCartao(erroCartao);
     if (!cartao) throw new Error("Cartão não encontrado.");
 
     // A unidade sai do CARTÃO, não do seletor global do menu. Escolher o

@@ -14,12 +14,32 @@
  * fora precisa morar num arquivo que não tenha server function nenhuma.
  */
 
-/** `42P01` — o código do Postgres para "relação não existe". */
-const TABELA_AUSENTE = "42P01";
+/**
+ * Os dois lados falam idiomas diferentes sobre "essa tabela não existe".
+ *
+ * O Postgres cru diz `42P01` / "relation ... does not exist". O PostgREST, que
+ * é quem responde ao app, diz `PGRST205` / "Could not find the table
+ * 'public.credit_cards' in the schema cache" — nem o código nem a frase batem
+ * com os do Postgres.
+ *
+ * A primeira versão daqui só conhecia o dialeto do Postgres, e o resultado foi
+ * o erro cru do PostgREST vazando para a tela do usuário no lugar da mensagem
+ * que diz o que fazer. Por isso os dois estão listados, e a checagem também
+ * aceita a frase — cliente novo pode trocar o código sem trocar o texto.
+ */
+const CODIGOS_DE_TABELA_AUSENTE = new Set([
+  "42P01", // Postgres: relation does not exist
+  "PGRST205", // PostgREST: table not found in schema cache
+  "PGRST204", // PostgREST: column not found in schema cache
+  "42703", // Postgres: column does not exist
+]);
 
 export function tabelaDeCartaoAusente(error: unknown): boolean {
   const e = error as { code?: string; message?: string } | null | undefined;
-  return !!e && (e.code === TABELA_AUSENTE || /does not exist/i.test(String(e.message ?? "")));
+  if (!e) return false;
+  if (e.code && CODIGOS_DE_TABELA_AUSENTE.has(e.code)) return true;
+  const mensagem = String(e.message ?? "");
+  return /does not exist|could not find the (table|.*column)|schema cache/i.test(mensagem);
 }
 
 /**
@@ -90,4 +110,22 @@ export function soNatureza<Q extends { is: (coluna: string, valor: null) => Q }>
   ativo: boolean,
 ): Q {
   return ativo ? query.is("settles_card_invoice_id", null) : query;
+}
+
+/**
+ * A mensagem que a pessoa precisa ler quando a migration não rodou.
+ *
+ * Sem isto, o que chega à tela é "Could not find the table
+ * 'public.credit_cards' in the schema cache" — verdadeiro, inútil, e assustador
+ * para quem só queria cadastrar um cartão.
+ */
+export const ERRO_DE_MIGRACAO_PENDENTE =
+  "Os cartões de crédito ainda não existem no banco. Peça no Lovable: " +
+  '"Apply pending Supabase migrations" — depois disso, tente de novo.';
+
+/** Traduz o erro de tabela ausente; qualquer outro sobe como está. */
+export function traduzirErroDeCartao(error: unknown): Error {
+  if (tabelaDeCartaoAusente(error)) return new Error(ERRO_DE_MIGRACAO_PENDENTE);
+  const e = error as { message?: string } | null | undefined;
+  return new Error(e?.message ?? "Falha ao salvar o cartão.");
 }
