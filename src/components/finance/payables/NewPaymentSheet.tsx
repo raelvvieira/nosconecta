@@ -50,7 +50,14 @@ export function NewPaymentSheet({
   onAccountsChanged?: () => void;
 }) {
   const create = useServerFn(createPayable);
-  const { selectedUnitId } = useUnitSelection();
+  const { selectedUnitId, units, isAdmin } = useUnitSelection();
+  // Lançamento pertence a uma unidade, e o servidor recusa sem saber qual. O
+  // seletor global do menu começa em "todas as unidades", então sem este campo
+  // o admin batia em "Selecione a unidade." num formulário que não tinha onde
+  // selecionar. Defeito anterior ao cartão; o atalho da Visão Geral só o
+  // deixou mais fácil de encontrar.
+  const precisaUnidade = isAdmin && units.length > 1;
+  const [unidade, setUnidade] = useState(selectedUnitId ?? "");
   const qc = useQueryClient();
   const fetchSuppliers = useServerFn(listSuppliers);
   const { data: fetchedSuppliers } = useQuery({
@@ -119,6 +126,7 @@ export function NewPaymentSheet({
 
   const mutation = useMutation({
     mutationFn: () => {
+      if (precisaUnidade && !unidade) throw new Error("Selecione a unidade.");
       if (forma === "credito") {
         if (!cardId) throw new Error("Escolha o cartão.");
         return criarCompra({
@@ -133,7 +141,7 @@ export function NewPaymentSheet({
             category_id: categoryId || null,
             supplier_name: supplier || null,
             notes: notes || null,
-            unitId: selectedUnitId ?? undefined,
+            unitId: unidade || selectedUnitId || undefined,
           },
         });
       }
@@ -153,7 +161,7 @@ export function NewPaymentSheet({
           downPayment: installmentsOn ? downNum : 0,
           isRecurring: recurring && !installmentsOn,
           recurrenceType,
-          unitId: selectedUnitId ?? undefined,
+          unitId: unidade || selectedUnitId || undefined,
         },
       });
     },
@@ -236,6 +244,23 @@ export function NewPaymentSheet({
 
           <section className="space-y-3">
             <h3 className="text-sm font-medium">Financeiro</h3>
+            {precisaUnidade && (
+              <div className="space-y-2">
+                <Label>Unidade *</Label>
+                <Select value={unidade} onValueChange={setUnidade}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a unidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {units.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Valor *</Label>
               <Input

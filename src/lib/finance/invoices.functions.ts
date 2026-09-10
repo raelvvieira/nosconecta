@@ -146,7 +146,6 @@ export const createCardPurchase = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
-    const unitId = await resolveUnitId(context, data.unitId);
 
     const { data: cartao, error: erroCartao } = await supabase
       .from("credit_cards")
@@ -161,6 +160,16 @@ export const createCardPurchase = createServerFn({ method: "POST" })
     }
     if (erroCartao) throw erroCartao;
     if (!cartao) throw new Error("Cartão não encontrado.");
+
+    // A unidade sai do CARTÃO, não do seletor global do menu. Escolher o
+    // cartão já é escolher a unidade, e perguntar de novo faria o admim que
+    // está vendo "todas as unidades" bater em "Selecione a unidade." num
+    // formulário que não tem esse campo.
+    //
+    // `resolveUnitId` continua sendo chamado para não-admin: ele ignora o que
+    // vier e carimba a unidade da pessoa, o que também recusa lançar num
+    // cartão de outra unidade.
+    const unitId = await resolveUnitId(context, cartao.unit_id);
     if (cartao.unit_id !== unitId) throw new Error("O cartão é de outra unidade.");
 
     const n = data.installments;

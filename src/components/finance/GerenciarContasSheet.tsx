@@ -111,7 +111,7 @@ export function ContasECartoes({
 }) {
   const open = ativo;
   const queryClient = useQueryClient();
-  const { selectedUnitId } = useUnitSelection();
+  const { selectedUnitId, units, isAdmin } = useUnitSelection();
 
   const buscarContas = useServerFn(listAccounts);
   const buscarCartoes = useServerFn(listCards);
@@ -213,6 +213,8 @@ export function ContasECartoes({
           conta={lista.find((c) => c.id === contaEmEdicao) ?? null}
           cartoesDaConta={listaDeCartoes.filter((c) => c.accountId === contaEmEdicao)}
           unitId={selectedUnitId}
+          units={units}
+          isAdmin={isAdmin}
           onNovoCartao={(contaId) => {
             setContaDoCartao(contaId);
             setCartaoEmEdicao(null);
@@ -235,7 +237,6 @@ export function ContasECartoes({
           cartao={cartaoEmEdicao}
           contas={lista}
           contaPadrao={contaDoCartao}
-          unitId={selectedUnitId}
           onSalvo={() => {
             recarregar();
             setAba("lista");
@@ -388,6 +389,8 @@ function FormularioDeConta({
   conta,
   cartoesDaConta,
   unitId,
+  units,
+  isAdmin,
   onNovoCartao,
   onEditarCartao,
   onSalvo,
@@ -395,6 +398,8 @@ function FormularioDeConta({
   conta: { id: string; name: string; type: string; last_digits: string | null } | null;
   cartoesDaConta: CartaoDeCredito[];
   unitId: string | null;
+  units: { id: string; name: string }[];
+  isAdmin: boolean;
   onNovoCartao: (contaId: string) => void;
   onEditarCartao: (c: CartaoDeCredito) => void;
   onSalvo: () => void;
@@ -408,6 +413,12 @@ function FormularioDeConta({
   // Começa ligado quando a conta já tem cartão — o estado da tela conta a
   // verdade do cadastro, não o contrário.
   const [temCartao, setTemCartao] = useState(cartoesDaConta.length > 0);
+  // Conta pertence a uma unidade, e o servidor recusa criar sem saber qual.
+  // O seletor global do menu começa em "todas as unidades", então sem este
+  // campo o admin batia em "Selecione a unidade." num formulário que não tinha
+  // onde selecionar — o mesmo defeito que a Agenda já teve.
+  const precisaEscolherUnidade = !conta && isAdmin && units.length > 1;
+  const [unidade, setUnidade] = useState(unitId ?? "");
 
   const salvar = useMutation({
     mutationFn: async () => {
@@ -416,12 +427,13 @@ function FormularioDeConta({
           data: { id: conta.id, name: nome, type: tipo as any, last_digits: digitos || null },
         });
       }
+      if (precisaEscolherUnidade && !unidade) throw new Error("Selecione a unidade.");
       return criar({
         data: {
           name: nome,
           type: tipo as any,
           last_digits: digitos || null,
-          unitId: unitId ?? undefined,
+          unitId: unidade || unitId || undefined,
         },
       });
     },
@@ -478,6 +490,24 @@ function FormularioDeConta({
           />
         </div>
       </div>
+
+      {precisaEscolherUnidade && (
+        <div className="grid gap-2">
+          <Label htmlFor="conta-unidade">Unidade *</Label>
+          <Select value={unidade} onValueChange={setUnidade}>
+            <SelectTrigger id="conta-unidade">
+              <SelectValue placeholder="Selecione a unidade" />
+            </SelectTrigger>
+            <SelectContent>
+              {units.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* O switch que o usuário desenhou. Só aparece para conta que já existe:
           o cartão precisa de uma conta com id para apontar, e criar os dois no
@@ -538,13 +568,11 @@ function FormularioDeCartao({
   cartao,
   contas,
   contaPadrao,
-  unitId,
   onSalvo,
 }: {
   cartao: CartaoDeCredito | null;
-  contas: { id: string; name: string }[];
+  contas: { id: string; name: string; unit_id: string }[];
   contaPadrao: string | null;
-  unitId: string | null;
   onSalvo: () => void;
 }) {
   const criar = useServerFn(createCard);
@@ -568,7 +596,12 @@ function FormularioDeCartao({
         dueDay: Number(vencimento),
       };
       if (cartao) return atualizar({ data: { id: cartao.id, ...payload } });
-      return criar({ data: { ...payload, unitId: unitId ?? undefined } });
+      // A unidade sai da CONTA escolhida, não do seletor global do menu —
+      // que começa em "todas as unidades" e faria o servidor recusar com
+      // "Selecione a unidade." num formulário sem esse campo. Escolher a conta
+      // já é escolher a unidade: é a conta que paga a fatura.
+      const unidadeDaConta = contas.find((c) => c.id === contaId)?.unit_id;
+      return criar({ data: { ...payload, unitId: unidadeDaConta } });
     },
     onSuccess: () => {
       toast.success(
