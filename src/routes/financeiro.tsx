@@ -1,22 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { lazy, useEffect, useState } from "react";
 import { DollarSign, TrendingDown, BarChart3, Users } from "lucide-react";
 
 import { Sidebar } from "@/components/finance/Sidebar";
+import { SobDemanda, nomeado } from "@/components/finance/SobDemanda";
 import { MobileHome } from "@/components/home/MobileHome";
 import { useHomeData } from "@/components/home/useHomeData";
 import { PageHeader } from "@/components/finance/PageHeader";
 import { KpiCard } from "@/components/finance/KpiCard";
-import { CashFlowChart } from "@/components/finance/CashFlowChart";
 import { BankAccountsCard } from "@/components/finance/BankAccountsCard";
 import { GerenciarContasSheet } from "@/components/finance/GerenciarContasSheet";
 import { LancamentoRapido } from "@/components/finance/LancamentoRapido";
 import { UpcomingReceivables } from "@/components/finance/UpcomingReceivables";
 import { UpcomingPayables } from "@/components/finance/UpcomingPayables";
 import { InsightsCard } from "@/components/finance/InsightsCard";
-import { RevenueByProcedure } from "@/components/finance/RevenueByProcedure";
 import { RevenueByDentist } from "@/components/finance/RevenueByDentist";
 import { CommissionsTable } from "@/components/finance/CommissionsTable";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -51,6 +50,25 @@ const overviewQueryOptions = (
     queryFn: () => fetcher({ data: params }),
     staleTime: 30_000,
   });
+
+/** Gráficos descem sob demanda: `recharts` pesa 356 KB e não pode
+ *  segurar a pintura de uma tela que é sobretudo números e listas. */
+/** O retorno do overview já é derivado no arquivo — reusar em vez de redeclarar. */
+type Overview = Awaited<ReturnType<typeof getFinanceOverview>>;
+
+const CashFlowChart = lazy(
+  nomeado<{
+    data: Overview["cashFlow"];
+    granularity: Granularity;
+    onGranularityChange: (g: Granularity) => void;
+  }>(() => import("@/components/finance/CashFlowChart"), "CashFlowChart"),
+);
+const RevenueByProcedure = lazy(
+  nomeado<{ data: Overview["procedures"] }>(
+    () => import("@/components/finance/RevenueByProcedure"),
+    "RevenueByProcedure",
+  ),
+);
 
 export const Route = createFileRoute("/financeiro")({
   ssr: false,
@@ -170,11 +188,13 @@ function FinanceiroVisaoGeral() {
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
-          <CashFlowChart
-            data={data.cashFlow}
-            granularity={granularity}
-            onGranularityChange={setGranularity}
-          />
+          <SobDemanda altura={360}>
+            <CashFlowChart
+              data={data.cashFlow}
+              granularity={granularity}
+              onGranularityChange={setGranularity}
+            />
+          </SobDemanda>
           <BankAccountsCard
             accounts={data.accounts}
             total={data.totalAvailable}
@@ -197,7 +217,9 @@ function FinanceiroVisaoGeral() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <RevenueByProcedure data={data.procedures} />
+          <SobDemanda altura={280}>
+            <RevenueByProcedure data={data.procedures} />
+          </SobDemanda>
           <RevenueByDentist data={data.dentists} />
           <CommissionsTable data={data.commissions} />
         </div>

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
-import { useState } from "react";
+import { lazy, useState } from "react";
 import { z } from "zod";
 import {
   ArrowDownRight,
@@ -20,8 +20,8 @@ import {
   TrendingUp,
   Upload,
 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
+import { MolduraDeGrafico, SobDemanda, nomeado } from "@/components/finance/SobDemanda";
 
 import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -138,6 +138,14 @@ const STATUS_LABEL: Record<string, string> = {
 
 // Repetia, valor por valor, a paleta que já estava em --chart-1..5 mais três
 // semânticas. Agora aponta para elas: mudar a marca muda o gráfico junto.
+/** `recharts` só desce quando o donut entra em cena — ver `SobDemanda`. */
+const DonutDeCategorias = lazy(
+  nomeado<{ items: PayablesOverview["categoryBreakdown"] }>(
+    () => import("@/components/finance/payables/CategoryBreakdownChart"),
+    "CategoryBreakdownChart",
+  ),
+);
+
 const CHART_COLORS = [
   "var(--chart-1)",
   "var(--chart-2)",
@@ -712,22 +720,9 @@ function CategoryBreakdownCard({ items }: { items: PayablesOverview["categoryBre
       <h3 className="font-semibold text-base mb-5">Gastos por Categoria</h3>
       <div className="flex items-center gap-5">
         <div className="h-[120px] w-[120px] shrink-0">
-          <ResponsiveContainer>
-            <PieChart>
-              <Pie
-                data={data}
-                dataKey="total"
-                innerRadius={42}
-                outerRadius={58}
-                paddingAngle={2}
-                stroke="none"
-              >
-                {data.map((_, i) => (
-                  <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
+          <SobDemanda altura={120}>
+            <DonutDeCategorias items={items} />
+          </SobDemanda>
         </div>
         <ul className="flex-1 min-w-0 space-y-2 text-sm">
           {data.map((c, i) => (

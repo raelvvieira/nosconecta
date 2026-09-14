@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { lazy, useEffect, useState } from "react";
 import { z } from "zod";
 import {
   Plus,
@@ -19,21 +19,8 @@ import {
   Trash2,
   Ban,
 } from "lucide-react";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  ComposedChart,
-  Bar,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-} from "recharts";
 import { toast } from "sonner";
+import { SobDemanda, nomeado } from "@/components/finance/SobDemanda";
 
 import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -82,6 +69,20 @@ import {
 } from "@/lib/finance/receivables.functions";
 import { corCategorica } from "@/lib/finance/chart-theme";
 
+/** `recharts` só desce quando um gráfico entra em cena — ver `SobDemanda`. */
+const EvolucaoDeRecebimentos = lazy(
+  nomeado<{ data: ReceivablesOverview["evolution"] }>(
+    () => import("@/components/finance/receivables/GraficosDeRecebimento"),
+    "EvolucaoDeRecebimentos",
+  ),
+);
+const DonutDeProcedimentos = lazy(
+  nomeado<{ data: ReceivablesOverview["topProcedures"] }>(
+    () => import("@/components/finance/receivables/GraficosDeRecebimento"),
+    "DonutDeProcedimentos",
+  ),
+);
+
 const searchSchema = z.object({
   from: z.string().optional(),
   to: z.string().optional(),
@@ -122,8 +123,6 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Cancelado",
 };
 
-
-
 const overviewOpts = (fetcher: (args: { data: any }) => Promise<ReceivablesOverview>, s: Search) =>
   queryOptions({
     queryKey: ["receivables-overview", s],
@@ -148,7 +147,9 @@ export const Route = createFileRoute("/recebimentos")({
   // evita que o esqueleto apareça e suma num susto.
   pendingMs: 150,
   pendingMinMs: 400,
-  errorComponent: ({ error }) => <ResponsiveRouteState error={error} title="Não foi possível carregar os recebimentos" />,
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error} title="Não foi possível carregar os recebimentos" />
+  ),
   notFoundComponent: () => <ResponsiveRouteState title="Recebimentos não encontrados" notFound />,
   component: RecebimentosPage,
 });
@@ -236,30 +237,30 @@ function RecebimentosPage() {
           subtitle="Acompanhe todas as entradas financeiras da clínica"
           actions={
             <>
-            <Button
-              onClick={() => setSheetOpen(true)}
-              variant="premium"
-              className="hidden lg:inline-flex"
-            >
-              <Plus className="h-4 w-4" /> Novo Recebimento
-            </Button>
-            <Button
-              variant="outline"
-              className="hidden md:inline-flex gap-2"
-              onClick={() => {
-                setReceiptTarget(null);
-                setReceiptOpen(true);
-              }}
-            >
-              <ClipboardCheck className="h-4 w-4" /> Registrar Recebimento
-            </Button>
-            <Button
-              variant="outline"
-              className="hidden md:inline-flex gap-2"
-              onClick={() => toast.success("Exportação iniciada")}
-            >
-              <Download className="h-4 w-4" /> Exportar
-            </Button>
+              <Button
+                onClick={() => setSheetOpen(true)}
+                variant="premium"
+                className="hidden lg:inline-flex"
+              >
+                <Plus className="h-4 w-4" /> Novo Recebimento
+              </Button>
+              <Button
+                variant="outline"
+                className="hidden md:inline-flex gap-2"
+                onClick={() => {
+                  setReceiptTarget(null);
+                  setReceiptOpen(true);
+                }}
+              >
+                <ClipboardCheck className="h-4 w-4" /> Registrar Recebimento
+              </Button>
+              <Button
+                variant="outline"
+                className="hidden md:inline-flex gap-2"
+                onClick={() => toast.success("Exportação iniciada")}
+              >
+                <Download className="h-4 w-4" /> Exportar
+              </Button>
             </>
           }
         />
@@ -313,59 +314,9 @@ function RecebimentosPage() {
                 <h2 className="font-semibold">Evolução de Recebimentos</h2>
               </div>
               <div className="h-[320px]">
-                <ResponsiveContainer>
-                  <ComposedChart
-                    data={data.evolution}
-                    margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid
-                      stroke="var(--border)"
-                      strokeDasharray="3 3"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="period"
-                      stroke="var(--muted-foreground)"
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      stroke="var(--muted-foreground)"
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={false}
-                      tickFormatter={(v) => `R$ ${(v / 1000).toFixed(0)}k`}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        borderRadius: "var(--radius-control)",
-                        border: "1px solid var(--border)",
-                        background: "var(--card)",
-                      }}
-                      formatter={(v: number, name) => [formatBRL(v), name]}
-                    />
-                    <Legend iconType="circle" wrapperStyle={{ fontSize: "0.75rem", paddingBottom: 12 }} />
-                    <Bar dataKey="received" name="Recebido" stackId="a" fill="var(--success-soft)" />
-                    <Bar dataKey="expected" name="Previsto" stackId="a" fill="var(--warning-soft)" />
-                    <Bar
-                      dataKey="overdue"
-                      name="Atrasado"
-                      stackId="a"
-                      fill="var(--danger-soft)"
-                      radius={[6, 6, 0, 0]}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="goal"
-                      name="Meta mensal"
-                      stroke="var(--info)"
-                      strokeWidth={2}
-                      strokeDasharray="4 4"
-                      dot={{ r: 3 }}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
+                <SobDemanda altura={320}>
+                  <EvolucaoDeRecebimentos data={data.evolution} />
+                </SobDemanda>
               </div>
             </section>
 
@@ -850,15 +801,9 @@ function TopProceduresCard({ items }: { items: ReceivablesOverview["topProcedure
       ) : (
         <div className="flex items-center gap-4">
           <div className="h-32 w-32 shrink-0">
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={data} dataKey="value" innerRadius={40} outerRadius={60} stroke="none">
-                  {data.map((_, i) => (
-                    <Cell key={i} fill={corCategorica(i)} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
+            <SobDemanda altura={128}>
+              <DonutDeProcedimentos data={data} />
+            </SobDemanda>
           </div>
           <ul className="flex-1 space-y-1.5 text-sm min-w-0">
             {data.map((p, i) => (

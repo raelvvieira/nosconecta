@@ -1,10 +1,22 @@
+import { lazy } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { useServerFn } from "@tanstack/react-start";
+import { SobDemanda, nomeado } from "@/components/finance/SobDemanda";
 import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
 import { toast } from "sonner";
-import { CalendarDays, CalendarRange, Info, Plus, Share2, Shield, TrendingUp, Upload, Wallet } from "lucide-react";
+import {
+  CalendarDays,
+  CalendarRange,
+  Info,
+  Plus,
+  Share2,
+  Shield,
+  TrendingUp,
+  Upload,
+  Wallet,
+} from "lucide-react";
 
 import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -15,8 +27,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-import { CashProjectionChart } from "@/components/finance/planning/CashProjectionChart";
-import { ProjectionSummaryCard } from "@/components/finance/planning/ProjectionSummaryCard";
 import { FinancialTimeline } from "@/components/finance/planning/FinancialTimeline";
 import { ScenarioSimulator } from "@/components/finance/planning/ScenarioSimulator";
 import { FinancialGoalsCard } from "@/components/finance/planning/FinancialGoalsCard";
@@ -45,6 +55,24 @@ const overviewOpts = (
     staleTime: 15_000,
   });
 
+/** Gráficos descem sob demanda: `recharts` pesa 356 KB e não pode segurar a
+ *  pintura de uma tela que é sobretudo números e listas. */
+type Planejamento = Awaited<ReturnType<typeof getPlanningOverview>>;
+
+const CashProjectionChart = lazy(
+  nomeado<{
+    data: Planejamento["projection"];
+    range: RangeDays;
+    onRangeChange: (r: RangeDays) => void | Promise<void>;
+  }>(() => import("@/components/finance/planning/CashProjectionChart"), "CashProjectionChart"),
+);
+const ProjectionSummaryCard = lazy(
+  nomeado<{ forecast: Planejamento["forecast"] }>(
+    () => import("@/components/finance/planning/ProjectionSummaryCard"),
+    "ProjectionSummaryCard",
+  ),
+);
+
 export const Route = createFileRoute("/planejamento")({
   ssr: false,
   head: () => ({
@@ -65,7 +93,9 @@ export const Route = createFileRoute("/planejamento")({
   // evita que o esqueleto apareça e suma num susto.
   pendingMs: 150,
   pendingMinMs: 400,
-  errorComponent: ({ error }) => <ResponsiveRouteState error={error} title="Não foi possível carregar o planejamento" />,
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error} title="Não foi possível carregar o planejamento" />
+  ),
   notFoundComponent: () => <ResponsiveRouteState title="Planejamento não encontrado" notFound />,
   component: PlanningPage,
 });
@@ -104,24 +134,24 @@ function PlanningPage() {
 
         <main className="flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-8 pb-nav lg:pb-8">
           {/* Header */}
-        <PageHeading
-          icon={TrendingUp}
-          title="Planejamento Financeiro"
-          subtitle="Projeções, cenários e previsões para sua clínica"
-          actions={
-            <>
-              <Button className="gap-2 hidden lg:inline-flex" onClick={handleNewScenario}>
-                <Plus className="h-4 w-4" /> Novo Cenário
-              </Button>
-              <Button variant="outline" className="gap-2">
-                <Upload className="h-4 w-4" /> Exportar
-              </Button>
-              <Button variant="outline" className="gap-2">
-                <Share2 className="h-4 w-4" /> Compartilhar
-              </Button>
-            </>
-          }
-        />
+          <PageHeading
+            icon={TrendingUp}
+            title="Planejamento Financeiro"
+            subtitle="Projeções, cenários e previsões para sua clínica"
+            actions={
+              <>
+                <Button className="gap-2 hidden lg:inline-flex" onClick={handleNewScenario}>
+                  <Plus className="h-4 w-4" /> Novo Cenário
+                </Button>
+                <Button variant="outline" className="gap-2">
+                  <Upload className="h-4 w-4" /> Exportar
+                </Button>
+                <Button variant="outline" className="gap-2">
+                  <Share2 className="h-4 w-4" /> Compartilhar
+                </Button>
+              </>
+            }
+          />
 
           {/* KPIs */}
           <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5">
@@ -157,9 +187,7 @@ function PlanningPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-2xs md:text-sm text-muted-foreground">
-                      Fôlego Financeiro
-                    </p>
+                    <p className="text-2xs md:text-sm text-muted-foreground">Fôlego Financeiro</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
@@ -200,10 +228,14 @@ function PlanningPage() {
           {/* Chart + Summary */}
           <section className="grid grid-cols-1 xl:grid-cols-3 gap-5">
             <div className="xl:col-span-2">
-              <CashProjectionChart data={projection} range={range} onRangeChange={setRange} />
+              <SobDemanda altura={340}>
+                <CashProjectionChart data={projection} range={range} onRangeChange={setRange} />
+              </SobDemanda>
             </div>
             <div>
-              <ProjectionSummaryCard forecast={forecast} />
+              <SobDemanda altura={340}>
+                <ProjectionSummaryCard forecast={forecast} />
+              </SobDemanda>
             </div>
           </section>
 
