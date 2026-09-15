@@ -369,10 +369,24 @@ const COLUNAS_DA_PESSOA =
  * outro. Pedir uma coluna que ainda não existe derruba a consulta inteira, e a
  * conversão sairia sem NENHUM dado da pessoa: nem telefone, nem e-mail.
  *
- * Então tenta com as colunas novas e, na primeira falha, desce para as antigas
- * e não tenta mais — a partir daí é a divisão automática do nome que vale,
- * exatamente como era antes.
+ * Então tenta com as colunas novas e, se elas não existirem, desce para as
+ * antigas e não tenta mais — a partir daí é a divisão automática do nome que
+ * vale, exatamente como era antes.
+ *
+ * ── Só coluna ausente rebaixa ────────────────────────────────────────────
+ *
+ * A trava era acionada por QUALQUER erro. Um tempo esgotado, um soluço de
+ * rede, e o isolate inteiro passava a ler sem `first_name`/`last_name` até
+ * morrer — todos os eventos seguintes saíam com o nome dividido no
+ * automático, e ninguém veria isso em lugar nenhum. Agora só o erro que
+ * significa "essa coluna não existe" rebaixa; o resto é falha da consulta e
+ * devolve nulo, sem estragar as próximas.
  */
+const COLUNA_AUSENTE = new Set(["42703", "PGRST204", "PGRST205"]);
+const ehColunaAusente = (e: { code?: string; message?: string }) =>
+  Boolean(e.code && COLUNA_AUSENTE.has(e.code)) ||
+  /does not exist|schema cache/i.test(String(e.message ?? ""));
+
 let temNomeSeparado = true;
 
 async function lerPaciente(
@@ -388,7 +402,10 @@ async function lerPaciente(
       .from("patients").select(colunas)
       .eq(coluna, valor).eq("owner_id", ownerId).maybeSingle();
     if (!error) return data ?? null;
-    if (!temNomeSeparado) return null;
+    if (!temNomeSeparado || !ehColunaAusente(error)) {
+      console.error("[meta-capi] falha ao ler paciente:", error.message);
+      return null;
+    }
     temNomeSeparado = false;
   }
   return null;
@@ -465,10 +482,21 @@ async function handleDispatch(ownerId: string, systemEvent: string, ctx: Dispatc
   const target = resolveTarget(creds);
   const eventTime = Math.floor(Date.now() / 1000);
 
-  // Evento sem nenhum identificador é rejeitado pela Meta e ainda suja o
-  // dataset. Falha aqui, com mensagem que diz o que fazer, em vez de mandar
-  // e receber um erro genérico de volta.
-  if (!Object.keys(userData).length) {
+  // ── O evento precisa de um identificador que a Meta saiba casar ──────
+  //
+  // Esta guarda testava `Object.keys(userData).length` — QUALQUER chave. Só
+  // que `fn`, `ln` e `country` são chaves, então um evento com hash de nome e
+  // mais nada passava: a Meta respondia `events_received: 1`, o log gravava
+  // "sent" com visto verde, e no Gerenciador de Anúncios não aparecia Lead
+  // nenhum. Nome não casa pessoa — foi assim que o agendamento do dia 14/09
+  // saiu "com sucesso" e nunca virou conversão.
+  //
+  // `external_id` não entra na lista: ele só casa se a Meta já tiver visto
+  // aquele id em outro evento, e aqui não há pixel de site mandando o mesmo.
+  // Sem e-mail nem telefone, o evento é um número a menos de match e um
+  // registro a mais no dataset.
+  const IDENTIFICADORES = ["em", "ph"];
+  if (!IDENTIFICADORES.some((k) => k in userData)) {
     await Promise.all(
       matching.map((trigger: any) =>
         logEvent({
@@ -481,7 +509,10 @@ async function handleDispatch(ownerId: string, systemEvent: string, ctx: Dispatc
           payload: null,
           response: null,
           dropped_keys: dropped,
-          error: "Nenhum identificador válido (e-mail ou telefone) — evento não enviado.",
+          error:
+            "Sem telefone nem e-mail no cadastro do paciente — evento não enviado, " +
+            "porque a Meta não teria como reconhecer a pessoa. Complete a ficha e " +
+            "o próximo evento desse paciente sai normalmente.",
         }),
       ),
     );

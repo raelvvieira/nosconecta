@@ -23,7 +23,7 @@ import {
 import { STATUS_LABEL, TYPE_LABEL } from "./appointment-utils";
 import { NOTIFICATION_KINDS, NotificationRow } from "./notification-utils";
 import { ConfirmCompletion } from "./ConfirmCompletion";
-import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
+import { formatWhatsappNumber, telefoneBrasileiroValido } from "@/lib/atendimentos/phone";
 import { localDateStr, durationBetween, endTimeFrom } from "@/lib/date";
 import { rotuloDeSala } from "@/lib/agenda/rotuloDeSala";
 import { ProcedimentosDoAgendamento } from "./ProcedimentosDoAgendamento";
@@ -34,6 +34,7 @@ import {
   type ProcedimentoDoAgendamento,
 } from "@/lib/agenda/procedimentos";
 import { dividirNome, juntarNome } from "@/lib/patients/nome";
+import type { NomeDoPacienteNovo } from "@/lib/agenda/useSaveAppointment";
 
 interface Props {
   open: boolean;
@@ -57,15 +58,16 @@ interface Props {
    * `retornoEm` só vem quando o atendimento foi confirmado com retorno.
    *
    * `nome` só vem quando o paciente ainda não existe e vai ser criado a partir
-   * daqui: são as duas partes como quem preencheu separou. A Meta casa a
-   * conversão por `fn` e `ln`, dois hashes distintos, e "Ana Paula Silva"
-   * dividido no automático viraria fn "Ana" / ln "Paula Silva" — errado, e
-   * errado em silêncio.
+   * daqui: são as partes como quem preencheu separou. A Meta casa a conversão
+   * por `fn` e `ln`, dois hashes distintos, e "Ana Paula Silva" dividido no
+   * automático viraria fn "Ana" / ln "Paula Silva" — errado, e errado em
+   * silêncio. O telefone vai junto porque é ele que permite o match: sem
+   * telefone nem e-mail, a Meta aceita o evento e não casa com ninguém.
    */
   onSave: (
     data: Partial<Appointment>,
     retornoEm?: string | null,
-    nome?: { primeiro: string; sobrenome: string },
+    nome?: NomeDoPacienteNovo,
   ) => void;
   /**
    * Trocar para o formulário de compromisso. Só a Agenda passa: no chat e no
@@ -152,6 +154,33 @@ export function AppointmentDrawer({
   const [partesDoNome, setPartesDoNome] = useState(() =>
     dividirNome(appointment?.patientName ?? defaultPatient?.name ?? contact?.name ?? ""),
   );
+  /**
+   * Criando pela Agenda, com nome digitado e nenhuma ficha vinculada: o
+   * paciente vai NASCER deste formulário.
+   *
+   * Este caminho existia e não criava ficha nenhuma. O combobox oferece
+   * "Usar 'Fulano' (paciente novo)", o agendamento salvava com `patient_id`
+   * nulo, e como o evento da Meta busca os dados pessoais só na tabela de
+   * pacientes, o Lead saía com hash de nome e mais nada: aceito pela Meta,
+   * marcado como enviado no sistema, e invisível no Gerenciador de Anúncios.
+   */
+  const pacienteNovo =
+    // Vale editando também, e é de propósito: é por aqui que se conserta um
+    // agendamento que já foi salvo sem ficha. Sem isso, os que já existem
+    // ficariam sem telefone para sempre — e a conversão de quando forem
+    // concluídos sairia cega do mesmo jeito.
+    !modoContato &&
+    !form.patientId &&
+    Boolean(form.patientName?.trim()) &&
+    // Vindo de uma conversa o telefone já existe — pedir de novo seria pedir
+    // o que o sistema tem na mão. É o caso de quem clicou em "vincular a um
+    // paciente existente" e não escolheu ninguém: a ficha nasce mesmo assim,
+    // com o número da conversa.
+    !contact?.phone;
+
+  const [telefoneNovo, setTelefoneNovo] = useState("");
+  const telefoneOk = telefoneBrasileiroValido(telefoneNovo);
+
   const mudarParte = (parte: "primeiro" | "sobrenome", valor: string) =>
     setPartesDoNome((atual) => {
       const proximo = { ...atual, [parte]: valor };
@@ -185,6 +214,7 @@ export function AppointmentDrawer({
     setPartesDoNome(
       dividirNome(appointment?.patientName ?? defaultPatient?.name ?? contact?.name ?? ""),
     );
+    setTelefoneNovo("");
   }, [open, appointment, defaultDate, defaultPatient?.id, defaultPatient?.name, contact?.name]);
 
   // A duração é derivada do que está gravado (início e fim), e o fim volta a
@@ -244,15 +274,50 @@ export function AppointmentDrawer({
   })();
   const dataNoPassado = Boolean(form.date && form.date < hojeLocal);
 
-  const handleSave = () => {
+  /**
+   * Confere o paciente e devolve o que sobe junto do agendamento.
+   *
+   * Devolve `false` quando falta algo — existe separada porque DOIS botões
+   * gravam (Salvar, e o Confirmar atendimento do registro retroativo), e a
+   * regra em um só deixaria o outro passar sem telefone.
+   */
+  const conferirPaciente = (): NomeDoPacienteNovo | undefined | false => {
     if (!form.patientName?.trim()) {
       toast.error("Informe o nome do paciente");
-      return;
+      return false;
     }
-    // As partes só sobem no modo contato: nos outros o paciente já existe, e
-    // reescrever o nome dele a partir de um campo que ninguém editou seria
-    // desfazer a separação que o cadastro já tem.
-    onSave(form, undefined, modoContato ? partesDoNome : undefined);
+    // Obrigatório ao CRIAR: é o momento em que dá para exigir sem atrapalhar
+    // ninguém, e é o evento que depende dele (o Lead sai no ato).
+    //
+    // Editando, é oferta e não exigência: quem abriu um agendamento antigo só
+    // para mudar o horário não pode ficar preso atrás de um campo que não
+    // existia quando aquilo foi criado. Se digitou, tem de estar certo.
+    if (pacienteNovo && !isEdit && !telefoneOk) {
+      toast.error(
+        "Informe o telefone do paciente novo — é ele que liga este agendamento ao anúncio na Meta.",
+      );
+      return false;
+    }
+    if (pacienteNovo && isEdit && telefoneNovo.trim() && !telefoneOk) {
+      toast.error("Telefone incompleto. Corrija ou apague o campo para salvar.");
+      return false;
+    }
+    // As partes só sobem quando o paciente vai nascer daqui: nos outros casos
+    // a ficha já existe, e reescrever o nome dela a partir de um campo que
+    // ninguém editou desfaria a separação que o cadastro já tem.
+    // Sem telefone válido no conserto, sobe `undefined`: nada de ficha nova,
+    // e o agendamento salva exatamente como estava.
+    if (pacienteNovo) {
+      return telefoneOk ? { ...partesDoNome, telefone: telefoneNovo } : undefined;
+    }
+    if (modoContato) return partesDoNome;
+    return undefined;
+  };
+
+  const handleSave = () => {
+    const nome = conferirPaciente();
+    if (nome === false) return;
+    onSave(form, undefined, nome);
   };
 
   if (!open) return null;
@@ -343,11 +408,9 @@ export function AppointmentDrawer({
               isPending={isSaving}
               onConfirm={({ valor, retornoEm, gerarCobranca }) => {
                 // Criando pelo registro retroativo, este é o botão que grava —
-                // então a checagem do nome tem de valer aqui também.
-                if (!form.patientName?.trim()) {
-                  toast.error("Informe o nome do paciente");
-                  return;
-                }
+                // então a checagem do paciente tem de valer aqui também.
+                const nome = conferirPaciente();
+                if (nome === false) return;
                 onSave(
                   {
                     ...form,
@@ -356,6 +419,7 @@ export function AppointmentDrawer({
                     generateFinancial: gerarCobranca,
                   },
                   retornoEm,
+                  nome,
                 );
               }}
             />
@@ -408,13 +472,77 @@ export function AppointmentDrawer({
                 <PatientCombobox
                   value={form.patientName ?? ""}
                   patientId={form.patientId}
-                  onChange={({ id, name }) =>
-                    setForm((f) => ({ ...f, patientId: id, patientName: name }))
-                  }
+                  onChange={({ id, name }) => {
+                    setForm((f) => ({ ...f, patientId: id, patientName: name }));
+                    // Sem ficha vinculada, o nome digitado vira as duas partes
+                    // do bloco abaixo — já preenchidas, para quem agenda só
+                    // corrigir onde a divisão automática errou.
+                    if (!id) setPartesDoNome(dividirNome(name));
+                  }}
                   className="rounded-xl border-border"
                 />
               )}
             </div>
+
+            {/* Paciente novo: a ficha nasce daqui, então os dados que a Meta
+                usa para casar a conversão são pedidos AGORA — depois ninguém
+                volta para completar. Fica em bloco destacado porque é a
+                diferença entre o Lead contar e o Lead sumir. */}
+            {pacienteNovo && (
+              <div className="space-y-3 rounded-xl border border-coral/30 bg-coral-soft/40 p-3">
+                <p className="text-2xs font-semibold uppercase tracking-wider text-coral">
+                  {isEdit ? "Este agendamento não tem ficha de paciente" : "Paciente novo"}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="novo-nome" className="text-xs text-foreground-secondary">
+                      Nome
+                    </Label>
+                    <Input
+                      id="novo-nome"
+                      value={partesDoNome.primeiro}
+                      onChange={(e) => mudarParte("primeiro", e.target.value)}
+                      placeholder="Nome"
+                      className="rounded-xl border-border bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="novo-sobrenome" className="text-xs text-foreground-secondary">
+                      Sobrenome
+                    </Label>
+                    <Input
+                      id="novo-sobrenome"
+                      value={partesDoNome.sobrenome}
+                      onChange={(e) => mudarParte("sobrenome", e.target.value)}
+                      placeholder="Sobrenome"
+                      className="rounded-xl border-border bg-white"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="novo-telefone" className="text-xs text-foreground-secondary">
+                    Telefone (WhatsApp){isEdit ? "" : " *"}
+                  </Label>
+                  <Input
+                    id="novo-telefone"
+                    type="tel"
+                    inputMode="tel"
+                    value={telefoneNovo}
+                    onChange={(e) => setTelefoneNovo(e.target.value)}
+                    placeholder="(48) 99999-9999"
+                    aria-invalid={Boolean(telefoneNovo) && !telefoneOk}
+                    className="rounded-xl border-border bg-white font-mono"
+                  />
+                  <p className="text-2xs leading-4 text-muted-foreground">
+                    {telefoneNovo && !telefoneOk
+                      ? "Número incompleto — faltam dígitos do DDD ou do número."
+                      : isEdit
+                        ? "Preencher agora cria a ficha deste paciente. O Lead deste agendamento já passou, mas a conversão de quando ele for concluído passa a ser reconhecida pela Meta."
+                        : "Obrigatório: é por este número que a Meta reconhece o paciente como um Lead do seu anúncio, e é por ele que sai o lembrete da consulta."}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Telefone do WhatsApp, só leitura. É o número da própria conversa,
                 então já está correto — aparece para conferência porque é ele que

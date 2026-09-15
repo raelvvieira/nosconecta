@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { createAppointment, updateAppointment } from "@/lib/agenda/agenda.functions";
 import { createPatient, getPatientByCrmContact } from "@/lib/patients/patients.functions";
-import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
+import { formatWhatsappNumber, normalizeBrazilianPhone } from "@/lib/atendimentos/phone";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { useAgendaCatalog } from "@/lib/agenda/useAppointmentForm";
 import type { Appointment } from "@/components/agenda/types";
@@ -42,6 +42,20 @@ export function appointmentPayload(data: Partial<Appointment>, patientId: string
     notes: data.notes ?? null,
     generateFinancial: data.generateFinancial ?? true,
   };
+}
+
+/**
+ * Os dados de quem ainda não tem ficha, como o formulário os separou.
+ *
+ * Nome e sobrenome vêm separados porque a Meta casa a conversão por `fn` e
+ * `ln`, dois hashes distintos — dividir "Ana Paula Silva" no automático dá
+ * fn "Ana", errado e em silêncio. O telefone vem junto porque é ele que
+ * permite o match acontecer.
+ */
+export interface NomeDoPacienteNovo {
+  primeiro: string;
+  sobrenome: string;
+  telefone?: string;
 }
 
 /** Contato de WhatsApp que originou o agendamento, quando houver. */
@@ -101,8 +115,8 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
   const resolvePatientId = async (
     data: Partial<Appointment>,
     contact: OriginContact,
-    /** Nome e sobrenome como o formulário os separou, quando os separou. */
-    nome?: { primeiro: string; sobrenome: string },
+    /** Nome, sobrenome e telefone como o formulário os separou, quando os separou. */
+    nome?: NomeDoPacienteNovo,
   ): Promise<string | null> => {
     if (data.patientId) return data.patientId;
     const name = data.patientName?.trim();
@@ -133,7 +147,18 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
         // e acerta na maioria; erra em nome composto ("Ana Paula").
         firstName: nome?.primeiro || undefined,
         lastName: nome?.sobrenome || undefined,
-        phone: contact.phone ? formatWhatsappNumber(contact.phone) : undefined,
+        // O telefone digitado no formulário ganha do contato: quem agenda pela
+        // Agenda informa o número na hora, e é o único que existe nesse
+        // caminho. Sem ele o evento da Meta sai com hash de nome e nada mais
+        // — a Meta recebe, responde 200, e não casa com anúncio nenhum.
+        // `normalizeBrazilianPhone` antes de formatar: o que vem do formulário
+        // é digitado à mão, quase sempre sem o 55 do país. Sem o país o CRM lê
+        // o DDD como código de outro país, e a Meta não casa o hash com nada.
+        phone: nome?.telefone
+          ? formatWhatsappNumber(normalizeBrazilianPhone(nome.telefone))
+          : contact.phone
+            ? formatWhatsappNumber(contact.phone)
+            : undefined,
         crmContactId: contact.crmContactId ?? undefined,
         unitId: unidadeDaCadeira(data.roomId) ?? selectedUnitId ?? undefined,
       },
@@ -154,14 +179,37 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       contact?: OriginContact;
       /** Data do retorno pré-agendado, quando o atendimento foi confirmado. */
       retornoEm?: string | null;
-      /** Nome e sobrenome separados no formulário, para a ficha nascer certa. */
-      nome?: { primeiro: string; sobrenome: string };
+      /** Nome, sobrenome e telefone do formulário, para a ficha nascer certa. */
+      nome?: NomeDoPacienteNovo;
     }) => {
       // Só ao criar: editar um agendamento existente não deve inventar paciente.
+      //
+      // ── Por que não depende mais de `contact` ─────────────────────────
+      //
+      // Dependia, e era o furo: a criação de ficha só acontecia quando o
+      // agendamento nascia de uma conversa de WhatsApp. Quem agendava pela
+      // Agenda digitando um nome novo — o "Usar 'Fulano' (paciente novo)" do
+      // combobox — gravava o agendamento com `patient_id` nulo e NENHUMA
+      // linha em `patients`. O `resolvePerson` da Edge Function da Meta busca
+      // os dados pessoais só nessa tabela, então o evento saía com hash de
+      // nome e mais nada: a Meta respondia 200, o log do sistema dizia
+      // "enviado", e no Gerenciador de Anúncios não aparecia Lead nenhum.
+      //
+      // `resolvePatientId` já devolve `data.patientId` na primeira linha
+      // quando ele existe, então paciente vinculado continua intocado.
+      //
+      // ── Editando ───────────────────────────────────────────────────────
+      //
+      // Editar não inventa paciente: o formulário abre com o que já está
+      // gravado, e criar ficha a partir disso seria duplicar quem já existe.
+      // A exceção é o conserto explícito — alguém abriu um agendamento sem
+      // ficha e DIGITOU o telefone. Aí a intenção é essa, e é o único jeito de
+      // recuperar os agendamentos que foram salvos sem ninguém por trás.
+      const consertando = Boolean(existingId && !data.patientId && nome?.telefone);
       const patientId =
-        !existingId && contact
-          ? await resolvePatientId(data, contact, nome)
-          : (data.patientId ?? null);
+        existingId && !consertando
+          ? (data.patientId ?? null)
+          : await resolvePatientId(data, contact ?? { phone: null, crmContactId: null }, nome);
 
       const payload = { id: existingId, ...appointmentPayload(data, patientId) };
       // O retorno é criado no servidor, dentro da transição de status — é o

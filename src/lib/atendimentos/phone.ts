@@ -39,3 +39,20 @@ export function normalizeBrazilianPhone(raw: string): string {
   if (digits.length === 10 || digits.length === 11) return `55${digits}`;
   return digits;
 }
+
+/**
+ * O número está completo o bastante para servir?
+ *
+ * Existe porque é ele que decide se a conversão vai casar: telefone é o único
+ * identificador que este sistema tem da maioria dos pacientes, e um número
+ * pela metade é aceito pela Meta, some no hash e nunca vira Lead atribuído.
+ *
+ * Doze ou treze dígitos depois de normalizado — 55 + DDD + 8 ou 9. Qualquer
+ * outra coisa é número incompleto, não um número de outro formato: o cadastro
+ * inteiro é brasileiro.
+ */
+export function telefoneBrasileiroValido(raw: string | null | undefined): boolean {
+  if (!raw?.trim()) return false;
+  const d = normalizeBrazilianPhone(raw);
+  return d.length === 12 || d.length === 13;
+}
