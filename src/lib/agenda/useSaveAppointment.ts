@@ -23,6 +23,11 @@ export function appointmentPayload(data: Partial<Appointment>, patientId: string
     patientId: patientId ?? null,
     patientName: data.patientName ?? "",
     procedureName: data.procedureName ?? "",
+    // Repassada como veio, inclusive `undefined`: no servidor, lista vazia
+    // manda APAGAR os itens e ausente manda não mexer neles. Trocar uma pela
+    // outra aqui faria quem move um bloco no calendário apagar os
+    // procedimentos do agendamento que moveu.
+    procedures: data.procedures,
     professionalId: data.professionalId || null,
     professionalName: data.professionalName ?? "",
     roomId: data.roomId || null,

@@ -3,7 +3,11 @@ import { Check, ChevronsUpDown, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  Command, CommandGroup, CommandInput, CommandItem, CommandList,
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
 } from "@/components/ui/command";
 
 export type ComboOption = { value: string; label: string };
@@ -23,6 +27,8 @@ export function Combobox({
   onDelete,
   createLabelPrefix = "Adicionar",
   disabled,
+  defaultOpen,
+  onClose,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -34,21 +40,28 @@ export function Combobox({
   onDelete?: (value: string) => void;
   createLabelPrefix?: string;
   disabled?: boolean;
+  /**
+   * Já nasce aberto. Para quando o combobox APARECE por causa de um clique
+   * ("Adicionar procedimento") — sem isto, quem clicou teria que clicar de
+   * novo no campo que acabou de surgir para começar a buscar.
+   */
+  defaultOpen?: boolean;
+  /** Fechou sem escolher nada. Quem abriu decide se o campo continua na tela. */
+  onClose?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(Boolean(defaultOpen));
   const [query, setQuery] = useState("");
 
-  const selectedLabel =
-    options.find((o) => o.value === value)?.label ?? (value || "");
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? (value || "");
 
   const q = query.trim().toLowerCase();
-  const filtered = q
-    ? options.filter((o) => o.label.toLowerCase().includes(q))
-    : options;
+  const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
   const exactMatch = options.some((o) => o.label.trim().toLowerCase() === q);
   const canCreate = !!onCreate && q.length > 0 && !exactMatch;
 
   const pick = (v: string) => {
+    // `onChange` antes de fechar: fechar também dispara `onClose`, e quem
+    // escuta os dois precisa ver a escolha primeiro.
     onChange(v);
     setOpen(false);
     setQuery("");
@@ -62,7 +75,16 @@ export function Combobox({
   };
 
   return (
-    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(""); }}>
+    <Popover
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) {
+          setQuery("");
+          onClose?.();
+        }
+      }}
+    >
       <PopoverTrigger asChild disabled={disabled}>
         <button
           type="button"
@@ -89,7 +111,10 @@ export function Combobox({
             value={query}
             onValueChange={setQuery}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && canCreate) { e.preventDefault(); create(); }
+              if (e.key === "Enter" && canCreate) {
+                e.preventDefault();
+                create();
+              }
             }}
           />
           <CommandList>
@@ -101,12 +126,20 @@ export function Combobox({
                   onSelect={() => pick(o.value)}
                   className="flex items-center gap-2"
                 >
-                  <Check className={cn("h-4 w-4 shrink-0", value === o.value ? "opacity-100" : "opacity-0")} />
+                  <Check
+                    className={cn(
+                      "h-4 w-4 shrink-0",
+                      value === o.value ? "opacity-100" : "opacity-0",
+                    )}
+                  />
                   <span className="flex-1 min-w-0 truncate">{o.label}</span>
                   {onDelete && (
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); onDelete(o.value); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(o.value);
+                      }}
                       className="shrink-0 text-muted-foreground hover:text-destructive"
                       aria-label={`Remover ${o.label}`}
                     >
@@ -117,14 +150,22 @@ export function Combobox({
               ))}
 
               {canCreate && (
-                <CommandItem value={`__create__${query}`} onSelect={create} className="flex items-center gap-2 text-primary">
+                <CommandItem
+                  value={`__create__${query}`}
+                  onSelect={create}
+                  className="flex items-center gap-2 text-primary"
+                >
                   <Plus className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{createLabelPrefix} “{query.trim()}”</span>
+                  <span className="truncate">
+                    {createLabelPrefix} “{query.trim()}”
+                  </span>
                 </CommandItem>
               )}
 
               {filtered.length === 0 && !canCreate && (
-                <div className="px-2 py-4 text-center text-sm text-muted-foreground">{emptyText}</div>
+                <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                  {emptyText}
+                </div>
               )}
             </CommandGroup>
           </CommandList>

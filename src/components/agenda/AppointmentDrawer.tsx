@@ -26,6 +26,13 @@ import { ConfirmCompletion } from "./ConfirmCompletion";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { localDateStr, durationBetween, endTimeFrom } from "@/lib/date";
 import { rotuloDeSala } from "@/lib/agenda/rotuloDeSala";
+import { ProcedimentosDoAgendamento } from "./ProcedimentosDoAgendamento";
+import {
+  duracaoDosProcedimentos,
+  nomeDosProcedimentos,
+  valorDosProcedimentos,
+  type ProcedimentoDoAgendamento,
+} from "@/lib/agenda/procedimentos";
 import { dividirNome, juntarNome } from "@/lib/patients/nome";
 
 interface Props {
@@ -117,6 +124,7 @@ export function AppointmentDrawer({
     patientId: appointment?.patientId ?? defaultPatient?.id,
     patientName: appointment?.patientName ?? defaultPatient?.name ?? "",
     procedureName: appointment?.procedureName ?? "",
+    procedures: appointment?.procedures ?? [],
     professionalId: appointment?.professionalId ?? "",
     professionalName: appointment?.professionalName ?? "",
     roomId: appointment?.roomId ?? "",
@@ -159,6 +167,7 @@ export function AppointmentDrawer({
       patientId: appointment?.patientId ?? defaultPatient?.id,
       patientName: appointment?.patientName ?? defaultPatient?.name ?? "",
       procedureName: appointment?.procedureName ?? "",
+      procedures: appointment?.procedures ?? [],
       professionalId: appointment?.professionalId ?? "",
       professionalName: appointment?.professionalName ?? "",
       roomId: appointment?.roomId ?? "",
@@ -191,18 +200,28 @@ export function AppointmentDrawer({
   const mudarInicio = (inicio: string) =>
     setForm((f) => ({ ...f, startTime: inicio, endTime: endTimeFrom(inicio, duracao) }));
 
-  const handleProcedure = (name: string) => {
-    const proc = procedures.find((p) => p.name === name);
-    if (proc) {
-      setForm((f) => ({
-        ...f,
-        procedureName: name,
-        expectedRevenue: proc.price,
-        endTime: endTimeFrom(f.startTime ?? "09:00", proc.duration),
-      }));
-    } else {
-      setForm((f) => ({ ...f, procedureName: name }));
-    }
+  /**
+   * A lista mexe em três campos de uma vez, e é por isso que ela mora aqui e
+   * não dentro do componente da lista: escolher procedimento sempre decidiu
+   * também o valor previsto e o horário de fim — o que mudou é que agora os
+   * três SOMAM em vez de substituir.
+   *
+   * `procedureName` continua sendo escrito: é o resumo que o card do
+   * calendário e o lembrete de WhatsApp leem.
+   *
+   * Duração zero não encolhe o agendamento. Tirar o último procedimento não
+   * significa "a sessão passa a durar nada"; significa que a lista não tem
+   * mais o que dizer sobre a duração, e o que estava marcado continua valendo.
+   */
+  const mudarProcedimentos = (lista: ProcedimentoDoAgendamento[]) => {
+    const minutos = duracaoDosProcedimentos(lista);
+    setForm((f) => ({
+      ...f,
+      procedures: lista,
+      procedureName: lista.length ? nomeDosProcedimentos(lista) : "",
+      expectedRevenue: valorDosProcedimentos(lista),
+      endTime: minutos > 0 ? endTimeFrom(f.startTime ?? "09:00", minutos) : f.endTime,
+    }));
   };
 
   const handleProfessional = (id: string) => {
@@ -433,18 +452,12 @@ export function AppointmentDrawer({
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Atendimento
             </h3>
+            <ProcedimentosDoAgendamento
+              procedimentos={form.procedures ?? []}
+              catalogo={procedures}
+              onChange={mudarProcedimentos}
+            />
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label className="text-sm text-foreground-secondary">Procedimento</Label>
-                <Combobox
-                  value={form.procedureName ?? ""}
-                  onChange={handleProcedure}
-                  options={procedures.map((p) => ({ value: p.name, label: p.name }))}
-                  placeholder="Selecionar..."
-                  searchPlaceholder="Buscar procedimento..."
-                  emptyText="Nenhum procedimento encontrado"
-                />
-              </div>
               <div className="space-y-2">
                 <Label className="text-sm text-foreground-secondary">Tipo</Label>
                 <select

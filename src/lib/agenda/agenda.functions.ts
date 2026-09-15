@@ -2,6 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 import { gravarTolerandoColunaAusente, semColuna } from "@/lib/schema-fallback";
+import {
+  nomeDosProcedimentos,
+  semRepetidos,
+  valorDosProcedimentos,
+  type ProcedimentoDoAgendamento,
+} from "./procedimentos";
 import { clinicTodayStr, localDateStr } from "@/lib/date";
 import type {
   Appointment,
@@ -18,9 +24,14 @@ export interface AgendaOverview {
   waitingList: WaitingListItem[];
 }
 
-function mapAppointment(row: any, notifications: AppointmentNotification[]): Appointment {
+function mapAppointment(
+  row: any,
+  notifications: AppointmentNotification[],
+  procedures: ProcedimentoDoAgendamento[] = [],
+): Appointment {
   return {
     id: row.id,
+    procedures,
     patientId: row.patient_id ?? undefined,
     patientName: row.patient_name,
     procedureName: row.procedure_name,
@@ -68,6 +79,45 @@ function mapWaitingListItem(row: any): WaitingListItem {
   };
 }
 
+/**
+ * A lista de procedimentos de um agendamento — com um plano B.
+ *
+ * Quando a tabela de itens responde, ela manda. Quando não há item nenhum
+ * — porque a migration ainda não rodou, ou porque o agendamento nasceu antes
+ * dela — o resumo que já está na linha vira um item só, com a duração real
+ * reservada na agenda.
+ *
+ * Sem esse plano B o formulário abriria VAZIO um agendamento que tem
+ * procedimento, e salvar apagaria o que estava lá. O resumo é o que a tela
+ * sempre mostrou; reconstruí-lo é o mesmo que a migration faz no backfill.
+ */
+function procedimentosDaLinha(
+  row: any,
+  porAgendamento: Map<string, ProcedimentoDoAgendamento[]>,
+): ProcedimentoDoAgendamento[] {
+  const itens = porAgendamento.get(row.id);
+  if (itens?.length) return itens;
+  const nome = String(row.procedure_name ?? "").trim();
+  if (!nome) return [];
+  return [
+    {
+      procedureId: row.procedure_id ?? null,
+      name: nome,
+      price: Number(row.expected_revenue ?? 0),
+      duration: minutosEntre(row.start_time, row.end_time),
+    },
+  ];
+}
+
+/** Minutos entre dois "HH:MM(:SS)". Nunca negativo. */
+function minutosEntre(inicio: unknown, fim: unknown): number {
+  const emMinutos = (h: unknown) => {
+    const [hh, mm] = String(h ?? "").split(":");
+    return Number(hh || 0) * 60 + Number(mm || 0);
+  };
+  return Math.max(0, emMinutos(fim) - emMinutos(inicio));
+}
+
 export const getAgendaOverview = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .inputValidator((input: { unitId?: string } | undefined) => ({ unitId: input?.unitId ?? null }))
@@ -78,7 +128,7 @@ export const getAgendaOverview = createServerFn({ method: "GET" })
     const unitFilter = context.isAdmin ? data.unitId : context.unitId;
     const comUnidade = (q: any) => (unitFilter ? q.eq("unit_id", unitFilter) : q);
 
-    const [apptRes, blockRes, waitRes, notifRes] = await Promise.all([
+    const [apptRes, blockRes, waitRes, notifRes, procRes] = await Promise.all([
       comUnidade(
         supabase
           .from("appointments")
@@ -113,6 +163,21 @@ export const getAgendaOverview = createServerFn({ method: "GET" })
         .select("appointment_id, kind, channel, status, sent_at")
         .eq("owner_id", context.ownerId)
         .limit(5000),
+      // Mesmo raciocínio do bloco acima: sem filtro de unidade, e o mapa
+      // descarta o que não casa com nenhum agendamento do recorte.
+      //
+      // O erro NÃO é lançado: entre o deploy e a migration a tabela não
+      // existe, e a agenda inteira não pode parar de abrir por causa do
+      // detalhamento. Sem ela, cada agendamento cai na lista de um item
+      // reconstruída a partir do próprio resumo (ver `procedimentosDaLinha`).
+      // `as any` porque a tabela é nova e `types.ts` — gerado pelo Lovable, e
+      // que não editamos — ainda não a conhece. Mesmo caminho dos cartões.
+      (supabase as any)
+        .from("appointment_procedures")
+        .select("appointment_id, procedure_id, procedure_name, price, duration_minutes, position")
+        .eq("owner_id", context.ownerId)
+        .order("position", { ascending: true })
+        .limit(8000),
     ]);
     if (apptRes.error) throw new Error(apptRes.error.message);
     if (blockRes.error) throw new Error(blockRes.error.message);
@@ -131,9 +196,21 @@ export const getAgendaOverview = createServerFn({ method: "GET" })
       notifByAppt.set(row.appointment_id, list);
     }
 
+    const procByAppt = new Map<string, ProcedimentoDoAgendamento[]>();
+    for (const row of (procRes.data ?? []) as any[]) {
+      const list = procByAppt.get(row.appointment_id) ?? [];
+      list.push({
+        procedureId: row.procedure_id ?? null,
+        name: row.procedure_name,
+        price: Number(row.price ?? 0),
+        duration: Number(row.duration_minutes ?? 0),
+      });
+      procByAppt.set(row.appointment_id, list);
+    }
+
     return {
       appointments: (apptRes.data ?? []).map((row: any) =>
-        mapAppointment(row, notifByAppt.get(row.id) ?? []),
+        mapAppointment(row, notifByAppt.get(row.id) ?? [], procedimentosDaLinha(row, procByAppt)),
       ),
       blockedTimes: (blockRes.data ?? []).map(mapBlockedTime),
       waitingList: (waitRes.data ?? []).map(mapWaitingListItem),
@@ -256,7 +333,14 @@ const appointmentInput = (input: {
   id?: string;
   patientId?: string | null;
   patientName: string;
-  procedureName: string;
+  /**
+   * O resumo, mantido por compatibilidade: vinte arquivos leem
+   * `procedure_name`, cinco deles Edge Functions. Quando `procedures` vem, ele
+   * é DERIVADO dela e este campo é ignorado.
+   */
+  procedureName?: string;
+  /** A lista de verdade. Vazia é válida — o agendamento vira "Consulta". */
+  procedures?: ProcedimentoDoAgendamento[];
   professionalId?: string | null;
   professionalName: string;
   roomId?: string | null;
@@ -291,11 +375,30 @@ const appointmentInput = (input: {
   // em três telas — mais o caso de um agendamento já NASCER concluído, já que
   // o mesmo validador serve create e update. Validar no cliente cobriria um.
   assertValorAoConcluir(input.status, input.actualRevenue);
+  // `undefined` não é lista vazia.
+  //
+  // Lista vazia é "este agendamento não tem procedimento" e manda apagar os
+  // itens. Ausente é "não estou falando de procedimento" — quem arrasta um
+  // bloco no calendário, por exemplo, reenvia a linha inteira e não pode
+  // apagar a lista de passagem. Só que o arrastar MANDA a lista, porque ela
+  // veio na leitura; esta distinção existe para o caminho que não mandar.
+  //
+  // Clique duplo não pode dobrar valor e duração em silêncio.
+  const procedimentos = input.procedures === undefined ? null : semRepetidos(input.procedures);
+  // O app escreve o resumo mesmo com o gatilho existindo. Parece redundante e
+  // não é: enquanto a migration não roda, a tabela de itens não existe e ESTA
+  // é a única escrita do nome e do valor. Com ela no ar, o gatilho reescreve
+  // exatamente o mesmo texto logo depois.
+  const temLista = (procedimentos?.length ?? 0) > 0;
+
   return {
     id: input.id,
+    __procedures: procedimentos,
     patient_id: input.patientId || null,
     patient_name: input.patientName.trim(),
-    procedure_name: input.procedureName?.trim() || "Consulta",
+    procedure_name: temLista
+      ? nomeDosProcedimentos(procedimentos!)
+      : input.procedureName?.trim() || "Consulta",
     professional_id: input.professionalId || null,
     professional_name: input.professionalName?.trim() || "",
     room_id: input.roomId || null,
@@ -305,7 +408,9 @@ const appointmentInput = (input: {
     end_time: input.endTime,
     status: input.status ?? "pending",
     type: input.type ?? "consultation",
-    expected_revenue: input.expectedRevenue ?? 0,
+    expected_revenue: temLista
+      ? valorDosProcedimentos(procedimentos!)
+      : (input.expectedRevenue ?? 0),
     // `undefined` vira `null` só quando veio explicitamente nulo; sem a chave,
     // preserva o que já está gravado no update.
     actual_revenue: input.actualRevenue ?? null,
@@ -326,30 +431,103 @@ const appointmentInput = (input: {
  * outra em silêncio; um handler não pode chamar outro handler diretamente,
  * então o miolo vira função comum e os dois entram por aqui.
  */
+
+/**
+ * Grava a lista de procedimentos de um agendamento.
+ *
+ * ── Apaga e reescreve ───────────────────────────────────────────────────
+ *
+ * Comparar item a item para decidir o que mudou seria mais código para o mesmo
+ * resultado: a lista tem dois ou três itens, e o gatilho recalcula o resumo de
+ * qualquer jeito. Existe uma janela de milissegundos, dentro do servidor, em
+ * que o agendamento fica sem procedimento — ninguém a observa, e o passo
+ * seguinte a fecha.
+ *
+ * ── Silencioso quando a tabela não existe ───────────────────────────────
+ *
+ * Entre o deploy e a migration, `appointment_procedures` não existe. O
+ * agendamento precisa continuar sendo salvo: o nome e o valor já foram
+ * escritos direto na linha por `appointmentInput`, então o que se perde nessa
+ * janela é só a lista detalhada — não o agendamento.
+ */
+async function gravarProcedimentos(
+  supabase: any,
+  ownerId: string,
+  unitId: string | null,
+  appointmentId: string,
+  procedimentos: ProcedimentoDoAgendamento[],
+): Promise<void> {
+  const semTabela = (e: any) =>
+    !!e &&
+    (e.code === "42P01" ||
+      e.code === "PGRST205" ||
+      /does not exist|schema cache/i.test(String(e.message ?? "")));
+
+  const { error: erroApagar } = await supabase
+    .from("appointment_procedures")
+    .delete()
+    .eq("appointment_id", appointmentId)
+    .eq("owner_id", ownerId);
+  if (erroApagar) {
+    if (semTabela(erroApagar)) return;
+    throw new Error(erroApagar.message);
+  }
+
+  if (procedimentos.length === 0) return;
+
+  const { error } = await supabase.from("appointment_procedures").insert(
+    procedimentos.map((p, i) => ({
+      owner_id: ownerId,
+      unit_id: unitId,
+      appointment_id: appointmentId,
+      procedure_id: p.procedureId || null,
+      procedure_name: p.name,
+      price: p.price ?? 0,
+      duration_minutes: Math.max(0, Math.trunc(p.duration ?? 0)),
+      position: i,
+    })),
+  );
+  if (error && !semTabela(error)) throw new Error(error.message);
+}
+
 export async function criarAgendamento(
   supabase: any,
   ownerId: string,
   row: Record<string, any>,
   opcoes: { skipConfirmation?: boolean; retornoEm?: string | null; receberEm?: string | null } = {},
 ): Promise<{ id: string }> {
+  // `__procedures` orienta este handler e NÃO é coluna — sai do payload antes
+  // do insert, como `__skipConfirmation` e `__retornoEm` já saíam.
+  const { __procedures: procedimentos = null, ...colunas } = row as Record<string, any>;
+
   const { data: inserted, error } = await gravarTolerandoColunaAusente({
     coluna: "actual_revenue",
-    exigida: row.status === "completed",
+    exigida: colunas.status === "completed",
     motivo: "O valor cobrado ainda não pode ser gravado.",
     tentar: (sem) =>
       supabase
         .from("appointments")
-        .insert({ ...(sem ? semColuna(row, "actual_revenue") : row), owner_id: ownerId })
+        .insert({ ...(sem ? semColuna(colunas, "actual_revenue") : colunas), owner_id: ownerId })
         .select("id")
         .single(),
   });
   if (error) throw new Error(error.message);
 
+  if (procedimentos) {
+    await gravarProcedimentos(
+      supabase,
+      ownerId,
+      colunas.unit_id ?? null,
+      inserted.id,
+      procedimentos as ProcedimentoDoAgendamento[],
+    );
+  }
+
   // Data já passada nunca notifica, tenha vindo `skipConfirmation` ou não.
   // Registrar um atendimento antigo — para ter o histórico no sistema — não
   // pode disparar "confirme sua consulta" de uma consulta de semana passada.
   // A regra mora aqui, e não na tela, porque quatro telas criam agendamento.
-  const jaAconteceu = String(row.date) < clinicTodayStr();
+  const jaAconteceu = String(colunas.date) < clinicTodayStr();
   if (!opcoes.skipConfirmation && !jaAconteceu) {
     const { triggerAppointmentNotification } = await import("@/lib/agenda/notifications.server");
     await triggerAppointmentNotification(inserted.id, "confirmation");
@@ -598,8 +776,14 @@ export const updateAppointment = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
     if (!data.id) throw new Error("Agendamento inválido");
-    // Nenhum dos dois é coluna: orientam o handler e saem do payload.
-    const { id, __skipConfirmation: _ignored, __retornoEm: retornoEm, ...row } = data;
+    // Nenhum dos três é coluna: orientam o handler e saem do payload.
+    const {
+      id,
+      __skipConfirmation: _ignored,
+      __retornoEm: retornoEm,
+      __procedures: procedimentos,
+      ...row
+    } = data;
     const supabase: any = context.supabase;
 
     // Lido antes do update: é a única forma de saber que ESTE save foi o que
@@ -626,6 +810,18 @@ export const updateAppointment = createServerFn({ method: "POST" })
           .single(),
     });
     if (error) throw new Error(error.message);
+
+    // A unidade não vem no payload de update (agendamento não troca de local),
+    // então sai da linha que acabou de ser gravada.
+    if (procedimentos) {
+      await gravarProcedimentos(
+        supabase,
+        context.ownerId,
+        updated?.unit_id ?? null,
+        id,
+        procedimentos as ProcedimentoDoAgendamento[],
+      );
+    }
 
     const conflitos = await onStatusTransition(
       supabase,

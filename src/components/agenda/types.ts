@@ -1,10 +1,7 @@
+import type { ProcedimentoDoAgendamento } from "@/lib/agenda/procedimentos";
+
 export type AppointmentStatus =
-  | "confirmed"
-  | "pending"
-  | "in_progress"
-  | "completed"
-  | "missed"
-  | "cancelled";
+  "confirmed" | "pending" | "in_progress" | "completed" | "missed" | "cancelled";
 
 export type AppointmentType = "consultation" | "evaluation" | "procedure" | "return" | "emergency";
 
@@ -54,7 +51,17 @@ export interface Appointment {
   id: string;
   patientId?: string;
   patientName: string;
+  /**
+   * O RESUMO dos procedimentos, unidos por " + " ("Limpeza + Restauração").
+   * Continua sendo o que o card do calendário, a agenda do celular e o
+   * lembrete de WhatsApp mostram. A lista abaixo é a verdade; este é o texto.
+   */
   procedureName: string;
+  /**
+   * Os procedimentos da sessão. Vazia é válida — o agendamento vira
+   * "Consulta", como sempre foi.
+   */
+  procedures?: ProcedimentoDoAgendamento[];
   professionalId: string;
   professionalName: string;
   roomId: string;
