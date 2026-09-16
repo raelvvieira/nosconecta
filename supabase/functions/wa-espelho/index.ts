@@ -143,13 +143,20 @@ async function sincronizarConversas(ownerId: string) {
 async function sincronizarMensagens(ownerId: string, quantas = CONVERSAS_POR_RODADA) {
   const limite = Date.now() + PRAZO_MS;
 
+  // A fila vem de uma VIEW, não da tabela: a regra de "o que precisa ser
+  // recopiado" compara duas colunas entre si (`unread_count` contra o
+  // contador do momento da cópia), e isso não se expressa num filtro de
+  // querystring do PostgREST.
+  //
+  // Antes daqui saía "as 40 mais antigas", sempre — o que, com a carga
+  // terminada, virava recopiar as 1.031 em rodízio para sempre.
   const { data: fila, error: erroFila } = await supabase
-    .from("wa_conversations")
-    .select("crm_conversation_id, messages_synced_at")
+    .from("wa_conversas_a_sincronizar")
+    .select("crm_conversation_id, unread_count, prioridade, messages_synced_at")
     .eq("owner_id", ownerId)
-    // Só o que veio do Wavy: a fila desta função busca no CRM, e uma conversa
-    // da Evolution seria pedida a uma API que nunca ouviu falar dela.
-    .eq("origem", "wavy")
+    // Nunca copiadas primeiro, depois as que receberam mensagem, e por último
+    // a varredura lenta. Dentro de cada grupo, a mais atrasada na frente.
+    .order("prioridade", { ascending: true })
     .order("messages_synced_at", { ascending: true, nullsFirst: true })
     .limit(quantas);
   if (erroFila) throw new Error(`fila: ${erroFila.message}`);
@@ -190,9 +197,16 @@ async function sincronizarMensagens(ownerId: string, quantas = CONVERSAS_POR_ROD
 
       // Só depois de gravar: marcar antes faria uma conversa cuja gravação
       // falhou sair da fila como se tivesse sido copiada.
+      //
+      // `unread_at_sync` guarda o contador de não-lidas COMO ELE ESTAVA
+      // quando esta cópia foi feita. É a comparação com o valor futuro que
+      // diz "chegou mensagem nova aqui" sem precisar perguntar ao CRM.
       await supabase
         .from("wa_conversations")
-        .update({ messages_synced_at: new Date().toISOString() })
+        .update({
+          messages_synced_at: new Date().toISOString(),
+          unread_at_sync: conversa.unread_count ?? 0,
+        })
         .eq("owner_id", ownerId)
         .eq("origem", "wavy")
         .eq("crm_conversation_id", id);
@@ -204,7 +218,17 @@ async function sincronizarMensagens(ownerId: string, quantas = CONVERSAS_POR_ROD
     }
   }
 
-  return { ok: true, conversasFeitas, mensagens, falhas: falhas.slice(0, 5), restantes: null };
+  return {
+    ok: true,
+    conversasFeitas,
+    mensagens,
+    // Quantas de cada tipo, para dar para ver num relance se a fila está
+    // trabalhando de verdade ou só fazendo a varredura de rotina.
+    novas: (fila ?? []).filter((c: any) => c.prioridade === 0).length,
+    comMensagemNova: (fila ?? []).filter((c: any) => c.prioridade === 1).length,
+    varreduraLenta: (fila ?? []).filter((c: any) => c.prioridade === 2).length,
+    falhas: falhas.slice(0, 5),
+  };
 }
 
 /**
