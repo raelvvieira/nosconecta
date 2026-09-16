@@ -231,9 +231,14 @@ async function sincronizarMidia(ownerId: string, quantas = MENSAGENS_DE_MIDIA_PO
   let arquivos = 0;
   let pulados = 0;
   const falhas: string[] = [];
+  // Balde ausente não é falha de um arquivo: é falha de TODOS, e a rodada
+  // inteira vira desperdício — baixa cada anexo do CRM para descobrir, um a
+  // um, que não há onde guardar. Vale interromper na primeira vez e dizer o
+  // que fazer, em vez de repetir o mesmo erro 25 vezes a cada 5 minutos.
+  let semBalde = false;
 
   for (const msg of pendentes ?? []) {
-    if (Date.now() > limite) break;
+    if (Date.now() > limite || semBalde) break;
     const pasta = `${ownerId}/${msg.crm_conversation_id}/${msg.crm_message_id}`;
     const anexos = Array.isArray(msg.attachments) ? msg.attachments : [];
     // A nossa cópia vai para `media`, ao lado — nunca dentro de `attachments`,
@@ -242,6 +247,7 @@ async function sincronizarMidia(ownerId: string, quantas = MENSAGENS_DE_MIDIA_PO
     let algumErro = false;
 
     for (const bruto of anexos) {
+      if (semBalde) break;
       const anexo = bruto as Record<string, unknown>;
       const url = anexo?.url;
       if (!url) {
@@ -282,7 +288,10 @@ async function sincronizarMidia(ownerId: string, quantas = MENSAGENS_DE_MIDIA_PO
           // ter subido o arquivo e caído antes de marcar a mensagem.
           upsert: true,
         });
-        if (erroUpload) throw new Error(erroUpload.message);
+        if (erroUpload) {
+          if (/bucket not found/i.test(erroUpload.message)) semBalde = true;
+          throw new Error(erroUpload.message);
+        }
 
         copias.push({ id: anexo.id ?? null, path: caminho, erro: null });
         arquivos++;
@@ -312,7 +321,22 @@ async function sincronizarMidia(ownerId: string, quantas = MENSAGENS_DE_MIDIA_PO
     else mensagens++;
   }
 
-  return { ok: true, mensagens, arquivos, pulados, falhas: falhas.slice(0, 5) };
+  return {
+    ok: true,
+    mensagens,
+    arquivos,
+    pulados,
+    falhas: falhas.slice(0, 5),
+    // Dito em português e no topo do resultado: sem isto o motivo fica
+    // enterrado numa lista de falhas repetidas, e a cópia parece "lenta"
+    // quando na verdade está parada.
+    ...(semBalde
+      ? {
+          bloqueado: `O balde "${BALDE}" não existe no Storage. Crie-o em Cloud → Storage ` +
+            `(privado) — nenhuma mídia é copiada até lá, e as mensagens continuam na fila.`,
+        }
+      : {}),
+  };
 }
 
 async function situacao(ownerId: string) {
