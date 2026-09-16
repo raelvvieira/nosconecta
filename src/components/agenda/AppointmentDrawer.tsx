@@ -164,19 +164,34 @@ export function AppointmentDrawer({
    * pacientes, o Lead saía com hash de nome e mais nada: aceito pela Meta,
    * marcado como enviado no sistema, e invisível no Gerenciador de Anúncios.
    */
-  const pacienteNovo =
-    // Vale editando também, e é de propósito: é por aqui que se conserta um
-    // agendamento que já foi salvo sem ficha. Sem isso, os que já existem
-    // ficariam sem telefone para sempre — e a conversão de quando forem
-    // concluídos sairia cega do mesmo jeito.
-    !modoContato &&
-    !form.patientId &&
-    Boolean(form.patientName?.trim()) &&
-    // Vindo de uma conversa o telefone já existe — pedir de novo seria pedir
-    // o que o sistema tem na mão. É o caso de quem clicou em "vincular a um
-    // paciente existente" e não escolheu ninguém: a ficha nasce mesmo assim,
-    // com o número da conversa.
-    !contact?.phone;
+  /**
+   * Nenhuma ficha vinculada, mas há um nome: a ficha vai nascer deste
+   * formulário.
+   *
+   * Vale editando também, e é de propósito: é por aqui que se conserta um
+   * agendamento já salvo sem ficha. Sem isso, os que já existem ficariam sem
+   * telefone para sempre — e a conversão de quando forem concluídos sairia
+   * cega do mesmo jeito.
+   */
+  const semFicha = !form.patientId && Boolean(form.patientName?.trim());
+
+  /**
+   * Falta o telefone, venha de onde vier este formulário.
+   *
+   * ── Por que não basta olhar o modo ──────────────────────────────────────
+   *
+   * A primeira versão isentava o modo contato inteiro, assumindo que quem vem
+   * de uma conversa de WhatsApp sempre tem número. Nem sempre tem: hoje uma
+   * ficha nasceu por esse caminho com `phone` nulo, que é exatamente o bug
+   * que este campo existe para impedir.
+   *
+   * A pergunta certa não é "de onde veio", é "temos o número?".
+   */
+  const faltaTelefone = semFicha && !contact?.phone;
+
+  /** O bloco completo — nome, sobrenome e telefone. No modo contato o nome já
+   *  tem campos próprios logo acima, então só o telefone é pedido. */
+  const pacienteNovo = semFicha && !modoContato && !contact?.phone;
 
   const [telefoneNovo, setTelefoneNovo] = useState("");
   const telefoneOk = telefoneBrasileiroValido(telefoneNovo);
@@ -292,13 +307,13 @@ export function AppointmentDrawer({
     // Editando, é oferta e não exigência: quem abriu um agendamento antigo só
     // para mudar o horário não pode ficar preso atrás de um campo que não
     // existia quando aquilo foi criado. Se digitou, tem de estar certo.
-    if (pacienteNovo && !isEdit && !telefoneOk) {
+    if (faltaTelefone && !isEdit && !telefoneOk) {
       toast.error(
         "Informe o telefone do paciente novo — é ele que liga este agendamento ao anúncio na Meta.",
       );
       return false;
     }
-    if (pacienteNovo && isEdit && telefoneNovo.trim() && !telefoneOk) {
+    if (faltaTelefone && isEdit && telefoneNovo.trim() && !telefoneOk) {
       toast.error("Telefone incompleto. Corrija ou apague o campo para salvar.");
       return false;
     }
@@ -307,7 +322,7 @@ export function AppointmentDrawer({
     // ninguém editou desfaria a separação que o cadastro já tem.
     // Sem telefone válido no conserto, sobe `undefined`: nada de ficha nova,
     // e o agendamento salva exatamente como estava.
-    if (pacienteNovo) {
+    if (faltaTelefone) {
       return telefoneOk ? { ...partesDoNome, telefone: telefoneNovo } : undefined;
     }
     if (modoContato) return partesDoNome;
@@ -541,6 +556,33 @@ export function AppointmentDrawer({
                         : "Obrigatório: é por este número que a Meta reconhece o paciente como um Lead do seu anúncio, e é por ele que sai o lembrete da consulta."}
                   </p>
                 </div>
+              </div>
+            )}
+
+            {/* Modo contato SEM número na conversa. O nome já tem campos
+                próprios acima, então aqui falta só o telefone — e ele falta
+                mesmo: foi por este caminho que nasceu uma ficha sem telefone
+                hoje, que é o bug que este campo existe para impedir. */}
+            {faltaTelefone && !pacienteNovo && (
+              <div className="space-y-1.5 rounded-xl border border-coral/30 bg-coral-soft/40 p-3">
+                <Label htmlFor="contato-telefone" className="text-xs text-foreground-secondary">
+                  Telefone (WhatsApp){isEdit ? "" : " *"}
+                </Label>
+                <Input
+                  id="contato-telefone"
+                  type="tel"
+                  inputMode="tel"
+                  value={telefoneNovo}
+                  onChange={(e) => setTelefoneNovo(e.target.value)}
+                  placeholder="(48) 99999-9999"
+                  aria-invalid={Boolean(telefoneNovo) && !telefoneOk}
+                  className="rounded-xl border-border bg-white font-mono"
+                />
+                <p className="text-2xs leading-4 text-muted-foreground">
+                  {telefoneNovo && !telefoneOk
+                    ? "Número incompleto — faltam dígitos do DDD ou do número."
+                    : "Esta conversa não tem número registrado. Sem ele, o paciente não recebe lembrete e o anúncio não recebe o Lead."}
+                </p>
               </div>
             )}
 
