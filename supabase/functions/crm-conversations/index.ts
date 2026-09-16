@@ -91,6 +91,7 @@ async function espelharMensagens(ownerId: string, conversationId: string, linhas
       .filter((m: any) => m?.id)
       .map((m: any) => ({
         owner_id: ownerId,
+        origem: "wavy",
         crm_message_id: String(m.id),
         crm_conversation_id: conversationId,
         from_me: saiuDaClinica(m?.message_type),
@@ -108,7 +109,7 @@ async function espelharMensagens(ownerId: string, conversationId: string, linhas
     // a cada vez que alguém abrisse a conversa.
     const { error } = await supabase
       .from("wa_messages")
-      .upsert(paraGravar, { onConflict: "owner_id,crm_message_id" });
+      .upsert(paraGravar, { onConflict: "owner_id,origem,crm_message_id" });
     if (error) throw new Error(error.message);
 
     // A conversa sai da fila de cópia: acabou de ser copiada inteira.
@@ -116,6 +117,7 @@ async function espelharMensagens(ownerId: string, conversationId: string, linhas
       .from("wa_conversations")
       .update({ messages_synced_at: agora })
       .eq("owner_id", ownerId)
+      .eq("origem", "wavy")
       .eq("crm_conversation_id", conversationId);
   } catch (e) {
     console.warn("[crm-conversations] espelho não gravado:", e);

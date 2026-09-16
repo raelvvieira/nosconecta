@@ -79,6 +79,10 @@ async function sincronizarConversas(ownerId: string) {
       if (!c?.id) continue;
       porContato.set(String(c.id), {
         owner_id: ownerId,
+        // Tudo que sai desta função vem do Wavy. A coluna existe porque a
+        // Evolution própria vai gravar aqui também, com ids próprios que
+        // podem colidir numericamente com os do Chatwoot.
+        origem: "wavy",
         crm_contact_id: String(c.id),
         name: c?.name ?? null,
         phone_raw: c?.phone_number ?? null,
@@ -93,7 +97,7 @@ async function sincronizarConversas(ownerId: string) {
       // a ficha, feito do lado de cá, e uma recarga não pode desfazê-lo.
       const { error } = await supabase
         .from("wa_contacts")
-        .upsert([...porContato.values()], { onConflict: "owner_id,crm_contact_id" });
+        .upsert([...porContato.values()], { onConflict: "owner_id,origem,crm_contact_id" });
       if (error) throw new Error(`contatos: ${error.message}`);
       contatos += porContato.size;
     }
@@ -102,6 +106,7 @@ async function sincronizarConversas(ownerId: string) {
       .filter((l: any) => l?.id)
       .map((l: any) => ({
         owner_id: ownerId,
+        origem: "wavy",
         crm_conversation_id: String(l.id),
         crm_contact_id: l?.contact?.id ? String(l.contact.id) : null,
         inbox_id: caixaDaConversa(l),
@@ -119,7 +124,7 @@ async function sincronizarConversas(ownerId: string) {
       // terceiro é da fila. Mandá-los zeraria o progresso a cada rodada.
       const { error } = await supabase
         .from("wa_conversations")
-        .upsert(linhasDeConversa, { onConflict: "owner_id,crm_conversation_id" });
+        .upsert(linhasDeConversa, { onConflict: "owner_id,origem,crm_conversation_id" });
       if (error) throw new Error(`conversas: ${error.message}`);
       conversas += linhasDeConversa.length;
     }
@@ -142,6 +147,9 @@ async function sincronizarMensagens(ownerId: string, quantas = CONVERSAS_POR_ROD
     .from("wa_conversations")
     .select("crm_conversation_id, messages_synced_at")
     .eq("owner_id", ownerId)
+    // Só o que veio do Wavy: a fila desta função busca no CRM, e uma conversa
+    // da Evolution seria pedida a uma API que nunca ouviu falar dela.
+    .eq("origem", "wavy")
     .order("messages_synced_at", { ascending: true, nullsFirst: true })
     .limit(quantas);
   if (erroFila) throw new Error(`fila: ${erroFila.message}`);
@@ -160,6 +168,7 @@ async function sincronizarMensagens(ownerId: string, quantas = CONVERSAS_POR_ROD
         .filter((m: any) => m?.id)
         .map((m: any) => ({
           owner_id: ownerId,
+          origem: "wavy",
           crm_message_id: String(m.id),
           crm_conversation_id: id,
           from_me: saiuDaClinica(m?.message_type),
@@ -174,7 +183,7 @@ async function sincronizarMensagens(ownerId: string, quantas = CONVERSAS_POR_ROD
       if (paraGravar.length) {
         const { error } = await supabase
           .from("wa_messages")
-          .upsert(paraGravar, { onConflict: "owner_id,crm_message_id" });
+          .upsert(paraGravar, { onConflict: "owner_id,origem,crm_message_id" });
         if (error) throw new Error(error.message);
         mensagens += paraGravar.length;
       }
@@ -185,6 +194,7 @@ async function sincronizarMensagens(ownerId: string, quantas = CONVERSAS_POR_ROD
         .from("wa_conversations")
         .update({ messages_synced_at: new Date().toISOString() })
         .eq("owner_id", ownerId)
+        .eq("origem", "wavy")
         .eq("crm_conversation_id", id);
       conversasFeitas++;
     } catch (e) {
@@ -219,6 +229,7 @@ async function sincronizarMidia(ownerId: string, quantas = MENSAGENS_DE_MIDIA_PO
     .from("wa_messages")
     .select("crm_message_id, crm_conversation_id, attachments")
     .eq("owner_id", ownerId)
+    .eq("origem", "wavy")
     .is("media_path", null)
     .eq("tem_anexo", true)
     // Mais recentes primeiro: se a cópia for interrompida no meio do
@@ -316,6 +327,7 @@ async function sincronizarMidia(ownerId: string, quantas = MENSAGENS_DE_MIDIA_PO
       .from("wa_messages")
       .update({ media: copias, media_path: algumErro ? null : pasta })
       .eq("owner_id", ownerId)
+      .eq("origem", "wavy")
       .eq("crm_message_id", msg.crm_message_id);
     if (erroMarca) falhas.push(`${msg.crm_message_id}: marca: ${erroMarca.message}`);
     else mensagens++;
