@@ -3,7 +3,7 @@
 // Separada do resto para que `atendimento.ts` não dependa do provedor: quem
 // orquestra não precisa saber qual IA responde, e a simulação roda o caminho
 // inteiro trocando só esta peça.
-import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.122.0";
+import Anthropic from "npm:@anthropic-ai/sdk@0.122.0";
 
 /** Teto de saída. Curto de propósito: a resposta vai para o WhatsApp, e um
  *  paredão de texto é justamente o que a segmentação existe para evitar. */
