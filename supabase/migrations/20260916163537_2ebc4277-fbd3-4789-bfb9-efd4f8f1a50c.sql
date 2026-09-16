@@ -1,0 +1,1 @@
+ALTER VIEW public.wa_conversas_por_pessoa SET (security_invoker = on);
