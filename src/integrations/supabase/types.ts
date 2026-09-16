@@ -2593,6 +2593,7 @@ export type Database = {
           crm_created_at: string | null
           id: string
           name: string | null
+          origem: string
           owner_id: string
           patient_id: string | null
           payload: Json | null
@@ -2607,6 +2608,7 @@ export type Database = {
           crm_created_at?: string | null
           id?: string
           name?: string | null
+          origem?: string
           owner_id: string
           patient_id?: string | null
           payload?: Json | null
@@ -2621,6 +2623,7 @@ export type Database = {
           crm_created_at?: string | null
           id?: string
           name?: string | null
+          origem?: string
           owner_id?: string
           patient_id?: string | null
           payload?: Json | null
@@ -2656,6 +2659,7 @@ export type Database = {
           last_message_at: string | null
           last_message_preview: string | null
           messages_synced_at: string | null
+          origem: string
           owner_id: string
           payload: Json | null
           status: string
@@ -2672,6 +2676,7 @@ export type Database = {
           last_message_at?: string | null
           last_message_preview?: string | null
           messages_synced_at?: string | null
+          origem?: string
           owner_id: string
           payload?: Json | null
           status?: string
@@ -2688,6 +2693,7 @@ export type Database = {
           last_message_at?: string | null
           last_message_preview?: string | null
           messages_synced_at?: string | null
+          origem?: string
           owner_id?: string
           payload?: Json | null
           status?: string
@@ -2708,6 +2714,7 @@ export type Database = {
           is_private: boolean
           media: Json
           media_path: string | null
+          origem: string
           owner_id: string
           payload: Json | null
           sent_at: string
@@ -2725,6 +2732,7 @@ export type Database = {
           is_private?: boolean
           media?: Json
           media_path?: string | null
+          origem?: string
           owner_id: string
           payload?: Json | null
           sent_at: string
@@ -2742,6 +2750,7 @@ export type Database = {
           is_private?: boolean
           media?: Json
           media_path?: string | null
+          origem?: string
           owner_id?: string
           payload?: Json | null
           sent_at?: string
@@ -2931,6 +2940,39 @@ export type Database = {
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_conversas_por_pessoa: {
+        Row: {
+          avatar_url: string | null
+          contact_name: string | null
+          crm_contact_id: string | null
+          crm_conversation_id: string | null
+          last_message_at: string | null
+          last_message_preview: string | null
+          origem: string | null
+          owner_id: string | null
+          patient_id: string | null
+          pessoa: string | null
+          phone_e164: string | null
+          status: string | null
+          unread_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_contacts_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "wa_contacts_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
             referencedColumns: ["id"]
           },
         ]
