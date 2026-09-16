@@ -40,6 +40,15 @@ const MAX_PAGINAS = 200;
 const PRAZO_MS = 100_000;
 // Quantas conversas por rodada. Cada uma é uma ida ao CRM.
 const CONVERSAS_POR_RODADA = 40;
+// Quantas mensagens com anexo por rodada. Cada anexo é um download + upload.
+const MENSAGENS_DE_MIDIA_POR_RODADA = 25;
+// Onde as mídias ficam. O balde é criado pelo Lovable (Cloud → Storage), não
+// por migration — regra do projeto.
+const BALDE = "wa-midia";
+// Acima disto o arquivo é pulado e o motivo fica gravado no próprio anexo.
+// A Edge Function carrega o arquivo na memória para repassar: um vídeo de
+// 100 MB derrubaria a rodada inteira, e com ela as outras 24 mensagens.
+const TAMANHO_MAXIMO = 25 * 1024 * 1024;
 
 async function sincronizarConversas(ownerId: string) {
   const limite = Date.now() + PRAZO_MS;
@@ -188,6 +197,114 @@ async function sincronizarMensagens(ownerId: string, quantas = CONVERSAS_POR_ROD
   return { ok: true, conversasFeitas, mensagens, falhas: falhas.slice(0, 5), restantes: null };
 }
 
+/**
+ * Baixa os anexos do CRM e guarda no Storage.
+ *
+ * ── Por que isto não é detalhe ──────────────────────────────────────────
+ *
+ * As URLs dos anexos são ASSINADAS e servidas pelo ActiveStorage do Rails do
+ * CRM. Copiar a mensagem copia o ENDEREÇO, não o arquivo. No dia em que o
+ * Wavy sair do ar, toda foto, áudio e PDF que os pacientes mandaram morre
+ * junto — com o histórico de texto inteiro salvo aqui do lado, intacto e
+ * cheio de links quebrados.
+ *
+ * Por isso é uma ação própria, e não um pedaço do `sync-mensagens`: ela é
+ * lenta e cara em memória, e precisa rodar no seu ritmo sem segurar a cópia
+ * do texto, que é o que interessa primeiro.
+ */
+async function sincronizarMidia(ownerId: string, quantas = MENSAGENS_DE_MIDIA_POR_RODADA) {
+  const limite = Date.now() + PRAZO_MS;
+
+  const { data: pendentes, error } = await supabase
+    .from("wa_messages")
+    .select("crm_message_id, crm_conversation_id, attachments")
+    .eq("owner_id", ownerId)
+    .is("media_path", null)
+    .eq("tem_anexo", true)
+    // Mais recentes primeiro: se a cópia for interrompida no meio do
+    // histórico, o que ficou de fora é o mais antigo, não o desta semana.
+    .order("sent_at", { ascending: false })
+    .limit(quantas);
+  if (error) throw new Error(`fila de mídia: ${error.message}`);
+
+  let mensagens = 0;
+  let arquivos = 0;
+  let pulados = 0;
+  const falhas: string[] = [];
+
+  for (const msg of pendentes ?? []) {
+    if (Date.now() > limite) break;
+    const pasta = `${ownerId}/${msg.crm_conversation_id}/${msg.crm_message_id}`;
+    const anexos = Array.isArray(msg.attachments) ? msg.attachments : [];
+    const atualizados: unknown[] = [];
+    let algumErro = false;
+
+    for (const bruto of anexos) {
+      const anexo = bruto as Record<string, unknown>;
+      const url = anexo?.url;
+      if (!url) {
+        atualizados.push({ ...anexo, erro: "sem url" });
+        pulados++;
+        continue;
+      }
+      try {
+        const res = await fetch(String(url), { signal: AbortSignal.timeout(30_000) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const anunciado = Number(res.headers.get("content-length") ?? 0);
+        if (anunciado > TAMANHO_MAXIMO) {
+          atualizados.push({ ...anexo, erro: `grande demais (${anunciado} bytes)` });
+          pulados++;
+          continue;
+        }
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        // Conferido de novo depois de baixar: `content-length` pode não vir.
+        if (bytes.byteLength > TAMANHO_MAXIMO) {
+          atualizados.push({ ...anexo, erro: `grande demais (${bytes.byteLength} bytes)` });
+          pulados++;
+          continue;
+        }
+        // A extensão sai da URL ANTES da query: as URLs são assinadas, e a
+        // assinatura vai na query — sem tirá-la, a "extensão" viria com ela
+        // grudada. Mesma regra do `nomeDoArquivo` do app.
+        const limpa = String(url).split("?")[0].split("#")[0];
+        const ext = /\.([a-z0-9]{1,8})$/i.exec(limpa)?.[1]?.toLowerCase() ?? "bin";
+        const caminho = `${pasta}/${anexo.id || arquivos}.${ext}`;
+
+        const { error: erroUpload } = await supabase.storage.from(BALDE).upload(caminho, bytes, {
+          contentType: res.headers.get("content-type") ?? "application/octet-stream",
+          // Reexecutar não pode falhar por "já existe": a rodada anterior pode
+          // ter subido o arquivo e caído antes de marcar a mensagem.
+          upsert: true,
+        });
+        if (erroUpload) throw new Error(erroUpload.message);
+
+        atualizados.push({ ...anexo, path: caminho, erro: null });
+        arquivos++;
+      } catch (e) {
+        algumErro = true;
+        atualizados.push({ ...anexo, erro: e instanceof Error ? e.message : String(e) });
+        falhas.push(`${msg.crm_message_id}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    // `media_path` só é gravada quando nenhum anexo FALHOU — a mensagem
+    // continua na fila e tenta de novo na próxima rodada.
+    //
+    // Anexo pulado por tamanho não conta como falha: tentar de novo daria o
+    // mesmo resultado, e deixar a mensagem na fila para sempre esconderia as
+    // que ainda têm conserto. O motivo fica gravado no anexo.
+    const { error: erroMarca } = await supabase
+      .from("wa_messages")
+      .update({ attachments: atualizados, media_path: algumErro ? null : pasta })
+      .eq("owner_id", ownerId)
+      .eq("crm_message_id", msg.crm_message_id);
+    if (erroMarca) falhas.push(`${msg.crm_message_id}: marca: ${erroMarca.message}`);
+    else mensagens++;
+  }
+
+  return { ok: true, mensagens, arquivos, pulados, falhas: falhas.slice(0, 5) };
+}
+
 async function situacao(ownerId: string) {
   const conta = async (tabela: string, filtro?: (q: any) => any) => {
     let q = supabase.from(tabela).select("*", { count: "exact", head: true }).eq("owner_id", ownerId);
@@ -204,7 +321,49 @@ async function situacao(ownerId: string) {
       q.is("messages_synced_at", null),
     ),
     contatosComFicha: await conta("wa_contacts", (q) => q.not("patient_id", "is", null)),
+    mensagensComMidiaPendente: await conta("wa_messages", (q) =>
+      q.is("media_path", null).eq("tem_anexo", true),
+    ),
   };
+}
+
+/**
+ * Uma rodada completa para um dono: conversas, depois mensagens, depois mídia.
+ *
+ * A ordem não é arbitrária. Conversa nova precisa existir antes de a fila de
+ * mensagens poder escolhê-la, e a mensagem precisa existir antes de a mídia
+ * dela ter onde ser pendurada. Rodar fora de ordem só custaria uma rodada,
+ * mas custaria toda vez.
+ */
+async function rodada(ownerId: string) {
+  const conversas = await sincronizarConversas(ownerId);
+  const mensagens = await sincronizarMensagens(ownerId);
+  const midia = await sincronizarMidia(ownerId);
+  return { ownerId, conversas, mensagens, midia };
+}
+
+/**
+ * Sem `ownerId` no corpo, a chamada veio do cron: roda para todas as clínicas
+ * que têm credencial do CRM.
+ *
+ * Em sequência, e não em paralelo: são as mesmas credenciais batendo na mesma
+ * API do CRM, e disparar todas de uma vez trocaria uma espera por um 429.
+ */
+async function rodadaDeTodos() {
+  const { data, error } = await supabase.from("crm_credentials").select("owner_id");
+  if (error) throw new Error(`donos: ${error.message}`);
+  const donos = [...new Set((data ?? []).map((r: any) => r.owner_id))];
+
+  const resultados = [];
+  for (const dono of donos) {
+    try {
+      resultados.push(await rodada(dono as string));
+    } catch (e) {
+      // Uma clínica com credencial vencida não pode parar as outras.
+      resultados.push({ ownerId: dono, erro: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return { ok: true, donos: donos.length, resultados };
 }
 
 Deno.serve(async (req) => {
@@ -212,6 +371,10 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const ownerId = String(body?.ownerId ?? "");
     const action = String(body?.action ?? "");
+
+    // Corpo vazio = cron. É como `push-poll-conversations` já é chamada.
+    if (!ownerId && !action) return Response.json(await rodadaDeTodos());
+
     if (!ownerId || !action) {
       return Response.json({ error: "ownerId e action são obrigatórios" }, { status: 400 });
     }
@@ -220,7 +383,10 @@ Deno.serve(async (req) => {
     if (action === "sync-conversas") resultado = await sincronizarConversas(ownerId);
     else if (action === "sync-mensagens") {
       resultado = await sincronizarMensagens(ownerId, Number(body?.quantas) || undefined);
-    } else if (action === "status") resultado = await situacao(ownerId);
+    } else if (action === "sync-midia") {
+      resultado = await sincronizarMidia(ownerId, Number(body?.quantas) || undefined);
+    } else if (action === "rodada") resultado = await rodada(ownerId);
+    else if (action === "status") resultado = await situacao(ownerId);
     else return Response.json({ error: `ação desconhecida: ${action}` }, { status: 400 });
 
     return Response.json(resultado);
