@@ -2706,6 +2706,7 @@ export type Database = {
           from_me: boolean
           id: string
           is_private: boolean
+          media: Json
           media_path: string | null
           owner_id: string
           payload: Json | null
@@ -2722,6 +2723,7 @@ export type Database = {
           from_me?: boolean
           id?: string
           is_private?: boolean
+          media?: Json
           media_path?: string | null
           owner_id: string
           payload?: Json | null
@@ -2738,6 +2740,7 @@ export type Database = {
           from_me?: boolean
           id?: string
           is_private?: boolean
+          media?: Json
           media_path?: string | null
           owner_id?: string
           payload?: Json | null
