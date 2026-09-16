@@ -2585,6 +2585,165 @@ export type Database = {
         }
         Relationships: []
       }
+      wa_contacts: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          crm_contact_id: string
+          crm_created_at: string | null
+          id: string
+          name: string | null
+          owner_id: string
+          patient_id: string | null
+          payload: Json | null
+          phone_e164: string | null
+          phone_raw: string | null
+          synced_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          crm_contact_id: string
+          crm_created_at?: string | null
+          id?: string
+          name?: string | null
+          owner_id: string
+          patient_id?: string | null
+          payload?: Json | null
+          phone_e164?: string | null
+          phone_raw?: string | null
+          synced_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          crm_contact_id?: string
+          crm_created_at?: string | null
+          id?: string
+          name?: string | null
+          owner_id?: string
+          patient_id?: string | null
+          payload?: Json | null
+          phone_e164?: string | null
+          phone_raw?: string | null
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_contacts_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "wa_contacts_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_conversations: {
+        Row: {
+          created_at: string
+          crm_contact_id: string | null
+          crm_conversation_id: string
+          crm_created_at: string | null
+          id: string
+          inbox_id: string | null
+          last_message_at: string | null
+          last_message_preview: string | null
+          messages_synced_at: string | null
+          owner_id: string
+          payload: Json | null
+          status: string
+          synced_at: string
+          unread_count: number
+        }
+        Insert: {
+          created_at?: string
+          crm_contact_id?: string | null
+          crm_conversation_id: string
+          crm_created_at?: string | null
+          id?: string
+          inbox_id?: string | null
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          messages_synced_at?: string | null
+          owner_id: string
+          payload?: Json | null
+          status?: string
+          synced_at?: string
+          unread_count?: number
+        }
+        Update: {
+          created_at?: string
+          crm_contact_id?: string | null
+          crm_conversation_id?: string
+          crm_created_at?: string | null
+          id?: string
+          inbox_id?: string | null
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          messages_synced_at?: string | null
+          owner_id?: string
+          payload?: Json | null
+          status?: string
+          synced_at?: string
+          unread_count?: number
+        }
+        Relationships: []
+      }
+      wa_messages: {
+        Row: {
+          attachments: Json
+          body: string | null
+          created_at: string
+          crm_conversation_id: string
+          crm_message_id: string
+          from_me: boolean
+          id: string
+          is_private: boolean
+          media_path: string | null
+          owner_id: string
+          payload: Json | null
+          sent_at: string
+          synced_at: string
+        }
+        Insert: {
+          attachments?: Json
+          body?: string | null
+          created_at?: string
+          crm_conversation_id: string
+          crm_message_id: string
+          from_me?: boolean
+          id?: string
+          is_private?: boolean
+          media_path?: string | null
+          owner_id: string
+          payload?: Json | null
+          sent_at: string
+          synced_at?: string
+        }
+        Update: {
+          attachments?: Json
+          body?: string | null
+          created_at?: string
+          crm_conversation_id?: string
+          crm_message_id?: string
+          from_me?: boolean
+          id?: string
+          is_private?: boolean
+          media_path?: string | null
+          owner_id?: string
+          payload?: Json | null
+          sent_at?: string
+          synced_at?: string
+        }
+        Relationships: []
+      }
       waiting_list: {
         Row: {
           created_at: string
@@ -2853,6 +3012,15 @@ export type Database = {
         Returns: Record<string, unknown>
       }
       primary_clinic_owner: { Args: never; Returns: string }
+      wa_e164_br: { Args: { raw: string }; Returns: string }
+      wa_recalc_conversa: {
+        Args: { p_conversa: string; p_owner: string }
+        Returns: undefined
+      }
+      wa_vincular_por_crm_contact: {
+        Args: { p_owner: string }
+        Returns: number
+      }
     }
     Enums: {
       account_type: "bank" | "cash" | "pix" | "credit"
