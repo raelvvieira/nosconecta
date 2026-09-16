@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { Send, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +28,7 @@ import { ConfirmCompletion } from "./ConfirmCompletion";
 import { formatWhatsappNumber, telefoneBrasileiroValido } from "@/lib/atendimentos/phone";
 import { localDateStr, durationBetween, endTimeFrom } from "@/lib/date";
 import { rotuloDeSala } from "@/lib/agenda/rotuloDeSala";
+import { reenviarConversaoDoAgendamento } from "@/lib/integrations/meta-capi.functions";
 import { ProcedimentosDoAgendamento } from "./ProcedimentosDoAgendamento";
 import {
   duracaoDosProcedimentos,
@@ -192,6 +195,25 @@ export function AppointmentDrawer({
   /** O bloco completo — nome, sobrenome e telefone. No modo contato o nome já
    *  tem campos próprios logo acima, então só o telefone é pedido. */
   const pacienteNovo = semFicha && !modoContato && !contact?.phone;
+
+  /**
+   * Reenviar à Meta a conversão deste agendamento.
+   *
+   * Existe porque completar o telefone depois conserta a ficha, mas não faz o
+   * evento que já saiu voltar: ele foi aceito pela Meta sem telefone nem
+   * e-mail, não casou com clique nenhum, e não existe para o anúncio.
+   *
+   * Fica discreto de propósito. Não é uma ação de rotina — é conserto, e
+   * reenviar uma conversão que JÁ casou contaria a mesma venda duas vezes.
+   * Quem decide se pode é o servidor, que confere no log o que foi mandado da
+   * primeira vez; aqui só se mostra a resposta.
+   */
+  const reenviarFn = useServerFn(reenviarConversaoDoAgendamento);
+  const reenvio = useMutation({
+    mutationFn: () => reenviarFn({ data: { appointmentId: appointment?.id ?? "" } }),
+    onSuccess: () => toast.success("Conversão reenviada à Meta."),
+    onError: (e: any) => toast.error(e?.message ?? "Não foi possível reenviar."),
+  });
 
   const [telefoneNovo, setTelefoneNovo] = useState("");
   const telefoneOk = telefoneBrasileiroValido(telefoneNovo);
@@ -442,9 +464,26 @@ export function AppointmentDrawer({
 
           {/* Dados do paciente */}
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Paciente
-            </h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Paciente
+              </h3>
+              {/* Só editando e com ficha vinculada: sem ficha não há telefone
+                  para mandar, e o servidor recusaria de qualquer jeito. */}
+              {isEdit && form.patientId && (
+                <button
+                  type="button"
+                  onClick={() => reenvio.mutate()}
+                  disabled={reenvio.isPending}
+                  title="Reenviar a conversão deste agendamento à Meta. Só funciona se ela tiver saído sem telefone nem e-mail — o servidor confere antes."
+                  aria-label="Reenviar conversão à Meta"
+                  className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-2xs text-muted-foreground transition-colors hover:bg-surface hover:text-foreground disabled:opacity-50"
+                >
+                  <Send className="h-3 w-3" strokeWidth={1.75} />
+                  {reenvio.isPending ? "Reenviando…" : "Reenviar à Meta"}
+                </button>
+              )}
+            </div>
             <div className="space-y-2">
               <Label htmlFor="patient" className="text-sm text-foreground-secondary">
                 Nome do paciente *

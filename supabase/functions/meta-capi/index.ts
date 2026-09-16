@@ -39,6 +39,18 @@ interface DispatchContext {
   status?: string | null;
   dealStatus?: string | null;
   amount?: number | null;
+  /**
+   * Reenvio manual de uma conversão que saiu cega.
+   *
+   * Muda o `event_id`, e é de propósito. O id normal existe para a Meta
+   * DESCARTAR um reenvio do mesmo acontecimento; aqui queremos o contrário —
+   * a primeira tentativa foi aceita e não casou com ninguém (saiu sem
+   * telefone nem e-mail), então ela não contou, e o reenvio precisa contar.
+   *
+   * Continua determinístico, não aleatório: clicar duas vezes no botão manda
+   * o mesmo id, e aí a deduplicação da Meta faz o trabalho dela.
+   */
+  reenvio?: boolean;
 }
 
 interface RawPerson {
@@ -531,7 +543,9 @@ async function handleDispatch(ownerId: string, systemEvent: string, ctx: Dispatc
       // meio eles virariam dois event_id distintos e a Meta contaria duas
       // vezes. Gatilhos com eventos diferentes (Purchase + Lead) continuam
       // separados, que é o desejado.
-      const eventId = `${trigger.meta_event_name}:${ctx.entityId ?? eventTime}`;
+      const eventId = ctx.reenvio
+        ? `${trigger.meta_event_name}:${ctx.entityId ?? eventTime}:reenvio`
+        : `${trigger.meta_event_name}:${ctx.entityId ?? eventTime}`;
       const event: Record<string, unknown> = {
         event_name: trigger.meta_event_name,
         event_time: eventTime,

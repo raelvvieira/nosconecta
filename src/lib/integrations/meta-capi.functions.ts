@@ -80,7 +80,8 @@ function mapTrigger(row: any): MetaCapiTrigger {
     conditions: (row.conditions ?? {}) as MetaCapiTrigger["conditions"],
     metaEventName: row.meta_event_name ?? "",
     valueSource: (row.value_source ?? "none") as ValueSource,
-    fixedValue: row.fixed_value === null || row.fixed_value === undefined ? null : Number(row.fixed_value),
+    fixedValue:
+      row.fixed_value === null || row.fixed_value === undefined ? null : Number(row.fixed_value),
     currency: row.currency ?? "BRL",
     active: row.active ?? true,
   };
@@ -200,5 +201,107 @@ export const deleteMetaCapiTrigger = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/**
+ * Reenvia à Meta a conversão de um agendamento que saiu cega.
+ *
+ * ── Por que isto precisa existir ────────────────────────────────────────
+ *
+ * Um agendamento salvo sem ficha de paciente manda o Lead com hash de nome e
+ * mais nada. A Meta responde `events_received: 1`, o log do sistema marca
+ * "enviado", e a conversão não casa com clique nenhum — ela não existe para
+ * o anúncio. Completar o telefone depois conserta a ficha, mas não faz o
+ * evento voltar.
+ *
+ * ── Por que isto NÃO é um botão de "mandar de novo" ─────────────────────
+ *
+ * Reenviar uma conversão que JÁ casou é contar a mesma venda duas vezes, e
+ * inflar conversão é pior do que perder uma: decisões de verba saem de lá.
+ * Por isso as travas abaixo são o corpo inteiro desta função, e o envio é a
+ * última linha.
+ */
+export const reenviarConversaoDoAgendamento = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { appointmentId: string }) => {
+    if (!input?.appointmentId) throw new Error("Agendamento inválido.");
+    return input;
+  })
+  .handler(async ({ data, context }) => {
+    const supabase: any = context.supabase;
+
+    const { data: agendamento } = await supabase
+      .from("appointments")
+      .select("id, patient_id, patient_name, expected_revenue")
+      .eq("id", data.appointmentId)
+      .eq("owner_id", context.ownerId)
+      .maybeSingle();
+    if (!agendamento) throw new Error("Agendamento não encontrado.");
+    if (!agendamento.patient_id) {
+      throw new Error(
+        "Este agendamento ainda não tem ficha de paciente. Preencha o telefone e salve primeiro.",
+      );
+    }
+
+    const { data: paciente } = await supabase
+      .from("patients")
+      .select("id, name, first_name, last_name, phone, email")
+      .eq("id", agendamento.patient_id)
+      .eq("owner_id", context.ownerId)
+      .maybeSingle();
+    if (!paciente) throw new Error("A ficha deste paciente não foi encontrada.");
+
+    // O critério do pedido: telefone (ou e-mail) E nome separado do sobrenome.
+    // Sem um identificador não há como casar; sem as duas partes do nome, `fn`
+    // e `ln` viram hashes errados e o match cai muito.
+    const temIdentificador = Boolean(paciente.phone?.trim() || paciente.email?.trim());
+    if (!temIdentificador) {
+      throw new Error(
+        "A ficha precisa de telefone ou e-mail — é o que a Meta usa para reconhecer a pessoa.",
+      );
+    }
+    if (!paciente.first_name?.trim() || !paciente.last_name?.trim()) {
+      throw new Error("A ficha precisa de nome e sobrenome separados para o reenvio valer a pena.");
+    }
+
+    // ── A trava que importa ───────────────────────────────────────────────
+    //
+    // Só reenvia o que NÃO casou. A prova está no próprio log: o payload
+    // gravado traz o `user_data` que foi mandado, e se ele tinha `em` ou `ph`
+    // a conversão era casável — reenviar contaria de novo.
+    const { data: enviados } = await supabase
+      .from("meta_capi_events")
+      .select("event_id, status, payload, sent_at")
+      .eq("owner_id", context.ownerId)
+      .eq("system_event", "appointment.created")
+      .like("event_id", `%:${data.appointmentId}%`)
+      .order("sent_at", { ascending: false })
+      .limit(10);
+
+    const linhas = (enviados ?? []) as any[];
+    if (linhas.some((e) => String(e.event_id).endsWith(":reenvio"))) {
+      throw new Error("A conversão deste agendamento já foi reenviada uma vez.");
+    }
+    const casavel = linhas.some((e) => {
+      if (e.status !== "sent") return false;
+      const ud = e.payload?.data?.[0]?.user_data ?? e.payload?.user_data ?? {};
+      return Boolean(ud.em || ud.ph);
+    });
+    if (casavel) {
+      throw new Error(
+        "A conversão deste agendamento já foi enviada com telefone ou e-mail — a Meta já a reconheceu. Reenviar contaria duas vezes.",
+      );
+    }
+
+    const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
+    await dispatchMetaCapiEvent(context.ownerId, "appointment.created", {
+      entityId: agendamento.id,
+      patientId: agendamento.patient_id,
+      contactName: agendamento.patient_name,
+      amount: agendamento.expected_revenue,
+      reenvio: true,
+    });
+
     return { ok: true };
   });

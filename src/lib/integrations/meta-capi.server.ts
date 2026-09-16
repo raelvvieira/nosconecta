@@ -25,6 +25,14 @@ export interface MetaCapiDispatchContext {
   dealStatus?: string | null;
   /** Valor usado quando o gatilho está configurado como "valor do evento". */
   amount?: number | null;
+  /**
+   * Reenvio manual de uma conversão que saiu sem identificador.
+   *
+   * Muda o `event_id` na Edge Function: o id normal serve para a Meta
+   * DESCARTAR repetição do mesmo acontecimento, e aqui queremos o oposto —
+   * a primeira tentativa não casou com ninguém, então não contou.
+   */
+  reenvio?: boolean;
 }
 
 export async function dispatchMetaCapiEvent(
