@@ -622,7 +622,12 @@ function ChatPage() {
                       <ChevronDown
                         className={cn("h-3 w-3 transition-transform", aberto && "rotate-180")}
                       />
-                      {g.outras.length + 1} conversas
+                      {/* O que está ESCONDIDO, não o total.
+                          Dizia `outras.length + 1` — somava a conversa que a
+                          pessoa já está vendo — enquanto a lista abaixo mostra
+                          só as outras. "2 conversas" abria e mostrava uma:
+                          o botão prometia dois e entregava um. */}
+                      mais {g.outras.length} conversa{g.outras.length === 1 ? "" : "s"}
                     </button>
                     {aberto && (
                       <div className="ml-14 grid gap-0.5 border-l border-border pl-2">
