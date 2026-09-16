@@ -427,6 +427,67 @@ export type Database = {
           },
         ]
       }
+      appointment_procedures: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          duration_minutes: number
+          id: string
+          owner_id: string
+          position: number
+          price: number
+          procedure_id: string | null
+          procedure_name: string
+          unit_id: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          owner_id?: string
+          position?: number
+          price?: number
+          procedure_id?: string | null
+          procedure_name: string
+          unit_id: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          owner_id?: string
+          position?: number
+          price?: number
+          procedure_id?: string | null
+          procedure_name?: string
+          unit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_procedures_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_procedures_procedure_id_fkey"
+            columns: ["procedure_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_procedures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_procedures_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           actual_revenue: number | null
@@ -2712,6 +2773,10 @@ export type Database = {
     }
     Functions: {
       accept_invitation: { Args: { _token: string }; Returns: boolean }
+      appointment_recalc_procedures: {
+        Args: { p_appointment_id: string }
+        Returns: undefined
+      }
       can_access_row:
         | { Args: { _owner_id: string }; Returns: boolean }
         | { Args: { _owner_id: string; _unit_id: string }; Returns: boolean }
