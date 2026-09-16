@@ -2711,6 +2711,7 @@ export type Database = {
           payload: Json | null
           sent_at: string
           synced_at: string
+          tem_anexo: boolean | null
         }
         Insert: {
           attachments?: Json
@@ -2726,6 +2727,7 @@ export type Database = {
           payload?: Json | null
           sent_at: string
           synced_at?: string
+          tem_anexo?: boolean | null
         }
         Update: {
           attachments?: Json
@@ -2741,6 +2743,7 @@ export type Database = {
           payload?: Json | null
           sent_at?: string
           synced_at?: string
+          tem_anexo?: boolean | null
         }
         Relationships: []
       }
