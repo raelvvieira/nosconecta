@@ -236,14 +236,16 @@ async function sincronizarMidia(ownerId: string, quantas = MENSAGENS_DE_MIDIA_PO
     if (Date.now() > limite) break;
     const pasta = `${ownerId}/${msg.crm_conversation_id}/${msg.crm_message_id}`;
     const anexos = Array.isArray(msg.attachments) ? msg.attachments : [];
-    const atualizados: unknown[] = [];
+    // A nossa cópia vai para `media`, ao lado — nunca dentro de `attachments`,
+    // que é o espelho fiel do CRM e é reescrita a cada leitura da conversa.
+    const copias: unknown[] = [];
     let algumErro = false;
 
     for (const bruto of anexos) {
       const anexo = bruto as Record<string, unknown>;
       const url = anexo?.url;
       if (!url) {
-        atualizados.push({ ...anexo, erro: "sem url" });
+        copias.push({ id: anexo.id ?? null, path: null, erro: "sem url" });
         pulados++;
         continue;
       }
@@ -252,14 +254,18 @@ async function sincronizarMidia(ownerId: string, quantas = MENSAGENS_DE_MIDIA_PO
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const anunciado = Number(res.headers.get("content-length") ?? 0);
         if (anunciado > TAMANHO_MAXIMO) {
-          atualizados.push({ ...anexo, erro: `grande demais (${anunciado} bytes)` });
+          copias.push({ id: anexo.id ?? null, path: null, erro: `grande demais (${anunciado} bytes)` });
           pulados++;
           continue;
         }
         const bytes = new Uint8Array(await res.arrayBuffer());
         // Conferido de novo depois de baixar: `content-length` pode não vir.
         if (bytes.byteLength > TAMANHO_MAXIMO) {
-          atualizados.push({ ...anexo, erro: `grande demais (${bytes.byteLength} bytes)` });
+          copias.push({
+            id: anexo.id ?? null,
+            path: null,
+            erro: `grande demais (${bytes.byteLength} bytes)`,
+          });
           pulados++;
           continue;
         }
@@ -278,11 +284,15 @@ async function sincronizarMidia(ownerId: string, quantas = MENSAGENS_DE_MIDIA_PO
         });
         if (erroUpload) throw new Error(erroUpload.message);
 
-        atualizados.push({ ...anexo, path: caminho, erro: null });
+        copias.push({ id: anexo.id ?? null, path: caminho, erro: null });
         arquivos++;
       } catch (e) {
         algumErro = true;
-        atualizados.push({ ...anexo, erro: e instanceof Error ? e.message : String(e) });
+        copias.push({
+          id: anexo.id ?? null,
+          path: null,
+          erro: e instanceof Error ? e.message : String(e),
+        });
         falhas.push(`${msg.crm_message_id}: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
@@ -295,7 +305,7 @@ async function sincronizarMidia(ownerId: string, quantas = MENSAGENS_DE_MIDIA_PO
     // que ainda têm conserto. O motivo fica gravado no anexo.
     const { error: erroMarca } = await supabase
       .from("wa_messages")
-      .update({ attachments: atualizados, media_path: algumErro ? null : pasta })
+      .update({ media: copias, media_path: algumErro ? null : pasta })
       .eq("owner_id", ownerId)
       .eq("crm_message_id", msg.crm_message_id);
     if (erroMarca) falhas.push(`${msg.crm_message_id}: marca: ${erroMarca.message}`);

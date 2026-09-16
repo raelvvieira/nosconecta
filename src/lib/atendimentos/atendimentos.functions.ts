@@ -150,7 +150,8 @@ function mapConversation(row: any): ConversationRow {
     lastMessagePreview: null,
     lastMessageAt: toIso(row?.created_at),
     unreadCount: row?.unread_count ?? 0,
-    status: row?.status === "resolved" ? "resolved" : row?.status === "pending" ? "pending" : "open",
+    status:
+      row?.status === "resolved" ? "resolved" : row?.status === "pending" ? "pending" : "open",
   };
 }
 
@@ -172,7 +173,6 @@ function mapMessage(row: any): MessageRow {
   };
 }
 
-
 function toIso(value: unknown): string {
   if (!value) return new Date().toISOString();
   if (typeof value === "string") return value;
@@ -188,7 +188,10 @@ export const getWhatsappInstance = createServerFn({ method: "GET" })
     // Consulta de status é informativa: se o CRM estiver lento, devolvemos
     // "desconhecido" em vez de deixar o erro estourar e apagar a tela inteira.
     try {
-      const json = await callEdgeFunction("crm-whatsapp", { ownerId: context.ownerId, action: "status" });
+      const json = await callEdgeFunction("crm-whatsapp", {
+        ownerId: context.ownerId,
+        action: "status",
+      });
       return json.instance ? mapInstance(json.instance) : null;
     } catch (err) {
       console.warn("[getWhatsappInstance] status indisponível:", err);
@@ -267,14 +270,98 @@ export const setWhatsappInboxId = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator((input: { inboxId: string }) => input)
   .handler(async ({ data, context }) => {
-    await callEdgeFunction("crm-whatsapp", { ownerId: context.ownerId, action: "set-inbox-id", inboxId: data.inboxId });
+    await callEdgeFunction("crm-whatsapp", {
+      ownerId: context.ownerId,
+      action: "set-inbox-id",
+      inboxId: data.inboxId,
+    });
     return { ok: true };
   });
+
+/**
+ * A lista de conversas, lida do espelho local.
+ *
+ * ── Por que daqui e não do CRM ──────────────────────────────────────────
+ *
+ * A leitura do CRM é paginada e atravessa a rede a cada abertura da tela: o
+ * chat inteiro espera por ela. E ela traz dois defeitos de nascença que não
+ * dá para consertar do lado de lá — a listagem não inclui a última mensagem
+ * (por isso TODA linha mostra "—") e o `created_at` que ela devolve é o da
+ * CONVERSA, não o da última mensagem, então a ordem da caixa de entrada
+ * está errada desde sempre.
+ *
+ * No espelho os dois são mantidos por gatilho sobre as mensagens de verdade.
+ *
+ * Devolve `null` quando o espelho ainda não tem nada — aí quem chama cai no
+ * CRM, como sempre fez. Espelho vazio é "a carga ainda não rodou", não "esta
+ * clínica não tem conversas".
+ */
+async function conversasDoEspelho(
+  supabase: any,
+  ownerId: string,
+): Promise<ConversationRow[] | null> {
+  // `as any` porque `types.ts` é gerado pelo Lovable e ainda não conhece as
+  // tabelas do espelho. Mesmo escape dos cartões.
+  const { data, error } = await (supabase as any)
+    .from("wa_conversations")
+    .select(
+      "crm_conversation_id, crm_contact_id, inbox_id, status, unread_count, last_message_at, last_message_preview, wa_contacts(name, phone_raw, avatar_url)",
+    )
+    .eq("owner_id", ownerId)
+    .order("last_message_at", { ascending: false, nullsFirst: false })
+    .limit(5000);
+
+  // Erro aqui NÃO derruba a tela: o espelho é uma otimização, e o CRM
+  // continua sendo a fonte que sempre funcionou. Enquanto a migration não
+  // roda, a tabela nem existe.
+  if (error) {
+    console.warn("[getConversations] espelho indisponível, lendo do CRM:", error.message);
+    return null;
+  }
+  if (!data?.length) return null;
+
+  return (data as any[]).map((row) => {
+    const contato = row.wa_contacts ?? {};
+    return {
+      id: String(row.crm_conversation_id),
+      contactId: row.crm_contact_id ? String(row.crm_contact_id) : null,
+      inboxId: row.inbox_id ?? null,
+      contactName: contato.name ?? null,
+      phone: contato.phone_raw ?? null,
+      avatarUrl: contato.avatar_url ?? null,
+      lastMessagePreview: row.last_message_preview ?? null,
+      lastMessageAt: row.last_message_at ?? null,
+      unreadCount: Number(row.unread_count ?? 0),
+      status: row.status,
+    };
+  });
+}
+
+/**
+ * Abertas primeiro, e dentro de cada grupo a mais recente no topo.
+ *
+ * A ordem importa desde que as resolvidas também passaram a vir: sem ela uma
+ * conversa encerrada há meses pode aparecer acima do atendimento de hoje, só
+ * porque a fonte devolveu naquela ordem. Vale para as duas fontes — o banco
+ * já ordena por data, mas não sabe que resolvida desce.
+ */
+function ordenarConversas(linhas: ConversationRow[]): ConversationRow[] {
+  const peso = (c: ConversationRow) => (c.status === "resolved" ? 1 : 0);
+  return linhas.sort(
+    (a, b) => peso(a) - peso(b) || (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""),
+  );
+}
 
 export const getConversations = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<ConversationRow[]> => {
-    const json = await callEdgeFunction("crm-conversations", { ownerId: context.ownerId, action: "list" });
+    const espelhadas = await conversasDoEspelho(context.supabase, context.ownerId);
+    if (espelhadas) return ordenarConversas(espelhadas);
+
+    const json = await callEdgeFunction("crm-conversations", {
+      ownerId: context.ownerId,
+      action: "list",
+    });
     // Leitura truncada (teto de páginas ou prazo) faz um contato que TEM
     // conversa ser lido como se não tivesse — e o disparo abriria uma nova para
     // ele. Quem impede isso de virar conversa duplicada é a checagem em
@@ -285,20 +372,29 @@ export const getConversations = createServerFn({ method: "GET" })
         `[getConversations] leitura truncada em ${(json.conversations ?? []).length} conversas de ${json.total ?? "?"}`,
       );
     }
-    const linhas: ConversationRow[] = (json.conversations ?? []).map(mapConversation);
-    // Abertas primeiro, e dentro de cada grupo a mais recente no topo. A ordem
-    // importa agora que as resolvidas também vêm: sem isto, uma conversa
-    // encerrada há meses poderia aparecer acima do atendimento de hoje, só
-    // porque o CRM devolveu naquela ordem.
-    const peso = (c: ConversationRow) => (c.status === "resolved" ? 1 : 0);
-    return linhas.sort(
-      (a, b) => peso(a) - peso(b) || (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""),
-    );
+    return ordenarConversas((json.conversations ?? []).map(mapConversation));
   });
 
 export const getMessages = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .inputValidator((input: { conversationId: string }) => input)
+  /**
+   * A thread continua vindo do CRM, de propósito.
+   *
+   * O espelho serve a LISTA, que é o que era caro: ela pagina milhares de
+   * conversas a cada abertura da tela. Uma thread é UMA chamada, e já era
+   * rápida.
+   *
+   * Servi-la do espelho seria trocar rápido por velho: a tela repete a
+   * consulta a cada 5 segundos enquanto a conversa está aberta, e o espelho
+   * só é atualizado a cada 5 minutos pelo cron. Quem está atendendo veria a
+   * resposta do paciente com minutos de atraso — pior do que hoje, em nome de
+   * uma independência que a lista já entrega.
+   *
+   * Em compensação, a Edge Function GRAVA no espelho o que acabou de ler (ver
+   * `handleMessages`): toda conversa que alguém abre é copiada na hora. As
+   * conversas que importam entram no espelho primeiro, sem fila e sem espera.
+   */
   .handler(async ({ data, context }): Promise<MessageRow[]> => {
     const json = await callEdgeFunction("crm-conversations", {
       ownerId: context.ownerId,
@@ -356,7 +452,12 @@ function mapScheduled(row: any): ScheduledMessage {
 export const scheduleWhatsappMessage = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator(
-    (input: { conversationId: string; contactId?: string | null; text: string; scheduledFor: string }) => input,
+    (input: {
+      conversationId: string;
+      contactId?: string | null;
+      text: string;
+      scheduledFor: string;
+    }) => input,
   )
   .handler(async ({ data, context }) => {
     await callEdgeFunction("crm-conversations", {

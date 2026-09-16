@@ -4,6 +4,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
 import { unwrap } from "../_shared/crm-client.ts";
+import { mapearAnexos, paraIso, saiuDaClinica } from "../_shared/wa-mapear.ts";
 import { lerTudoPaginado } from "../_shared/lista-paginada.ts";
 
 const supabase = createClient(
@@ -65,10 +66,68 @@ async function handleList(ownerId: string) {
   return { ok: true, conversations: linhas, total, truncado };
 }
 
+/**
+ * Grava no espelho as mensagens que acabaram de ser lidas.
+ *
+ * ── Por que aqui, e não num trabalho de fundo ───────────────────────────
+ *
+ * A carga de fundo copia as conversas em ordem de fila e leva dias — são
+ * milhares, a uma chamada ao CRM cada. Só que quem abre uma conversa na tela
+ * acabou de PAGAR essa chamada. Jogar a resposta fora e pedir de novo daqui a
+ * dois dias, na vez dela na fila, seria desperdiçar a ida ao CRM e atrasar
+ * justamente as conversas que alguém está usando.
+ *
+ * Assim o espelho enche pelo uso: as conversas que importam entram primeiro,
+ * sem fila e sem espera. E o cron continua varrendo as frias.
+ *
+ * Falha é engolida: o espelho é uma cópia, e não conseguir gravá-la não pode
+ * impedir alguém de ler a conversa do paciente.
+ */
+async function espelharMensagens(ownerId: string, conversationId: string, linhas: any[]) {
+  try {
+    if (!linhas.length) return;
+    const agora = new Date().toISOString();
+    const paraGravar = linhas
+      .filter((m: any) => m?.id)
+      .map((m: any) => ({
+        owner_id: ownerId,
+        crm_message_id: String(m.id),
+        crm_conversation_id: conversationId,
+        from_me: saiuDaClinica(m?.message_type),
+        body: m?.content ?? null,
+        is_private: m?.private === true || m?.private === "true",
+        attachments: mapearAnexos(m?.attachments),
+        sent_at: paraIso(m?.created_at) ?? agora,
+        payload: m,
+        synced_at: agora,
+      }));
+    if (!paraGravar.length) return;
+
+    // `media_path` fica de fora do upsert: ela é marcada pela cópia de mídia,
+    // e reescrevê-la aqui mandaria de volta para a fila um anexo já baixado —
+    // a cada vez que alguém abrisse a conversa.
+    const { error } = await supabase
+      .from("wa_messages")
+      .upsert(paraGravar, { onConflict: "owner_id,crm_message_id" });
+    if (error) throw new Error(error.message);
+
+    // A conversa sai da fila de cópia: acabou de ser copiada inteira.
+    await supabase
+      .from("wa_conversations")
+      .update({ messages_synced_at: agora })
+      .eq("owner_id", ownerId)
+      .eq("crm_conversation_id", conversationId);
+  } catch (e) {
+    console.warn("[crm-conversations] espelho não gravado:", e);
+  }
+}
+
 async function handleMessages(ownerId: string, conversationId: string) {
   const res = await crmFetch(supabase, ownerId, `/api/v1/conversations/${conversationId}/messages`);
   const unwrapped = unwrap(res);
-  return { ok: true, messages: Array.isArray(unwrapped) ? unwrapped : [] };
+  const mensagens = Array.isArray(unwrapped) ? unwrapped : [];
+  await espelharMensagens(ownerId, conversationId, mensagens);
+  return { ok: true, messages: mensagens };
 }
 
 interface OutgoingAttachment {
