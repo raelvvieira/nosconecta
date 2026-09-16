@@ -2981,7 +2981,7 @@ export type Database = {
     Functions: {
       accept_invitation: { Args: { _token: string }; Returns: boolean }
       appointment_recalc_procedures: {
-        Args: { p_appointment_id: string }
+        Args: { p_appointment_id: string; p_owner: string }
         Returns: undefined
       }
       can_access_row:
