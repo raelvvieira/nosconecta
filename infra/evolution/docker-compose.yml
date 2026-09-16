@@ -1,0 +1,125 @@
+# Evolution API da NÓS — instância isolada, na mesma VPS do CRM.
+#
+# ── O que este arquivo é, e o que ele não é ──────────────────────────────
+#
+# É um segundo Evolution, com banco próprio, Redis próprio, API key própria
+# e volumes próprios. Ele DIVIDE O HARDWARE com o CRM da agência e mais nada:
+# nenhum dado passa pelo CRM, e derrubar um não derruba o outro.
+#
+# Não é uma instância dentro do Evolution que já existe. Aquilo seria
+# compartilhar banco e chave com o CRM — refazer em pequeno a amarra que o
+# espelho acabou de desfazer.
+#
+# ── Tudo aqui está deslocado para não colidir ────────────────────────────
+#
+# A VPS já roda um Evolution, um Postgres e um Redis. Nomes de contêiner,
+# volumes, rede e porta são outros, de propósito. Se algum já estiver em uso,
+# o `docker compose up` falha dizendo qual — não sobrescreve nada.
+
+name: nos-evolution
+
+services:
+  api:
+    # Versão fixa, não `latest`: a imagem `latest` teve mais de um caso de
+    # falhar ao subir (P1001) e trocar sozinha de comportamento num `pull`.
+    # Se esta tag não existir mais, veja as disponíveis com:
+    #   docker run --rm quay.io/skopeo/stable list-tags docker://evoapicloud/evolution-api
+    image: evoapicloud/evolution-api:v2.2.3
+    container_name: nos-evolution-api
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      SERVER_URL: ${SERVER_URL}
+      # A chave que o Supabase usa para falar com esta instância. Própria,
+      # diferente da do CRM.
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${POSTGRES_PASSWORD}@postgres:5432/evolution
+      DATABASE_CONNECTION_CLIENT_NAME: nos_evolution
+      # Guardar as mensagens no banco da Evolution é redundante: quem guarda
+      # histórico aqui é o Supabase. Mas ligado ele cobre a janela entre o
+      # WhatsApp entregar e o webhook chegar — é barato e evita buraco.
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/0
+      CACHE_REDIS_PREFIX_KEY: nos_evolution
+      CACHE_REDIS_SAVE_INSTANCES: "false"
+      CACHE_LOCAL_ENABLED: "false"
+
+      # O webhook global: toda instância criada aqui aponta para o Supabase.
+      # É o que substitui o cron de 5 minutos — mensagem passa a CHEGAR.
+      WEBHOOK_GLOBAL_ENABLED: "true"
+      WEBHOOK_GLOBAL_URL: ${WEBHOOK_URL}
+      WEBHOOK_GLOBAL_BY_EVENTS: "false"
+      WEBHOOK_EVENTS_MESSAGES_UPSERT: "true"
+      WEBHOOK_EVENTS_MESSAGES_UPDATE: "true"
+      WEBHOOK_EVENTS_CONTACTS_UPSERT: "true"
+      WEBHOOK_EVENTS_CHATS_UPSERT: "true"
+      WEBHOOK_EVENTS_CONNECTION_UPDATE: "true"
+      # Desligados: barulho que não vira nada no sistema e só gasta chamada.
+      WEBHOOK_EVENTS_QRCODE_UPDATED: "false"
+      WEBHOOK_EVENTS_MESSAGES_DELETE: "false"
+      WEBHOOK_EVENTS_PRESENCE_UPDATE: "false"
+      WEBHOOK_EVENTS_TYPEBOT_START: "false"
+      WEBHOOK_EVENTS_CHAMA_AI_ACTION: "false"
+
+      # A integração nativa com Chatwoot fica DESLIGADA. Ligada, esta
+      # instância tentaria se anunciar para o Chatwoot do CRM — exatamente o
+      # acoplamento que este arquivo existe para evitar.
+      CHATWOOT_ENABLED: "false"
+
+      LOG_LEVEL: ERROR
+      LOG_COLOR: "false"
+      DEL_INSTANCE: "false"
+      QRCODE_LIMIT: "10"
+    # Só no localhost: quem expõe para a internet é o proxy reverso que já
+    # existe na VPS, com o certificado dele. Publicar a porta direto deixaria
+    # a API key trafegando em HTTP puro.
+    ports:
+      - "127.0.0.1:${PORTA_LOCAL:-8081}:8080"
+    volumes:
+      - nos_evolution_instances:/evolution/instances
+    networks:
+      - nos-evolution
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: nos-evolution-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: evolution
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # Sem `ports`: ninguém de fora da rede deste compose fala com ele.
+    volumes:
+      - nos_evolution_postgres:/var/lib/postgresql/data
+    networks:
+      - nos-evolution
+
+  redis:
+    image: redis:7-alpine
+    container_name: nos-evolution-redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - nos_evolution_redis:/data
+    networks:
+      - nos-evolution
+
+volumes:
+  nos_evolution_instances:
+  nos_evolution_postgres:
+  nos_evolution_redis:
+
+networks:
+  nos-evolution:
+    driver: bridge

@@ -30,3 +30,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Segredos da instância própria da Evolution. O `.env.exemplo` ao lado é o
+# modelo versionado; o `.env` de verdade guarda a API key e a senha do banco
+# e nunca entra no repositório.
+infra/evolution/.env
