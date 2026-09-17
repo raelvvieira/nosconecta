@@ -12,3 +12,9 @@ verify_jwt = false
 # — mesmo padrão do webhook do Brevo acima.
 [functions.ai-agent-webhook]
 verify_jwt = false
+
+# A Evolution não tem como apresentar um JWT do Supabase. A porta é fechada
+# por um segredo compartilhado na querystring, conferido dentro da função —
+# mesmo desenho do whatsapp-inbound-webhook logo acima.
+[functions.wa-webhook]
+verify_jwt = false
