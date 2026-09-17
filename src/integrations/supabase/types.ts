@@ -2664,6 +2664,7 @@ export type Database = {
           payload: Json | null
           status: string
           synced_at: string
+          unread_at_sync: number | null
           unread_count: number
         }
         Insert: {
@@ -2681,6 +2682,7 @@ export type Database = {
           payload?: Json | null
           status?: string
           synced_at?: string
+          unread_at_sync?: number | null
           unread_count?: number
         }
         Update: {
@@ -2698,7 +2700,44 @@ export type Database = {
           payload?: Json | null
           status?: string
           synced_at?: string
+          unread_at_sync?: number | null
           unread_count?: number
+        }
+        Relationships: []
+      }
+      wa_instances: {
+        Row: {
+          connected_at: string | null
+          created_at: string
+          id: string
+          instance_name: string
+          last_event_at: string | null
+          owner_id: string
+          phone_e164: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          instance_name: string
+          last_event_at?: string | null
+          owner_id: string
+          phone_e164?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          instance_name?: string
+          last_event_at?: string | null
+          owner_id?: string
+          phone_e164?: string | null
+          status?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -2943,6 +2982,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      wa_conversas_a_sincronizar: {
+        Row: {
+          crm_conversation_id: string | null
+          messages_synced_at: string | null
+          owner_id: string | null
+          prioridade: number | null
+          unread_count: number | null
+        }
+        Insert: {
+          crm_conversation_id?: string | null
+          messages_synced_at?: string | null
+          owner_id?: string | null
+          prioridade?: never
+          unread_count?: number | null
+        }
+        Update: {
+          crm_conversation_id?: string | null
+          messages_synced_at?: string | null
+          owner_id?: string | null
+          prioridade?: never
+          unread_count?: number | null
+        }
+        Relationships: []
       }
       wa_conversas_por_pessoa: {
         Row: {
