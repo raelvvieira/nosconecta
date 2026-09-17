@@ -1,0 +1,1 @@
+ALTER VIEW public.wa_conversas_a_sincronizar SET (security_invoker = true);
