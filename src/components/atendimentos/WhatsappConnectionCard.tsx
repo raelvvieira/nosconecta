@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, MessageCircle, RefreshCw } from "lucide-react";
+import { CheckCircle2, MessageCircle, RefreshCw, Smartphone } from "lucide-react";
 import { getWhatsappInstance } from "@/lib/atendimentos/atendimentos.functions";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { WhatsappConnectSheet } from "./WhatsappConnectSheet";
+import { ConectarWhatsapp } from "./ConectarWhatsapp";
 
 const STATUS_CONFIG: Record<string, { dot: string; label: string; cta: string }> = {
   open: { dot: "bg-success", label: "Conectado", cta: "Gerenciar conexão" },
@@ -16,9 +17,14 @@ const STATUS_CONFIG: Record<string, { dot: string; label: string; cta: string }>
 // Card de destaque do Dashboard — vira o único lugar de onde se inicia o
 // fluxo de conectar (a página de Chat só mostra um aviso leve linkando pra
 // cá). Reusa o WhatsappConnectSheet existente sem alteração.
-export function WhatsappConnectionCard({ dailyUsage }: { dailyUsage?: { limit: number; usedToday: number } }) {
+export function WhatsappConnectionCard({
+  dailyUsage,
+}: {
+  dailyUsage?: { limit: number; usedToday: number };
+}) {
   const fetchInstance = useServerFn(getWhatsappInstance);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [propriaAberta, setPropriaAberta] = useState(false);
 
   const instanceQuery = useQuery({
     queryKey: ["atendimentos-instance"],
@@ -40,11 +46,17 @@ export function WhatsappConnectionCard({ dailyUsage }: { dailyUsage?: { limit: n
                 connected ? "bg-success-soft text-success" : "bg-coral-soft text-coral"
               }`}
             >
-              {connected ? <CheckCircle2 className="h-6 w-6" /> : <MessageCircle className="h-5 w-5" />}
+              {connected ? (
+                <CheckCircle2 className="h-6 w-6" />
+              ) : (
+                <MessageCircle className="h-5 w-5" />
+              )}
             </span>
             <div>
               <p className="text-sm font-semibold">
-                {connected && instance?.phoneNumber ? formatWhatsappNumber(instance.phoneNumber) : "WhatsApp"}
+                {connected && instance?.phoneNumber
+                  ? formatWhatsappNumber(instance.phoneNumber)
+                  : "WhatsApp"}
               </p>
               <p className="mt-0.5 flex items-center gap-1.5 text-xs">
                 {connected ? (
@@ -61,7 +73,9 @@ export function WhatsappConnectionCard({ dailyUsage }: { dailyUsage?: { limit: n
         </div>
 
         {instance?.lastError && (
-          <p className="rounded-xl bg-danger-soft px-3 py-2 text-xs text-danger">{instance.lastError}</p>
+          <p className="rounded-xl bg-danger-soft px-3 py-2 text-xs text-danger">
+            {instance.lastError}
+          </p>
         )}
 
         <button
@@ -71,6 +85,21 @@ export function WhatsappConnectionCard({ dailyUsage }: { dailyUsage?: { limit: n
         >
           <RefreshCw className="h-4 w-4" />
           {config.cta}
+        </button>
+
+        {/* A conexão própria, enquanto as duas existem.
+            O status grande acima continua sendo o do CRM de propósito: é ele
+            que atende a clínica AGORA, e trocar o card para a conexão nova
+            mostraria "desconectado" no dia em que tudo está funcionando —
+            o jeito mais rápido de assustar a equipe à toa.
+            Quando o número migrar, este bloco vira o card e o de cima sai. */}
+        <button
+          type="button"
+          onClick={() => setPropriaAberta(true)}
+          className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border px-4 py-2 text-xs text-muted-foreground transition-colors hover:border-pink/40 hover:text-pink"
+        >
+          <Smartphone className="h-3.5 w-3.5" strokeWidth={1.75} />
+          Conexão própria (nova)
         </button>
 
         {dailyUsage && (
@@ -94,6 +123,7 @@ export function WhatsappConnectionCard({ dailyUsage }: { dailyUsage?: { limit: n
       </section>
 
       <WhatsappConnectSheet open={sheetOpen} onOpenChange={setSheetOpen} />
+      <ConectarWhatsapp open={propriaAberta} onOpenChange={setPropriaAberta} />
     </>
   );
 }
