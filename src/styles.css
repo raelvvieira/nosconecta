@@ -588,6 +588,33 @@
   }
 }
 
+/**
+ * A área de conteúdo das páginas: rola em pé, nunca de lado.
+ *
+ * ── O problema que isto resolve ─────────────────────────────────────────
+ *
+ * As páginas escorregavam para o lado no celular enquanto o menu de baixo
+ * ficava parado, e um toque de rolagem meio torto deslocava tudo.
+ *
+ * A causa é uma regra do CSS que quase ninguém tem na cabeça: quando UM dos
+ * eixos deixa de ser `visible`, o outro vira `auto` automaticamente. Como o
+ * `<main>` já era `overflow-y: auto` para rolar em pé, o eixo horizontal
+ * virou `auto` junto — e aí qualquer filho largo demais passou a arrastar a
+ * página inteira.
+ *
+ * `clip` é a saída: diferente de `hidden`, ele NÃO força o outro eixo, então
+ * a rolagem vertical continua normal e a horizontal simplesmente deixa de
+ * existir.
+ *
+ * ── E o que é largo de propósito ────────────────────────────────────────
+ *
+ * Tabela, gráfico e faixa de abas continuam rolando de lado — cada um dentro
+ * do próprio `overflow-x-auto`. O corte aqui é na página, não neles.
+ */
+@utility sem-arrasto-lateral {
+  overflow-x: clip;
+}
+
 @utility custom-scroll {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in oklab, var(--foreground) 14%, transparent) transparent;

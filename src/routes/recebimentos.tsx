@@ -230,7 +230,7 @@ function RecebimentosPage() {
     <div className="app-bg h-dvh flex overflow-hidden">
       <Sidebar />
 
-      <main className="flex-1 min-w-0 overflow-y-auto custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-nav lg:pb-8">
+      <main className="flex-1 min-w-0 overflow-y-auto sem-arrasto-lateral custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-nav lg:pb-8">
         <PageHeading
           icon={ArrowDownCircle}
           title="Recebimentos"
@@ -411,7 +411,14 @@ function RecebimentosPage() {
                 value={search.status}
                 onValueChange={(v) => setSearch({ status: v as ReceivableStatus, page: 1 })}
               >
-                <TabsList className="bg-transparent p-0 h-auto border-b w-full justify-start rounded-none gap-1">
+                {/* Rola de lado por conta própria.
+                    As seis abas somam ~675px de texto e respiro; num telefone
+                    de 360px elas transbordavam e, como o `<main>` rolava nos
+                    dois eixos, arrastavam a PÁGINA junto. Agora o que desliza
+                    é a faixa de abas, que é o que a pessoa quer deslizar.
+                    `scrollbar-none` porque barra de rolagem por cima de uma
+                    aba de 40px de altura come metade dela no desktop. */}
+                <TabsList className="scrollbar-none -mx-1 flex w-[calc(100%+0.5rem)] justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 px-1 h-auto">
                   {[
                     { v: "all", l: "Todos" },
                     { v: "received", l: "Recebidos" },
