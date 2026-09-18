@@ -605,11 +605,18 @@
   transform: translateY(-18px);
   /* O FAB afunda bastante (0,92), então a volta é a que mais se nota no app
      inteiro — é a que ganha o bounce, e é o único lugar que ganha. */
-  transition: transform var(--duration-spring-bounce) var(--ease-spring-bounce), opacity 200ms ease-out;
+  transition:
+    transform var(--duration-spring-bounce) var(--ease-spring-bounce),
+    box-shadow var(--duration-spring-bounce) var(--ease-spring-bounce),
+    opacity 200ms ease-out;
 
   &:active:not(:disabled) {
     transform: translateY(-18px) scale(0.92);
-    transition: transform 75ms ease-out, opacity 75ms ease-out;
+    /* A sombra encolhe junto com a escala: objeto pressionado chega mais perto
+       da superfície, e é a sombra que conta isso. Sem ela, o botão só ficava
+       menor — o que o olho lê como "afastou", não como "afundou". */
+    box-shadow: var(--shadow-1);
+    transition: transform 75ms ease-out, box-shadow 75ms ease-out, opacity 75ms ease-out;
   }
 }
 
@@ -733,5 +740,86 @@
     border-radius: 0;
     box-shadow: none;
     overflow: visible;
+  }
+}
+
+/* ── Movimento da ilha inferior ────────────────────────────────────────────
+ *
+ * Três peças, e cada uma responde a uma pergunta diferente:
+ * a pílula diz PARA ONDE o realce foi, o pulo do ícone diz QUEM o recebeu, e
+ * a entrada escalonada da gaveta diz que ela chegou de baixo.
+ */
+
+/* A pílula do item ativo. A transição de posição só existe quando ela de fato
+   viaja entre duas colunas da MESMA barra — ver `PilulaDaIlha.tsx`. */
+@utility pilula-da-ilha {
+  transition: opacity 200ms ease-out;
+
+  &[data-animar="sim"] {
+    /* Resposta de ~0,38s criticamente amortecida: chega e assenta, sem passar
+       do alvo. Trocar de aba não é gesto com inércia. */
+    transition:
+      transform 380ms var(--ease-spring),
+      opacity 200ms ease-out;
+  }
+
+  /* Quem pede menos movimento recebe o realce aparecendo no lugar novo, sem
+     travessia — deslocamento é exatamente o que a preferência existe para
+     tirar. */
+  @media (prefers-reduced-motion: reduce) {
+    &[data-animar="sim"] {
+      transition: opacity 120ms ease-out;
+    }
+  }
+}
+
+@keyframes ilha-pop {
+  0% {
+    transform: scale(1);
+  }
+  38% {
+    transform: scale(1.16);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@utility ilha-icone-ativo {
+  animation: ilha-pop 420ms var(--ease-spring);
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@keyframes ilha-entra {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ilha-aparece {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Os grupos da gaveta "Mais" sobem em sequência, num atraso curto — a gaveta
+   chega de baixo e o conteúdo chega junto com ela, em vez de já estar lá
+   pronto quando ela abre. */
+@utility ilha-entra {
+  animation: ilha-entra 320ms var(--ease-spring) both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-name: ilha-aparece;
   }
 }

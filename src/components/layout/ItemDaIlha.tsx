@@ -24,6 +24,10 @@ export const COLUNA_DA_ILHA: CSSProperties = {
   flex: "1 1 0",
   maxWidth: 76,
   minWidth: 0,
+  // A pílula do item ativo é posicionada dentro da <nav>; sem uma camada
+  // própria aqui, ela ficaria POR CIMA do ícone e do rótulo.
+  position: "relative",
+  zIndex: 1,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -52,19 +56,25 @@ function Conteudo({
         paddingTop: 4,
       }}
     >
+      {/* O fundo coral saiu daqui: quem o pinta agora é a `PilulaDaIlha`, um
+          círculo só que anda até a coluna ativa. Este `span` virou o ALVO que
+          ela mede — daí o `data-pilula`. */}
       <span
+        data-pilula={ativo ? "ativo" : undefined}
         style={{
           width: 30,
           height: 30,
           borderRadius: 9999,
-          background: ativo ? "var(--coral-soft)" : "transparent",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          transition: `background ${TRANSICAO}`,
         }}
       >
         <Icone
+          // O ícone dá um pulinho no instante em que a aba passa a ser a
+          // ativa: a pílula diz PARA ONDE o realce foi, o pulo diz que foi
+          // ESTE item que o recebeu.
+          className={ativo ? "ilha-icone-ativo" : undefined}
           style={{
             width: 18,
             height: 18,

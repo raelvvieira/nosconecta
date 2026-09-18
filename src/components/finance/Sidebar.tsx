@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { CabecalhoDeSecao } from "@/components/layout/CabecalhoDeSecao";
 import { ItemDeMenu } from "@/components/layout/ItemDeMenu";
 import { BotaoDaIlha, LinkDaIlha } from "@/components/layout/ItemDaIlha";
+import { PilulaDaIlha } from "@/components/layout/PilulaDaIlha";
 import {
   ACOES_DA_AGENDA,
   GRUPOS_DO_MAIS,
@@ -372,6 +373,21 @@ export function Sidebar() {
           marginBottom: "env(safe-area-inset-bottom)",
         }}
       >
+        {/* Primeiro filho da <nav> de propósito: ela é `fixed`, então serve de
+            referência para o posicionamento absoluto da pílula, e vir antes
+            dos itens a deixa por baixo deles. */}
+        <PilulaDaIlha
+          chave={pathname}
+          variante={
+            inAgenda
+              ? "agenda"
+              : inFinance
+                ? "financeiro"
+                : inAtendimentos
+                  ? "atendimentos"
+                  : "modulos"
+          }
+        />
         {(() => {
           const fabAtivo = !!fab;
           const botaoFab = (
@@ -383,7 +399,9 @@ export function Sidebar() {
               // O deslocamento saiu do style inline e virou classe: inline
               // vence classe, e sem isso o `:active` não conseguiria compor a
               // escala com o translate.
-              className="press-fab bg-gradient-primary shadow-soft"
+              // `shadow-elev` (um degrau acima) para o botão ler como flutuando sobre a
+              // barra; no toque ele desce para `shadow-1` junto com a escala.
+              className="press-fab bg-gradient-primary shadow-elev"
               style={{
                 width: 56,
                 height: 56,
@@ -496,8 +514,12 @@ export function Sidebar() {
           </DrawerHeader>
 
           <div className="mt-2 space-y-5 px-4 pb-4">
-            {GRUPOS_DO_MAIS.map((group) => (
-              <div key={group.label}>
+            {GRUPOS_DO_MAIS.map((group, i) => (
+              <div
+                key={group.label}
+                className="ilha-entra"
+                style={{ animationDelay: `${i * 45}ms` }}
+              >
                 <p className="px-1 text-3xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {group.label}
                 </p>
