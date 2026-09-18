@@ -3,7 +3,23 @@ import { z } from "zod";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, CalendarDays, Check, ChevronRight, CircleDollarSign, ClipboardList, Clock3, MessageCircle, MoreHorizontal, ReceiptText, Sparkles, Stethoscope, UserRound, WalletCards } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CalendarDays,
+  Check,
+  ChevronRight,
+  CircleDollarSign,
+  ClipboardList,
+  Clock3,
+  MessageCircle,
+  MoreHorizontal,
+  ReceiptText,
+  Sparkles,
+  Stethoscope,
+  UserRound,
+  WalletCards,
+} from "lucide-react";
 import { SeletorDeTags } from "@/components/tags/SeletorDeTags";
 import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -51,7 +67,8 @@ export const Route = createFileRoute("/pacientes/$patientId")({
   }),
   // No SSR loader: getPatientDetail requires auth not available during prerender.
   errorComponent: ({ error }) => (
-    <ResponsiveRouteState error={error}
+    <ResponsiveRouteState
+      error={error}
       title="Não foi possível carregar este paciente"
       description="Houve uma falha ao buscar os dados do paciente. Tente novamente em instantes."
     />
@@ -107,19 +124,19 @@ function PatientDetailPage() {
             to="/pacientes"
             search={{ status: "all" }}
             aria-label="Voltar para pacientes"
-            className="grid h-12 w-12 place-items-center rounded-2xl border border-border bg-white text-foreground shadow-soft transition-colors hover:bg-muted"
+            className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-border bg-white text-foreground shadow-soft transition-colors hover:bg-muted"
           >
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="flex items-center gap-2.5 text-2xl font-semibold md:text-3xl">
+          <h1 className="flex min-w-0 items-center gap-2.5 text-2xl font-semibold md:text-3xl">
             <UserRound className="h-[1.1em] w-[1.1em] shrink-0 text-pink" strokeWidth={1.75} />
-            Paciente
+            <span className="truncate">Paciente</span>
           </h1>
           <button
             type="button"
             aria-label="Editar paciente"
             onClick={() => setEditOpen(true)}
-            className="grid h-12 w-12 place-items-center rounded-2xl border border-border bg-white text-muted-foreground shadow-soft hover:text-foreground"
+            className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-border bg-white text-muted-foreground shadow-soft hover:text-foreground"
           >
             <MoreHorizontal className="h-5 w-5" />
           </button>
@@ -242,7 +259,11 @@ function PatientDetailPage() {
           aria-label="Seções do paciente"
         >
           <TabButton label="Resumo" active={aba === "resumo"} onClick={() => irParaAba("resumo")} />
-          <TabButton label="Clínico" active={aba === "clinico"} onClick={() => irParaAba("clinico")} />
+          <TabButton
+            label="Clínico"
+            active={aba === "clinico"}
+            onClick={() => irParaAba("clinico")}
+          />
           <TabButton
             label="Financeiro"
             active={aba === "financeiro"}
@@ -379,7 +400,8 @@ function PersonalInfoCard({ patient }: { patient: PatientDetail }) {
     .join(" · ");
   const hasAddress = !!(addressLine || cityLine || patient.zipCode);
   const hasGuardian = !!(patient.guardianName || patient.guardianCpf);
-  const genderLabel = patient.gender === "F" ? "Feminino" : patient.gender === "M" ? "Masculino" : null;
+  const genderLabel =
+    patient.gender === "F" ? "Feminino" : patient.gender === "M" ? "Masculino" : null;
 
   // CPF, e-mail, data de nascimento, profissional responsável e observações
   // vinham do servidor a cada abertura e não eram desenhados em lugar nenhum.
@@ -425,7 +447,9 @@ function PersonalInfoCard({ patient }: { patient: PatientDetail }) {
           {hasGuardian && (
             <div className="mt-4 border-t border-border pt-3">
               <p className="text-xs text-muted-foreground">Responsável</p>
-              {patient.guardianName && <p className="mt-1 text-sm font-medium">{patient.guardianName}</p>}
+              {patient.guardianName && (
+                <p className="mt-1 text-sm font-medium">{patient.guardianName}</p>
+              )}
               {patient.guardianCpf && (
                 <p className="text-sm text-muted-foreground">CPF {patient.guardianCpf}</p>
               )}
@@ -585,15 +609,16 @@ function Finance({ patient, onReceive }: { patient: PatientDetail; onReceive: ()
   // três movimentações.
   const vale = patient.finances.length > 6;
 
-  const movimentacoes = !vale || periodo === "todos"
-    ? patient.finances
-    : patient.finances.filter((item) => {
-        const corte =
-          periodo === "ano"
-            ? `${new Date().getFullYear()}-01-01`
-            : localDateStr(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000));
-        return item.dueDate >= corte;
-      });
+  const movimentacoes =
+    !vale || periodo === "todos"
+      ? patient.finances
+      : patient.finances.filter((item) => {
+          const corte =
+            periodo === "ano"
+              ? `${new Date().getFullYear()}-01-01`
+              : localDateStr(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000));
+          return item.dueDate >= corte;
+        });
 
   return (
     <div className="mt-5 grid gap-5 lg:grid-cols-3">
@@ -601,8 +626,8 @@ function Finance({ patient, onReceive }: { patient: PatientDetail; onReceive: ()
       <Metric label="A receber" value={formatBRL(patient.pendingAmount)} tone="warning" />
       <Metric label="Em atraso" value={formatBRL(patient.overdueAmount)} tone="danger" />
       <section className="surface-card overflow-hidden lg:col-span-3">
-        <div className="flex items-center justify-between px-5 py-5 sm:px-7">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-5 sm:px-7">
+          <div className="min-w-0">
             <h2 className="text-xl font-semibold">Movimentações</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Recebimentos vinculados a este paciente.
@@ -610,7 +635,11 @@ function Finance({ patient, onReceive }: { patient: PatientDetail; onReceive: ()
           </div>
           <div className="flex items-center gap-3">
             {vale && (
-              <div className="flex rounded-xl border border-border p-0.5" role="group" aria-label="Período">
+              <div
+                className="flex rounded-xl border border-border p-0.5"
+                role="group"
+                aria-label="Período"
+              >
                 {PERIODOS.map((p) => (
                   <button
                     key={p.id}

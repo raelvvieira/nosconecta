@@ -2,16 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Megaphone,
-  Plus,
-  Send,
-} from "lucide-react";
+import { Megaphone, Plus, Send } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PageHeading } from "@/components/layout/PageHeading";
 import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBadge";
 import {
   AlertDialog,
@@ -31,18 +28,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NewCampaignSheet } from "@/components/atendimentos/campaigns/NewCampaignSheet";
 import { cn } from "@/lib/utils";
-import {
-  getDailySendUsage,
-  setDailySendLimit,
-} from "@/lib/atendimentos/campaigns.functions";
+import { getDailySendUsage, setDailySendLimit } from "@/lib/atendimentos/campaigns.functions";
 import { cancelarDisparo, listarDisparos } from "@/lib/atendimentos/broadcast.functions";
 import { CartaoDeDisparo } from "@/components/atendimentos/campaigns/CartaoDeDisparo";
 import { CartaoEmPreparacao } from "@/components/atendimentos/campaigns/CartaoEmPreparacao";
 import { DetalhesDoDisparo } from "@/components/atendimentos/campaigns/DetalhesDoDisparo";
-import {
-  descartarPreparacao,
-  useDisparosEmPreparacao,
-} from "@/lib/atendimentos/enfileiramento";
+import { descartarPreparacao, useDisparosEmPreparacao } from "@/lib/atendimentos/enfileiramento";
 import { algumEmAndamento } from "@/lib/atendimentos/statusDoDisparo";
 
 const searchSchema = z.object({});
@@ -57,19 +48,18 @@ export const Route = createFileRoute("/atendimentos/campanhas")({
     ],
   }),
   errorComponent: ({ error }) => (
-    <ResponsiveRouteState error={error}
+    <ResponsiveRouteState
+      error={error}
       title="Não foi possível carregar as campanhas"
       description="Houve uma falha ao buscar as campanhas. Tente novamente em instantes."
       semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
-  semSidebar
-/>,
+  notFoundComponent: () => (
+    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
+  ),
   component: CampanhasPage,
 });
-
-
 
 function CampanhasPage() {
   const queryClient = useQueryClient();
@@ -78,7 +68,11 @@ function CampanhasPage() {
   const fetchDisparos = useServerFn(listarDisparos);
   const doCancelarDisparo = useServerFn(cancelarDisparo);
 
-  const usageQuery = useQuery({ queryKey: ["campaigns-usage"], queryFn: () => fetchUsage(), staleTime: 15_000 });
+  const usageQuery = useQuery({
+    queryKey: ["campaigns-usage"],
+    queryFn: () => fetchUsage(),
+    staleTime: 15_000,
+  });
   // Os disparos segmentados (via "Selecionar contatos") não são campanha do
   // Wavy — vivem nas nossas próprias tabelas, lidos direto por RLS.
   // Consulta de novo a cada 5s ENQUANTO houver disparo andando, e só então: um
@@ -150,35 +144,41 @@ function CampanhasPage() {
   });
 
   const usage = usageQuery.data ?? { limit: 200, usedToday: 0 };
-  const usagePct = usage.limit > 0 ? Math.min(100, Math.round((usage.usedToday / usage.limit) * 100)) : 0;
+  const usagePct =
+    usage.limit > 0 ? Math.min(100, Math.round((usage.usedToday / usage.limit) * 100)) : 0;
 
   return (
     <>
       <main className="w-full px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
-        <header className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="flex items-center gap-2.5 text-2xl font-semibold md:text-3xl">
-            <Megaphone className="h-[1.1em] w-[1.1em] shrink-0 text-pink" strokeWidth={1.75} />
-            Campanhas
-          </h1>
-          <div className="flex items-center gap-2.5">
-            <WhatsappStatusBadge />
-            <Button variant="premium" className="gap-2" onClick={() => setFormOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Nova campanha
-            </Button>
-          </div>
-        </header>
+        {/* Mesma história do Pipeline: título e ações na mesma linha desde 0px
+            cortavam o "Nova campanha" na borda da tela. */}
+        <PageHeading
+          icon={Megaphone}
+          title="Campanhas"
+          actions={
+            <>
+              <WhatsappStatusBadge />
+              <Button variant="premium" className="gap-2" onClick={() => setFormOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Nova campanha
+              </Button>
+            </>
+          }
+        />
 
         <section className="surface-card mt-5 p-4 sm:p-5">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-medium">Limite diário de disparo</span>
-            <span className="text-muted-foreground">
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0 truncate font-medium">Limite diário de disparo</span>
+            <span className="shrink-0 text-muted-foreground">
               {usage.usedToday}/{usage.limit} contatos hoje
             </span>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
             <div
-              className={cn("h-full rounded-full", usagePct >= 100 ? "bg-danger" : "bg-gradient-primary")}
+              className={cn(
+                "h-full rounded-full",
+                usagePct >= 100 ? "bg-danger" : "bg-gradient-primary",
+              )}
               style={{ width: `${usagePct}%` }}
             />
           </div>
@@ -215,8 +215,8 @@ function CampanhasPage() {
           {disparos.length === 0 && preparacoes.length === 0 && (
             <div className="grid min-h-32 place-items-center px-6 py-6 text-center">
               <p className="text-sm text-muted-foreground">
-                Nenhum disparo para uma seleção de contatos ainda. Em "Nova campanha",
-                escolha "Selecionar contatos" para filtrar por nome, número ou DDD.
+                Nenhum disparo para uma seleção de contatos ainda. Em "Nova campanha", escolha
+                "Selecionar contatos" para filtrar por nome, número ou DDD.
               </p>
             </div>
           )}
@@ -239,18 +239,22 @@ function CampanhasPage() {
         onOpenChange={(o) => !o && setDetalhesId(null)}
       />
 
-
-      <AlertDialog open={Boolean(cancelarDisparoId)} onOpenChange={(o) => !o && setCancelarDisparoId(null)}>
+      <AlertDialog
+        open={Boolean(cancelarDisparoId)}
+        onOpenChange={(o) => !o && setCancelarDisparoId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancelar este disparo?</AlertDialogTitle>
             <AlertDialogDescription>
-              O que já foi enviado não volta. Os contatos ainda pendentes na fila
-              deixam de receber a mensagem.
+              O que já foi enviado não volta. Os contatos ainda pendentes na fila deixam de receber
+              a mensagem.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={cancelarDisparoMutation.isPending}>Voltar</AlertDialogCancel>
+            <AlertDialogCancel disabled={cancelarDisparoMutation.isPending}>
+              Voltar
+            </AlertDialogCancel>
             <AlertDialogAction
               className="bg-danger text-white hover:bg-danger/90"
               disabled={cancelarDisparoMutation.isPending}
@@ -261,7 +265,6 @@ function CampanhasPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
     </>
   );
 }

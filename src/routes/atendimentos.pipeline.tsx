@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, useNavigate} from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Settings2, Trash2, Workflow, Send} from "lucide-react";
+import { Plus, Search, Settings2, Trash2, Workflow, Send } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { PageHeading } from "@/components/layout/PageHeading";
 import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBadge";
 import { DealDetailSheet } from "@/components/atendimentos/pipeline/DealDetailSheet";
 import { PipelineCard, type CardExtras } from "@/components/atendimentos/pipeline/PipelineCard";
@@ -50,15 +51,16 @@ export const Route = createFileRoute("/atendimentos/pipeline")({
     ],
   }),
   errorComponent: ({ error }) => (
-    <ResponsiveRouteState error={error}
+    <ResponsiveRouteState
+      error={error}
       title="Não foi possível carregar o pipeline"
       description="Houve uma falha ao buscar as etapas. Tente novamente em instantes."
       semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
-  semSidebar
-/>,
+  notFoundComponent: () => (
+    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
+  ),
   component: PipelinePage,
 });
 
@@ -136,7 +138,8 @@ function PipelinePage() {
   });
   const stuckByConversation = useMemo(() => {
     const map = new Map<string, number>();
-    for (const row of assistantQuery.data?.travadas ?? []) map.set(row.conversaId, row.paradaHaDias);
+    for (const row of assistantQuery.data?.travadas ?? [])
+      map.set(row.conversaId, row.paradaHaDias);
     return map;
   }, [assistantQuery.data]);
 
@@ -218,8 +221,8 @@ function PipelinePage() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["pipeline-items"] }),
   });
 
-  const { drag, overStageId, registerColumn, ghostRef, handlers } = useCardDrag((itemId, toStageId) =>
-    moveMutation.mutate({ itemId, newStageId: toStageId }),
+  const { drag, overStageId, registerColumn, ghostRef, handlers } = useCardDrag(
+    (itemId, toStageId) => moveMutation.mutate({ itemId, newStageId: toStageId }),
   );
 
   const [configOpen, setConfigOpen] = useState(false);
@@ -247,9 +250,9 @@ function PipelinePage() {
   const openItem = items.find((i) => i.id === openItemId) ?? null;
   const openStage = openItem ? (stages.find((s) => s.id === openItem.stageId) ?? null) : null;
   const openConversation = openItem
-    ? (openItem.type === "conversation"
-        ? conversations.find((c) => c.id === openItem.itemId)
-        : conversations.find((c) => c.contactId === openItem.itemId))
+    ? openItem.type === "conversation"
+      ? conversations.find((c) => c.id === openItem.itemId)
+      : conversations.find((c) => c.contactId === openItem.itemId)
     : undefined;
 
   if (stagesQuery.isLoading) {
@@ -262,7 +265,9 @@ function PipelinePage() {
   if (stagesQuery.isError) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center lg:h-full">
-        <p className="text-sm text-muted-foreground">Não foi possível carregar as etapas do pipeline.</p>
+        <p className="text-sm text-muted-foreground">
+          Não foi possível carregar as etapas do pipeline.
+        </p>
         <Button variant="outline" onClick={() => stagesQuery.refetch()}>
           Tentar de novo
         </Button>
@@ -273,21 +278,26 @@ function PipelinePage() {
   return (
     <>
       <main className="flex flex-1 flex-col pb-nav lg:h-full lg:overflow-hidden lg:pb-0">
-        <header className="flex w-full flex-wrap items-center justify-between gap-3 px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7">
-          <h1 className="flex items-center gap-2.5 text-2xl font-semibold md:text-3xl">
-            <Workflow className="h-[1.1em] w-[1.1em] shrink-0 text-pink" strokeWidth={1.75} />
-            Pipeline
-          </h1>
-          <div className="flex items-center gap-2.5">
-            <WhatsappStatusBadge />
-            {configured && (
-              <Button variant="outline" className="gap-2" onClick={() => setConfigOpen(true)}>
-                <Settings2 className="h-4 w-4" />
-                Configurar etapas
-              </Button>
-            )}
-          </div>
-        </header>
+        {/* Este cabeçalho era escrito à mão, com título e ações na MESMA linha
+            desde 0px. Em 360px o selo do WhatsApp mais o botão não cabiam, e o
+            botão saía cortado na borda. O `PageHeading` é `flex-col` até `xl`:
+            no celular as ações descem para uma linha própria. */}
+        <PageHeading
+          icon={Workflow}
+          title="Pipeline"
+          className="px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7"
+          actions={
+            <>
+              <WhatsappStatusBadge />
+              {configured && (
+                <Button variant="outline" className="gap-2" onClick={() => setConfigOpen(true)}>
+                  <Settings2 className="h-4 w-4" />
+                  Configurar etapas
+                </Button>
+              )}
+            </>
+          }
+        />
 
         {configured && stages.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6 lg:px-10">
@@ -305,7 +315,9 @@ function PipelinePage() {
                 <button
                   key={f.value}
                   type="button"
-                  onClick={() => navigate({ to: "/atendimentos/pipeline", search: { funil: f.value } })}
+                  onClick={() =>
+                    navigate({ to: "/atendimentos/pipeline", search: { funil: f.value } })
+                  }
                   className={cn(
                     "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
                     funil === f.value
@@ -364,7 +376,9 @@ function PipelinePage() {
           <div className="flex-1 overflow-x-auto px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
             <div className="flex h-full min-w-max gap-4">
               {stages.length === 0 && (
-                <p className="mt-4 text-sm text-muted-foreground">Nenhuma etapa cadastrada — clique em "Configurar etapas".</p>
+                <p className="mt-4 text-sm text-muted-foreground">
+                  Nenhuma etapa cadastrada — clique em "Configurar etapas".
+                </p>
               )}
               {stages.map((stage) => {
                 const stageItems = visibleItems.filter((i) => i.stageId === stage.id);
@@ -483,7 +497,9 @@ function PipelinePage() {
         stages={stages}
         deal={openItem ? (dealByItem.get(openItem.id) ?? null) : null}
         conversationId={openConversation?.id ?? null}
-        contactId={openConversation?.contactId ?? (openItem?.type === "contact" ? openItem.itemId : null)}
+        contactId={
+          openConversation?.contactId ?? (openItem?.type === "contact" ? openItem.itemId : null)
+        }
         phone={openConversation?.phone ?? null}
         onOpenChange={(open) => !open && setOpenItemId(null)}
         onMove={(toStageId, notes) =>
@@ -517,7 +533,12 @@ function StagesSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   stages: PipelineStage[];
-  onSaveStage: (stage: { id?: string; name: string; position?: number; color?: string }) => Promise<unknown>;
+  onSaveStage: (stage: {
+    id?: string;
+    name: string;
+    position?: number;
+    color?: string;
+  }) => Promise<unknown>;
   onDeleteStage: (id: string) => Promise<unknown>;
   onReorder: (orderedIds: string[]) => Promise<unknown>;
   onChanged: () => void;
@@ -530,7 +551,8 @@ function StagesSheet({
   }, [open, stages]);
 
   const saveMutation = useMutation({
-    mutationFn: (vars: { id?: string; name: string; position?: number; color?: string }) => onSaveStage(vars),
+    mutationFn: (vars: { id?: string; name: string; position?: number; color?: string }) =>
+      onSaveStage(vars),
     onSuccess: onChanged,
     onError: (error: Error) => toast.error(error.message),
   });
@@ -562,8 +584,14 @@ function StagesSheet({
 
         <div className="mt-4 space-y-2">
           {stages.map((stage, index) => (
-            <div key={stage.id} className="flex items-center gap-2 rounded-2xl border border-border p-2">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: stage.color ?? "var(--foreground-subtle)" }} />
+            <div
+              key={stage.id}
+              className="flex items-center gap-2 rounded-2xl border border-border p-2"
+            >
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: stage.color ?? "var(--foreground-subtle)" }}
+              />
               <Input
                 value={editing[stage.id] ?? stage.name}
                 onChange={(e) => setEditing((prev) => ({ ...prev, [stage.id]: e.target.value }))}
@@ -574,7 +602,13 @@ function StagesSheet({
                 className="h-9 flex-1 rounded-xl"
               />
               <div className="flex shrink-0 items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-8 w-8" disabled={index === 0} onClick={() => move(index, -1)}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={index === 0}
+                  onClick={() => move(index, -1)}
+                >
                   ↑
                 </Button>
                 <Button

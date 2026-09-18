@@ -218,6 +218,13 @@
   /* Divisor mais firme que --border, para separar blocos e não só linhas. */
   --divider: #E4E4E8;
 
+  /* Barra de rolagem. Uma medida e uma cor para o app inteiro — a regra de
+     base e a utility `custom-scroll` leem daqui, então não há dois desenhos
+     de barra discordando. */
+  --scrollbar-size: 6px;
+  --scrollbar-thumb: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--foreground) 22%, transparent);
+
   /* Estados do botão escuro. */
   --foreground-hover: #26262B;
   --foreground-active: #33333A;
@@ -315,6 +322,47 @@
     /* O flash cinza do sistema aparecia por cima do nosso próprio feedback de
        press, com atraso e recorte quadrado. Nós desenhamos o retorno. */
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ── Barra de rolagem, em todo lugar ────────────────────────────────────
+   *
+   * Isto precisa ser regra de BASE, não utility. A rolagem do documento não
+   * tem className para receber `custom-scroll`, então toda tela que rola pelo
+   * body mostrava a barra do sistema: trilho cinza grosso e as setinhas ▲▼
+   * nas pontas. E havia mais de trinta contêineres com `overflow-*-auto` sem
+   * utility nenhuma — entre eles a rolagem do módulo de Atendimentos e o
+   * quadro do Pipeline. Perseguir um por um é perder a corrida; o padrão do
+   * app passa a ser a barra fina, e quem quiser outra coisa que declare.
+   *
+   * `::-webkit-scrollbar-button` é o que apaga as setinhas: dar largura ao
+   * `::-webkit-scrollbar` sozinho não as remove. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 999px;
+    transition: background 0.2s ease;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+  ::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
   }
 
   /* Tira o atraso de ~300ms que o navegador guarda esperando um duplo toque
@@ -622,27 +670,28 @@
   overflow-x: clip;
 }
 
+/* Redundante desde que a barra fina virou o padrão do app (ver `@layer base`).
+   Continua definida — e lendo as MESMAS variáveis — só para os ~20 arquivos
+   que a escrevem não precisarem ser mexidos. Quem chegar agora não precisa
+   dela. */
 @utility custom-scroll {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--foreground) 14%, transparent) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 
   &::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
   }
   &::-webkit-scrollbar-track {
     background: transparent;
   }
   &::-webkit-scrollbar-thumb {
-    background: color-mix(in oklab, var(--foreground) 12%, transparent);
+    background: var(--scrollbar-thumb);
     border-radius: 999px;
-    border: 2px solid transparent;
-    background-clip: padding-box;
     transition: background 0.2s ease;
   }
   &::-webkit-scrollbar-thumb:hover {
-    background: color-mix(in oklab, var(--foreground) 24%, transparent);
-    background-clip: padding-box;
+    background: var(--scrollbar-thumb-hover);
   }
 }
 

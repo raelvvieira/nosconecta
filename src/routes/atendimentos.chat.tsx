@@ -484,7 +484,7 @@ function ChatPage() {
             Conversas
           </h1>
           <div className="mt-0.5">
-            <WhatsappStatusBadge variant="minimal" />
+            <WhatsappStatusBadge />
           </div>
           <div className="relative mt-4">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -853,7 +853,10 @@ function ChatPage() {
               </div>
             )}
 
-            <div ref={scrollRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-clip px-4 py-5 sm:px-6 lg:px-8">
+            <div
+              ref={scrollRef}
+              className="flex-1 min-w-0 overflow-y-auto overflow-x-clip px-4 py-5 sm:px-6 lg:px-8"
+            >
               {/* Sem `mx-auto`: centralizada, a coluna flutuava no meio da
                   tela e as mensagens recebidas ficavam longe do nome do
                   contato. Encostada à esquerda, a conversa acompanha o

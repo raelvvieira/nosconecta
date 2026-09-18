@@ -1,26 +1,37 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2 } from "lucide-react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getWhatsappInstance } from "@/lib/atendimentos/atendimentos.functions";
-import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { WhatsappConnectSheet } from "./WhatsappConnectSheet";
 
-// Sempre clicável: mesmo conectado, abrir o painel é como se vê o número
-// pareado e se desconecta pra trocar de número.
-const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {
-  open: { dot: "bg-success", label: "Conectado" },
-  connecting: { dot: "bg-warning", label: "Conectando…" },
-  disconnected: { dot: "bg-muted-foreground/50", label: "WhatsApp desconectado" },
-  error: { dot: "bg-danger", label: "Erro na conexão" },
+// Era uma cápsula verde com borda, ícone e o número inteiro —
+// "Conectado · +55 (48) 98419-5309". No celular ela dividia a linha do
+// cabeçalho com o botão da tela e os dois não cabiam: o botão saía cortado na
+// borda direita.
+//
+// Agora é o mínimo que responde à única pergunta que a tela faz: dá para
+// mandar mensagem agora? Um ponto e uma palavra. O número continua no painel
+// que abre ao tocar, que é onde ele serve para alguma coisa — trocar de
+// aparelho, reconectar, ver qual chip está pareado.
+//
+// Sempre clicável: mesmo conectado, tocar é como se vê o número pareado e se
+// desconecta para trocar de número.
+
+type Forma = { cor: string; texto: string; xis: boolean };
+
+const ESTADOS: Record<string, Forma> = {
+  open: { cor: "bg-success", texto: "Conectado", xis: false },
+  // "Conectando…" não estava na descrição de duas cores, mas existe de
+  // verdade: são os segundos entre ler o QR e o WhatsApp pareado. Dizer
+  // "Desconectado" ali seria mentir bem na hora em que a pessoa está olhando.
+  connecting: { cor: "bg-warning", texto: "Conectando…", xis: false },
+  disconnected: { cor: "bg-danger", texto: "Desconectado", xis: true },
+  error: { cor: "bg-danger", texto: "Desconectado", xis: true },
 };
 
-// "pill" nos cabeçalhos largos (Dashboard, Pipeline, Campanhas).
-// "minimal" onde o espaço é apertado, como a coluna de conversas: só um
-// ponto e o número em texto pequeno, sem caixa nem cor de fundo — o pill
-// verde com o número inteiro competia com o título da página.
-export function WhatsappStatusBadge({ variant = "pill" }: { variant?: "pill" | "minimal" }) {
+export function WhatsappStatusBadge({ className }: { className?: string }) {
   const fetchInstance = useServerFn(getWhatsappInstance);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -31,45 +42,32 @@ export function WhatsappStatusBadge({ variant = "pill" }: { variant?: "pill" | "
     refetchInterval: (query) => (query.state.data?.status === "connecting" ? 4_000 : 20_000),
   });
   const instance = instanceQuery.data ?? null;
-  const config = STATUS_CONFIG[instance?.status ?? "disconnected"];
-  const connected = instance?.status === "open";
-  const formattedPhone = formatWhatsappNumber(instance?.phoneNumber);
-
-  if (variant === "minimal") {
-    return (
-      <>
-        <button
-          type="button"
-          onClick={() => setSheetOpen(true)}
-          title={connected ? "WhatsApp conectado — clique para gerenciar" : config.label}
-          className="flex max-w-full items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", connected ? "bg-success" : config.dot)} />
-          <span className="truncate">{connected ? formattedPhone || "Conectado" : config.label}</span>
-        </button>
-        <WhatsappConnectSheet open={sheetOpen} onOpenChange={setSheetOpen} />
-      </>
-    );
-  }
+  const estado = ESTADOS[instance?.status ?? "disconnected"];
 
   return (
     <>
       <button
         type="button"
         onClick={() => setSheetOpen(true)}
+        title={
+          estado.xis
+            ? "WhatsApp desconectado — toque para conectar"
+            : "WhatsApp conectado — toque para gerenciar"
+        }
         className={cn(
-          "flex shrink-0 cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-          connected
-            ? "border-success/30 bg-success-soft text-success hover:bg-success-soft/70"
-            : "border-border bg-white text-foreground hover:bg-muted",
+          "inline-flex max-w-full shrink-0 items-center gap-1.5 text-xs font-medium transition-colors",
+          estado.xis
+            ? "text-danger hover:text-danger/80"
+            : "text-muted-foreground hover:text-foreground",
+          className,
         )}
       >
-        {connected ? (
-          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+        {estado.xis ? (
+          <X className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />
         ) : (
-          <span className={cn("h-2 w-2 shrink-0 rounded-full", config.dot)} />
+          <span className={cn("h-2 w-2 shrink-0 rounded-full", estado.cor)} />
         )}
-        {connected ? (formattedPhone ? `Conectado · ${formattedPhone}` : "Conectado") : config.label}
+        <span className="truncate">{estado.texto}</span>
       </button>
       <WhatsappConnectSheet open={sheetOpen} onOpenChange={setSheetOpen} />
     </>

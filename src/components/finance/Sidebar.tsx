@@ -1,11 +1,4 @@
-import {
-  Home,
-  LogOut,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Plus,
-  MoreHorizontal,
-} from "lucide-react";
+import { Home, LogOut, PanelLeftClose, PanelLeftOpen, Plus, MoreHorizontal } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -41,6 +34,13 @@ const isPatientsPath = (pathname: string) =>
 const isSettingsPath = (pathname: string) => pathname.startsWith("/configuracoes");
 const isAtendimentosPath = (pathname: string) =>
   pathname === "/atendimentos" || pathname.startsWith("/atendimentos/");
+/** Quantos destinos a ilha do celular mostra antes do botão "Mais".
+ *
+ *  É um TETO, não uma contagem: as listas de destino podem crescer à vontade
+ *  que a barra continua com cinco colunas. Foi por falta desse teto que ela
+ *  chegou a seis, com os rótulos colados. */
+const MAX_DESTINOS_DA_ILHA = 4;
+
 const STORAGE_KEY = "sidebar-collapsed";
 
 export function Sidebar() {
@@ -162,7 +162,6 @@ export function Sidebar() {
       </Tooltip>
     );
   };
-
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -313,9 +312,7 @@ export function Sidebar() {
                     {userInitial}
                   </span>
                   <span className="flex flex-col text-left leading-tight min-w-0">
-                    <span className="text-sm font-medium text-foreground truncate">
-                      {userName}
-                    </span>
+                    <span className="text-sm font-medium text-foreground truncate">{userName}</span>
                     <span className="text-2xs text-muted-foreground truncate">{papel}</span>
                   </span>
                 </>
@@ -324,7 +321,9 @@ export function Sidebar() {
             `${userName} · ${papel}`,
           )}
 
-          {isAdmin && units.length > 1 && maybeTooltip(<UnitSwitcher collapsed={collapsed} />, "Unidade")}
+          {isAdmin &&
+            units.length > 1 &&
+            maybeTooltip(<UnitSwitcher collapsed={collapsed} />, "Unidade")}
 
           {maybeTooltip(
             <button
@@ -368,7 +367,8 @@ export function Sidebar() {
           border: "1px solid var(--border)",
           paddingLeft: 6,
           paddingRight: 6,
-          gap: 2,
+          // 2px não era separação nenhuma entre um rótulo e o seguinte.
+          gap: 6,
           marginBottom: "env(safe-area-inset-bottom)",
         }}
       >
@@ -413,9 +413,17 @@ export function Sidebar() {
             const [esquerda, direita] = [ACOES_DA_AGENDA[0], ACOES_DA_AGENDA[1]];
             return (
               <>
-                <BotaoDaIlha label={esquerda.label} icon={esquerda.icon} onClick={handlers[esquerda.id]} />
+                <BotaoDaIlha
+                  label={esquerda.label}
+                  icon={esquerda.icon}
+                  onClick={handlers[esquerda.id]}
+                />
                 {botaoFab}
-                <BotaoDaIlha label={direita.label} icon={direita.icon} onClick={handlers[direita.id]} />
+                <BotaoDaIlha
+                  label={direita.label}
+                  icon={direita.icon}
+                  onClick={handlers[direita.id]}
+                />
               </>
             );
           }
@@ -427,19 +435,39 @@ export function Sidebar() {
             return (
               <>
                 {itens.slice(0, 2).map((d) => (
-                  <LinkDaIlha key={d.to} to={d.to} label={d.label} icon={d.icon} ativo={itemAtivo(d)} />
+                  <LinkDaIlha
+                    key={d.to}
+                    to={d.to}
+                    label={d.label}
+                    icon={d.icon}
+                    ativo={itemAtivo(d)}
+                  />
                 ))}
                 {botaoFab}
                 {itens.slice(2).map((d) => (
-                  <LinkDaIlha key={d.to} to={d.to} label={d.label} icon={d.icon} ativo={itemAtivo(d)} />
+                  <LinkDaIlha
+                    key={d.to}
+                    to={d.to}
+                    label={d.label}
+                    icon={d.icon}
+                    ativo={itemAtivo(d)}
+                  />
                 ))}
               </>
             );
           }
 
-          const itens = inAtendimentos
-            ? ITENS_ATENDIMENTOS
-            : MODULOS.filter((m) => m.to !== "/configuracoes" && m.to !== "/atendimentos");
+          // Quatro destinos + "Mais" = cinco colunas, o teto do iPhone.
+          //
+          // Eram seis: em 360px cada coluna ficava com 51px e o único respiro
+          // entre "Campanhas" e "Automação" era o gap de 2px da barra — os
+          // rótulos encostavam um no outro. Quem sai continua na gaveta
+          // "Mais", que já lista as duas listas inteiras (GRUPOS_DO_MAIS).
+          const itens = (
+            inAtendimentos
+              ? ITENS_ATENDIMENTOS
+              : MODULOS.filter((m) => m.to !== "/configuracoes" && m.to !== "/atendimentos")
+          ).slice(0, MAX_DESTINOS_DA_ILHA);
           return (
             <>
               {itens.map((d) => (
@@ -486,7 +514,9 @@ export function Sidebar() {
                         onClick={() => setMoreOpen(false)}
                         className={cn(
                           "flex h-12 w-full items-center gap-3 rounded-2xl px-3 transition-colors",
-                          active ? "bg-foreground text-white" : "text-foreground hover:bg-surface-subtle",
+                          active
+                            ? "bg-foreground text-white"
+                            : "text-foreground hover:bg-surface-subtle",
                         )}
                       >
                         <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
@@ -510,7 +540,8 @@ export function Sidebar() {
         to="/inicio"
         className={cn(
           "lg:hidden fixed z-40 flex items-center justify-center",
-          (pathname === "/inicio" || inAtendimentos || (inPatients && pathname !== "/pacientes")) && "hidden",
+          (pathname === "/inicio" || inAtendimentos || (inPatients && pathname !== "/pacientes")) &&
+            "hidden",
         )}
         style={{
           // Em standalone com notch, um top fixo colide com a status bar.

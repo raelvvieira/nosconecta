@@ -55,7 +55,13 @@ export function PageHeading({
         </h1>
         {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      {/* `shrink-0` sem `min-w-0` deixava uma ação larga demais estourar a
+          linha mesmo com o `flex-wrap` — o item não quebra por dentro, então
+          ou cabe ou vaza. No celular a caixa pode encolher; a partir de `xl`,
+          quando ela divide a linha com o título, volta a não encolher. */}
+      {actions && (
+        <div className="flex min-w-0 flex-wrap items-center gap-2 xl:shrink-0">{actions}</div>
+      )}
     </header>
   );
 }

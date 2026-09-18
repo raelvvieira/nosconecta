@@ -4,10 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, Sparkles, MoreHorizontal, Plus, Users, UserX } from "lucide-react";
 import { getRegrasDosFunis } from "@/lib/atendimentos/funis.functions";
-import {
-  REGRAS_CLIENTES_PADRAO,
-  REGRAS_PERDIDOS_PADRAO,
-} from "@/lib/atendimentos/funnelRules";
+import { REGRAS_CLIENTES_PADRAO, REGRAS_PERDIDOS_PADRAO } from "@/lib/atendimentos/funnelRules";
 import {
   MODELOS,
   type ModeloDeAutomacao,
@@ -43,7 +40,10 @@ import {
   type AutomationActionType,
   type AutomationRule,
 } from "@/lib/atendimentos/automations.functions";
-import { ACTION_LABEL, TRIGGER_LABEL_SHORT } from "@/components/atendimentos/automations/automationLabels";
+import {
+  ACTION_LABEL,
+  TRIGGER_LABEL_SHORT,
+} from "@/components/atendimentos/automations/automationLabels";
 
 const searchSchema = z.object({});
 
@@ -67,9 +67,9 @@ export const Route = createFileRoute("/atendimentos/automacoes/")({
       semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
-  semSidebar
-/>,
+  notFoundComponent: () => (
+    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
+  ),
   component: AutomacoesPage,
 });
 
@@ -216,7 +216,7 @@ function AutomacoesPage() {
     <>
       <main className="w-full px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
         <header className="flex flex-wrap items-end justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <h1 className="flex items-center gap-2.5 text-2xl font-semibold md:text-3xl">
               <Bot className="h-[1.1em] w-[1.1em] shrink-0 text-pink" strokeWidth={1.75} />
               Automação
@@ -313,14 +313,13 @@ function AutomacoesPage() {
 
         <section className="surface-card mt-6 divide-y divide-border overflow-hidden">
           {lista.map((regra) => (
-            <div
-              key={regra.id}
-              className="flex min-h-[92px] items-center gap-3 px-4 py-4 sm:px-5"
-            >
+            <div key={regra.id} className="flex min-h-[92px] items-center gap-3 px-4 py-4 sm:px-5">
               <span
                 className={cn(
                   "grid h-11 w-11 shrink-0 place-items-center rounded-2xl",
-                  regra.active ? "bg-gradient-primary text-white" : "bg-muted text-muted-foreground",
+                  regra.active
+                    ? "bg-gradient-primary text-white"
+                    : "bg-muted text-muted-foreground",
                 )}
               >
                 <Bot className="h-5 w-5" />
@@ -409,8 +408,9 @@ function AutomacoesPage() {
                 {/* Sem botão aqui: "Nova automação", no cabeçalho, faz a mesma
                     coisa — dois caminhos para a mesma ação só dividem a atenção. */}
                 <p className="mt-4 text-xs text-muted-foreground">
-                  Comece pelo botão <span className="font-medium text-foreground">Nova automação</span>,
-                  no topo da página.
+                  Comece pelo botão{" "}
+                  <span className="font-medium text-foreground">Nova automação</span>, no topo da
+                  página.
                 </p>
               </div>
             </div>
@@ -423,9 +423,9 @@ function AutomacoesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Desligar "{desligar?.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              Ela para de rodar imediatamente e as mensagens deixam de sair — sem nenhum aviso
-              na tela quando isso acontecer. O fluxo e o histórico ficam guardados, e é só
-              ligar de novo para voltar.
+              Ela para de rodar imediatamente e as mensagens deixam de sair — sem nenhum aviso na
+              tela quando isso acontecer. O fluxo e o histórico ficam guardados, e é só ligar de
+              novo para voltar.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

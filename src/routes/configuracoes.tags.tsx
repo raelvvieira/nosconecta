@@ -53,7 +53,9 @@ export const Route = createFileRoute("/configuracoes/tags")({
       semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />,
+  notFoundComponent: () => (
+    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
+  ),
   component: TagsPage,
 });
 
@@ -97,7 +99,7 @@ function TagsPage() {
     <>
       <main className="w-full px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
         <header className="flex flex-wrap items-end justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <h1 className="flex items-center gap-2.5 text-2xl font-semibold md:text-3xl">
               <TagIcon className="h-[1.1em] w-[1.1em] shrink-0 text-pink" strokeWidth={1.75} />
               Tags
@@ -133,9 +135,7 @@ function TagsPage() {
             <div key={t.id} className="flex flex-wrap items-center gap-3 px-4 py-3.5 sm:px-5">
               <Etiqueta nome={t.name} cor={t.color} />
               <span className="text-2xs tabular-nums text-muted-foreground">
-                {t.usos === 0
-                  ? "nenhum contato"
-                  : `${t.usos} contato${t.usos === 1 ? "" : "s"}`}
+                {t.usos === 0 ? "nenhum contato" : `${t.usos} contato${t.usos === 1 ? "" : "s"}`}
               </span>
               <div className="ml-auto flex shrink-0 items-center gap-1">
                 <button
