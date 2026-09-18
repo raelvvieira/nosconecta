@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { erroDaEdgeFunction } from "@/lib/atendimentos/erro-de-edge-function";
 
 /**
  * A conexão de WhatsApp na Evolution própria.
@@ -41,7 +42,7 @@ async function chamar(ownerId: string, action: string): Promise<any> {
     signal: AbortSignal.timeout(30_000),
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error ?? `Falha na conexão (${res.status})`);
+  if (!res.ok) throw erroDaEdgeFunction("wa-conexao", res.status, json);
   return json;
 }
 

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { mapAttachments, type MessageAttachment } from "./anexos";
+import { erroDaEdgeFunction } from "@/lib/atendimentos/erro-de-edge-function";
 
 export type { MessageAttachment };
 
@@ -110,7 +111,7 @@ async function callEdgeFunction(name: string, body: unknown, tentativa = 0): Pro
     if ((res.status >= 500 || /timed out|timeout/i.test(msg)) && tentativa === 0) {
       return callEdgeFunction(name, body, 1);
     }
-    throw new Error(json?.error ?? `Falha ao chamar ${name} (${res.status})`);
+    throw erroDaEdgeFunction(name, res.status, json);
   }
   return json;
 }
