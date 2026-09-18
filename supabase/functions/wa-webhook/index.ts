@@ -22,7 +22,12 @@
 //
 // A exceção é falha ao GRAVAR: aí o 500 é honesto e o reenvio é desejado.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { mensagemDoEvento, telefoneDoJid } from "../_shared/evolution-mapear.ts";
+import {
+  type MensagemEspelhada,
+  mensagemDoEvento,
+  telefoneDoJid,
+} from "../_shared/evolution-mapear.ts";
+import { pushToOwner } from "../_shared/push.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -45,7 +50,11 @@ async function donoDaInstancia(nome: string): Promise<string | null> {
 async function marcarSinalDeVida(nome: string, extra: Record<string, unknown> = {}) {
   await supabase
     .from("wa_instances")
-    .update({ last_event_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...extra })
+    .update({
+      last_event_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      ...extra,
+    })
     .eq("instance_name", nome);
 }
 
@@ -118,7 +127,74 @@ async function gravarMensagem(ownerId: string, data: any) {
   );
   if (erroMensagem) throw new Error(`mensagem: ${erroMensagem.message}`);
 
+  await avisar(ownerId, m);
+
   return { gravado: m.crmMessageId, telefone: m.phone, grupo: m.ehGrupo };
+}
+
+/**
+ * O aviso de "chegou mensagem" no celular de quem atende.
+ *
+ * ── O que isto substitui ────────────────────────────────────────────────
+ *
+ * Um cron de 2 em 2 minutos (`push-poll-conversations`) que perguntava ao CRM
+ * a lista inteira de conversas e comparava contadores de não-lidas entre
+ * rodadas — porque o CRM não tinha webhook. O aviso chegava com até dois
+ * minutos de atraso, e só enquanto o CRM atendesse. Aqui ele sai no instante
+ * em que a mensagem chega.
+ *
+ * ── Quem NÃO recebe aviso ───────────────────────────────────────────────
+ *
+ * A mensagem que a própria clínica mandou: quem a escreveu não precisa ser
+ * avisado dela, e ela chega de volta pelo mesmo webhook.
+ *
+ * Grupo. São 12 na base — "#NÓS Floripa - Gestão", "Grupo de Estudos Dr.
+ * Mauro K" —, todos internos e nenhum de paciente. Um grupo ativo faria o
+ * celular de todo mundo vibrar o dia inteiro, e o primeiro reflexo de quem
+ * recebe aviso demais é desligar o aviso — inclusive o do paciente.
+ *
+ * ── E por que uma falha aqui não derruba a gravação ─────────────────────
+ *
+ * A mensagem já está no banco quando esta função roda. Um erro de push não
+ * pode virar 500, porque 500 faz a Evolution REENVIAR o evento — e o reenvio
+ * grava de novo e avisa de novo. Perder um aviso é ruim; duplicar a mensagem
+ * do paciente é pior.
+ */
+async function avisar(ownerId: string, m: MensagemEspelhada) {
+  if (m.fromMe || m.ehGrupo) return;
+
+  try {
+    const { data: contato } = await supabase
+      .from("wa_contacts")
+      .select("name")
+      .eq("owner_id", ownerId)
+      .eq("origem", "evolution")
+      .eq("crm_contact_id", m.crmContactId)
+      .limit(1)
+      .maybeSingle();
+
+    await pushToOwner(supabase, ownerId, "whatsapp_message", {
+      title: contato?.name?.trim() || m.phone || "Contato",
+      body: resumo(m),
+      url: "/atendimentos/chat",
+    });
+  } catch (e) {
+    console.warn("[wa-webhook] aviso não saiu:", e instanceof Error ? e.message : e);
+  }
+}
+
+/** O texto do aviso. Sem texto, o que veio — "Foto" é informação; "" não é. */
+function resumo(m: MensagemEspelhada): string {
+  const texto = m.body?.trim();
+  if (texto) return texto.length > 120 ? `${texto.slice(0, 117)}…` : texto;
+  // `attachments` é `unknown[]` no tradutor de propósito — ele não impõe
+  // forma ao que grava. Aqui a leitura é estreita: só o tipo do primeiro.
+  const tipo = (m.attachments[0] as { tipo?: string } | undefined)?.tipo;
+  if (tipo === "image") return "📷 Foto";
+  if (tipo === "audio") return "🎤 Áudio";
+  if (tipo === "video") return "🎬 Vídeo";
+  if (tipo) return "📎 Arquivo";
+  return "Mandou uma mensagem nova no WhatsApp.";
 }
 
 /** Nome e foto de um contato, quando a Evolution os informa à parte. */
@@ -163,7 +239,9 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => null);
     if (!body) return ok({ ignorado: "corpo vazio" });
 
-    const evento = String(body?.event ?? "").toLowerCase().replace(/_/g, ".");
+    const evento = String(body?.event ?? "")
+      .toLowerCase()
+      .replace(/_/g, ".");
     const instancia = String(body?.instance ?? body?.instanceName ?? "");
     if (!instancia) return ok({ ignorado: "evento sem instância" });
 

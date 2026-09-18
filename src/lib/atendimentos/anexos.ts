@@ -15,9 +15,19 @@
 export interface MessageAttachment {
   id: string;
   tipo: "image" | "audio" | "video" | "file";
-  url: string;
+  /**
+   * O arquivo. Pode ser `null`.
+   *
+   * O CRM sempre manda a URL. A Evolution NÃO: ela guarda a mídia dela mesma
+   * e às vezes só avisa que veio uma foto, deixando para entregar o arquivo
+   * quando for pedido. Descartar o anexo nesse caso — que era o que o leitor
+   * do CRM fazia — transforma "o paciente mandou uma foto" em uma bolha
+   * vazia, que é o pior dos dois: some a informação E some o aviso de que
+   * algo sumiu.
+   */
+  url: string | null;
   /** Miniatura, quando existe. Cai para `url` quando não. */
-  thumbUrl: string;
+  thumbUrl: string | null;
   /**
    * Nome do arquivo, quando dá para saber.
    *
@@ -70,6 +80,35 @@ export function mapAttachments(lista: unknown): MessageAttachment[] {
       thumbUrl: String(a?.thumb_url ?? url),
       // Se o CRM um dia mandar um nome de verdade, ele ganha da dedução.
       nome: (a?.file_name ?? a?.filename ?? null) || nomeDoArquivo(String(url)),
+    });
+  }
+  return anexos;
+}
+
+/**
+ * Os anexos como o ESPELHO os guarda.
+ *
+ * Forma diferente da do CRM, e é por isso que existe uma segunda função em vez
+ * de um `??` a mais na primeira: aqui os campos são `tipo`/`url`/`thumbUrl`
+ * (o que `_shared/wa-mapear.ts` e `_shared/evolution-mapear.ts` gravam), e lá
+ * são `file_type`/`data_url`/`thumb_url` (os nomes do Chatwoot). Misturar as
+ * duas leituras numa função só faria cada campo aceitar quatro nomes, e o
+ * primeiro que casasse venceria — inclusive o errado.
+ */
+export function anexosDoEspelho(lista: unknown): MessageAttachment[] {
+  if (!Array.isArray(lista)) return [];
+  const anexos: MessageAttachment[] = [];
+  for (const a of lista as Record<string, unknown>[]) {
+    if (!a || typeof a !== "object") continue;
+    const bruto = String(a.tipo ?? "file");
+    const url = a.url ? String(a.url) : null;
+    const nome = a.nome ? String(a.nome) : null;
+    anexos.push({
+      id: String(a.id ?? url ?? anexos.length),
+      tipo: (TIPOS_DE_ANEXO.has(bruto) ? bruto : "file") as MessageAttachment["tipo"],
+      url,
+      thumbUrl: a.thumbUrl ? String(a.thumbUrl) : url,
+      nome: nome || (url ? nomeDoArquivo(url) : null),
     });
   }
   return anexos;

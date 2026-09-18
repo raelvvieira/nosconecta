@@ -3,6 +3,13 @@ import { FileText, ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MessageAttachment } from "@/lib/atendimentos/atendimentos.functions";
 
+const NOME_DO_TIPO: Record<MessageAttachment["tipo"], string> = {
+  image: "Foto",
+  audio: "Áudio",
+  video: "Vídeo",
+  file: "Arquivo",
+};
+
 /**
  * Um arquivo dentro da bolha da mensagem.
  *
@@ -14,6 +21,26 @@ import type { MessageAttachment } from "@/lib/atendimentos/atendimentos.function
  */
 export function AnexoDaMensagem({ anexo, claro }: { anexo: MessageAttachment; claro: boolean }) {
   const [falhou, setFalhou] = useState(false);
+
+  // Sem URL não dá para abrir nada — mas o anexo EXISTE, e dizer isso é o
+  // ponto. A Evolution guarda a mídia dela mesma e nem sempre manda o
+  // endereço no evento; sem esta linha, "o paciente mandou uma foto" vira uma
+  // bolha vazia, que some com a informação e com o aviso de que ela sumiu.
+  if (!anexo.url) {
+    return (
+      <span
+        className={cn(
+          "mt-1 flex max-w-full items-center gap-2 rounded-xl px-3 py-2 text-xs",
+          claro ? "bg-white/15 text-white/90" : "bg-muted text-muted-foreground",
+        )}
+      >
+        <FileText className="h-4 w-4 shrink-0" />
+        <span className="truncate">
+          {anexo.nome ?? NOME_DO_TIPO[anexo.tipo]} — arquivo ainda não baixado
+        </span>
+      </span>
+    );
+  }
 
   if (anexo.tipo === "audio") {
     return <audio controls preload="none" src={anexo.url} className="mt-1 w-56 max-w-full" />;
@@ -35,7 +62,7 @@ export function AnexoDaMensagem({ anexo, claro }: { anexo: MessageAttachment; cl
     return (
       <a href={anexo.url} target="_blank" rel="noopener noreferrer" className="mt-1 block">
         <img
-          src={anexo.thumbUrl}
+          src={anexo.thumbUrl ?? anexo.url}
           alt="Imagem enviada na conversa"
           loading="lazy"
           onError={() => setFalhou(true)}

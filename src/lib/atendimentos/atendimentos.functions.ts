@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
-import { mapAttachments, type MessageAttachment } from "./anexos";
+import { anexosDoEspelho, mapAttachments, type MessageAttachment } from "./anexos";
 import { erroDaEdgeFunction } from "@/lib/atendimentos/erro-de-edge-function";
 
 export type { MessageAttachment };
@@ -397,6 +397,22 @@ export const getMessages = createServerFn({ method: "GET" })
    * conversas que importam entram no espelho primeiro, sem fila e sem espera.
    */
   .handler(async ({ data, context }): Promise<MessageRow[]> => {
+    // ── E a exceção: conversa que nasceu na conexão própria ──────────────
+    //
+    // Aqui o `conversationId` é um `remoteJid` ("5548...@s.whatsapp.net"),
+    // que o CRM nunca viu. Pedir a thread a ele devolve vazio, e a tela abre
+    // em branco como se a conversa não tivesse mensagem nenhuma.
+    //
+    // O motivo de a thread não vir do espelho — o atraso de até 5 minutos do
+    // cron — não vale para estas: o webhook grava no instante em que a
+    // mensagem chega.
+    const doEspelho = await mensagensDoEspelho(
+      context.supabase,
+      context.ownerId,
+      data.conversationId,
+    );
+    if (doEspelho) return doEspelho;
+
     const json = await callEdgeFunction("crm-conversations", {
       ownerId: context.ownerId,
       action: "messages",
@@ -404,6 +420,73 @@ export const getMessages = createServerFn({ method: "GET" })
     });
     return (json.messages ?? []).map(mapMessage);
   });
+
+/** O cliente do Supabase como o contexto o entrega — sem os tipos gerados,
+ *  porque `types.ts` é do Lovable e as consultas aqui usam `as any` desde o
+ *  primeiro cartão do espelho. */
+type SupabaseDoContexto = {
+  from: (tabela: string) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
+};
+
+/** Só o que esta leitura pede da linha de `wa_messages`. */
+interface LinhaDoEspelho {
+  crm_message_id: string;
+  from_me: boolean;
+  body: string | null;
+  is_private: boolean;
+  attachments: unknown;
+  sent_at: string;
+}
+
+/**
+ * A thread lida do espelho, ou `null` quando esta conversa não é de lá.
+ *
+ * `null` é "pergunte ao CRM", e é o que acontece para toda conversa que veio
+ * do Wavy — inclusive quando a consulta falha. O espelho aqui só pode
+ * ADICIONAR um caminho; ele nunca tira o que já funcionava.
+ */
+async function mensagensDoEspelho(
+  supabase: SupabaseDoContexto,
+  ownerId: string,
+  conversationId: string,
+): Promise<MessageRow[] | null> {
+  try {
+    const { data: conversa } = await supabase
+      .from("wa_conversations")
+      .select("origem")
+      .eq("owner_id", ownerId)
+      .eq("crm_conversation_id", conversationId)
+      .limit(1)
+      .maybeSingle();
+    if (conversa?.origem !== "evolution") return null;
+
+    const { data, error } = await supabase
+      .from("wa_messages")
+      .select("crm_message_id, from_me, body, is_private, attachments, sent_at")
+      .eq("owner_id", ownerId)
+      .eq("origem", "evolution")
+      .eq("crm_conversation_id", conversationId)
+      .order("sent_at", { ascending: true })
+      .limit(500);
+    if (error) throw new Error(error.message);
+
+    return (data ?? []).map((row: LinhaDoEspelho) => ({
+      id: String(row.crm_message_id),
+      fromMe: row.from_me === true,
+      body: row.body ?? null,
+      attachments: anexosDoEspelho(row.attachments),
+      status: row.from_me === true ? ("sent" as const) : ("received" as const),
+      timestamp: row.sent_at,
+      isPrivate: row.is_private === true,
+    }));
+  } catch (e) {
+    // Conversa da Evolution cujo espelho falhou vai cair no CRM e voltar
+    // vazia — mas vazia com o motivo no log é melhor do que a tela inteira
+    // quebrando numa consulta que é, por desenho, opcional.
+    console.warn("[getMessages] espelho indisponível:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
 
 export const sendWhatsappMessage = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
