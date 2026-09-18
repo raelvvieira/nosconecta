@@ -3,6 +3,8 @@
 // no CRM; o cache curto fica só no TanStack Query do front-end.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crmFetch } from "../_shared/crm-auth.ts";
+import { decidirCaminho } from "../_shared/evolution-api.ts";
+import { enviarPelaEvolution } from "../_shared/whatsapp-send.ts";
 import { unwrap } from "../_shared/crm-client.ts";
 import { mapearAnexos, paraIso, saiuDaClinica } from "../_shared/wa-mapear.ts";
 import { lerTudoPaginado } from "../_shared/lista-paginada.ts";
@@ -166,6 +168,33 @@ async function handleSend(
   attachments: OutgoingAttachment[] = [],
 ) {
   const path = `/api/v1/conversations/${conversationId}/messages`;
+
+  // ── A conexão própria, quando ela for a que atende ──────────────────
+  //
+  // Nota interna (`isPrivate`) NUNCA passa por aqui: ela não é uma mensagem
+  // de WhatsApp, é uma anotação na conversa. A Evolution não tem esse
+  // conceito, e mandá-la por ela publicaria para o paciente um texto escrito
+  // para a equipe.
+  //
+  // O anexo só vai pela Evolution quando é UM: ela manda um arquivo por
+  // chamada, e o texto é a legenda dele. Com dois ou mais, o caminho do CRM
+  // continua sendo o único que entrega tudo numa mensagem só — e enquanto o
+  // CRM ainda existe, é melhor que dividir em várias.
+  if (!isPrivate && attachments.length <= 1) {
+    const { caminho, instancia } = await decidirCaminho(supabase, ownerId);
+    if (caminho === "evolution" && instancia) {
+      const anexo = attachments[0];
+      const { via } = await enviarPelaEvolution(
+        supabase,
+        ownerId,
+        instancia,
+        { conversation_id: conversationId, contact_id: "" },
+        content,
+        anexo ? { nome: anexo.name, tipo: anexo.type, bytes: base64ToBytes(anexo.data) } : null,
+      );
+      return { ok: true, message: { via } };
+    }
+  }
 
   if (attachments.length === 0) {
     const res = await crmFetch(supabase, ownerId, path, {

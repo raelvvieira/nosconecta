@@ -16,35 +16,16 @@
 // não precisa: quem escaneia É o número, e ela descobre qual é na conexão.
 // Um campo a menos para errar.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { evolutionFetch } from "../_shared/evolution-api.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
-const BASE = (Deno.env.get("EVOLUTION_API_URL") ?? "").replace(/\/+$/, "");
-const CHAVE = Deno.env.get("EVOLUTION_API_KEY") ?? "";
-
-async function evolution(caminho: string, init: RequestInit = {}) {
-  if (!BASE || !CHAVE) {
-    throw new Error(
-      "A conexão própria de WhatsApp ainda não foi configurada. " +
-        "Faltam EVOLUTION_API_URL e EVOLUTION_API_KEY nos segredos.",
-    );
-  }
-  const res = await fetch(`${BASE}${caminho}`, {
-    ...init,
-    headers: { apikey: CHAVE, "content-type": "application/json", ...(init.headers ?? {}) },
-    signal: AbortSignal.timeout(25_000),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    // A mensagem da Evolution vem em formatos diferentes conforme o erro.
-    const detalhe =
-      json?.response?.message ?? json?.message ?? json?.error ?? `HTTP ${res.status}`;
-    throw new Error(typeof detalhe === "string" ? detalhe : JSON.stringify(detalhe));
-  }
-  return json;
-}
+// A leitura dos segredos e a chamada em si moram em `_shared/evolution-api.ts`:
+// o envio de mensagem também fala com a Evolution, e duas cópias da mesma
+// coisa divergem em silêncio.
+const evolution = evolutionFetch;
 
 /**
  * A instância desta clínica — criando uma se ainda não houver.

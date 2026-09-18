@@ -7,6 +7,14 @@
 // importado por mais de uma função e cada uma tem o seu.
 import { crmFetch } from "./crm-auth.ts";
 import { unwrap } from "./crm-client.ts";
+import { decidirCaminho, evolutionFetch } from "./evolution-api.ts";
+import {
+  corpoDeMidia,
+  corpoDeTexto,
+  destinoDaMensagem,
+  paraBase64,
+  rota,
+} from "./evolution-enviar.ts";
 
 /** Para quem a mensagem vai.
  *
@@ -22,6 +30,13 @@ import { unwrap } from "./crm-client.ts";
 export interface AlvoDeEnvio {
   conversation_id: string | null;
   contact_id: string;
+  /** O telefone, quando quem chama já o tem em mãos.
+   *
+   *  O CRM endereça por id de contato; a Evolution, por número. Passar o
+   *  telefone aqui evita uma consulta e, mais importante, evita o caso em que
+   *  ela não acha nada — contato que só existe no CRM, sem linha no espelho.
+   *  A fila de campanhas já carrega esta coluna. */
+  phone?: string | null;
 }
 
 /** Imagem enviada JUNTO do texto, como legenda de uma mensagem só. */
@@ -44,6 +59,18 @@ export async function enviarWhatsapp(
   message: string,
   midia?: MidiaDeEnvio | null,
 ): Promise<{ via: string; midiaIgnorada?: string }> {
+  // ── Por onde sai ────────────────────────────────────────────────────
+  //
+  // Um número de WhatsApp só existe numa sessão por vez: no instante em que o
+  // número da clínica for pareado na Evolution própria, o CRM perde a sessão
+  // e tudo que sair por ele cai no vazio. A decisão está em
+  // `evolution-rota.ts`, e ela é tomada pelo ESTADO das duas conexões — não
+  // por uma chave que alguém precisa lembrar de virar.
+  const { caminho, instancia } = await decidirCaminho(supabase, ownerId);
+  if (caminho === "evolution" && instancia) {
+    return await enviarPelaEvolution(supabase, ownerId, instancia, alvo, message, midia);
+  }
+
   if (alvo.conversation_id) {
     // Caminho CONFIRMADO: é o mesmo que o chat usa para responder alguém.
     //
@@ -213,4 +240,97 @@ async function criarConversaSoTexto(
       message: { content: message },
     }),
   });
+}
+
+// ── O caminho da Evolution ────────────────────────────────────────────────
+
+/**
+ * Manda pela Evolution própria.
+ *
+ * A diferença que organiza tudo: o CRM endereça por ID DE CONTATO, a Evolution
+ * por NÚMERO. Não existe "abrir conversa" aqui — no WhatsApp a conversa é o
+ * número, e mandar para alguém que nunca escreveu é a mesma chamada de
+ * responder a quem escreveu agora.
+ *
+ * Sem número não há envio, e isso vira erro em vez de silêncio: a linha da
+ * fila guarda o motivo, e alguém conserta o cadastro. Cair de volta no CRM
+ * seria pior — quando este caminho está valendo, é porque o CRM não tem mais
+ * a sessão, e o "enviado" dele seria mentira.
+ */
+export async function enviarPelaEvolution(
+  supabase: any,
+  ownerId: string,
+  instancia: string,
+  alvo: AlvoDeEnvio,
+  message: string,
+  midia?: MidiaDeEnvio | null,
+): Promise<{ via: string; midiaIgnorada?: string }> {
+  const destino = await destinoDoAlvo(supabase, ownerId, alvo);
+  if (!destino) {
+    throw new Error(
+      "Sem número de WhatsApp para este contato — não dá para enviar pela conexão própria.",
+    );
+  }
+
+  if (midia) {
+    await evolutionFetch(rota("sendMedia", instancia), {
+      method: "POST",
+      body: JSON.stringify(
+        corpoDeMidia(
+          destino,
+          { nome: midia.nome, tipo: midia.tipo, base64: paraBase64(midia.bytes) },
+          message,
+        ),
+      ),
+    });
+    return { via: "evolution_midia" };
+  }
+
+  await evolutionFetch(rota("sendText", instancia), {
+    method: "POST",
+    body: JSON.stringify(corpoDeTexto(destino, message)),
+  });
+  return { via: "evolution" };
+}
+
+/**
+ * O número de quem vai receber.
+ *
+ * Em ordem de confiança: o que quem chamou já tinha; o `remoteJid`, quando a
+ * conversa nasceu na própria Evolution; o espelho; e a ficha do paciente.
+ * Cada degrau abaixo é uma consulta a mais, e todos podem não achar nada —
+ * o que não pode é chutar.
+ */
+async function destinoDoAlvo(
+  supabase: any,
+  ownerId: string,
+  alvo: AlvoDeEnvio,
+): Promise<string | null> {
+  const doChamador = destinoDaMensagem(alvo.phone);
+  if (doChamador) return doChamador;
+
+  // Conversa da Evolution: o id DELA é o próprio jid.
+  if (alvo.conversation_id?.includes("@")) {
+    const doJid = destinoDaMensagem(alvo.conversation_id);
+    if (doJid) return doJid;
+  }
+
+  const { data: contato } = await supabase
+    .from("wa_contacts")
+    .select("phone_e164, phone_raw")
+    .eq("owner_id", ownerId)
+    .eq("crm_contact_id", alvo.contact_id)
+    .limit(1)
+    .maybeSingle();
+  const doEspelho = destinoDaMensagem(contato?.phone_e164 ?? contato?.phone_raw);
+  if (doEspelho) return doEspelho;
+
+  const { data: paciente } = await supabase
+    .from("patients")
+    .select("phone")
+    .eq("owner_id", ownerId)
+    .eq("crm_contact_id", alvo.contact_id)
+    .limit(1)
+    .maybeSingle();
+  return destinoDaMensagem(paciente?.phone);
 }

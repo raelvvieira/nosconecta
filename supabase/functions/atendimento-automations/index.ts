@@ -544,6 +544,11 @@ async function resolverContatoParaEnvio(
     return {
       contact_id: paciente.crm_contact_id,
       conversation_id: await conversaDoContato(ownerId, paciente.crm_contact_id),
+      // O telefone vai junto porque a conexão própria endereça por NÚMERO, e
+      // não por id de contato do CRM. Sem ele, o envio teria de procurar o
+      // número em duas tabelas — e não acharia nada para contato que só
+      // existe do lado do CRM.
+      phone: paciente.phone ?? null,
     };
   }
   if (!paciente.phone) return null;
@@ -564,7 +569,7 @@ async function resolverContatoParaEnvio(
   if (!res.ok || !json?.contactId) return null;
   // Contato acabou de ser criado no CRM: não existe conversa anterior para
   // reaproveitar, e o caminho de criar conversa é o certo aqui.
-  return { contact_id: String(json.contactId), conversation_id: null };
+  return { contact_id: String(json.contactId), conversation_id: null, phone: paciente.phone ?? null };
 }
 
 /** URL de webhook só pode sair pra internet pública por HTTPS — guarda
