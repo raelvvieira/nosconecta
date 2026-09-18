@@ -34,6 +34,14 @@ export interface ConfirmacaoAtendimento {
   retornoEm: string | null;
   /** Gerar o recebimento no financeiro com o valor cobrado. */
   gerarCobranca: boolean;
+  /**
+   * O valor já entrou no caixa, na data do atendimento.
+   *
+   * Vem marcado: confirmar um atendimento é registrar que ele aconteceu e
+   * foi pago. Desmarcado, o recebimento nasce em aberto — o caso do plano de
+   * tratamento que será pago depois.
+   */
+  pagamentoRecebido: boolean;
 }
 
 export function ConfirmCompletion({
@@ -72,6 +80,12 @@ export function ConfirmCompletion({
   // se sabe se aquilo vira recebimento, e com qual valor.
   const [gerarCobranca, setGerarCobranca] = useState(generateFinancial);
 
+  // Ligado por padrão, e é o ponto do pedido: o recebimento nascia pendente e
+  // aparecia VERMELHO como "Atrasado" no mesmo minuto em que alguém registrou
+  // que o atendimento foi pago — porque "atrasado" é derivado de pendente +
+  // vencido, e o atendimento costuma ser de ontem.
+  const [pagamentoRecebido, setPagamentoRecebido] = useState(true);
+
   if (actualRevenue !== null && actualRevenue !== undefined) {
     return (
       <div className="flex items-center gap-2.5 rounded-xl bg-success-soft px-3 py-2.5">
@@ -100,7 +114,7 @@ export function ConfirmCompletion({
   // Passo do retorno: o valor já passou, falta decidir se o paciente volta.
   if (valorConfirmado !== null) {
     const confirmarCom = (retornoEm: string | null) =>
-      onConfirm({ valor: valorConfirmado, retornoEm, gerarCobranca });
+      onConfirm({ valor: valorConfirmado, retornoEm, gerarCobranca, pagamentoRecebido });
     return (
       <div className="space-y-2.5 rounded-xl border border-coral/30 bg-coral-soft px-3 py-3">
         <p className="text-sm font-medium text-foreground">
@@ -161,8 +175,8 @@ export function ConfirmCompletion({
           )}
         </div>
         <p className="text-2xs leading-4 text-muted-foreground">
-          O retorno fica marcado na agenda, mas o paciente não recebe confirmação
-          agora — só os lembretes na véspera.
+          O retorno fica marcado na agenda, mas o paciente não recebe confirmação agora — só os
+          lembretes na véspera.
         </p>
       </div>
     );
@@ -218,9 +232,7 @@ export function ConfirmCompletion({
       {erro ? (
         <p className="text-2xs text-danger">{erro}</p>
       ) : (
-        <p className="text-2xs text-muted-foreground">
-          Previsto era {formatBRL(expectedRevenue)}
-        </p>
+        <p className="text-2xs text-muted-foreground">Previsto era {formatBRL(expectedRevenue)}</p>
       )}
 
       {/* Rótulo com o valor dentro: "gerar cobrança" é abstrato, "gerar
@@ -231,6 +243,31 @@ export function ConfirmCompletion({
         </span>
         <Switch checked={gerarCobranca} onCheckedChange={setGerarCobranca} />
       </label>
+
+      {/* Aninhado, e não solto ao lado: dois interruptores lado a lado
+          convidariam à combinação sem sentido "não gerar recebimento, mas
+          pagamento recebido".
+
+          O texto de apoio muda porque é ele que explica a consequência — o
+          mesmo par que o funil já usa em ConfirmarGanho, para quem aprendeu
+          num lugar reconhecer no outro. */}
+      {gerarCobranca && (
+        <label className="flex items-start justify-between gap-3 rounded-xl bg-white px-3 py-2.5">
+          <span className="min-w-0 text-sm text-foreground-secondary">
+            Pagamento já recebido
+            <span className="mt-0.5 block text-2xs leading-4 text-muted-foreground">
+              {pagamentoRecebido
+                ? `Entra como receita em ${appointmentDate.split("-").reverse().join("/")}.`
+                : "Fica como cobrança em aberto, a receber."}
+            </span>
+          </span>
+          <Switch
+            data-pagamento-recebido=""
+            checked={pagamentoRecebido}
+            onCheckedChange={setPagamentoRecebido}
+          />
+        </label>
+      )}
 
       <div className="flex gap-2 pt-0.5">
         <Button

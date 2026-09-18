@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useAvisosPorAgendamento } from "@/lib/notifications/use-avisos";
-import { useRegisterMobileFab, useRegisterIlhaHandlers } from "@/components/finance/mobile-fab-context";
+import {
+  useRegisterMobileFab,
+  useRegisterIlhaHandlers,
+} from "@/components/finance/mobile-fab-context";
 import {
   SlidersHorizontal,
   CalendarDays,
@@ -22,18 +25,39 @@ import type {
   Room,
 } from "../types";
 import { statusStyle, STATUS_LABEL, TYPE_LABEL } from "../appointment-utils";
-import { MobileAppointmentSheet } from "./MobileAppointmentSheet";
+import { type ExtrasDaConclusao, MobileAppointmentSheet } from "./MobileAppointmentSheet";
+export type { ExtrasDaConclusao };
 import { MobileFilterSheet } from "./MobileFilterSheet";
 import { MobileCalendarSheet } from "./MobileCalendarSheet";
 
 const DAYS_SHORT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MONTHS_PT = [
-  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
-  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
 ];
 const MONTHS_CAP = [
-  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
 ];
 
 type MobileTab = "day" | "list" | "month";
@@ -68,13 +92,7 @@ interface Props {
   onNewAppointment: () => void;
   onNewBlock: () => void;
   onEditAppointment: (a: Appointment) => void;
-  onStatusChange: (
-    id: string,
-    status: AppointmentStatus,
-    actualRevenue?: number,
-    retornoEm?: string | null,
-    generateFinancial?: boolean,
-  ) => void;
+  onStatusChange: (id: string, status: AppointmentStatus, extras?: ExtrasDaConclusao) => void;
 }
 
 // ─── Stats carousel ──────────────────────────────────────────────────────────
@@ -82,25 +100,52 @@ interface Props {
 function StatsCarousel({ appointments, date }: { appointments: Appointment[]; date: string }) {
   const today = appointments.filter((a) => a.date === date);
   const total = today.length;
-  const confirmed = today.filter((a) => a.status === "confirmed" || a.status === "completed").length;
+  const confirmed = today.filter(
+    (a) => a.status === "confirmed" || a.status === "completed",
+  ).length;
   const pending = today.filter((a) => a.status === "pending").length;
   const missed = today.filter((a) => a.status === "missed").length;
   const pct = (n: number) => (total > 0 ? `${Math.round((n / total) * 100)}% do total` : "—");
 
   const cards = [
-    { icon: CalendarCheck, label: "Atendimentos Hoje", value: String(total), sub: "Total de agendamentos", bg: "color-mix(in oklab, var(--violet) 10%, transparent)", color: "var(--violet)" },
-    { icon: CheckCircle2, label: "Confirmados", value: String(confirmed), sub: pct(confirmed), bg: "color-mix(in oklab, var(--success) 10%, transparent)", color: "var(--success)" },
-    { icon: Clock, label: "Pendentes", value: String(pending), sub: pct(pending), bg: "color-mix(in oklab, var(--coral) 10%, transparent)", color: "var(--coral)" },
-    { icon: UserX, label: "Faltas", value: String(missed), sub: pct(missed), bg: "color-mix(in oklab, var(--danger) 10%, transparent)", color: "var(--danger)" },
+    {
+      icon: CalendarCheck,
+      label: "Atendimentos Hoje",
+      value: String(total),
+      sub: "Total de agendamentos",
+      bg: "color-mix(in oklab, var(--violet) 10%, transparent)",
+      color: "var(--violet)",
+    },
+    {
+      icon: CheckCircle2,
+      label: "Confirmados",
+      value: String(confirmed),
+      sub: pct(confirmed),
+      bg: "color-mix(in oklab, var(--success) 10%, transparent)",
+      color: "var(--success)",
+    },
+    {
+      icon: Clock,
+      label: "Pendentes",
+      value: String(pending),
+      sub: pct(pending),
+      bg: "color-mix(in oklab, var(--coral) 10%, transparent)",
+      color: "var(--coral)",
+    },
+    {
+      icon: UserX,
+      label: "Faltas",
+      value: String(missed),
+      sub: pct(missed),
+      bg: "color-mix(in oklab, var(--danger) 10%, transparent)",
+      color: "var(--danger)",
+    },
   ];
 
   return (
     <div className="grid grid-cols-2 gap-3">
       {cards.map((c) => (
-        <div
-          key={c.label}
-          className="surface-card p-4 flex flex-col gap-2"
-        >
+        <div key={c.label} className="surface-card p-4 flex flex-col gap-2">
           <div className="h-9 w-9 rounded-xl grid place-items-center" style={{ background: c.bg }}>
             <c.icon style={{ color: c.color, width: 18, height: 18 }} strokeWidth={1.75} />
           </div>
@@ -117,7 +162,13 @@ function StatsCarousel({ appointments, date }: { appointments: Appointment[]; da
 
 // ─── Date selector ───────────────────────────────────────────────────────────
 
-function DateSelector({ selectedDate, onDateChange }: { selectedDate: Date; onDateChange: (d: Date) => void }) {
+function DateSelector({
+  selectedDate,
+  onDateChange,
+}: {
+  selectedDate: Date;
+  onDateChange: (d: Date) => void;
+}) {
   const weekStart = getMondayOfWeek(selectedDate);
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
@@ -136,7 +187,8 @@ function DateSelector({ selectedDate, onDateChange }: { selectedDate: Date; onDa
     <div className="flex items-center gap-1.5">
       <button
         type="button"
-        onClick={() => shiftWeek(-1)} aria-label="Semana anterior"
+        onClick={() => shiftWeek(-1)}
+        aria-label="Semana anterior"
         className="h-10 w-7 shrink-0 grid place-items-center rounded-xl text-muted-foreground active:bg-surface-muted"
       >
         <ChevronLeft className="h-4 w-4" strokeWidth={2} />
@@ -157,11 +209,20 @@ function DateSelector({ selectedDate, onDateChange }: { selectedDate: Date; onDa
               )}
               style={
                 active
-                  ? { background: "var(--gradient-primary)", color: "var(--primary-foreground)", boxShadow: "var(--shadow-brand)" }
+                  ? {
+                      background: "var(--gradient-primary)",
+                      color: "var(--primary-foreground)",
+                      boxShadow: "var(--shadow-brand)",
+                    }
                   : { border: "1px solid var(--border)", color: "var(--foreground-secondary)" }
               }
             >
-              <span className={cn("text-2xs font-medium", active ? "text-white/90" : "text-muted-foreground")}>
+              <span
+                className={cn(
+                  "text-2xs font-medium",
+                  active ? "text-white/90" : "text-muted-foreground",
+                )}
+              >
                 {DAYS_SHORT[d.getDay()]}
               </span>
               <span className="text-base font-bold mt-0.5">{d.getDate()}</span>
@@ -172,7 +233,8 @@ function DateSelector({ selectedDate, onDateChange }: { selectedDate: Date; onDa
 
       <button
         type="button"
-        onClick={() => shiftWeek(1)} aria-label="Próxima semana"
+        onClick={() => shiftWeek(1)}
+        aria-label="Próxima semana"
         className="h-10 w-7 shrink-0 grid place-items-center rounded-xl text-muted-foreground active:bg-surface-muted"
       >
         <ChevronRight className="h-4 w-4" strokeWidth={2} />
@@ -205,7 +267,10 @@ function AppointmentCard({
       <div className="flex flex-col items-center shrink-0 w-12">
         <span className="text-sm font-bold text-foreground">{appt.startTime}</span>
         <span className="text-3xs text-muted-foreground">{appt.endTime}</span>
-        <div className="mt-1.5" style={{ width: 8, height: 8, borderRadius: 9999, background: s.badge }} />
+        <div
+          className="mt-1.5"
+          style={{ width: 8, height: 8, borderRadius: 9999, background: s.badge }}
+        />
       </div>
 
       <div
@@ -255,7 +320,8 @@ function BlockCard({ block }: { block: BlockedTime }) {
       style={{
         borderRadius: "var(--radius-feature)",
         border: "1px solid var(--divider)",
-        background: "repeating-linear-gradient(135deg,color-mix(in oklab, var(--foreground-subtle) 8%, transparent),color-mix(in oklab, var(--foreground-subtle) 8%, transparent) 8px,color-mix(in oklab, var(--foreground-subtle) 14%, transparent) 8px,color-mix(in oklab, var(--foreground-subtle) 14%, transparent) 16px)",
+        background:
+          "repeating-linear-gradient(135deg,color-mix(in oklab, var(--foreground-subtle) 8%, transparent),color-mix(in oklab, var(--foreground-subtle) 8%, transparent) 8px,color-mix(in oklab, var(--foreground-subtle) 14%, transparent) 8px,color-mix(in oklab, var(--foreground-subtle) 14%, transparent) 16px)",
       }}
     >
       <div className="flex flex-col items-center shrink-0 w-12">
@@ -297,7 +363,9 @@ function MonthGrid({
   selectedDate: Date;
   onSelectDay: (d: Date) => void;
 }) {
-  const [cursor, setCursor] = useState(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+  const [cursor, setCursor] = useState(
+    new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
+  );
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
   const firstDay = new Date(year, month, 1).getDay();
@@ -317,19 +385,33 @@ function MonthGrid({
   return (
     <div className="surface-card p-4">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-base font-semibold text-foreground">{MONTHS_CAP[month]}, {year}</span>
+        <span className="text-base font-semibold text-foreground">
+          {MONTHS_CAP[month]}, {year}
+        </span>
         <div className="flex gap-2">
-          <button type="button" onClick={() => setCursor(new Date(year, month - 1, 1))} aria-label="Mês anterior" className="h-8 w-8 grid place-items-center rounded-lg border border-border text-muted-foreground">
+          <button
+            type="button"
+            onClick={() => setCursor(new Date(year, month - 1, 1))}
+            aria-label="Mês anterior"
+            className="h-8 w-8 grid place-items-center rounded-lg border border-border text-muted-foreground"
+          >
             <ChevronLeft className="h-4 w-4" strokeWidth={2} />
           </button>
-          <button type="button" onClick={() => setCursor(new Date(year, month + 1, 1))} aria-label="Próximo mês" className="h-8 w-8 grid place-items-center rounded-lg border border-border text-muted-foreground">
+          <button
+            type="button"
+            onClick={() => setCursor(new Date(year, month + 1, 1))}
+            aria-label="Próximo mês"
+            className="h-8 w-8 grid place-items-center rounded-lg border border-border text-muted-foreground"
+          >
             <ChevronRight className="h-4 w-4" strokeWidth={2} />
           </button>
         </div>
       </div>
       <div className="grid grid-cols-7 mb-1">
         {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
-          <div key={i} className="text-center text-3xs font-semibold text-muted-foreground py-1">{d}</div>
+          <div key={i} className="text-center text-3xs font-semibold text-muted-foreground py-1">
+            {d}
+          </div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-y-1">
@@ -352,16 +434,20 @@ function MonthGrid({
                   isSelected
                     ? { background: "var(--gradient-primary)", color: "var(--primary-foreground)" }
                     : isToday
-                    ? { border: "1.5px solid var(--pink)", color: "var(--pink)" }
-                    : { color: "var(--foreground-secondary)" }
+                      ? { border: "1.5px solid var(--pink)", color: "var(--pink)" }
+                      : { color: "var(--foreground-secondary)" }
                 }
               >
                 {day}
               </span>
               <div className="flex gap-0.5 h-1.5 mt-0.5">
-                {!isSelected && dots.map((c, idx) => (
-                  <div key={idx} style={{ width: 4, height: 4, borderRadius: 9999, background: c }} />
-                ))}
+                {!isSelected &&
+                  dots.map((c, idx) => (
+                    <div
+                      key={idx}
+                      style={{ width: 4, height: 4, borderRadius: 9999, background: c }}
+                    />
+                  ))}
               </div>
             </button>
           );
@@ -419,7 +505,9 @@ export function MobileAgenda({
   const dayBlocks = blockedTimes.filter((b) => b.date === selStr);
 
   // Day timeline = appointments + blocks ordered by time
-  const timelineItems: ({ kind: "appt"; data: Appointment } | { kind: "block"; data: BlockedTime })[] = [
+  const timelineItems: (
+    { kind: "appt"; data: Appointment } | { kind: "block"; data: BlockedTime }
+  )[] = [
     ...dayAppts.map((a) => ({ kind: "appt" as const, data: a })),
     ...dayBlocks.map((b) => ({ kind: "block" as const, data: b })),
   ].sort((x, y) => x.data.startTime.localeCompare(y.data.startTime));
@@ -472,7 +560,10 @@ export function MobileAgenda({
         <DateSelector selectedDate={selectedDate} onDateChange={onDateChange} />
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-white p-1 rounded-lg" style={{ border: "1px solid var(--border)" }}>
+        <div
+          className="flex gap-1 bg-white p-1 rounded-lg"
+          style={{ border: "1px solid var(--border)" }}
+        >
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -482,7 +573,11 @@ export function MobileAgenda({
                 "flex-1 py-2 text-sm font-medium rounded-sm transition-colors",
                 tab === t.id ? "text-pink" : "text-muted-foreground",
               )}
-              style={tab === t.id ? { background: "color-mix(in oklab, var(--pink) 12%, transparent)" } : {}}
+              style={
+                tab === t.id
+                  ? { background: "color-mix(in oklab, var(--pink) 12%, transparent)" }
+                  : {}
+              }
             >
               {t.label}
             </button>
@@ -490,8 +585,8 @@ export function MobileAgenda({
         </div>
 
         {/* Content */}
-        {tab === "day" && (
-          timelineItems.length === 0 ? (
+        {tab === "day" &&
+          (timelineItems.length === 0 ? (
             <EmptyState onNew={onNewAppointment} />
           ) : (
             <div className="relative pl-4">
@@ -505,7 +600,10 @@ export function MobileAgenda({
                       style={{
                         width: 9,
                         height: 9,
-                        background: item.kind === "appt" ? statusStyle(item.data.status).badge : "var(--foreground-subtle)",
+                        background:
+                          item.kind === "appt"
+                            ? statusStyle(item.data.status).badge
+                            : "var(--foreground-subtle)",
                       }}
                     />
                     {item.kind === "appt" ? (
@@ -521,8 +619,7 @@ export function MobileAgenda({
                 ))}
               </div>
             </div>
-          )
-        )}
+          ))}
 
         {tab === "list" && (
           <div className="space-y-5">
@@ -548,9 +645,11 @@ export function MobileAgenda({
                 </div>
               );
             })}
-            {weekDays.every((d) => appointments.filter((a) => a.date === toDateStr(d) && matchesFilters(a)).length === 0) && (
-              <EmptyState onNew={onNewAppointment} />
-            )}
+            {weekDays.every(
+              (d) =>
+                appointments.filter((a) => a.date === toDateStr(d) && matchesFilters(a)).length ===
+                0,
+            ) && <EmptyState onNew={onNewAppointment} />}
           </div>
         )}
 
@@ -558,7 +657,10 @@ export function MobileAgenda({
           <MonthGrid
             appointments={appointments.filter(matchesFilters)}
             selectedDate={selectedDate}
-            onSelectDay={(d) => { onDateChange(d); setTab("day"); }}
+            onSelectDay={(d) => {
+              onDateChange(d);
+              setTab("day");
+            }}
           />
         )}
       </div>

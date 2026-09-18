@@ -525,8 +525,14 @@ export function DealDetailSheet({
           }
           isSaving={saveAppointment.isPending}
           onClose={() => setAppointmentOpen(false)}
-          onSave={(data, _retornoEm, nome) =>
-            saveAppointment.mutate({ data, contact: { phone, crmContactId: contactId }, nome })
+          onSave={(data, opcoes) =>
+            saveAppointment.mutate({
+              data,
+              contact: { phone, crmContactId: contactId },
+              nome: opcoes?.nome,
+              retornoEm: opcoes?.retornoEm,
+              pagamentoRecebido: opcoes?.pagamentoRecebido,
+            })
           }
         />
       )}

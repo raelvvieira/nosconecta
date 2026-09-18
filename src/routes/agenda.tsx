@@ -10,12 +10,17 @@ import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/finance/Sidebar";
 import { AgendaStatsCards } from "@/components/agenda/AgendaStatsCards";
 import { WeeklyCalendar } from "@/components/agenda/WeeklyCalendar";
-import { AppointmentDrawer } from "@/components/agenda/AppointmentDrawer";
+import { AppointmentDrawer, type OpcoesDoSave } from "@/components/agenda/AppointmentDrawer";
 import { CommitmentDrawer } from "@/components/agenda/CommitmentDrawer";
 import { RightSidebar } from "@/components/agenda/RightSidebar";
-import { MobileAgenda } from "@/components/agenda/mobile/MobileAgenda";
+import { type ExtrasDaConclusao, MobileAgenda } from "@/components/agenda/mobile/MobileAgenda";
 import { STATUS_LABEL } from "@/components/agenda/appointment-utils";
-import type { Appointment, AgendaFilters, AppointmentStatus, BlockedTime } from "@/components/agenda/types";
+import type {
+  Appointment,
+  AgendaFilters,
+  AppointmentStatus,
+  BlockedTime,
+} from "@/components/agenda/types";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { appointmentPayload, useSaveAppointment } from "@/lib/agenda/useSaveAppointment";
 import { useAgendaCatalog } from "@/lib/agenda/useAppointmentForm";
@@ -64,7 +69,9 @@ export const Route = createFileRoute("/agenda")({
   // evita que o esqueleto apareça e suma num susto.
   pendingMs: 150,
   pendingMinMs: 400,
-  errorComponent: ({ error }) => <ResponsiveRouteState error={error} title="Não foi possível carregar a agenda" />,
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error} title="Não foi possível carregar a agenda" />
+  ),
   notFoundComponent: () => <ResponsiveRouteState title="Agenda não encontrada" notFound />,
   component: AgendaPage,
 });
@@ -140,7 +147,8 @@ function AgendaPage() {
         reason: data.reason ?? null,
       };
       // Criar devolve { id }, editar devolve { ok } — o retorno não é usado.
-      if (data.id) return updateBlockFn({ data: { ...payload, id: data.id } }).then(() => undefined);
+      if (data.id)
+        return updateBlockFn({ data: { ...payload, id: data.id } }).then(() => undefined);
       // Mesma regra do agendamento: a sala decide a unidade. Sem isto, criar
       // um bloqueio numa clínica com duas unidades caía em "Selecione a
       // unidade." sem ter onde escolher.
@@ -217,9 +225,16 @@ function AgendaPage() {
     onError: (e: any) => toast.error(e?.message ?? "Erro ao alterar status"),
   });
 
-  const handleSaveAppt = (data: Partial<Appointment>, retornoEm?: string | null) =>
-    saveApptMutation.mutate({ data, existingId: selectedAppt?.id, retornoEm });
-  const handleSaveBlock = (data: Partial<(typeof blocked)[number]>) => saveBlockMutation.mutate(data);
+  const handleSaveAppt = (data: Partial<Appointment>, opcoes?: OpcoesDoSave) =>
+    saveApptMutation.mutate({
+      data,
+      existingId: selectedAppt?.id,
+      retornoEm: opcoes?.retornoEm,
+      nome: opcoes?.nome,
+      pagamentoRecebido: opcoes?.pagamentoRecebido,
+    });
+  const handleSaveBlock = (data: Partial<(typeof blocked)[number]>) =>
+    saveBlockMutation.mutate(data);
 
   const handleApptClick = (appt: Appointment) => {
     setSelectedAppt(appt);
@@ -230,13 +245,8 @@ function AgendaPage() {
   // falso — nada era gerado, nem no banco nem no financeiro. Quem gera o
   // recebimento agora é o servidor, ao confirmar com valor, e o aviso é o da
   // própria mutação.
-  const handleStatusChange = (
-    id: string,
-    status: AppointmentStatus,
-    actualRevenue?: number,
-    retornoEm?: string | null,
-    generateFinancial?: boolean,
-  ) => statusMutation.mutate({ id, status, actualRevenue, retornoEm, generateFinancial });
+  const handleStatusChange = (id: string, status: AppointmentStatus, extras?: ExtrasDaConclusao) =>
+    statusMutation.mutate({ id, status, ...(extras ?? {}) });
 
   // ─── Arrastar na agenda ────────────────────────────────────────────────
   //
@@ -293,9 +303,7 @@ function AgendaPage() {
       });
     },
     onSuccess: (_r, { alvo }) => {
-      toast.success(
-        `Movido para ${alvo.date.split("-").reverse().join("/")} às ${alvo.startTime}`,
-      );
+      toast.success(`Movido para ${alvo.date.split("-").reverse().join("/")} às ${alvo.startTime}`);
       setPendente(null);
       invalidate();
     },
@@ -310,11 +318,7 @@ function AgendaPage() {
     alvo: AlvoArraste,
     tipo: "consulta" | "compromisso",
   ) => {
-    const conflitos = acharSobreposicoes(
-      { ...alvo, ignorarId: item.id },
-      appointments,
-      blocked,
-    );
+    const conflitos = acharSobreposicoes({ ...alvo, ignorarId: item.id }, appointments, blocked);
     if (conflitos.length) {
       setPendente({ item, alvo, tipo, conflitos });
       return;
@@ -356,32 +360,25 @@ function AgendaPage() {
           subtitle="Gerencie os agendamentos da sua clínica"
           actions={
             <>
-            <Button
-              onClick={() => {
-                setSelectedAppt(null);
-                setApptDrawerOpen(true);
-              }}
-              variant="premium"
-              className="gap-2 font-semibold"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Novo Agendamento</span>
-              <span className="sm:hidden">Agendar</span>
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setBlockDrawerOpen(true)}
-              className="gap-2"
-            >
-              <Lock className="h-4 w-4" />
-              <span className="hidden sm:inline">Bloqueio de Horário</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="gap-2"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
+              <Button
+                onClick={() => {
+                  setSelectedAppt(null);
+                  setApptDrawerOpen(true);
+                }}
+                variant="premium"
+                className="gap-2 font-semibold"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Novo Agendamento</span>
+                <span className="sm:hidden">Agendar</span>
+              </Button>
+              <Button variant="outline" onClick={() => setBlockDrawerOpen(true)} className="gap-2">
+                <Lock className="h-4 w-4" />
+                <span className="hidden sm:inline">Bloqueio de Horário</span>
+              </Button>
+              <Button variant="outline" className="gap-2">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
             </>
           }
         />

@@ -426,7 +426,11 @@ export const confirmarGanho = createServerFn({ method: "POST" })
         // ganho confirmado hoje dispara "confirme sua consulta" no WhatsApp
         // (a guarda `jaAconteceu` compara com `<`, e hoje não é passado).
         skipConfirmation: true,
-        receberEm: (data.pagamentoRecebido ?? true) ? data.realizadoEm : null,
+        // Antes aqui se CALCULAVA a data: `pagamentoRecebido ? realizadoEm :
+        // null`. A regra morava no chamador, e foi por isso que a Agenda não
+        // a tinha — ela não passava por este arquivo. Agora sobe só a
+        // intenção; a data sai da linha do agendamento, do outro lado.
+        pagamentoRecebido: data.pagamentoRecebido ?? true,
       });
       appointmentId = criado.id;
     }

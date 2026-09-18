@@ -9,6 +9,7 @@ import {
   type ProcedimentoDoAgendamento,
 } from "./procedimentos";
 import { clinicTodayStr, localDateStr } from "@/lib/date";
+import { decidirRecebimento } from "@/lib/finance/recebimento-do-atendimento";
 import type {
   Appointment,
   AppointmentNotification,
@@ -366,6 +367,14 @@ const appointmentInput = (input: {
   skipConfirmation?: boolean;
   /** Data do retorno a pré-agendar quando este save conclui o atendimento. */
   retornoEm?: string | null;
+  /**
+   * "Pagamento já recebido", marcado na confirmação do atendimento.
+   *
+   * Ausente significa SIM, e é de propósito: quem confirma um atendimento
+   * está registrando que ele aconteceu e foi pago. O caminho que fica a
+   * receber — o plano de tratamento parcelado — é que precisa dizer.
+   */
+  pagamentoRecebido?: boolean;
 }) => {
   if (!input.patientName?.trim()) throw new Error("Informe o nome do paciente");
   if (!input.date) throw new Error("Informe a data");
@@ -419,6 +428,7 @@ const appointmentInput = (input: {
     // Fora do payload da tabela — só orienta o handler. Removido antes do insert.
     __skipConfirmation: Boolean(input.skipConfirmation),
     __retornoEm: input.retornoEm ?? null,
+    __pagamentoRecebido: input.pagamentoRecebido ?? true,
   };
 };
 
@@ -494,7 +504,12 @@ export async function criarAgendamento(
   supabase: any,
   ownerId: string,
   row: Record<string, any>,
-  opcoes: { skipConfirmation?: boolean; retornoEm?: string | null; receberEm?: string | null } = {},
+  opcoes: {
+    skipConfirmation?: boolean;
+    retornoEm?: string | null;
+    /** A confirmação marcou "pagamento já recebido". Ausente = sim. */
+    pagamentoRecebido?: boolean;
+  } = {},
 ): Promise<{ id: string }> {
   // `__procedures` orienta este handler e NÃO é coluna — sai do payload antes
   // do insert, como `__skipConfirmation` e `__retornoEm` já saíam.
@@ -570,9 +585,11 @@ export async function criarAgendamento(
       inserted.id,
       null,
       { ...row, actual_revenue: row.actual_revenue ?? null } as any,
-      opcoes.retornoEm,
-      opcoes.receberEm,
-      jaAconteceu,
+      {
+        retornoEm: opcoes.retornoEm,
+        pagamentoRecebido: opcoes.pagamentoRecebido,
+        registroRetroativo: jaAconteceu,
+      },
     );
   }
   return { id: inserted.id };
@@ -592,6 +609,7 @@ export const createAppointment = createServerFn({ method: "POST" })
       id: _ignored,
       __skipConfirmation: skipConfirmation,
       __retornoEm: retornoEm,
+      __pagamentoRecebido: pagamentoRecebido,
       unitId: rawUnitId,
       ...row
     } = data;
@@ -606,6 +624,7 @@ export const createAppointment = createServerFn({ method: "POST" })
       {
         skipConfirmation,
         retornoEm,
+        pagamentoRecebido,
       },
     );
   });
@@ -644,13 +663,24 @@ async function onStatusTransition(
     end_time?: string | null;
     unit_id?: string | null;
   },
-  retornoEm?: string | null,
-  /** Data em que o valor entrou no caixa. Presente só no "Ganho" do funil. */
-  receberEm?: string | null,
-  /** Registro retroativo: o agendamento NASCEU com data no passado, só para
-   *  ficar no histórico. Silencia as automações; a Meta continua recebendo. */
-  registroRetroativo?: boolean,
+  /**
+   * Um objeto, e não mais três posicionais no fim.
+   *
+   * A forma antiga era a causa do bug: `receberEm` era o 7º argumento, dois
+   * dos três chamadores paravam no 6º, e omitir um opcional não é erro de
+   * tipo — ninguém via. Com objeto, esquecer vira um campo ausente com
+   * default explícito e legível em cada chamada.
+   */
+  opcoes: {
+    retornoEm?: string | null;
+    /** A pessoa marcou "pagamento já recebido" na confirmação. */
+    pagamentoRecebido?: boolean;
+    /** Registro retroativo: o agendamento NASCEU com data no passado, só para
+     *  ficar no histórico. Silencia as automações; a Meta continua recebendo. */
+    registroRetroativo?: boolean;
+  } = {},
 ): Promise<{ patientName: string; startTime: string }[]> {
+  const { retornoEm, registroRetroativo } = opcoes;
   if (statusAnterior === row.status) return [];
 
   const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
@@ -690,13 +720,28 @@ async function onStatusTransition(
       if (!row.unit_id)
         throw new Error("Agendamento sem unidade — não é possível gerar o recebimento.");
       const { createAppointmentReceivable } = await import("@/lib/finance/receivables.functions");
+      // O default "pago" mora AQUI, e não dentro de
+      // `createAppointmentReceivable`: lá embaixo ele seria herdado por quem
+      // conclui item de plano de tratamento, que é o caso oposto — o
+      // procedimento foi feito, o dinheiro vem depois.
+      //
+      // Qualquer caminho que esqueça de mandar a marca cai em "pago", que é a
+      // intenção de quem confirma um atendimento. O jeito de errar passa a
+      // ser o comportamento desejado.
+      const { dueDate, paidOn } = decidirRecebimento({
+        dataDoAtendimento: row.date ?? null,
+        // `clinicTodayStr`, nunca `localDateStr`: o Worker roda em UTC, e
+        // depois das 21h de Brasília o "hoje" dele já é amanhã.
+        hoje: clinicTodayStr(),
+        pagamentoRecebido: opcoes.pagamentoRecebido ?? true,
+      });
       await createAppointmentReceivable(supabase, ownerId, row.unit_id, {
         amount: row.actual_revenue ?? 0,
         description: `${row.procedure_name || "Atendimento"} · ${row.patient_name}`,
-        dueDate: row.date ?? clinicTodayStr(),
+        dueDate,
         patientId: row.patient_id,
         professionalId: row.professional_id ?? null,
-        paidOn: receberEm ?? null,
+        paidOn,
       });
     } catch (e) {
       console.error("[agenda] recebimento do atendimento concluído", e);
@@ -776,11 +821,12 @@ export const updateAppointment = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .handler(async ({ data, context }) => {
     if (!data.id) throw new Error("Agendamento inválido");
-    // Nenhum dos três é coluna: orientam o handler e saem do payload.
+    // Nenhum destes é coluna: orientam o handler e saem do payload.
     const {
       id,
       __skipConfirmation: _ignored,
       __retornoEm: retornoEm,
+      __pagamentoRecebido: pagamentoRecebido,
       __procedures: procedimentos,
       ...row
     } = data;
@@ -829,7 +875,7 @@ export const updateAppointment = createServerFn({ method: "POST" })
       id,
       antes?.status,
       updated,
-      retornoEm,
+      { retornoEm, pagamentoRecebido },
     );
     return { ok: true, conflitos };
   });
@@ -844,6 +890,8 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
       retornoEm?: string | null;
       /** Decidido na confirmação, não no agendamento: gera o recebimento? */
       generateFinancial?: boolean;
+      /** Decidido na confirmação, pelo mesmo motivo: já foi pago? */
+      pagamentoRecebido?: boolean;
     }) => {
       assertValorAoConcluir(input.status, input.actualRevenue);
       return input;
@@ -889,7 +937,7 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
       data.id,
       antes?.status,
       updated,
-      data.retornoEm,
+      { retornoEm: data.retornoEm, pagamentoRecebido: data.pagamentoRecebido },
     );
     return { ok: true, conflitos };
   });

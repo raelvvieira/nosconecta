@@ -265,6 +265,16 @@ export const concluirItem = createServerFn({ method: "POST" })
           dueDate: clinicTodayStr(),
           patientId: pacienteId,
           professionalId: item.treatment_plans?.professional_id ?? null,
+          // Nulo escrito à mão, e não omitido. Concluir item de plano é "o
+          // procedimento foi feito", não "o dinheiro entrou" — o botão nem
+          // pergunta sobre pagamento, e o plano parcelado é justamente o caso
+          // do que se recebe depois.
+          //
+          // O default "pago" que passou a existir mora em
+          // `onStatusTransition`, não em `createAppointmentReceivable`. Se um
+          // dia alguém o mover para lá "por consistência", esta linha é o que
+          // impede o plano de virar receita sozinho.
+          paidOn: null,
         },
       );
       cobrancaGerada = !!transactionId;

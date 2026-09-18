@@ -173,6 +173,7 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       contact,
       retornoEm,
       nome,
+      pagamentoRecebido,
     }: {
       data: Partial<Appointment>;
       existingId?: string;
@@ -181,6 +182,8 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       retornoEm?: string | null;
       /** Nome, sobrenome e telefone do formulário, para a ficha nascer certa. */
       nome?: NomeDoPacienteNovo;
+      /** A confirmação marcou que o valor já entrou no caixa. */
+      pagamentoRecebido?: boolean;
     }) => {
       // Só ao criar: editar um agendamento existente não deve inventar paciente.
       //
@@ -216,10 +219,19 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       // único ponto por onde passam os dois caminhos que concluem (formulário
       // e botão do celular).
       const r: any = existingId
-        ? await updateFn({ data: { ...payload, retornoEm } })
+        ? await updateFn({ data: { ...payload, retornoEm, pagamentoRecebido } })
         : await createFn({
             data: {
               ...payload,
+              // `retornoEm` faltava aqui, e só aqui.
+              //
+              // O servidor sempre soube recebê-lo na criação, mas o cliente
+              // não mandava: registrar um atendimento retroativo escolhendo
+              // "retorno em 3 meses" não criava retorno nenhum, em silêncio.
+              // Apareceu agora porque `pagamentoRecebido` percorre o mesmo
+              // caminho e teria sumido do mesmo jeito.
+              retornoEm,
+              pagamentoRecebido,
               unitId: unidadeDaCadeira(data.roomId) ?? selectedUnitId ?? undefined,
             },
           });

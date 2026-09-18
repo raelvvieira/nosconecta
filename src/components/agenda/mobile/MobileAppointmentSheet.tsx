@@ -1,8 +1,4 @@
-import {
-  Drawer,
-  DrawerContent,
-  DrawerTitle,
-} from "@/components/ui/drawer";
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import {
   CheckCircle2,
@@ -24,17 +20,27 @@ import { NOTIFICATION_KINDS, NotificationRow } from "../notification-utils";
 import { ConfirmCompletion } from "../ConfirmCompletion";
 import { formatBRL } from "@/lib/finance/format";
 
+/** O que a confirmação de atendimento decide, além do status. */
+export interface ExtrasDaConclusao {
+  actualRevenue?: number;
+  retornoEm?: string | null;
+  generateFinancial?: boolean;
+  /** O valor já entrou no caixa, na data do atendimento. */
+  pagamentoRecebido?: boolean;
+}
+
 interface Props {
   appointment: Appointment | null;
   open: boolean;
   onClose: () => void;
-  onStatusChange: (
-    id: string,
-    status: AppointmentStatus,
-    actualRevenue?: number,
-    retornoEm?: string | null,
-    generateFinancial?: boolean,
-  ) => void;
+  /**
+   * Os extras vão num objeto, e não como cauda posicional.
+   *
+   * Cinco argumentos opcionais em fila, atravessando três componentes, é
+   * onde um valor se perde sem o compilador reclamar — quem para antes do
+   * último simplesmente descarta. Foi o que aconteceu com o recebimento.
+   */
+  onStatusChange: (id: string, status: AppointmentStatus, extras?: ExtrasDaConclusao) => void;
   onEdit: (appt: Appointment) => void;
 }
 
@@ -43,7 +49,15 @@ function initialsOf(name: string) {
   return (parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "");
 }
 
-function InfoRow({ icon: Icon, label, value }: { icon: typeof Clock; label: string; value: string }) {
+function InfoRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Clock;
+  label: string;
+  value: string;
+}) {
   return (
     <div className="flex items-center gap-3 py-2.5">
       <div className="h-9 w-9 rounded-xl grid place-items-center bg-surface shrink-0">
@@ -57,7 +71,13 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof Clock; label: stri
   );
 }
 
-export function MobileAppointmentSheet({ appointment, open, onClose, onStatusChange, onEdit }: Props) {
+export function MobileAppointmentSheet({
+  appointment,
+  open,
+  onClose,
+  onStatusChange,
+  onEdit,
+}: Props) {
   if (!appointment) return null;
   const a = appointment;
   const s = statusStyle(a.status);
@@ -69,10 +89,24 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
 
   // "Concluir" saiu daqui: virou o bloco de confirmação no topo, que pede o
   // valor cobrado junto. Um botão de ação rápida não tem onde pedir isso.
-  const actions: { label: string; icon: typeof CheckCircle2; status?: AppointmentStatus; onClick?: () => void; tone: string }[] = [
+  const actions: {
+    label: string;
+    icon: typeof CheckCircle2;
+    status?: AppointmentStatus;
+    onClick?: () => void;
+    tone: string;
+  }[] = [
     { label: "Confirmar", icon: CheckCircle2, status: "confirmed", tone: "var(--success)" },
     { label: "Iniciar", icon: PlayCircle, status: "in_progress", tone: "var(--violet)" },
-    { label: "Reagendar", icon: CalendarClock, onClick: () => { onEdit(a); onClose(); }, tone: "var(--pink)" },
+    {
+      label: "Reagendar",
+      icon: CalendarClock,
+      onClick: () => {
+        onEdit(a);
+        onClose();
+      },
+      tone: "var(--pink)",
+    },
     { label: "Marcar falta", icon: UserX, status: "missed", tone: "var(--danger)" },
     { label: "Cancelar", icon: XCircle, status: "cancelled", tone: "var(--muted-foreground)" },
   ];
@@ -108,8 +142,13 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
             actualRevenue={a.status === "completed" ? (a.actualRevenue ?? 0) : null}
             appointmentDate={a.date}
             generateFinancial={a.generateFinancial ?? true}
-            onConfirm={({ valor, retornoEm, gerarCobranca }) => {
-              onStatusChange(a.id, "completed", valor, retornoEm, gerarCobranca);
+            onConfirm={({ valor, retornoEm, gerarCobranca, pagamentoRecebido }) => {
+              onStatusChange(a.id, "completed", {
+                actualRevenue: valor,
+                retornoEm,
+                generateFinancial: gerarCobranca,
+                pagamentoRecebido,
+              });
               onClose();
             }}
           />
@@ -119,11 +158,19 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
             className="bg-white rounded-2xl px-4 divide-y divide-surface-muted"
             style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-2)" }}
           >
-            <InfoRow icon={Clock} label="Data e horário" value={`${a.date.split("-").reverse().join("/")} · ${a.startTime} – ${a.endTime}`} />
+            <InfoRow
+              icon={Clock}
+              label="Data e horário"
+              value={`${a.date.split("-").reverse().join("/")} · ${a.startTime} – ${a.endTime}`}
+            />
             <InfoRow icon={Stethoscope} label="Tipo" value={TYPE_LABEL[a.type]} />
             <InfoRow icon={User} label="Profissional" value={a.professionalName || "—"} />
             <InfoRow icon={DoorOpen} label="Sala" value={a.roomName || "—"} />
-            <InfoRow icon={DollarSign} label="Valor previsto" value={formatBRL(a.expectedRevenue)} />
+            <InfoRow
+              icon={DollarSign}
+              label="Valor previsto"
+              value={formatBRL(a.expectedRevenue)}
+            />
             {a.notes && <InfoRow icon={Pencil} label="Observações" value={a.notes} />}
           </div>
 
@@ -159,7 +206,10 @@ export function MobileAppointmentSheet({ appointment, open, onClose, onStatusCha
           </div>
 
           <Button
-            onClick={() => { onEdit(a); onClose(); }}
+            onClick={() => {
+              onEdit(a);
+              onClose();
+            }}
             className="w-full h-12 rounded-lg text-white font-semibold gap-2"
             style={{ background: "var(--gradient-primary)" }}
           >

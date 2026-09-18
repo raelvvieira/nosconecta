@@ -39,6 +39,24 @@ import {
 import { dividirNome, juntarNome } from "@/lib/patients/nome";
 import type { NomeDoPacienteNovo } from "@/lib/agenda/useSaveAppointment";
 
+/**
+ * O que acompanha o agendamento no save, além das colunas dele.
+ *
+ * Um objeto, e não mais argumentos posicionais no fim. A versão posicional
+ * era a mesma armadilha que já tinha custado caro do lado do servidor: um
+ * consumidor que para antes do último parâmetro descarta o valor em SILÊNCIO
+ * — não é erro de tipo, e ninguém vê. Foi assim que "pagamento já recebido"
+ * quase entrou sem chegar ao banco.
+ */
+export interface OpcoesDoSave {
+  /** Data do retorno pré-agendado, quando a confirmação escolheu um. */
+  retornoEm?: string | null;
+  /** Nome, sobrenome e telefone de quem ainda não tem ficha. */
+  nome?: NomeDoPacienteNovo;
+  /** A confirmação marcou que o valor já entrou no caixa. */
+  pagamentoRecebido?: boolean;
+}
+
 interface Props {
   open: boolean;
   appointment?: Appointment | null;
@@ -67,11 +85,7 @@ interface Props {
    * silêncio. O telefone vai junto porque é ele que permite o match: sem
    * telefone nem e-mail, a Meta aceita o evento e não casa com ninguém.
    */
-  onSave: (
-    data: Partial<Appointment>,
-    retornoEm?: string | null,
-    nome?: NomeDoPacienteNovo,
-  ) => void;
+  onSave: (data: Partial<Appointment>, opcoes?: OpcoesDoSave) => void;
   /**
    * Trocar para o formulário de compromisso. Só a Agenda passa: no chat e no
    * funil o agendamento é sempre consulta de um contato, e oferecer
@@ -354,7 +368,7 @@ export function AppointmentDrawer({
   const handleSave = () => {
     const nome = conferirPaciente();
     if (nome === false) return;
-    onSave(form, undefined, nome);
+    onSave(form, { nome });
   };
 
   if (!open) return null;
@@ -443,7 +457,7 @@ export function AppointmentDrawer({
               appointmentDate={form.date ?? localDateStr()}
               generateFinancial={form.generateFinancial ?? true}
               isPending={isSaving}
-              onConfirm={({ valor, retornoEm, gerarCobranca }) => {
+              onConfirm={({ valor, retornoEm, gerarCobranca, pagamentoRecebido }) => {
                 // Criando pelo registro retroativo, este é o botão que grava —
                 // então a checagem do paciente tem de valer aqui também.
                 const nome = conferirPaciente();
@@ -455,8 +469,7 @@ export function AppointmentDrawer({
                     actualRevenue: valor,
                     generateFinancial: gerarCobranca,
                   },
-                  retornoEm,
-                  nome,
+                  { retornoEm, nome, pagamentoRecebido },
                 );
               }}
             />
