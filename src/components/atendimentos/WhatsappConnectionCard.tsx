@@ -1,112 +1,198 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, MessageCircle, RefreshCw, Smartphone } from "lucide-react";
-import { getWhatsappInstance } from "@/lib/atendimentos/atendimentos.functions";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2, Loader2, Plug, PlugZap, X } from "lucide-react";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { disconnectWhatsapp, getWhatsappInstance } from "@/lib/atendimentos/atendimentos.functions";
+import { desconectarConexaoPropria, getConexaoPropria } from "@/lib/atendimentos/conexao.functions";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
-import { WhatsappConnectSheet } from "./WhatsappConnectSheet";
+import { cn } from "@/lib/utils";
 import { ConectarWhatsapp } from "./ConectarWhatsapp";
+import { WhatsappConnectSheet } from "./WhatsappConnectSheet";
 
-const STATUS_CONFIG: Record<string, { dot: string; label: string; cta: string }> = {
-  open: { dot: "bg-success", label: "Conectado", cta: "Gerenciar conexão" },
-  connecting: { dot: "bg-warning", label: "Conectando…", cta: "Ver QR Code" },
-  disconnected: { dot: "bg-muted-foreground/50", label: "Desconectado", cta: "Conectar" },
-  error: { dot: "bg-danger", label: "Erro na conexão", cta: "Tentar de novo" },
+// O card de conexão do Dashboard.
+//
+// ── Por que ele mostra DUAS linhas ──────────────────────────────────────
+//
+// Durante a migração existem duas conexões de verdade: a do CRM, que atende a
+// clínica hoje, e a própria, que vai atender. O card mostrava só a primeira e
+// escondia a segunda atrás de um botão tracejado escrito "(nova)" — então não
+// dava para ver em qual delas o número estava, nem desligar uma para ligar a
+// outra, que é exatamente o que a virada exige.
+//
+// A linha do CRM some sozinha quando ele estiver desconectado: aí a migração
+// terminou e o card volta a ser de uma conexão só, sem ninguém precisar
+// apagar nada.
+//
+// ── E "Conectar" é SEMPRE a conexão própria ─────────────────────────────
+//
+// Não existe mais caminho na tela para parear um número novo no CRM. Conectar
+// ali seria andar para trás — a conexão própria é o destino, e deixar as duas
+// portas abertas só criaria a chance de reconectar no lugar errado num dia de
+// pressa. O CRM fica com uma ação só: desligar.
+
+type EstadoDaConexao = "open" | "connecting" | "erro" | "off";
+
+const PONTO: Record<EstadoDaConexao, string> = {
+  open: "bg-success",
+  connecting: "bg-warning",
+  erro: "bg-danger",
+  off: "bg-muted-foreground/40",
 };
 
-// Card de destaque do Dashboard — vira o único lugar de onde se inicia o
-// fluxo de conectar (a página de Chat só mostra um aviso leve linkando pra
-// cá). Reusa o WhatsappConnectSheet existente sem alteração.
+const ROTULO: Record<EstadoDaConexao, string> = {
+  open: "Conectado",
+  connecting: "Conectando…",
+  erro: "Erro na conexão",
+  off: "Desconectado",
+};
+
 export function WhatsappConnectionCard({
   dailyUsage,
 }: {
   dailyUsage?: { limit: number; usedToday: number };
 }) {
-  const fetchInstance = useServerFn(getWhatsappInstance);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [propriaAberta, setPropriaAberta] = useState(false);
+  const queryClient = useQueryClient();
+  const buscarCrm = useServerFn(getWhatsappInstance);
+  const buscarPropria = useServerFn(getConexaoPropria);
+  const desligarCrm = useServerFn(disconnectWhatsapp);
+  const desligarPropria = useServerFn(desconectarConexaoPropria);
 
-  const instanceQuery = useQuery({
+  const [conectarAberto, setConectarAberto] = useState(false);
+  const [confirmando, setConfirmando] = useState<"crm" | "propria" | null>(null);
+  const [ajustesCrm, setAjustesCrm] = useState(false);
+
+  const crmQuery = useQuery({
     queryKey: ["atendimentos-instance"],
-    queryFn: () => fetchInstance(),
+    queryFn: () => buscarCrm(),
     staleTime: 8_000,
-    refetchInterval: (query) => (query.state.data?.status === "connecting" ? 4_000 : 20_000),
+    refetchInterval: (q) => (q.state.data?.status === "connecting" ? 4_000 : 20_000),
   });
-  const instance = instanceQuery.data ?? null;
-  const config = STATUS_CONFIG[instance?.status ?? "disconnected"];
-  const connected = instance?.status === "open";
+  const propriaQuery = useQuery({
+    queryKey: ["conexao-propria"],
+    queryFn: () => buscarPropria(),
+    staleTime: 8_000,
+    refetchInterval: (q) => (q.state.data?.estado === "connecting" ? 4_000 : 20_000),
+  });
+
+  const crm = crmQuery.data ?? null;
+  const propria = propriaQuery.data ?? null;
+
+  const crmEstado: EstadoDaConexao =
+    crm?.status === "open"
+      ? "open"
+      : crm?.status === "connecting"
+        ? "connecting"
+        : crm?.status === "error"
+          ? "erro"
+          : "off";
+  const propriaEstado: EstadoDaConexao =
+    propria?.estado === "open" ? "open" : propria?.estado === "connecting" ? "connecting" : "off";
+
+  const desconectar = useMutation({
+    mutationFn: async (qual: "crm" | "propria") => {
+      if (qual === "crm") await desligarCrm();
+      else await desligarPropria();
+      return qual;
+    },
+    onSuccess: (qual) => {
+      toast.success(
+        qual === "crm"
+          ? "Número desconectado do CRM. Agora dá para conectá-lo aqui."
+          : "WhatsApp desconectado.",
+      );
+      queryClient.invalidateQueries({ queryKey: ["atendimentos-instance"] });
+      queryClient.invalidateQueries({ queryKey: ["conexao-propria"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+    onSettled: () => setConfirmando(null),
+  });
 
   return (
     <>
-      <section className="surface-card flex h-full flex-col justify-between gap-4 p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span
-              className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${
-                connected ? "bg-success-soft text-success" : "bg-coral-soft text-coral"
-              }`}
-            >
-              {connected ? (
-                <CheckCircle2 className="h-6 w-6" />
-              ) : (
-                <MessageCircle className="h-5 w-5" />
-              )}
-            </span>
-            <div>
-              <p className="text-sm font-semibold">
-                {connected && instance?.phoneNumber
-                  ? formatWhatsappNumber(instance.phoneNumber)
-                  : "WhatsApp"}
-              </p>
-              <p className="mt-0.5 flex items-center gap-1.5 text-xs">
-                {connected ? (
-                  <span className="font-medium text-success">Conectado</span>
-                ) : (
-                  <>
-                    <span className={`h-2 w-2 shrink-0 rounded-full ${config.dot}`} />
-                    <span className="text-muted-foreground">{config.label}</span>
-                  </>
-                )}
-              </p>
-            </div>
-          </div>
+      <section className="surface-card flex h-full flex-col gap-4 p-5">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold">WhatsApp</p>
         </div>
 
-        {instance?.lastError && (
-          <p className="rounded-xl bg-danger-soft px-3 py-2 text-xs text-danger">
-            {instance.lastError}
-          </p>
+        <div className="divide-y divide-border">
+          {/* A conexão própria vem primeiro: é ela que o sistema vai usar. */}
+          <LinhaDeConexao
+            titulo="Conexão própria"
+            telefone={propria?.telefone ?? null}
+            estado={propriaEstado}
+            acao={
+              propriaEstado === "open" ? (
+                <BotaoDesconectar
+                  onClick={() => setConfirmando("propria")}
+                  ocupado={desconectar.isPending && confirmando === "propria"}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConectarAberto(true)}
+                  className="press ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-gradient-primary px-3 py-2 text-xs font-semibold text-white"
+                >
+                  <PlugZap className="h-3.5 w-3.5" strokeWidth={2} />
+                  Conectar
+                </button>
+              )
+            }
+          />
+
+          {/* Só enquanto o CRM ainda atende. Desconectado, ele sai da tela e a
+              migração está encerrada do ponto de vista de quem usa. */}
+          {crmEstado !== "off" && (
+            <LinhaDeConexao
+              titulo="CRM (Wavy)"
+              telefone={crm?.phoneNumber ?? null}
+              estado={crmEstado}
+              nota={
+                propriaEstado !== "open"
+                  ? "Desconecte aqui para liberar o número e conectá-lo acima."
+                  : null
+              }
+              // A vinculação da inbox do CRM vive nesse painel, e as campanhas
+              // ainda dependem dela enquanto o envio sair por lá. Ele some da
+              // tela junto com a linha do CRM.
+              extra={
+                <button
+                  type="button"
+                  onClick={() => setAjustesCrm(true)}
+                  className="text-2xs font-medium text-muted-foreground underline-offset-2 hover:underline"
+                >
+                  Ajustes do CRM
+                </button>
+              }
+              acao={
+                <BotaoDesconectar
+                  onClick={() => setConfirmando("crm")}
+                  ocupado={desconectar.isPending && confirmando === "crm"}
+                />
+              }
+            />
+          )}
+        </div>
+
+        {crm?.lastError && crmEstado !== "off" && (
+          <p className="rounded-xl bg-danger-soft px-3 py-2 text-xs text-danger">{crm.lastError}</p>
         )}
 
-        <button
-          type="button"
-          onClick={() => setSheetOpen(true)}
-          className="flex items-center justify-center gap-2 rounded-xl bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          <RefreshCw className="h-4 w-4" />
-          {config.cta}
-        </button>
-
-        {/* A conexão própria, enquanto as duas existem.
-            O status grande acima continua sendo o do CRM de propósito: é ele
-            que atende a clínica AGORA, e trocar o card para a conexão nova
-            mostraria "desconectado" no dia em que tudo está funcionando —
-            o jeito mais rápido de assustar a equipe à toa.
-            Quando o número migrar, este bloco vira o card e o de cima sai. */}
-        <button
-          type="button"
-          onClick={() => setPropriaAberta(true)}
-          className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border px-4 py-2 text-xs text-muted-foreground transition-colors hover:border-pink/40 hover:text-pink"
-        >
-          <Smartphone className="h-3.5 w-3.5" strokeWidth={1.75} />
-          Conexão própria (nova)
-        </button>
-
         {dailyUsage && (
-          <div>
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Envio diário de campanhas</span>
-              <span>
+          <div className="mt-auto">
+            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span className="min-w-0 truncate">Envio diário de campanhas</span>
+              <span className="shrink-0">
                 {dailyUsage.usedToday}/{dailyUsage.limit}
               </span>
             </div>
@@ -122,8 +208,117 @@ export function WhatsappConnectionCard({
         )}
       </section>
 
-      <WhatsappConnectSheet open={sheetOpen} onOpenChange={setSheetOpen} />
-      <ConectarWhatsapp open={propriaAberta} onOpenChange={setPropriaAberta} />
+      <ConectarWhatsapp open={conectarAberto} onOpenChange={setConectarAberto} />
+      <WhatsappConnectSheet open={ajustesCrm} onOpenChange={setAjustesCrm} />
+
+      {/* Desconectar é ação de mão única: a clínica para de receber até
+          alguém parear de novo. Confirmar aqui não é burocracia. */}
+      <AlertDialog open={confirmando !== null} onOpenChange={(o) => !o && setConfirmando(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmando === "crm" ? "Desconectar o número do CRM?" : "Desconectar o WhatsApp?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmando === "crm"
+                ? "A clínica para de receber e de enviar mensagens por este caminho até o número ser conectado de novo. As conversas já sincronizadas continuam aqui."
+                : "A clínica para de receber e de enviar mensagens até alguém escanear o QR Code de novo. As conversas já recebidas continuam aqui."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={desconectar.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={desconectar.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirmando) desconectar.mutate(confirmando);
+              }}
+            >
+              {desconectar.isPending ? "Desconectando…" : "Desconectar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
+  );
+}
+
+function BotaoDesconectar({ onClick, ocupado }: { onClick: () => void; ocupado: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={ocupado}
+      className="press ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-border px-2.5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-danger/40 hover:text-danger disabled:opacity-50"
+    >
+      {ocupado ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Plug className="h-3.5 w-3.5" strokeWidth={2} />
+      )}
+      Desconectar
+    </button>
+  );
+}
+
+function LinhaDeConexao({
+  titulo,
+  telefone,
+  estado,
+  nota,
+  extra,
+  acao,
+}: {
+  titulo: string;
+  telefone: string | null;
+  estado: EstadoDaConexao;
+  nota?: string | null;
+  extra?: React.ReactNode;
+  acao: React.ReactNode;
+}) {
+  const conectado = estado === "open";
+  const formatado = formatWhatsappNumber(telefone);
+  return (
+    // `flex-wrap` com piso de largura no texto: o número não encolhe para
+    // caber ao lado do botão — em 360px "+55 (48) 98419-5309" sairia cortado,
+    // e número cortado é número errado. O botão é que desce para a linha de
+    // baixo quando a largura acaba.
+    <div className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
+      <span
+        className={cn(
+          "grid h-9 w-9 shrink-0 place-items-center rounded-xl",
+          conectado ? "bg-success-soft text-success" : "bg-surface-muted text-muted-foreground",
+        )}
+      >
+        {conectado ? (
+          <CheckCircle2 className="h-4 w-4" />
+        ) : estado === "erro" ? (
+          <X className="h-4 w-4 text-danger" strokeWidth={2.5} />
+        ) : (
+          <Plug className="h-4 w-4" strokeWidth={1.75} />
+        )}
+      </span>
+
+      {/* SEM `min-w-0` e sem largura chutada, de propósito. É a ausência do
+          `min-w-0` que faz o bloco de texto não encolher abaixo do próprio
+          conteúdo mínimo — e como o número está em `whitespace-nowrap`, esse
+          mínimo é o número inteiro. Resultado: o botão desce sozinho quando o
+          número não cabe ao lado, e fica na mesma linha quando cabe. */}
+      <div className="flex-1">
+        <p className="whitespace-nowrap text-sm font-medium">
+          {conectado && formatado ? formatado : titulo}
+        </p>
+        <p className="mt-0.5 flex items-center gap-1.5 text-xs">
+          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", PONTO[estado])} />
+          <span className={conectado ? "text-success" : "text-muted-foreground"}>
+            {conectado && formatado ? `${ROTULO[estado]} · ${titulo}` : ROTULO[estado]}
+          </span>
+        </p>
+        {nota && <p className="mt-1 text-2xs leading-tight text-foreground-subtle">{nota}</p>}
+        {extra && <div className="mt-1">{extra}</div>}
+      </div>
+
+      {acao}
+    </div>
   );
 }

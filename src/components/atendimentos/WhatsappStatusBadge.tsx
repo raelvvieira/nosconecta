@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getWhatsappInstance } from "@/lib/atendimentos/atendimentos.functions";
-import { WhatsappConnectSheet } from "./WhatsappConnectSheet";
+import { getConexaoPropria } from "@/lib/atendimentos/conexao.functions";
+import { ConectarWhatsapp } from "./ConectarWhatsapp";
 
 // Era uma cápsula verde com borda, ícone e o número inteiro —
 // "Conectado · +55 (48) 98419-5309". No celular ela dividia a linha do
@@ -32,44 +33,75 @@ const ESTADOS: Record<string, Forma> = {
 };
 
 export function WhatsappStatusBadge({ className }: { className?: string }) {
-  const fetchInstance = useServerFn(getWhatsappInstance);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const buscarCrm = useServerFn(getWhatsappInstance);
+  const buscarPropria = useServerFn(getConexaoPropria);
+  const [conectarAberto, setConectarAberto] = useState(false);
 
-  const instanceQuery = useQuery({
+  // As DUAS conexões, porque a pergunta que o selo responde é uma só: dá para
+  // mandar mensagem agora? Durante a migração, olhar só para o CRM diria
+  // "desconectado" no dia em que a conexão própria já estivesse atendendo.
+  const crmQuery = useQuery({
     queryKey: ["atendimentos-instance"],
-    queryFn: () => fetchInstance(),
+    queryFn: () => buscarCrm(),
     staleTime: 8_000,
     refetchInterval: (query) => (query.state.data?.status === "connecting" ? 4_000 : 20_000),
   });
-  const instance = instanceQuery.data ?? null;
-  const estado = ESTADOS[instance?.status ?? "disconnected"];
+  const propriaQuery = useQuery({
+    queryKey: ["conexao-propria"],
+    queryFn: () => buscarPropria(),
+    staleTime: 8_000,
+    refetchInterval: (query) => (query.state.data?.estado === "connecting" ? 4_000 : 20_000),
+  });
+
+  const statusCrm = crmQuery.data?.status ?? "disconnected";
+  const statusPropria = propriaQuery.data?.estado ?? "close";
+  const status =
+    statusCrm === "open" || statusPropria === "open"
+      ? "open"
+      : statusCrm === "connecting" || statusPropria === "connecting"
+        ? "connecting"
+        : statusCrm;
+  const estado = ESTADOS[status] ?? ESTADOS.disconnected;
+
+  const conteudo = (
+    <>
+      {estado.xis ? (
+        <X className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />
+      ) : (
+        <span className={cn("h-2 w-2 shrink-0 rounded-full", estado.cor)} />
+      )}
+      <span className="truncate">{estado.texto}</span>
+    </>
+  );
+
+  const classe = cn(
+    "inline-flex max-w-full shrink-0 items-center gap-1.5 text-xs font-medium transition-colors",
+    estado.xis ? "text-danger" : "text-muted-foreground",
+    className,
+  );
+
+  // Conectado, o selo é só informação: gerenciar as duas conexões é no cartão
+  // do Dashboard, e abrir daqui o painel de UMA delas mostraria o estado da
+  // conexão errada para quem clicou por causa da outra.
+  if (!estado.xis) {
+    return (
+      <span className={classe} title="WhatsApp conectado">
+        {conteudo}
+      </span>
+    );
+  }
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setSheetOpen(true)}
-        title={
-          estado.xis
-            ? "WhatsApp desconectado — toque para conectar"
-            : "WhatsApp conectado — toque para gerenciar"
-        }
-        className={cn(
-          "inline-flex max-w-full shrink-0 items-center gap-1.5 text-xs font-medium transition-colors",
-          estado.xis
-            ? "text-danger hover:text-danger/80"
-            : "text-muted-foreground hover:text-foreground",
-          className,
-        )}
+        onClick={() => setConectarAberto(true)}
+        title="WhatsApp desconectado — toque para conectar"
+        className={cn(classe, "hover:text-danger/80")}
       >
-        {estado.xis ? (
-          <X className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} />
-        ) : (
-          <span className={cn("h-2 w-2 shrink-0 rounded-full", estado.cor)} />
-        )}
-        <span className="truncate">{estado.texto}</span>
+        {conteudo}
       </button>
-      <WhatsappConnectSheet open={sheetOpen} onOpenChange={setSheetOpen} />
+      <ConectarWhatsapp open={conectarAberto} onOpenChange={setConectarAberto} />
     </>
   );
 }
