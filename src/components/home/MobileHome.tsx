@@ -10,6 +10,8 @@ import {
   Users,
 } from "lucide-react";
 import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
+import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
+import { KpiCard } from "@/components/finance/KpiCard";
 import { SinoDeAvisos } from "@/components/layout/SinoDeAvisos";
 import type { HomeData } from "@/components/home/home-data";
 import { formatBRL } from "@/lib/finance/format";
@@ -56,49 +58,48 @@ function cartoesResumo(dados: HomeData) {
   return [
     {
       icon: CalendarDays,
-      iconClass: "bg-pink-soft text-pink",
+      tone: "violet" as const,
       title: "Agenda de hoje",
       value: String(dados.agendaHoje.total),
-      valueClass: "text-foreground",
-      subtitle: "atendimentos",
-      action: "Ver agenda",
-      actionClass: "text-pink",
+      // A legenda de antes ("atendimentos", "pacientes aguardando") repetia o
+      // rótulo com outras palavras. No lugar dela fica o destino do toque —
+      // que é o que o cartão faz de fato.
+      nota: "Ver agenda →",
+      notaClass: "text-pink",
       to: "/agenda" as const,
     },
     {
       icon: Users,
-      iconClass: "bg-violet-soft text-violet",
+      tone: "violet" as const,
       title: "Confirmações pendentes",
       value: String(dados.confirmacoesPendentes),
-      valueClass: "text-foreground",
-      subtitle: "pacientes aguardando",
-      action: "Confirmar agora",
-      actionClass: "text-violet",
+      nota: "Confirmar agora →",
+      notaClass: "text-violet",
       to: "/agenda" as const,
     },
     {
       icon: DollarSign,
-      iconClass: "bg-success-soft text-success",
+      tone: "success" as const,
       title: "Recebido hoje",
       value: formatBRL(dados.recebidoHoje),
-      valueClass: "text-success",
-      subtitle: "entrou no caixa hoje",
-      action: "Ver recebimentos",
-      actionClass: "text-success",
+      corNoValor: true,
+      nota: "Recebimentos →",
+      notaClass: "text-success",
       to: "/recebimentos" as const,
     },
     {
       icon: AlertTriangle,
-      iconClass: "bg-danger-soft text-danger",
+      tone: "danger" as const,
       title: "Alertas",
       value: String(dados.alertas.total),
-      valueClass: "text-foreground",
-      subtitle:
+      // Aqui a legenda carrega informação que o rótulo não tem — o valor em
+      // atraso —, então ela toma o lugar do texto de ação. O cartão inteiro
+      // continua sendo o link.
+      nota:
         dados.alertas.valorEmAtraso > 0
           ? `${formatBRL(dados.alertas.valorEmAtraso)} em atraso`
-          : "itens",
-      action: "Ver recebimentos",
-      actionClass: "text-danger",
+          : "Recebimentos →",
+      notaClass: "text-danger",
       to: "/recebimentos" as const,
     },
   ];
@@ -106,35 +107,23 @@ function cartoesResumo(dados: HomeData) {
 
 function Resumo({ dados }: { dados: HomeData }) {
   return (
-    <div className="grid grid-cols-2 gap-3 px-6 pt-7">
-      {cartoesResumo(dados).map((card) => (
-        <Link
-          key={card.title}
-          to={card.to}
-          className="press surface-card flex min-w-0 flex-col gap-2.5 p-4"
-        >
-          <div className="flex items-start gap-2.5">
-            <span
-              className={cn(
-                "grid h-9 w-9 shrink-0 place-items-center rounded-md",
-                card.iconClass,
-              )}
-            >
-              <card.icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
-            </span>
-            <p className="min-w-0 pt-0.5 text-2xs text-muted-foreground">{card.title}</p>
-          </div>
-          <div className="min-w-0">
-            <p className={cn("truncate text-xl font-bold tabular-nums", card.valueClass)}>
-              {card.value}
-            </p>
-            <p className="mt-0.5 text-2xs text-foreground-subtle">{card.subtitle}</p>
-          </div>
-          <span className={cn("mt-auto text-xs font-semibold", card.actionClass)}>
-            {card.action} →
-          </span>
-        </Link>
-      ))}
+    <div className="px-6 pt-7">
+      <GrupoDeKpis>
+        {cartoesResumo(dados).map((card) => (
+          <Link key={card.title} to={card.to} className="press flex min-w-0 flex-col">
+            <KpiCard
+              className="flex-1"
+              label={card.title}
+              value={card.value}
+              icon={card.icon}
+              tone={card.tone}
+              corNoValor={card.corNoValor}
+              nota={<span className={cn("font-semibold", card.notaClass)}>{card.nota}</span>}
+              footer={<span className={cn("font-semibold", card.notaClass)}>{card.nota}</span>}
+            />
+          </Link>
+        ))}
+      </GrupoDeKpis>
     </div>
   );
 }
@@ -188,7 +177,10 @@ function ProximosAtendimentos({ dados }: { dados: HomeData }) {
               >
                 {appt.confirmado ? "Confirmado" : "Pendente"}
               </span>
-              <ChevronRight className="h-[15px] w-[15px] shrink-0 text-foreground-subtle" strokeWidth={2} />
+              <ChevronRight
+                className="h-[15px] w-[15px] shrink-0 text-foreground-subtle"
+                strokeWidth={2}
+              />
             </div>
           ))
         )}
@@ -246,7 +238,9 @@ function AcoesRapidas() {
             )}
             onClick={a.onClick}
           >
-            <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-lg", a.iconClass)}>
+            <span
+              className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-lg", a.iconClass)}
+            >
               <a.icon className="h-5 w-5" strokeWidth={1.75} />
             </span>
             <span className="min-w-0 overflow-hidden whitespace-pre-line text-sm font-bold">
@@ -285,7 +279,10 @@ function PrecisaAtencao({ dados }: { dados: HomeData }) {
                 <item.icon className="h-4 w-4" style={{ color: item.color }} strokeWidth={1.75} />
               </span>
               <span className="flex-1 text-sm text-foreground-secondary">{item.label}</span>
-              <ChevronRight className="h-[15px] w-[15px] shrink-0 text-foreground-subtle" strokeWidth={2} />
+              <ChevronRight
+                className="h-[15px] w-[15px] shrink-0 text-foreground-subtle"
+                strokeWidth={2}
+              />
             </button>
           ))
         )}

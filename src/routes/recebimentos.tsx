@@ -27,6 +27,7 @@ import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { RouteSkeleton } from "@/components/layout/RouteSkeleton";
 import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
 import { DateRangePicker } from "@/components/finance/DateRangePicker";
+import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { NewReceivableSheet } from "@/components/finance/receivables/NewReceivableSheet";
 import { RegisterReceiptDialog } from "@/components/finance/receivables/RegisterReceiptDialog";
@@ -268,7 +269,7 @@ function RecebimentosPage() {
         <div className="grid grid-cols-1 2xl:grid-cols-[1fr_340px] gap-5">
           <div className="space-y-5 min-w-0">
             {/* KPIs */}
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5">
+            <GrupoDeKpis>
               <KpiCard
                 label="Recebido no período"
                 value={formatBRL(data.kpis.receivedInPeriod.current)}
@@ -282,6 +283,7 @@ function RecebimentosPage() {
                 value={formatBRL(data.kpis.toReceive.total)}
                 icon={CalendarDays}
                 tone="warning"
+                nota={`${data.kpis.toReceive.count} parcelas futuras`}
                 footer={
                   <span className="inline-flex items-center px-2 py-1 rounded-full bg-warning-soft text-warning font-medium">
                     {data.kpis.toReceive.count} parcelas futuras
@@ -293,6 +295,7 @@ function RecebimentosPage() {
                 value={formatBRL(data.kpis.overdue.total)}
                 icon={AlertCircle}
                 tone="danger"
+                nota={`${data.kpis.overdue.patients} inadimplentes`}
                 footer={
                   <span className="inline-flex items-center px-2 py-1 rounded-full bg-danger-soft text-danger font-medium">
                     {data.kpis.overdue.patients} pacientes inadimplentes
@@ -306,7 +309,7 @@ function RecebimentosPage() {
                 tone="violet"
                 footer={<span className="text-muted-foreground">Período</span>}
               />
-            </div>
+            </GrupoDeKpis>
 
             {/* Evolution chart */}
             <section className="surface-card p-5 space-y-4">

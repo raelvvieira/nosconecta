@@ -15,6 +15,8 @@ import {
   UserX,
   Lock,
 } from "lucide-react";
+import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
+import { KpiCard } from "@/components/finance/KpiCard";
 import { cn } from "@/lib/utils";
 import type {
   Appointment,
@@ -105,58 +107,55 @@ function StatsCarousel({ appointments, date }: { appointments: Appointment[]; da
   ).length;
   const pending = today.filter((a) => a.status === "pending").length;
   const missed = today.filter((a) => a.status === "missed").length;
-  const pct = (n: number) => (total > 0 ? `${Math.round((n / total) * 100)}% do total` : "—");
+  // Sem agendamento nenhum a porcentagem virava um travessão — uma linha de
+  // texto para dizer nada. Agora simplesmente não há linha.
+  const pct = (n: number) => (total > 0 ? `${Math.round((n / total) * 100)}% do total` : undefined);
 
   const cards = [
     {
       icon: CalendarCheck,
+      tone: "violet" as const,
       label: "Atendimentos Hoje",
       value: String(total),
-      sub: "Total de agendamentos",
-      bg: "color-mix(in oklab, var(--violet) 10%, transparent)",
-      color: "var(--violet)",
+      nota: total > 0 ? "Total de agendamentos" : undefined,
     },
     {
       icon: CheckCircle2,
+      tone: "success" as const,
       label: "Confirmados",
       value: String(confirmed),
-      sub: pct(confirmed),
-      bg: "color-mix(in oklab, var(--success) 10%, transparent)",
-      color: "var(--success)",
+      nota: pct(confirmed),
     },
     {
       icon: Clock,
+      tone: "warning" as const,
       label: "Pendentes",
       value: String(pending),
-      sub: pct(pending),
-      bg: "color-mix(in oklab, var(--coral) 10%, transparent)",
-      color: "var(--coral)",
+      nota: pct(pending),
     },
     {
       icon: UserX,
+      tone: "danger" as const,
       label: "Faltas",
       value: String(missed),
-      sub: pct(missed),
-      bg: "color-mix(in oklab, var(--danger) 10%, transparent)",
-      color: "var(--danger)",
+      nota: pct(missed),
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <GrupoDeKpis>
       {cards.map((c) => (
-        <div key={c.label} className="surface-card p-4 flex flex-col gap-2">
-          <div className="h-9 w-9 rounded-xl grid place-items-center" style={{ background: c.bg }}>
-            <c.icon style={{ color: c.color, width: 18, height: 18 }} strokeWidth={1.75} />
-          </div>
-          <div>
-            <p className="text-2xs text-muted-foreground leading-tight">{c.label}</p>
-            <p className="text-xl font-semibold text-foreground tabular-nums mt-0.5">{c.value}</p>
-          </div>
-          <p className="text-2xs text-muted-foreground">{c.sub}</p>
-        </div>
+        <KpiCard
+          key={c.label}
+          label={c.label}
+          value={c.value}
+          icon={c.icon}
+          tone={c.tone}
+          nota={c.nota}
+          footer={c.nota && <span className="text-muted-foreground">{c.nota}</span>}
+        />
       ))}
-    </div>
+    </GrupoDeKpis>
   );
 }
 

@@ -22,6 +22,7 @@ import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { RouteSkeleton } from "@/components/layout/RouteSkeleton";
 import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
+import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -154,7 +155,7 @@ function PlanningPage() {
           />
 
           {/* KPIs */}
-          <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5">
+          <GrupoDeKpis>
             <KpiCard
               label="Saldo Atual"
               value={formatBRL(summary.currentBalance)}
@@ -180,39 +181,42 @@ function PlanningPage() {
               footer={<span className="text-muted-foreground">projeção</span>}
             />
 
-            <div className="surface-card p-4 md:p-6 flex flex-col gap-3 md:gap-5 transition-shadow hover:shadow-lg">
-              <div className="flex items-start gap-3 md:gap-4">
-                <div className="h-9 w-9 md:h-12 md:w-12 rounded-xl md:rounded-2xl grid place-items-center bg-warning-soft shrink-0">
-                  <Shield className="h-4 w-4 md:h-5 md:w-5 text-warning" strokeWidth={2} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-2xs md:text-sm text-muted-foreground">Fôlego Financeiro</p>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          aria-label="O que é Fôlego Financeiro"
-                          className="text-muted-foreground hover:text-foreground"
-                        >
-                          <Info className="h-3.5 w-3.5" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-[260px] text-xs">
-                        Com o saldo atual e o nível médio de despesas, a clínica consegue operar por
-                        aproximadamente {summary.financialRunwayDays} dias sem novas receitas.
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <p className="hidden md:block text-2xl font-semibold tabular-nums mt-1">
-                    {summary.financialRunwayDays} dias
-                  </p>
-                </div>
-              </div>
-              <p className="md:hidden text-sm font-semibold tabular-nums leading-none">
-                {summary.financialRunwayDays} dias
-              </p>
-              <div className="flex items-center justify-between">
+            {/* Era uma cópia do KpiCard escrita à mão, e por isso o único
+                indicador do app que não acompanhava mudança nenhuma do
+                componente. O que ele tem de próprio — a explicação no ícone
+                de ajuda e o selo embaixo — cabe nas props de sempre. */}
+            <KpiCard
+              label={
+                <span className="inline-flex items-center gap-1.5">
+                  Fôlego Financeiro
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label="O que é Fôlego Financeiro"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <Info className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[260px] text-xs">
+                      Com o saldo atual e o nível médio de despesas, a clínica consegue operar por
+                      aproximadamente {summary.financialRunwayDays} dias sem novas receitas.
+                    </TooltipContent>
+                  </Tooltip>
+                </span>
+              }
+              value={`${summary.financialRunwayDays} dias`}
+              icon={Shield}
+              tone="warning"
+              nota={
+                <span
+                  className={summary.financialRunwayDays >= 60 ? "text-success" : "text-warning"}
+                >
+                  {summary.financialRunwayDays >= 60 ? "Acima do recomendado" : "Atenção ao caixa"}
+                </span>
+              }
+              footer={
                 <Badge
                   variant="secondary"
                   className={`border-0 font-medium ${summary.financialRunwayDays >= 60 ? "bg-success-soft text-success" : "bg-warning-soft text-warning"}`}
@@ -221,9 +225,9 @@ function PlanningPage() {
                     ? "✓ Acima do recomendado"
                     : "Atenção ao caixa"}
                 </Badge>
-              </div>
-            </div>
-          </section>
+              }
+            />
+          </GrupoDeKpis>
 
           {/* Chart + Summary */}
           <section className="grid grid-cols-1 xl:grid-cols-3 gap-5">

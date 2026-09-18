@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, LayoutDashboard, MessageCircle, Send, Workflow } from "lucide-react";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
+import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBadge";
 import { WhatsappConnectionCard } from "@/components/atendimentos/WhatsappConnectionCard";
@@ -102,12 +103,12 @@ function DashboardPage() {
       />
 
       <div className="space-y-5 px-4 sm:px-6 lg:px-10">
-        <section className="grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-4">
+        <GrupoDeKpis>
           <KpiCard label="Conversas ativas" value={String(conversations.length)} icon={MessageCircle} tone="violet" />
           <KpiCard label="Precisam de atenção" value={String(needsAttention)} icon={Bell} tone="warning" />
           <KpiCard label="Contatos no funil" value={String(items.length)} icon={Workflow} tone="success" />
           <KpiCard label="Disparos em andamento" value={String(disparosEmAndamento)} icon={Send} tone="danger" />
-        </section>
+        </GrupoDeKpis>
 
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_360px]">
           <PipelineFunnelCard configured={configured} stages={stages} items={items} />

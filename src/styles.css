@@ -645,3 +645,44 @@
     background-clip: padding-box;
   }
 }
+
+/* ── Bloco de indicadores ──────────────────────────────────────────────────
+ *
+ * No celular, quatro indicadores do mesmo assunto viravam quatro cartões
+ * flutuando: quatro sombras, quatro bordas, quatro vezes o mesmo respiro
+ * interno — ~250px de tela para mostrar quatro números. Aqui eles passam a
+ * ser UM cartão dividido por linhas finas, como a lista dos Ajustes do iOS.
+ *
+ * A partir de `md` a moldura se dissolve e cada indicador volta a ser um
+ * cartão próprio, exatamente como sempre foi no desktop — onde espaço sobra
+ * e o ícone ajuda a varrer a tela com o olho.
+ *
+ * As divisórias moram SÓ dentro do `@media` do celular. Se existissem
+ * também no desktop, a regra `& > *` competiria em especificidade com o
+ * `md:surface-card` de cada indicador e a borda do cartão viraria sorteio de
+ * ordem de arquivo.
+ */
+@utility bloco-de-indicadores {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+
+  @media (width < 48rem) {
+    & > *:nth-child(even) {
+      border-left: 1px solid var(--border);
+    }
+    & > *:nth-child(n + 3) {
+      border-top: 1px solid var(--border);
+    }
+  }
+
+  @media (width >= 48rem) {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+}

@@ -9,6 +9,7 @@ import { SobDemanda, nomeado } from "@/components/finance/SobDemanda";
 import { MobileHome } from "@/components/home/MobileHome";
 import { useHomeData } from "@/components/home/useHomeData";
 import { PageHeader } from "@/components/finance/PageHeader";
+import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { BankAccountsCard } from "@/components/finance/BankAccountsCard";
 import { GerenciarContasSheet } from "@/components/finance/GerenciarContasSheet";
@@ -145,7 +146,7 @@ function FinanceiroVisaoGeral() {
           onRangeChange={setRange}
         />
 
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5">
+        <GrupoDeKpis>
           <KpiCard
             label="Receita"
             value={formatBRL(kpis.revenue.current)}
@@ -168,6 +169,7 @@ function FinanceiroVisaoGeral() {
             icon={BarChart3}
             tone="violet"
             highlight
+            nota={`Margem ${kpis.margin.toFixed(0)}%`}
             footer={
               <span className="inline-flex items-center px-2 py-1 rounded-full bg-violet-soft text-violet font-medium">
                 Margem {kpis.margin.toFixed(0)}%
@@ -179,13 +181,14 @@ function FinanceiroVisaoGeral() {
             value={formatBRL(kpis.overdue.total)}
             icon={Users}
             tone="warning"
+            nota={`${kpis.overdue.patients} pacientes`}
             footer={
               <span className="inline-flex items-center px-2 py-1 rounded-full bg-warning-soft text-warning font-medium">
                 {kpis.overdue.patients} pacientes
               </span>
             }
           />
-        </div>
+        </GrupoDeKpis>
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
           <SobDemanda altura={360}>

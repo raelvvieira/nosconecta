@@ -9,6 +9,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
+import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { SinoDeAvisos } from "@/components/layout/SinoDeAvisos";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,7 @@ export function DesktopHome({ dados }: { dados: HomeData }) {
         <SinoDeAvisos className="h-11 w-11 shrink-0" />
       </header>
 
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5">
+      <GrupoDeKpis>
         <KpiCard
           label="Agenda de hoje"
           value={String(dados.agendaHoje.total)}
@@ -70,7 +71,7 @@ export function DesktopHome({ dados }: { dados: HomeData }) {
             </span>
           }
         />
-      </div>
+      </GrupoDeKpis>
 
       <section className="surface-card p-6">
         <div className="flex items-center justify-between mb-4">

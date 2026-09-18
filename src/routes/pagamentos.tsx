@@ -27,6 +27,7 @@ import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { RouteSkeleton } from "@/components/layout/RouteSkeleton";
 import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
+import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { DateRangePicker } from "@/components/finance/DateRangePicker";
 import { NewPaymentSheet } from "@/components/finance/payables/NewPaymentSheet";
@@ -242,7 +243,7 @@ function PagamentosPage() {
         />
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-5">
+        <GrupoDeKpis>
           <KpiCard
             label="Pago no período"
             value={formatBRL(data.kpis.paidInPeriod.current)}
@@ -256,6 +257,7 @@ function PagamentosPage() {
             value={formatBRL(data.kpis.toPay.total)}
             icon={CalendarDays}
             tone="warning"
+            nota={`${data.kpis.toPay.count} pagamentos`}
             footer={
               <span className="inline-flex items-center px-2 py-1 rounded-full bg-warning-soft text-warning font-medium">
                 {data.kpis.toPay.count} pagamentos
@@ -278,7 +280,7 @@ function PagamentosPage() {
             highlight
             footer={<span className="text-muted-foreground">no intervalo selecionado</span>}
           />
-        </div>
+        </GrupoDeKpis>
 
         {/* Main grid */}
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">

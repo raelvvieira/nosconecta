@@ -1,3 +1,4 @@
+import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { Sidebar } from "@/components/finance/Sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -14,15 +15,25 @@ function Line({ className }: { className?: string }) {
   return <Skeleton className={className ?? "h-4 w-full"} />;
 }
 
+// Espelha o `KpiCard`: célula sem moldura no celular, cartão a partir de md.
+// Se o esqueleto tivesse a forma antiga, a tela pularia ~190px ao carregar.
 function KpiBlock() {
   return (
-    <div className="surface-card space-y-3 p-4 md:p-5">
-      <div className="flex items-center justify-between">
-        <Line className="h-3 w-20" />
-        <Skeleton className="h-9 w-9 rounded-xl" />
+    <div className="flex min-w-0 flex-col px-4 py-3.5 md:surface-card md:p-6">
+      <div className="flex flex-col md:hidden">
+        <Line className="h-5 w-24" />
+        <Line className="mt-1.5 h-3 w-20" />
       </div>
-      <Line className="h-7 w-28" />
-      <Line className="h-3 w-32" />
+      <div className="hidden md:flex md:flex-col md:gap-5">
+        <div className="flex items-start gap-4">
+          <Skeleton className="h-12 w-12 rounded-lg" />
+          <div className="flex-1 space-y-2">
+            <Line className="h-3 w-20" />
+            <Line className="h-7 w-28" />
+          </div>
+        </div>
+        <Line className="h-3 w-32" />
+      </div>
     </div>
   );
 }
@@ -98,7 +109,9 @@ function ShapeBody({ shape }: { shape: Shape }) {
           </div>
           <Skeleton className="h-11 w-full rounded-xl" />
           <div className="surface-card divide-y divide-border overflow-hidden">
-            {[0, 1, 2, 3].map((i) => <RowBlock key={i} />)}
+            {[0, 1, 2, 3].map((i) => (
+              <RowBlock key={i} />
+            ))}
           </div>
         </div>
       </>
@@ -108,9 +121,11 @@ function ShapeBody({ shape }: { shape: Shape }) {
   return (
     <>
       {shape === "kpis" && (
-        <div className="grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => <KpiBlock key={i} />)}
-        </div>
+        <GrupoDeKpis>
+          {[0, 1, 2, 3].map((i) => (
+            <KpiBlock key={i} />
+          ))}
+        </GrupoDeKpis>
       )}
 
       <div className="surface-card divide-y divide-border overflow-hidden">
@@ -118,7 +133,9 @@ function ShapeBody({ shape }: { shape: Shape }) {
           <Line className="h-4 w-36" />
           <Skeleton className="h-8 w-24 rounded-full" />
         </div>
-        {[0, 1, 2, 3, 4, 5].map((i) => <RowBlock key={i} compact={shape === "kpis"} />)}
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <RowBlock key={i} compact={shape === "kpis"} />
+        ))}
       </div>
     </>
   );
