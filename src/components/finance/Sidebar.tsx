@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useMobileFab } from "@/components/finance/mobile-fab-context";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { UnitSwitcher } from "@/components/settings/UnitSwitcher";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +12,8 @@ import { CabecalhoDeSecao } from "@/components/layout/CabecalhoDeSecao";
 import { ItemDeMenu } from "@/components/layout/ItemDeMenu";
 import { BotaoDaIlha, LinkDaIlha } from "@/components/layout/ItemDaIlha";
 import { PilulaDaIlha } from "@/components/layout/PilulaDaIlha";
+import { IlhaDoMais } from "@/components/layout/IlhaDoMais";
+import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import {
   ACOES_DA_AGENDA,
   GRUPOS_DO_MAIS,
@@ -497,61 +498,23 @@ export function Sidebar() {
                   ativo={inAtendimentos ? itemAtivo(d) : moduloAtivo(d)}
                 />
               ))}
-              <BotaoDaIlha label="Mais" icon={MoreHorizontal} onClick={() => setMoreOpen(true)} />
+              {/* O gatilho fica DENTRO da barra: é dele que a ilha nasce, e
+                  é ele que o Radix mede para ancorá-la. */}
+              <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+                <PopoverTrigger asChild>
+                  {/* Sem `ativo`: "ativo" aqui quer dizer "é esta a tela em que você
+                      está", e é o que a pílula persegue. Pintar o "Mais" de coral
+                      com a ilha aberta tiraria o realce da tela de verdade e
+                      diria uma coisa que não é. A ilha logo acima já é o retorno
+                      de que o menu abriu. */}
+                  <BotaoDaIlha label="Mais" icon={MoreHorizontal} habilitado />
+                </PopoverTrigger>
+                <IlhaDoMais pathname={pathname} aoNavegar={() => setMoreOpen(false)} />
+              </Popover>
             </>
           );
         })()}
       </nav>
-
-      {/* Painel "Mais" (mobile): antes o botão ia direto pras Configurações,
-          então todo o resto do sistema ficava sem caminho no celular. Aqui
-          ficam os módulos e, nos que têm submenu, os itens deles — mesma
-          estrutura do menu lateral do desktop. */}
-      <Drawer open={moreOpen} onOpenChange={setMoreOpen}>
-        <DrawerContent className="max-h-[80dvh] lg:hidden">
-          <DrawerHeader className="text-left">
-            <DrawerTitle className="text-base">Navegar</DrawerTitle>
-          </DrawerHeader>
-
-          <div className="mt-2 space-y-5 px-4 pb-4">
-            {GRUPOS_DO_MAIS.map((group, i) => (
-              <div
-                key={group.label}
-                className="ilha-entra"
-                style={{ animationDelay: `${i * 45}ms` }}
-              >
-                <p className="px-1 text-3xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {group.label}
-                </p>
-                <div className="mt-1.5 space-y-0.5">
-                  {navegaveis(group.itens).map((item) => {
-                    const active =
-                      item.to === "/atendimentos" || item.to === "/pacientes"
-                        ? pathname === item.to
-                        : pathname === item.to || pathname.startsWith(`${item.to}/`);
-                    return (
-                      <Link
-                        key={item.to}
-                        to={item.to}
-                        onClick={() => setMoreOpen(false)}
-                        className={cn(
-                          "flex h-12 w-full items-center gap-3 rounded-2xl px-3 transition-colors",
-                          active
-                            ? "bg-foreground text-white"
-                            : "text-foreground hover:bg-surface-subtle",
-                        )}
-                      >
-                        <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-                        <span className="text-sm font-medium">{item.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </DrawerContent>
-      </Drawer>
 
       {/* Mobile top-right home button.
           Escondido em Atendimentos: ele é `fixed` e caía em cima do

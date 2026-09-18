@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
-import type { CSSProperties } from "react";
+import { forwardRef } from "react";
+import type { ComponentPropsWithoutRef, CSSProperties } from "react";
 import type { RotaDoMenu } from "@/components/layout/destinos";
 
 // O item da ilha inferior do celular, uma vez só.
@@ -140,28 +141,35 @@ export function LinkDaIlha({
  *  `onClick` ausente = a página ainda não montou. O botão continua desenhado,
  *  no mesmo lugar e do mesmo tamanho, apenas desabilitado — é isto que faz a
  *  barra durante o carregamento ser idêntica à barra final, em vez de aparecer
- *  com o "+" solto na borda esquerda. */
-export function BotaoDaIlha({
-  label,
-  icon,
-  onClick,
-  ativo = false,
-}: {
-  label: string;
-  icon: LucideIcon;
-  onClick?: () => void;
-  ativo?: boolean;
-}) {
+ *  com o "+" solto na borda esquerda.
+ *
+ *  Encaminha a ref e repassa o resto das props porque ele também serve de
+ *  ÂNCORA: o "Mais" é o gatilho da ilha de navegação, e quem posiciona a ilha
+ *  precisa medir este botão. Nesse uso o `onClick` vem de fora, junto com as
+ *  outras props do gatilho — daí o `habilitado` explícito. */
+export const BotaoDaIlha = forwardRef<
+  HTMLButtonElement,
+  {
+    label: string;
+    icon: LucideIcon;
+    onClick?: () => void;
+    ativo?: boolean;
+    habilitado?: boolean;
+  } & Omit<ComponentPropsWithoutRef<"button">, "onClick">
+>(function BotaoDaIlha({ label, icon, onClick, ativo = false, habilitado, ...resto }, ref) {
+  const ligado = habilitado ?? !!onClick;
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onClick}
-      disabled={!onClick}
+      disabled={!ligado}
       aria-label={label}
       className={CLASSE_TOQUE}
-      style={{ ...COLUNA_DA_ILHA, opacity: onClick ? 1 : 0.4 }}
+      style={{ ...COLUNA_DA_ILHA, opacity: ligado ? 1 : 0.4 }}
+      {...resto}
     >
       <Conteudo icon={icon} label={label} ativo={ativo} />
     </button>
   );
-}
+});
