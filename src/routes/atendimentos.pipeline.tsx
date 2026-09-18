@@ -408,7 +408,7 @@ function PipelinePage() {
                     <div
                       ref={(el) => registerColumn(stage.id, el)}
                       className={cn(
-                        "surface-card flex-1 space-y-2 overflow-y-auto p-2 transition-colors",
+                        "surface-card flex-1 space-y-2 overflow-y-auto overflow-x-clip p-2 transition-colors",
                         drag && overStageId === stage.id && "ring-2 ring-pink/40",
                       )}
                     >

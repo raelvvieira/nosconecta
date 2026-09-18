@@ -241,7 +241,7 @@ export function BroadcastDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className="custom-scroll min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="custom-scroll min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip px-6 py-5">
           <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_auto]">
             <div className="space-y-5">
               {/* ── Nome ─────────────────────────────────────────────────── */}

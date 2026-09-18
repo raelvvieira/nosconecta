@@ -199,7 +199,7 @@ export function EmojiPicker({ onSelect }: { onSelect: (emoji: string) => void })
         </div>
       )}
 
-      <div className="mt-2 max-h-[220px] overflow-y-auto">
+      <div className="mt-2 max-h-[220px] overflow-y-auto overflow-x-clip">
         {visible.length === 0 ? (
           <p className="py-6 text-center text-xs text-muted-foreground">Nenhum emoji encontrado.</p>
         ) : (

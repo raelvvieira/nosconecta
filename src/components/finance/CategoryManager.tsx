@@ -191,7 +191,7 @@ export function CategoryManager({
           {merged.length > 0 && (
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Categorias existentes</Label>
-              <div className="max-h-52 overflow-y-auto custom-scroll space-y-1 pr-1">
+              <div className="max-h-52 overflow-y-auto overflow-x-clip custom-scroll space-y-1 pr-1">
                 {merged.map((c) => (
                   <div
                     key={c.id}

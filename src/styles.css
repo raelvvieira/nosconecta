@@ -602,9 +602,16 @@
  * virou `auto` junto — e aí qualquer filho largo demais passou a arrastar a
  * página inteira.
  *
- * `clip` é a saída: diferente de `hidden`, ele NÃO força o outro eixo, então
- * a rolagem vertical continua normal e a horizontal simplesmente deixa de
- * existir.
+ * A correção é simplesmente DECLARAR o eixo horizontal, em vez de deixá-lo
+ * ser promovido.
+ *
+ * Usamos `clip`. Uma ressalva medida no navegador, para ninguém se apoiar
+ * numa promessa falsa: com o eixo Y em `auto`, o `clip` do eixo X é
+ * computado como `hidden` — conferido em Chromium, `getComputedStyle` devolve
+ * `overflow-x: hidden`. Aqui os dois dão no mesmo. A diferença real de `clip`
+ * aparece só quando o outro eixo é `visible`, caso em que `hidden` o
+ * promoveria a `auto` e `clip` não. Ficou `clip` por ser o que continua certo
+ * se um dia a rolagem vertical sair daqui.
  *
  * ── E o que é largo de propósito ────────────────────────────────────────
  *

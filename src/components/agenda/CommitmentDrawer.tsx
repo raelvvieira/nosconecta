@@ -114,7 +114,7 @@ export function CommitmentDrawer({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+        <div className="flex-1 overflow-y-auto overflow-x-clip px-6 py-5 space-y-4">
           {/* Seletor Consulta/Compromisso, só ao criar: trocar o tipo de um
               compromisso já salvo significaria migrar de tabela. */}
           {!isEdit && onTrocarParaConsulta && (

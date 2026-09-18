@@ -400,7 +400,7 @@ export function ChatComposer({
             <p className="text-sm font-semibold">Mensagens Rápidas</p>
             <p className="text-xs text-muted-foreground">Toque para inserir no campo de mensagem</p>
           </div>
-          <div className="max-h-[260px] overflow-y-auto p-2">
+          <div className="max-h-[260px] overflow-y-auto overflow-x-clip p-2">
             {templatesQuery.isLoading ? (
               <p className="px-2 py-6 text-center text-xs text-muted-foreground">Carregando…</p>
             ) : templates.length === 0 ? (

@@ -183,7 +183,7 @@ export function PainelDoContato({
         )}
       </header>
 
-      <div className="custom-scroll min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+      <div className="custom-scroll min-h-0 min-w-0 flex-1 space-y-3 overflow-y-auto overflow-x-clip p-4">
         {/* ── Atraso ────────────────────────────────────────────────────────
             Uma faixa, não um card: é a única informação do painel que muda o
             que se escreve na frase seguinte, e precisa ser lida sem rolar.

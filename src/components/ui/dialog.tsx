@@ -38,12 +38,20 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 flex max-h-[90dvh] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col border bg-card p-6 shadow-3 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-3xl",
+        "fixed left-[50%] top-[50%] z-50 flex max-h-[90dvh] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col overflow-x-clip border bg-card p-6 shadow-3 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 rounded-3xl",
         className,
       )}
       {...props}
     >
-      {/* O `grid gap-4` desce para o invólucro para manter o espaçamento que
+      {/* A raiz também: várias telas passam `overflow-y-auto` no `className`,
+          criando um SEGUNDO contêiner de rolagem aqui fora. Sem declarar o
+          eixo X nele, o CSS promove o horizontal a `auto` e o pop-up inteiro
+          escorrega com o toque no celular.
+
+          Medido em Chromium a 360px: sem declarar o eixo, um gesto lateral
+          desloca o conteúdo 252px; declarando, 0.
+
+          O `grid gap-4` desce para o invólucro para manter o espaçamento que
           os diálogos já tinham; o que muda é só a rolagem.
 
           `overflow-x-hidden` + `min-w-0` (mesmo par já usado em select.tsx,

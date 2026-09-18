@@ -101,7 +101,7 @@ export function FiltrosDaConversa({
               </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-64 p-0">
-              <div className="custom-scroll max-h-[60vh] overflow-y-auto p-3">
+              <div className="custom-scroll max-h-[60vh] overflow-y-auto overflow-x-clip p-3">
                 <Grupo titulo="Situação">
                   <Opcao
                     marcada={filtros.status === "encerradas"}

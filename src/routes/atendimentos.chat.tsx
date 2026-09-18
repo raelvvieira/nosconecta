@@ -523,7 +523,7 @@ function ChatPage() {
           )}
         </header>
 
-        <div className="flex-1 overflow-y-auto px-2 pb-4 lg:px-2">
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-clip px-2 pb-4 lg:px-2">
           {/* Três vazios diferentes, e dizer qual é o certo importa: "nada
               encontrado" numa caixa que tem 200 conversas escondidas por um
               filtro faz a pessoa achar que perdeu as conversas. */}
@@ -853,7 +853,7 @@ function ChatPage() {
               </div>
             )}
 
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+            <div ref={scrollRef} className="flex-1 min-w-0 overflow-y-auto overflow-x-clip px-4 py-5 sm:px-6 lg:px-8">
               {/* Sem `mx-auto`: centralizada, a coluna flutuava no meio da
                   tela e as mensagens recebidas ficavam longe do nome do
                   contato. Encostada à esquerda, a conversa acompanha o

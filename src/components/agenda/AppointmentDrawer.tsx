@@ -412,7 +412,7 @@ export function AppointmentDrawer({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+        <div className="flex-1 overflow-y-auto overflow-x-clip px-6 py-5 space-y-6">
           {/* Consulta ou compromisso — só ao criar pela Agenda. */}
           {!isEdit && onTrocarParaCompromisso && (
             <div className="flex gap-2">

@@ -16,7 +16,7 @@ function AtendimentosLayout() {
   return (
     <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
-      <div className="flex min-h-dvh flex-1 flex-col lg:h-dvh lg:overflow-y-auto">
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-clip lg:h-dvh lg:overflow-y-auto">
         <Outlet />
       </div>
     </div>
