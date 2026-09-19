@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { anexosDoEspelho, mapAttachments, type MessageAttachment } from "./anexos";
+import { juntarMensagens } from "./thread";
 import { erroDaEdgeFunction } from "@/lib/atendimentos/erro-de-edge-function";
 
 export type { MessageAttachment };
@@ -465,46 +466,116 @@ export const getMessages = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .inputValidator((input: { conversationId: string }) => input)
   /**
-   * A thread continua vindo do CRM, de propósito.
+   * A thread de um NÚMERO — não de uma conversa.
    *
-   * O espelho serve a LISTA, que é o que era caro: ela pagina milhares de
-   * conversas a cada abertura da tela. Uma thread é UMA chamada, e já era
-   * rápida.
+   * Cada fonte continua sendo a que sabe mais sobre a sua origem: a conversa
+   * do CRM vem do CRM (o espelho só tem cópia parcial dela — mediana de uma
+   * mensagem por conversa, porque a cópia é feita quando alguém abre), e a da
+   * conexão própria vem do espelho, onde o webhook grava no instante em que a
+   * mensagem chega.
    *
-   * Servi-la do espelho seria trocar rápido por velho: a tela repete a
-   * consulta a cada 5 segundos enquanto a conversa está aberta, e o espelho
-   * só é atualizado a cada 5 minutos pelo cron. Quem está atendendo veria a
-   * resposta do paciente com minutos de atraso — pior do que hoje, em nome de
-   * uma independência que a lista já entrega.
-   *
-   * Em compensação, a Edge Function GRAVA no espelho o que acabou de ler (ver
-   * `handleMessages`): toda conversa que alguém abre é copiada na hora. As
-   * conversas que importam entram no espelho primeiro, sem fila e sem espera.
+   * Buscar do espelho o que é do CRM perderia histórico em silêncio, que é o
+   * pior jeito de perder.
    */
   .handler(async ({ data, context }): Promise<MessageRow[]> => {
-    // ── E a exceção: conversa que nasceu na conexão própria ──────────────
+    // ── Todas as conversas DESTE NÚMERO, numa thread só ──────────────────
     //
-    // Aqui o `conversationId` é um `remoteJid` ("5548...@s.whatsapp.net"),
-    // que o CRM nunca viu. Pedir a thread a ele devolve vazio, e a tela abre
-    // em branco como se a conversa não tivesse mensagem nenhuma.
+    // No WhatsApp o número é a conversa. As linhas separadas vinham do CRM —
+    // encerrar e reabrir criava outra, e um contato salvo duas vezes criava
+    // mais uma —, e a caixa de entrada já as mostra como uma linha só. Se a
+    // thread continuasse abrindo apenas uma delas, "uma conversa" seria
+    // verdade na lista e mentira ao abrir: metade do histórico ficaria fora
+    // da tela sem nada dizer que existe.
     //
-    // O motivo de a thread não vir do espelho — o atraso de até 5 minutos do
-    // cron — não vale para estas: o webhook grava no instante em que a
-    // mensagem chega.
-    const doEspelho = await mensagensDoEspelho(
+    // Na base são 88 pessoas com mais de uma conversa, no máximo 4. Para as
+    // outras 868 isto é uma consulta a mais no espelho e nada mudou.
+    const irmas = await conversasDoMesmoNumero(
       context.supabase,
       context.ownerId,
       data.conversationId,
     );
-    if (doEspelho) return doEspelho;
 
+    const partes = await Promise.all(irmas.map((irma) => mensagensDaConversa(context, irma)));
+    return juntarMensagens(partes);
+  });
+
+/** Uma conversa a buscar, e de onde. */
+interface ConversaIrma {
+  id: string;
+  origem: string;
+}
+
+/**
+ * As conversas que são a mesma pessoa — o mesmo telefone.
+ *
+ * Devolve sempre pelo menos a própria, inclusive quando o espelho não conhece
+ * o id (conversa que só existe no CRM) ou quando a consulta falha. Juntar é
+ * melhoria; não juntar não pode virar tela vazia.
+ */
+async function conversasDoMesmoNumero(
+  supabase: SupabaseDoContexto,
+  ownerId: string,
+  conversationId: string,
+): Promise<ConversaIrma[]> {
+  const sozinha: ConversaIrma[] = [{ id: conversationId, origem: "desconhecida" }];
+  try {
+    const { data: atual } = await supabase
+      .from("wa_conversas_por_pessoa")
+      .select("pessoa")
+      .eq("owner_id", ownerId)
+      .eq("crm_conversation_id", conversationId)
+      .limit(1)
+      .maybeSingle();
+    if (!atual?.pessoa) return sozinha;
+
+    const { data, error } = await supabase
+      .from("wa_conversas_por_pessoa")
+      .select("crm_conversation_id, origem")
+      .eq("owner_id", ownerId)
+      .eq("pessoa", atual.pessoa)
+      .limit(20);
+    if (error) throw new Error(error.message);
+    if (!data?.length) return sozinha;
+
+    return (data as { crm_conversation_id: string; origem: string }[]).map((r) => ({
+      id: String(r.crm_conversation_id),
+      origem: r.origem,
+    }));
+  } catch (e) {
+    console.error("[getMessages] não deu para achar as conversas do número:", e);
+    return sozinha;
+  }
+}
+
+/** As mensagens de UMA conversa, da fonte certa para a origem dela. */
+async function mensagensDaConversa(
+  context: { supabase: SupabaseDoContexto; ownerId: string },
+  conversa: ConversaIrma,
+): Promise<MessageRow[]> {
+  // A conexão própria: o id é um `remoteJid`, que o CRM nunca viu. E o motivo
+  // histórico de a thread não vir do espelho — o atraso do cron de 5 minutos
+  // — não vale aqui: o webhook grava no instante em que a mensagem chega.
+  if (conversa.origem === "evolution") {
+    return (
+      (await mensagensDoEspelho(context.supabase, context.ownerId, conversa.id, "evolution")) ?? []
+    );
+  }
+
+  try {
     const json = await callEdgeFunction("crm-conversations", {
       ownerId: context.ownerId,
       action: "messages",
-      conversationId: data.conversationId,
+      conversationId: conversa.id,
     });
     return (json.messages ?? []).map(mapMessage);
-  });
+  } catch (e) {
+    // Uma conversa antiga que o CRM recusa não pode apagar as outras da tela.
+    // O espelho tem uma cópia parcial dela; parcial com o erro no log é
+    // melhor do que a thread inteira falhando.
+    console.error(`[getMessages] CRM recusou a conversa ${conversa.id}:`, e);
+    return (await mensagensDoEspelho(context.supabase, context.ownerId, conversa.id, "wavy")) ?? [];
+  }
+}
 
 /** O cliente do Supabase como o contexto o entrega — sem os tipos gerados,
  *  porque `types.ts` é do Lovable e as consultas aqui usam `as any` desde o
@@ -534,22 +605,14 @@ async function mensagensDoEspelho(
   supabase: SupabaseDoContexto,
   ownerId: string,
   conversationId: string,
+  origem: string,
 ): Promise<MessageRow[] | null> {
   try {
-    const { data: conversa } = await supabase
-      .from("wa_conversations")
-      .select("origem")
-      .eq("owner_id", ownerId)
-      .eq("crm_conversation_id", conversationId)
-      .limit(1)
-      .maybeSingle();
-    if (conversa?.origem !== "evolution") return null;
-
     const { data, error } = await supabase
       .from("wa_messages")
       .select("crm_message_id, from_me, body, is_private, attachments, sent_at")
       .eq("owner_id", ownerId)
-      .eq("origem", "evolution")
+      .eq("origem", origem)
       .eq("crm_conversation_id", conversationId)
       .order("sent_at", { ascending: true })
       .limit(500);

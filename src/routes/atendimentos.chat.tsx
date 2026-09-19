@@ -227,17 +227,6 @@ function ChatPage() {
     staleTime: 60_000,
   });
 
-  // Grupos com a conversa aberta ficam expandidos, para a pessoa enxergar em
-  // qual das conversas dela está.
-  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
-  const alternarGrupo = (chave: string) =>
-    setExpandidos((atual) => {
-      const proximo = new Set(atual);
-      if (proximo.has(chave)) proximo.delete(chave);
-      else proximo.add(chave);
-      return proximo;
-    });
-
   const selected = conversations.find((c) => c.id === conversationId) ?? null;
 
   const fetchPipelineStages = useServerFn(getPipelineStages);
@@ -563,10 +552,9 @@ function ChatPage() {
           {grupos.map((g) => {
             const row = g.principal;
             const name = row.contactName ?? row.phone ?? "Contato";
-            const aberto = expandidos.has(g.chave);
-            // O grupo fica "aceso" pela conversa aberta, seja ela a principal
-            // ou uma das antigas — senão, abrir uma conversa antiga apagaria a
-            // marca de onde a pessoa está.
+            // A linha fica "acesa" pela conversa aberta, seja ela a principal
+            // ou uma das antigas do mesmo número — um link antigo ainda aponta
+            // para uma delas, e sem isto a marca de onde a pessoa está sumiria.
             const ativo =
               row.id === conversationId || g.outras.some((o) => o.id === conversationId);
             return (
@@ -620,57 +608,12 @@ function ChatPage() {
                   </span>
                 </button>
 
-                {/* Só aparece quando a pessoa tem mais de uma conversa no CRM —
-                    o que acontece porque conversa encerrada não some de lá.
-                    Some da lista, mas continua alcançável: escondê-la de vez
-                    perderia histórico. */}
-                {g.outras.length > 0 && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => alternarGrupo(g.chave)}
-                      aria-expanded={aberto}
-                      className="press ml-14 mt-0.5 flex items-center gap-1 rounded-lg px-2 py-1 text-2xs text-muted-foreground hover:bg-white"
-                    >
-                      <ChevronDown
-                        className={cn("h-3 w-3 transition-transform", aberto && "rotate-180")}
-                      />
-                      {/* O que está ESCONDIDO, não o total.
-                          Dizia `outras.length + 1` — somava a conversa que a
-                          pessoa já está vendo — enquanto a lista abaixo mostra
-                          só as outras. "2 conversas" abria e mostrava uma:
-                          o botão prometia dois e entregava um. */}
-                      mais {g.outras.length} conversa{g.outras.length === 1 ? "" : "s"}
-                    </button>
-                    {aberto && (
-                      <div className="ml-14 grid gap-0.5 border-l border-border pl-2">
-                        {g.outras.map((o) => (
-                          <button
-                            key={o.id}
-                            type="button"
-                            onClick={() => selectConversation(o)}
-                            className={cn(
-                              "press flex items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left text-xs",
-                              o.id === conversationId
-                                ? "bg-foreground text-white"
-                                : "text-muted-foreground hover:bg-white",
-                            )}
-                          >
-                            <span className="truncate">
-                              {o.status === "resolved" ? "Encerrada" : "Aberta"} ·{" "}
-                              {formatTime(o.lastMessageAt)}
-                            </span>
-                            {o.unreadCount > 0 && (
-                              <span className="grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-gradient-primary px-1 text-3xs font-bold text-white">
-                                {o.unreadCount}
-                              </span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
+                {/* Não há mais expansor de "mais N conversas".
+                    Um número de WhatsApp é UMA conversa — é assim no celular
+                    de quem escreveu, e a separação vinha do CRM (encerrar e
+                    reabrir criava outra linha). Agora as mensagens de todas
+                    elas aparecem juntas na thread, então não há o que expandir
+                    nem histórico a perder. */}
               </div>
             );
           })}
