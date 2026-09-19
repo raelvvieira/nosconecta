@@ -336,17 +336,51 @@ async function conversasDoEspelho(
   }
   if (!conversas?.length) return null;
 
-  const { data: contatos } = await supabase
-    .from("wa_contacts")
-    .select("origem, crm_contact_id, name, phone_raw, avatar_url")
-    .eq("owner_id", ownerId)
-    .limit(20000);
+  // Só os contatos DESTAS conversas, e em lotes.
+  //
+  // A primeira versão pedia a agenda inteira com `.limit(20000)` e ignorava o
+  // erro — e o resultado na tela foi toda conversa chamada "Contato", com os
+  // nomes intactos no banco. Pedir 4 mil linhas para usar mil, confiando num
+  // teto que não é nosso, é frágil de um jeito que não aparece em teste
+  // nenhum: some o nome, não some a conversa.
+  //
+  // São ~1050 ids; em lotes de 200 a URL não estoura e as chamadas vão
+  // juntas.
+  const ids = [
+    ...new Set(
+      (conversas as LinhaDeConversa[])
+        .map((c) => c.crm_contact_id)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+
+  const lotes: string[][] = [];
+  for (let i = 0; i < ids.length; i += 200) lotes.push(ids.slice(i, i + 200));
+
+  const respostas = await Promise.all(
+    lotes.map((lote) =>
+      supabase
+        .from("wa_contacts")
+        .select("origem, crm_contact_id, name, phone_raw, avatar_url")
+        .eq("owner_id", ownerId)
+        .in("crm_contact_id", lote),
+    ),
+  );
 
   // A chave inclui a ORIGEM: o mesmo `crm_contact_id` pode existir nas duas,
   // e sem ela o contato de uma apareceria no nome da conversa da outra.
   const porContato = new Map<string, LinhaDeContato>();
-  for (const c of (contatos ?? []) as LinhaDeContato[]) {
-    porContato.set(`${c.origem}:${c.crm_contact_id}`, c);
+  for (const resposta of respostas) {
+    if (resposta.error) {
+      // Sem o nome a conversa ainda aparece — mas o motivo não pode sumir,
+      // que foi exatamente como "Contato" em toda linha durou até alguém
+      // reparar na tela.
+      console.error("[getConversations] contatos do espelho:", resposta.error.message);
+      continue;
+    }
+    for (const c of (resposta.data ?? []) as LinhaDeContato[]) {
+      porContato.set(`${c.origem}:${c.crm_contact_id}`, c);
+    }
   }
 
   return (conversas as LinhaDeConversa[]).map((row) => {
