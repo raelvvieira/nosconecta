@@ -78,6 +78,7 @@ import { useUnitSelection } from "@/lib/settings/unit-context";
 import { FotoDoContato } from "@/components/atendimentos/chat/FotoDoContato";
 import { AnexoDaMensagem } from "@/components/atendimentos/chat/AnexoDaMensagem";
 import { getConexaoPropria } from "@/lib/atendimentos/conexao.functions";
+import { useMensagensAoVivo } from "@/lib/atendimentos/useMensagensAoVivo";
 
 /** Onde a preferência de painel aberto/fechado fica guardada. */
 const CHAVE_DO_PAINEL = "nos:painel-do-contato";
@@ -151,6 +152,11 @@ function ChatPage() {
   });
   const connected = instance?.status === "open" || propriaQuery.data?.estado === "open";
 
+  // O banco avisa quando chega ou sai mensagem, em vez de a tela perguntar.
+  // Enquanto o WebSocket estiver de pé, a consulta periódica desacelera — ela
+  // vira rede de segurança, não o caminho principal.
+  const aoVivo = useMensagensAoVivo(connected);
+
   // A busca roda sempre — desconectado só volta lista vazia, tratado pelo
   // mesmo estado vazio de "Nenhuma conversa ainda." Conectar não é mais
   // feito por aqui, vive no Dashboard (`/atendimentos`).
@@ -158,7 +164,7 @@ function ChatPage() {
     queryKey: ["atendimentos-conversations"],
     queryFn: () => fetchConversations(),
     staleTime: 5_000,
-    refetchInterval: connected ? 15_000 : false,
+    refetchInterval: connected ? (aoVivo ? 60_000 : 15_000) : false,
   });
   const conversations = conversationsQuery.data ?? [];
 
@@ -378,7 +384,7 @@ function ChatPage() {
     queryFn: () => fetchMessages({ data: { conversationId: conversationId! } }),
     enabled: !!conversationId,
     staleTime: 3_000,
-    refetchInterval: conversationId ? 5_000 : false,
+    refetchInterval: conversationId ? (aoVivo ? 20_000 : 5_000) : false,
   });
   const messages = messagesQuery.data ?? [];
 
