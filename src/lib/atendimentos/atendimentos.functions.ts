@@ -298,44 +298,95 @@ export const setWhatsappInboxId = createServerFn({ method: "POST" })
  * clínica não tem conversas".
  */
 async function conversasDoEspelho(
-  supabase: any,
+  supabase: SupabaseDoContexto,
   ownerId: string,
 ): Promise<ConversationRow[] | null> {
-  // `as any` porque `types.ts` é gerado pelo Lovable e ainda não conhece as
-  // tabelas do espelho. Mesmo escape dos cartões.
-  const { data, error } = await (supabase as any)
+  // DUAS consultas, e não um `select` com `wa_contacts(...)` embutido.
+  //
+  // O embutido é o jeito natural no PostgREST e era o que estava aqui — mas
+  // ele exige uma CHAVE ESTRANGEIRA entre as duas tabelas, e ela não existe:
+  // o espelho liga conversa e contato por `(owner_id, origem, crm_contact_id)`,
+  // uma chave natural composta que nunca virou constraint. A resposta era
+  // sempre a mesma:
+  //
+  //   PGRST200 — Could not find a relationship between 'wa_conversations'
+  //   and 'wa_contacts' in the schema cache
+  //
+  // Ou seja: esta função NUNCA devolveu nada. Todo dia, desde que foi
+  // escrita, ela caía no CRM — e o `catch` logo abaixo, que eu pus como rede
+  // de segurança, foi exatamente o que escondeu isso por dias. Só apareceu
+  // quando o CRM deixou de ter o WhatsApp e a caixa de entrada parou de
+  // receber conversa nova.
+  //
+  // Juntar aqui no código não precisa de migration, não depende de o banco
+  // conhecer a relação, e funciona para as duas origens.
+  const { data: conversas, error } = await supabase
     .from("wa_conversations")
     .select(
-      "crm_conversation_id, crm_contact_id, inbox_id, status, unread_count, last_message_at, last_message_preview, wa_contacts(name, phone_raw, avatar_url)",
+      "origem, crm_conversation_id, crm_contact_id, inbox_id, status, unread_count, last_message_at, last_message_preview",
     )
     .eq("owner_id", ownerId)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(5000);
 
-  // Erro aqui NÃO derruba a tela: o espelho é uma otimização, e o CRM
-  // continua sendo a fonte que sempre funcionou. Enquanto a migration não
-  // roda, a tabela nem existe.
   if (error) {
-    console.warn("[getConversations] espelho indisponível, lendo do CRM:", error.message);
+    // Erro aqui NÃO derruba a tela — mas também não passa despercebido.
+    console.error("[getConversations] espelho FALHOU, lendo do CRM:", error.code, error.message);
     return null;
   }
-  if (!data?.length) return null;
+  if (!conversas?.length) return null;
 
-  return (data as any[]).map((row) => {
-    const contato = row.wa_contacts ?? {};
+  const { data: contatos } = await supabase
+    .from("wa_contacts")
+    .select("origem, crm_contact_id, name, phone_raw, avatar_url")
+    .eq("owner_id", ownerId)
+    .limit(20000);
+
+  // A chave inclui a ORIGEM: o mesmo `crm_contact_id` pode existir nas duas,
+  // e sem ela o contato de uma apareceria no nome da conversa da outra.
+  const porContato = new Map<string, LinhaDeContato>();
+  for (const c of (contatos ?? []) as LinhaDeContato[]) {
+    porContato.set(`${c.origem}:${c.crm_contact_id}`, c);
+  }
+
+  return (conversas as LinhaDeConversa[]).map((row) => {
+    const contato = row.crm_contact_id
+      ? porContato.get(`${row.origem}:${row.crm_contact_id}`)
+      : undefined;
     return {
       id: String(row.crm_conversation_id),
       contactId: row.crm_contact_id ? String(row.crm_contact_id) : null,
       inboxId: row.inbox_id ?? null,
-      contactName: contato.name ?? null,
-      phone: contato.phone_raw ?? null,
-      avatarUrl: contato.avatar_url ?? null,
+      contactName: contato?.name ?? null,
+      phone: contato?.phone_raw ?? null,
+      avatarUrl: contato?.avatar_url ?? null,
       lastMessagePreview: row.last_message_preview ?? null,
       lastMessageAt: row.last_message_at ?? null,
       unreadCount: Number(row.unread_count ?? 0),
       status: row.status,
     };
   });
+}
+
+/** Só o que a lista pede de `wa_conversations`. */
+interface LinhaDeConversa {
+  origem: string;
+  crm_conversation_id: string;
+  crm_contact_id: string | null;
+  inbox_id: string | null;
+  status: ConversationRow["status"];
+  unread_count: number | null;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+}
+
+/** Só o que a lista pede de `wa_contacts`. */
+interface LinhaDeContato {
+  origem: string;
+  crm_contact_id: string;
+  name: string | null;
+  phone_raw: string | null;
+  avatar_url: string | null;
 }
 
 /**
