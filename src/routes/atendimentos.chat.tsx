@@ -390,9 +390,11 @@ function ChatPage() {
 
   // ── O painel do contato ────────────────────────────────────────────────
   //
-  // A escolha fica lembrada: quem usa o painel o usa em toda conversa, e
-  // reabrir a cada clique na lista o tornaria mais trabalhoso do que ir até
-  // Pacientes — que é justamente o caminho que ele veio encurtar.
+  // No computador ele está SEMPRE aberto (a coluna lá embaixo), então este
+  // estado governa só a gaveta do celular. Lá a escolha fica lembrada: quem
+  // usa o painel o usa em toda conversa, e reabrir a cada clique na lista o
+  // tornaria mais trabalhoso do que ir até Pacientes — que é justamente o
+  // caminho que ele veio encurtar.
   //
   // Lido num `useEffect`, e não no `useState` inicial: `localStorage` não
   // existe no servidor, e ler ali faria a primeira pintura do cliente divergir
@@ -651,10 +653,17 @@ function ChatPage() {
                   dar um alvo de toque próprio no celular. */}
               <button
                 type="button"
-                onClick={alternarPainel}
-                aria-expanded={painelAberto}
+                onClick={ehTelaLarga ? undefined : alternarPainel}
+                // Em tela larga o painel já está aberto: o clique não teria
+                // efeito visível, mas gravaria a preferência em silêncio — e
+                // a pessoa sentiria isso depois, no celular, com a gaveta
+                // abrindo sozinha sem ela ter pedido.
+                aria-expanded={ehTelaLarga ? undefined : painelAberto}
                 aria-label="Ver o perfil do contato"
-                className="press flex min-w-0 flex-1 items-center gap-3 rounded-2xl py-1 pr-2 text-left hover:bg-muted/60"
+                className={cn(
+                  "press flex min-w-0 flex-1 items-center gap-3 rounded-2xl py-1 pr-2 text-left",
+                  !ehTelaLarga && "hover:bg-muted/60",
+                )}
               >
                 <FotoDoContato
                   nome={selected.contactName ?? selected.phone ?? "Contato"}
@@ -673,13 +682,15 @@ function ChatPage() {
                 </span>
               </button>
 
+              {/* `xl:hidden`: em tela larga o painel está sempre aberto, e um
+                  botão que não muda nada é pior do que botão nenhum. */}
               <button
                 type="button"
                 onClick={alternarPainel}
                 aria-expanded={painelAberto}
                 aria-label={painelAberto ? "Fechar o perfil" : "Abrir o perfil"}
                 className={cn(
-                  "press grid h-9 w-9 shrink-0 place-items-center rounded-xl transition-colors",
+                  "press grid h-9 w-9 shrink-0 place-items-center rounded-xl transition-colors xl:hidden",
                   painelAberto
                     ? "bg-foreground text-white"
                     : "text-muted-foreground hover:bg-muted",
@@ -886,17 +897,24 @@ function ChatPage() {
       </section>
 
       {/* ── O perfil do contato ─────────────────────────────────────────────
-          Terceira coluna a partir de `xl`. Abaixo disso não cabe: espremer a
-          conversa para caber o painel destruiria justamente o que a pessoa
-          está lendo. Em tela menor ele vira gaveta, como as outras do sistema.
+          Terceira coluna a partir de `xl`, e SEMPRE aberta ali: quem atende
+          pelo computador usa este painel o tempo todo — é dele que saem a
+          ficha, o financeiro e o funil da pessoa —, e ter de abri-lo a cada
+          conversa transformava um dado que está sempre em uso num clique
+          repetido. Por isso não há botão de fechar nesta coluna: fechá-la só
+          devolveria 340px a uma conversa que já tem o resto da tela.
+
+          Abaixo de `xl` não cabe: espremer a conversa para caber o painel
+          destruiria justamente o que a pessoa está lendo. Lá ele vira gaveta,
+          como as outras do sistema, e aí sim abre e fecha.
+
           `shrink-0` com largura fixa para a conversa ceder o espaço, e não o
           painel — num painel de 200px os cards de financeiro se empilham. */}
-      {selected && painelAberto && (
+      {selected && (
         <aside className="hidden w-[340px] shrink-0 border-l border-border xl:flex">
           <PainelDoContato
             conversa={selected}
             chaveDoDesfecho={chaveDoDesfecho}
-            onFechar={alternarPainel}
             className="w-full"
           />
         </aside>
