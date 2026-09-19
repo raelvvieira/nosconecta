@@ -77,6 +77,7 @@ import { haptic } from "@/lib/haptics";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { FotoDoContato } from "@/components/atendimentos/chat/FotoDoContato";
 import { AnexoDaMensagem } from "@/components/atendimentos/chat/AnexoDaMensagem";
+import { getConexaoPropria } from "@/lib/atendimentos/conexao.functions";
 
 /** Onde a preferência de painel aberto/fechado fica guardada. */
 const CHAVE_DO_PAINEL = "nos:painel-do-contato";
@@ -128,6 +129,7 @@ function ChatPage() {
   const fetchConversations = useServerFn(getConversations);
   const fetchMessages = useServerFn(getMessages);
   const doSendMessage = useServerFn(sendWhatsappMessage);
+  const fetchConexaoPropria = useServerFn(getConexaoPropria);
 
   const instanceQuery = useQuery({
     queryKey: ["atendimentos-instance"],
@@ -136,7 +138,18 @@ function ChatPage() {
     refetchInterval: (query) => (query.state.data?.status === "connecting" ? 4_000 : 20_000),
   });
   const instance = instanceQuery.data ?? null;
-  const connected = instance?.status === "open";
+
+  // A conexão própria também conta. Olhar só para o CRM fazia a tela dizer
+  // "Conecte pelo Dashboard" no dia em que o WhatsApp estava conectado — e,
+  // pior que o aviso errado, desligava o refetch de 15s da lista, então a
+  // conversa nova só aparecia se alguém recarregasse a página.
+  const propriaQuery = useQuery({
+    queryKey: ["conexao-propria"],
+    queryFn: () => fetchConexaoPropria(),
+    staleTime: 8_000,
+    refetchInterval: (query) => (query.state.data?.estado === "connecting" ? 4_000 : 20_000),
+  });
+  const connected = instance?.status === "open" || propriaQuery.data?.estado === "open";
 
   // A busca roda sempre — desconectado só volta lista vazia, tratado pelo
   // mesmo estado vazio de "Nenhuma conversa ainda." Conectar não é mais
