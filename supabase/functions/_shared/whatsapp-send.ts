@@ -315,6 +315,34 @@ async function destinoDoAlvo(
     if (doJid) return doJid;
   }
 
+  // Pela CONVERSA — que é o único dado que o chat tem em mãos.
+  //
+  // `crm-conversations/handleSend` chama daqui com `contact_id: ""`: a tela
+  // manda o id da conversa, não o do contato. Numa conversa ANTIGA esse id é
+  // um UUID do CRM ("1edf217b-baf2-4288-a1b8-00c43bbb0ef1"), sem "@", então
+  // os dois degraus acima não pegam e os dois abaixo procuram por um contato
+  // vazio.
+  //
+  // Medido no banco: das 969 linhas da caixa de entrada, 961 abrem uma
+  // conversa antiga — é a mais recente de cada pessoa. Sem este degrau, o
+  // envio falharia em praticamente toda a caixa dizendo "sem número", e a
+  // culpa pareceria ser do cadastro do paciente.
+  //
+  // A view já junta conversa e contato pelas três colunas da chave natural e
+  // entrega o telefone normalizado. É a mesma ponte que a thread usa para
+  // achar as conversas irmãs de um número.
+  if (alvo.conversation_id) {
+    const { data: pessoa } = await supabase
+      .from("wa_conversas_por_pessoa")
+      .select("phone_e164")
+      .eq("owner_id", ownerId)
+      .eq("crm_conversation_id", alvo.conversation_id)
+      .limit(1)
+      .maybeSingle();
+    const daConversa = destinoDaMensagem(pessoa?.phone_e164);
+    if (daConversa) return daConversa;
+  }
+
   const { data: contato } = await supabase
     .from("wa_contacts")
     .select("phone_e164, phone_raw")
