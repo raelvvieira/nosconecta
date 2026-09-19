@@ -27,6 +27,7 @@ import {
   mensagemDoEvento,
   telefoneDoJid,
 } from "../_shared/evolution-mapear.ts";
+import { gravarMensagemEspelhada } from "../_shared/espelho-evolution.ts";
 import { pushToOwner } from "../_shared/push.ts";
 
 const supabase = createClient(
@@ -59,73 +60,16 @@ async function marcarSinalDeVida(nome: string, extra: Record<string, unknown> = 
 }
 
 /**
- * Uma mensagem que chegou ou saiu.
+ * Uma mensagem que chegou pelo webhook.
  *
- * Grava contato, conversa e mensagem nesta ordem: a conversa referencia o
- * contato, e a mensagem referencia a conversa. Fora de ordem abriria uma
- * janela com linha apontando para o que ainda não existe.
+ * A gravação em si mora em `_shared/espelho-evolution.ts`: o ENVIO também
+ * grava, e duas cópias da mesma escrita divergem em silêncio.
  */
 async function gravarMensagem(ownerId: string, data: any) {
   const m = mensagemDoEvento(data);
   if (!m) return { ignorado: "evento sem id ou sem conversa" };
 
-  const agora = new Date().toISOString();
-
-  // O contato. `name` só é atualizado quando veio um nome de verdade: a
-  // Evolution manda `pushName` vazio em muitos eventos, e gravar vazio por
-  // cima apagaria o nome que já estava certo.
-  const contato: Record<string, unknown> = {
-    owner_id: ownerId,
-    origem: "evolution",
-    crm_contact_id: m.crmContactId,
-    phone_raw: m.phone,
-    synced_at: agora,
-  };
-  if (m.contactName?.trim()) contato.name = m.contactName.trim();
-
-  const { error: erroContato } = await supabase
-    .from("wa_contacts")
-    .upsert(contato, { onConflict: "owner_id,origem,crm_contact_id" });
-  if (erroContato) throw new Error(`contato: ${erroContato.message}`);
-
-  // A conversa. `last_message_at` e `last_message_preview` NÃO entram: são do
-  // gatilho, que os calcula a partir das mensagens de verdade.
-  const { error: erroConversa } = await supabase.from("wa_conversations").upsert(
-    {
-      owner_id: ownerId,
-      origem: "evolution",
-      crm_conversation_id: m.crmConversationId,
-      crm_contact_id: m.crmContactId,
-      status: "open",
-      // Copiada por definição: a mensagem está chegando agora, não há
-      // histórico atrasado para buscar.
-      messages_synced_at: agora,
-      synced_at: agora,
-    },
-    { onConflict: "owner_id,origem,crm_conversation_id" },
-  );
-  if (erroConversa) throw new Error(`conversa: ${erroConversa.message}`);
-
-  const { error: erroMensagem } = await supabase.from("wa_messages").upsert(
-    {
-      owner_id: ownerId,
-      origem: "evolution",
-      crm_message_id: m.crmMessageId,
-      crm_conversation_id: m.crmConversationId,
-      from_me: m.fromMe,
-      body: m.body,
-      is_private: false,
-      attachments: m.attachments,
-      // Sem data no evento, a hora da chegada. É a única vez em todo o
-      // espelho que "agora" é aceitável: a mensagem está literalmente
-      // chegando neste instante, então o erro é de segundos.
-      sent_at: m.sentAt ?? agora,
-      payload: data,
-      synced_at: agora,
-    },
-    { onConflict: "owner_id,origem,crm_message_id" },
-  );
-  if (erroMensagem) throw new Error(`mensagem: ${erroMensagem.message}`);
+  await gravarMensagemEspelhada(supabase, ownerId, m, data);
 
   await avisar(ownerId, m);
 

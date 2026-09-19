@@ -8,6 +8,7 @@
 import { crmFetch } from "./crm-auth.ts";
 import { unwrap } from "./crm-client.ts";
 import { decidirCaminho, evolutionFetch } from "./evolution-api.ts";
+import { gravarMensagemEspelhada, mensagemEnviada } from "./espelho-evolution.ts";
 import {
   corpoDeMidia,
   corpoDeTexto,
@@ -273,7 +274,7 @@ export async function enviarPelaEvolution(
   }
 
   if (midia) {
-    await evolutionFetch(rota("sendMedia", instancia), {
+    const resposta = await evolutionFetch(rota("sendMedia", instancia), {
       method: "POST",
       body: JSON.stringify(
         corpoDeMidia(
@@ -283,14 +284,43 @@ export async function enviarPelaEvolution(
         ),
       ),
     });
+    await espelharEnviada(supabase, ownerId, resposta);
     return { via: "evolution_midia" };
   }
 
-  await evolutionFetch(rota("sendText", instancia), {
+  const resposta = await evolutionFetch(rota("sendText", instancia), {
     method: "POST",
     body: JSON.stringify(corpoDeTexto(destino, message)),
   });
+  await espelharEnviada(supabase, ownerId, resposta);
   return { via: "evolution" };
+}
+
+/**
+ * A mensagem que acabou de sair também entra no espelho.
+ *
+ * Sem isto, ela chega no WhatsApp de quem recebe e NÃO aparece na conversa de
+ * quem mandou: o webhook avisa o que chega, e o que sai pela API da Evolution
+ * vem por outro evento, que ele não escuta.
+ *
+ * Gravar aqui é imediato e não depende de ligar mais um evento na VPS. Se o
+ * webhook ainda entregar a mesma mensagem, o upsert pelo id não duplica.
+ *
+ * Falha aqui NÃO derruba o envio: a mensagem já está no celular do paciente, e
+ * dizer "não enviou" faria alguém mandar de novo. Fica no log e some da tela
+ * até o espelho ser recopiado.
+ */
+async function espelharEnviada(supabase: any, ownerId: string, resposta: unknown) {
+  try {
+    const m = mensagemEnviada(resposta);
+    if (!m) {
+      console.warn("[whatsapp-send] resposta da Evolution sem id; nada a espelhar");
+      return;
+    }
+    await gravarMensagemEspelhada(supabase, ownerId, m, resposta);
+  } catch (e) {
+    console.error("[whatsapp-send] enviada mas não espelhada:", e);
+  }
 }
 
 /**
