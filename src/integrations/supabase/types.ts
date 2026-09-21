@@ -1707,6 +1707,97 @@ export type Database = {
           },
         ]
       }
+      funnel_cards: {
+        Row: {
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string
+          id: string
+          owner_id: string
+          patient_id: string | null
+          phone: string | null
+          stage_id: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          owner_id: string
+          patient_id?: string | null
+          phone?: string | null
+          stage_id: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          owner_id?: string
+          patient_id?: string | null
+          phone?: string | null
+          stage_id?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_cards_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "funnel_cards_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_cards_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funnel_stages: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       invitations: {
         Row: {
           accepted_at: string | null
