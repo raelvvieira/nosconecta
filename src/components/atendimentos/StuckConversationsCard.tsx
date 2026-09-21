@@ -1,9 +1,14 @@
 import { AlertTriangle, Clock } from "lucide-react";
 import type { SalesAssistant } from "@/lib/atendimentos/insights.functions";
 
-// Lista as conversas travadas apontadas pela análise diária do CRM
-// (GET /api/v1/sales_assistant, seção 11 do manual). `geradoEm === null`
-// quer dizer que a análise ainda não rodou pra essa conta — não é erro.
+// Quem está no funil sem mexer há três dias ou mais.
+//
+// Isto já foi a "análise diária" do CRM: rodava às 4h e quem abrisse a tela às
+// 15h via o retrato da madrugada. Hoje a conta sai na hora da pergunta
+// (`assistente-de-vendas.ts`), então não existe mais o estado de "ainda não
+// analisado" — ou há gente parada, ou não há.
+//
+// `assistant` nulo é a consulta ainda carregando.
 export function StuckConversationsCard({ assistant }: { assistant: SalesAssistant | null }) {
   return (
     <section className="surface-card p-6">
@@ -14,14 +19,17 @@ export function StuckConversationsCard({ assistant }: { assistant: SalesAssistan
         </h2>
         {assistant?.gargalo && (
           <span className="rounded-full bg-warning-soft px-2.5 py-1 text-2xs font-semibold text-warning">
-            Gargalo: {assistant.gargalo.etapa} ({assistant.gargalo.travadas}/{assistant.gargalo.totalNaEtapa})
+            Gargalo: {assistant.gargalo.etapa} ({assistant.gargalo.travadas}/
+            {assistant.gargalo.totalNaEtapa})
           </span>
         )}
       </div>
 
-      {!assistant || assistant.geradoEm === null ? (
+      {!assistant ? (
+        <p className="text-sm text-muted-foreground">Carregando…</p>
+      ) : assistant.totalConversas === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Ainda não analisado hoje — a análise do funil roda automaticamente às 4h.
+          Ninguém no funil ainda. Coloque alguém a partir de uma conversa para acompanhar por aqui.
         </p>
       ) : assistant.travadas.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nenhuma conversa travada agora. 🎉</p>
@@ -38,7 +46,9 @@ export function StuckConversationsCard({ assistant }: { assistant: SalesAssistan
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">Etapa: {t.etapa}</p>
               {t.motivo && <p className="mt-1 text-xs text-foreground">{t.motivo}</p>}
-              {t.sugestao && <p className="mt-1 text-xs italic text-muted-foreground">Sugestão: {t.sugestao}</p>}
+              {t.sugestao && (
+                <p className="mt-1 text-xs italic text-muted-foreground">Sugestão: {t.sugestao}</p>
+              )}
             </li>
           ))}
         </ul>
