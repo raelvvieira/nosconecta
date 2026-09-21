@@ -17,10 +17,8 @@
 // automação, é mais abrangente que a inferência que substituiu, e não custa
 // nada.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { crmFetch } from "../_shared/crm-auth.ts";
 import { atender } from "../_shared/atendimento.ts";
 import { clienteDaIa, responderPaciente, temChave } from "../_shared/modelo-de-atendimento.ts";
-import { unwrap } from "../_shared/crm-client.ts";
 import {
   CAMPOS_DO_MANUAL,
   manualEfetivo,
@@ -283,30 +281,35 @@ async function coletarVendas(
 // ── Transcrição ────────────────────────────────────────────────────────────
 
 async function transcricao(ownerId: string, conversationId: string): Promise<string | null> {
-  try {
-    const res = await crmFetch(
-      supabase,
-      ownerId,
-      `/api/v1/conversations/${conversationId}/messages`,
-    );
-    const msgs = unwrap(res);
-    if (!Array.isArray(msgs) || !msgs.length) return null;
-
+  // Lia `/api/v1/conversations/{id}/messages` na conta do CRM. Agora sai do
+  // espelho, que tem as duas origens — o histórico herdado e tudo o que passou
+  // pela conexão própria.
+  const { data: msgs, error } = await supabase
+    .from("wa_messages")
+    .select("body, from_me, is_private, sent_at")
+    .eq("owner_id", ownerId)
+    .eq("crm_conversation_id", conversationId)
     // As ÚLTIMAS mensagens, não as primeiras: o fechamento é onde a venda
-    // acontece, e é o que se quer aprender.
-    const janela = msgs.slice(-JANELA_DE_MENSAGENS);
-    const linhas: string[] = [];
-    for (const m of janela) {
-      const texto = String(m?.content ?? "").trim();
-      if (!texto) continue; // anexo sem legenda não ensina nada
-      const tipo = m?.message_type;
-      const daClinica = tipo === 1 || tipo === "1" || tipo === "outgoing";
-      linhas.push(`${daClinica ? "CLÍNICA" : "PACIENTE"}: ${texto.slice(0, MAX_CARACTERES)}`);
-    }
-    return linhas.length ? linhas.join("\n") : null;
-  } catch {
-    return null; // conversa que sumiu do CRM não derruba a rodada inteira
+    // acontece, e é o que se quer aprender. Vêm da mais nova para a mais
+    // velha e são reviradas abaixo.
+    .order("sent_at", { ascending: false })
+    .limit(JANELA_DE_MENSAGENS);
+  if (error) {
+    console.error(`[ai-playbook] transcrição de ${conversationId}:`, error.message);
+    return null;
   }
+  if (!msgs?.length) return null;
+
+  const linhas: string[] = [];
+  for (const m of [...msgs].reverse()) {
+    // Nota interna é conversa da equipe sobre o paciente, não com ele. Ensinar
+    // o agente com ela faria o que é combinado nos bastidores sair na resposta.
+    if (m.is_private) continue;
+    const texto = String(m?.body ?? "").trim();
+    if (!texto) continue; // anexo sem legenda não ensina nada
+    linhas.push(`${m.from_me ? "CLÍNICA" : "PACIENTE"}: ${texto.slice(0, MAX_CARACTERES)}`);
+  }
+  return linhas.length ? linhas.join("\n") : null;
 }
 
 // ── Aprendizado ────────────────────────────────────────────────────────────

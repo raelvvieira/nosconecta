@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   cancelScheduledMessage,
   getScheduledMessages,
@@ -38,7 +44,12 @@ function formatWhen(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 // Valor mínimo do input: agora + 1 min, no formato que datetime-local espera.
@@ -52,6 +63,8 @@ export function ScheduleMessageDialog({
   onOpenChange,
   conversationId,
   contactId,
+  phone,
+  contactName,
   initialText,
   onScheduled,
 }: {
@@ -59,6 +72,9 @@ export function ScheduleMessageDialog({
   onOpenChange: (open: boolean) => void;
   conversationId: string;
   contactId: string | null;
+  /** O número de quem recebe — é por ele que a mensagem é endereçada. */
+  phone: string | null;
+  contactName: string | null;
   initialText: string;
   onScheduled: () => void;
 }) {
@@ -78,9 +94,9 @@ export function ScheduleMessageDialog({
   }, [open, initialText]);
 
   const scheduledQuery = useQuery({
-    queryKey: ["scheduled-messages", contactId],
-    queryFn: () => fetchScheduled({ data: { contactId: contactId! } }),
-    enabled: open && !!contactId,
+    queryKey: ["scheduled-messages", conversationId],
+    queryFn: () => fetchScheduled({ data: { conversationId } }),
+    enabled: open && !!conversationId,
     staleTime: 15_000,
   });
   const pending = (scheduledQuery.data ?? []).filter((s) => s.status === "scheduled");
@@ -88,11 +104,18 @@ export function ScheduleMessageDialog({
   const scheduleMutation = useMutation({
     mutationFn: () =>
       doSchedule({
-        data: { conversationId, contactId, text: text.trim(), scheduledFor: toOffsetIso(when) },
+        data: {
+          conversationId,
+          contactId,
+          phone,
+          contactName,
+          text: text.trim(),
+          scheduledFor: toOffsetIso(when),
+        },
       }),
     onSuccess: () => {
       toast.success("Mensagem agendada.");
-      queryClient.invalidateQueries({ queryKey: ["scheduled-messages", contactId] });
+      queryClient.invalidateQueries({ queryKey: ["scheduled-messages", conversationId] });
       onScheduled();
       onOpenChange(false);
     },
@@ -103,7 +126,7 @@ export function ScheduleMessageDialog({
     mutationFn: (scheduledId: string) => doCancel({ data: { scheduledId } }),
     onSuccess: () => {
       toast.success("Agendamento cancelado.");
-      queryClient.invalidateQueries({ queryKey: ["scheduled-messages", contactId] });
+      queryClient.invalidateQueries({ queryKey: ["scheduled-messages", conversationId] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -118,7 +141,9 @@ export function ScheduleMessageDialog({
             <CalendarClock className="h-5 w-5 text-coral" />
             Agendar mensagem
           </DialogTitle>
-          <DialogDescription>A mensagem é enviada automaticamente no horário escolhido.</DialogDescription>
+          <DialogDescription>
+            A mensagem é enviada automaticamente no horário escolhido.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -159,10 +184,9 @@ export function ScheduleMessageDialog({
             Agendar
           </Button>
 
-          {!contactId && (
+          {!phone && (
             <p className="rounded-xl bg-warning-soft px-3 py-2 text-xs text-warning">
-              Esta conversa não tem contato vinculado no CRM, então não é possível listar agendamentos
-              anteriores dela.
+              Esta conversa não tem número — a mensagem agendada não teria para onde ir.
             </p>
           )}
 
@@ -173,10 +197,17 @@ export function ScheduleMessageDialog({
               </p>
               <ul className="mt-2 space-y-2">
                 {pending.map((s) => (
-                  <li key={s.id} className="flex items-start gap-2 rounded-2xl border border-border bg-white p-3">
+                  <li
+                    key={s.id}
+                    className="flex items-start gap-2 rounded-2xl border border-border bg-white p-3"
+                  >
                     <span className="min-w-0 flex-1">
-                      <span className="block text-xs font-medium text-foreground">{formatWhen(s.scheduledFor)}</span>
-                      <span className="mt-0.5 block line-clamp-2 text-xs text-muted-foreground">{s.content}</span>
+                      <span className="block text-xs font-medium text-foreground">
+                        {formatWhen(s.scheduledFor)}
+                      </span>
+                      <span className="mt-0.5 block line-clamp-2 text-xs text-muted-foreground">
+                        {s.content}
+                      </span>
                       <span className="mt-1 inline-block rounded-full bg-muted px-2 py-0.5 text-3xs text-muted-foreground">
                         {STATUS_LABEL[s.status] ?? s.status}
                       </span>

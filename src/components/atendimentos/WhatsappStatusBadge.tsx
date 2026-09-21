@@ -3,7 +3,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getWhatsappInstance } from "@/lib/atendimentos/atendimentos.functions";
 import { getConexaoPropria } from "@/lib/atendimentos/conexao.functions";
 import { ConectarWhatsapp } from "./ConectarWhatsapp";
 
@@ -33,19 +32,12 @@ const ESTADOS: Record<string, Forma> = {
 };
 
 export function WhatsappStatusBadge({ className }: { className?: string }) {
-  const buscarCrm = useServerFn(getWhatsappInstance);
   const buscarPropria = useServerFn(getConexaoPropria);
   const [conectarAberto, setConectarAberto] = useState(false);
 
-  // As DUAS conexões, porque a pergunta que o selo responde é uma só: dá para
-  // mandar mensagem agora? Durante a migração, olhar só para o CRM diria
-  // "desconectado" no dia em que a conexão própria já estivesse atendendo.
-  const crmQuery = useQuery({
-    queryKey: ["atendimentos-instance"],
-    queryFn: () => buscarCrm(),
-    staleTime: 8_000,
-    refetchInterval: (query) => (query.state.data?.status === "connecting" ? 4_000 : 20_000),
-  });
+  // Uma conexão só agora. Durante a migração eram duas, e o selo olhava as
+  // duas porque a pergunta que ele responde é uma: dá para mandar mensagem
+  // agora? A do CRM deixou de existir.
   const propriaQuery = useQuery({
     queryKey: ["conexao-propria"],
     queryFn: () => buscarPropria(),
@@ -53,14 +45,13 @@ export function WhatsappStatusBadge({ className }: { className?: string }) {
     refetchInterval: (query) => (query.state.data?.estado === "connecting" ? 4_000 : 20_000),
   });
 
-  const statusCrm = crmQuery.data?.status ?? "disconnected";
   const statusPropria = propriaQuery.data?.estado ?? "close";
   const status =
-    statusCrm === "open" || statusPropria === "open"
+    statusPropria === "open"
       ? "open"
-      : statusCrm === "connecting" || statusPropria === "connecting"
+      : statusPropria === "connecting"
         ? "connecting"
-        : statusCrm;
+        : "disconnected";
   const estado = ESTADOS[status] ?? ESTADOS.disconnected;
 
   const conteudo = (

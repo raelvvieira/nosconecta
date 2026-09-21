@@ -8,7 +8,6 @@ import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBadge";
 import { WhatsappConnectionCard } from "@/components/atendimentos/WhatsappConnectionCard";
-import { CrmBackfillCard } from "@/components/atendimentos/CrmBackfillCard";
 import { PipelineFunnelCard } from "@/components/atendimentos/PipelineFunnelCard";
 import { StuckConversationsCard } from "@/components/atendimentos/StuckConversationsCard";
 import { SalesPlaybookCard } from "@/components/atendimentos/SalesPlaybookCard";
@@ -161,9 +160,7 @@ function DashboardPage() {
             porque num grid comum a linha inteira cresce até o card mais alto —
             e a lista de conversas travadas pode ser longa, o que esticaria
             estes dois com o botão boiando lá embaixo. */}
-        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <CrmBackfillCard />
-        </section>
+        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2"></section>
       </div>
     </main>
   );

@@ -13,12 +13,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { disconnectWhatsapp, getWhatsappInstance } from "@/lib/atendimentos/atendimentos.functions";
 import { desconectarConexaoPropria, getConexaoPropria } from "@/lib/atendimentos/conexao.functions";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { cn } from "@/lib/utils";
 import { ConectarWhatsapp } from "./ConectarWhatsapp";
-import { WhatsappConnectSheet } from "./WhatsappConnectSheet";
 
 // O card de conexão do Dashboard.
 //
@@ -63,21 +61,15 @@ export function WhatsappConnectionCard({
   dailyUsage?: { limit: number; usedToday: number };
 }) {
   const queryClient = useQueryClient();
-  const buscarCrm = useServerFn(getWhatsappInstance);
   const buscarPropria = useServerFn(getConexaoPropria);
-  const desligarCrm = useServerFn(disconnectWhatsapp);
   const desligarPropria = useServerFn(desconectarConexaoPropria);
 
   const [conectarAberto, setConectarAberto] = useState(false);
-  const [confirmando, setConfirmando] = useState<"crm" | "propria" | null>(null);
-  const [ajustesCrm, setAjustesCrm] = useState(false);
+  const [confirmando, setConfirmando] = useState<"propria" | null>(null);
 
-  const crmQuery = useQuery({
-    queryKey: ["atendimentos-instance"],
-    queryFn: () => buscarCrm(),
-    staleTime: 8_000,
-    refetchInterval: (q) => (q.state.data?.status === "connecting" ? 4_000 : 20_000),
-  });
+  // Havia aqui uma segunda linha, a do CRM, e um botão para desconectar o
+  // número de lá — a tela da migração. Ela saiu junto com a conta: o número
+  // está na conexão própria desde 18/09.
   const propriaQuery = useQuery({
     queryKey: ["conexao-propria"],
     queryFn: () => buscarPropria(),
@@ -85,33 +77,17 @@ export function WhatsappConnectionCard({
     refetchInterval: (q) => (q.state.data?.estado === "connecting" ? 4_000 : 20_000),
   });
 
-  const crm = crmQuery.data ?? null;
   const propria = propriaQuery.data ?? null;
 
-  const crmEstado: EstadoDaConexao =
-    crm?.status === "open"
-      ? "open"
-      : crm?.status === "connecting"
-        ? "connecting"
-        : crm?.status === "error"
-          ? "erro"
-          : "off";
   const propriaEstado: EstadoDaConexao =
     propria?.estado === "open" ? "open" : propria?.estado === "connecting" ? "connecting" : "off";
 
   const desconectar = useMutation({
-    mutationFn: async (qual: "crm" | "propria") => {
-      if (qual === "crm") await desligarCrm();
-      else await desligarPropria();
-      return qual;
+    mutationFn: async () => {
+      await desligarPropria();
     },
-    onSuccess: (qual) => {
-      toast.success(
-        qual === "crm"
-          ? "Número desconectado do CRM. Agora dá para conectá-lo aqui."
-          : "WhatsApp desconectado.",
-      );
-      queryClient.invalidateQueries({ queryKey: ["atendimentos-instance"] });
+    onSuccess: () => {
+      toast.success("WhatsApp desconectado.");
       queryClient.invalidateQueries({ queryKey: ["conexao-propria"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -149,44 +125,7 @@ export function WhatsappConnectionCard({
               )
             }
           />
-
-          {/* Só enquanto o CRM ainda atende. Desconectado, ele sai da tela e a
-              migração está encerrada do ponto de vista de quem usa. */}
-          {crmEstado !== "off" && (
-            <LinhaDeConexao
-              titulo="CRM (Wavy)"
-              telefone={crm?.phoneNumber ?? null}
-              estado={crmEstado}
-              nota={
-                propriaEstado !== "open"
-                  ? "Desconecte aqui para liberar o número e conectá-lo acima."
-                  : null
-              }
-              // A vinculação da inbox do CRM vive nesse painel, e as campanhas
-              // ainda dependem dela enquanto o envio sair por lá. Ele some da
-              // tela junto com a linha do CRM.
-              extra={
-                <button
-                  type="button"
-                  onClick={() => setAjustesCrm(true)}
-                  className="text-2xs font-medium text-muted-foreground underline-offset-2 hover:underline"
-                >
-                  Ajustes do CRM
-                </button>
-              }
-              acao={
-                <BotaoDesconectar
-                  onClick={() => setConfirmando("crm")}
-                  ocupado={desconectar.isPending && confirmando === "crm"}
-                />
-              }
-            />
-          )}
         </div>
-
-        {crm?.lastError && crmEstado !== "off" && (
-          <p className="rounded-xl bg-danger-soft px-3 py-2 text-xs text-danger">{crm.lastError}</p>
-        )}
 
         {dailyUsage && (
           <div className="mt-auto">
@@ -209,20 +148,16 @@ export function WhatsappConnectionCard({
       </section>
 
       <ConectarWhatsapp open={conectarAberto} onOpenChange={setConectarAberto} />
-      <WhatsappConnectSheet open={ajustesCrm} onOpenChange={setAjustesCrm} />
 
       {/* Desconectar é ação de mão única: a clínica para de receber até
           alguém parear de novo. Confirmar aqui não é burocracia. */}
       <AlertDialog open={confirmando !== null} onOpenChange={(o) => !o && setConfirmando(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirmando === "crm" ? "Desconectar o número do CRM?" : "Desconectar o WhatsApp?"}
-            </AlertDialogTitle>
+            <AlertDialogTitle>Desconectar o WhatsApp?</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmando === "crm"
-                ? "A clínica para de receber e de enviar mensagens por este caminho até o número ser conectado de novo. As conversas já sincronizadas continuam aqui."
-                : "A clínica para de receber e de enviar mensagens até alguém escanear o QR Code de novo. As conversas já recebidas continuam aqui."}
+              A clínica para de receber e de enviar mensagens até alguém escanear o QR Code de novo.
+              As conversas já recebidas continuam aqui.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -231,7 +166,7 @@ export function WhatsappConnectionCard({
               disabled={desconectar.isPending}
               onClick={(e) => {
                 e.preventDefault();
-                if (confirmando) desconectar.mutate(confirmando);
+                if (confirmando) desconectar.mutate();
               }}
             >
               {desconectar.isPending ? "Desconectando…" : "Desconectar"}

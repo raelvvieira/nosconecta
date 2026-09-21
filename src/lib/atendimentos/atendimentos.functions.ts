@@ -184,101 +184,20 @@ function toIso(value: unknown): string {
   return new Date(ms).toISOString();
 }
 
-export const getWhatsappInstance = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
-  .handler(async ({ context }): Promise<WhatsappInstance | null> => {
-    // Consulta de status é informativa: se o CRM estiver lento, devolvemos
-    // "desconhecido" em vez de deixar o erro estourar e apagar a tela inteira.
-    try {
-      const json = await callEdgeFunction("crm-whatsapp", {
-        ownerId: context.ownerId,
-        action: "status",
-      });
-      return json.instance ? mapInstance(json.instance) : null;
-    } catch (err) {
-      console.warn("[getWhatsappInstance] status indisponível:", err);
-      return null;
-    }
-  });
-
-export interface CrmInbox {
-  id: string;
-  name: string | null;
-  phoneNumber: string | null;
-  isWhatsapp: boolean;
-}
-
-export interface InboxSnapshot {
-  inboxes: CrmInbox[];
-  /** Caixa do número conectado agora, gravada pelo `connect`. */
-  conectadaId: string | null;
-  conectadaPhone: string | null;
-}
-
 /**
- * As caixas de WhatsApp da conta do CRM.
+ * A conexão de WhatsApp do CRM: não existe mais.
  *
- * O modelo do Wavy é um número = uma caixa, e trocar de número **não apaga** a
- * anterior: as conversas dela continuam na conta. Como nem `/contacts` nem
- * `/conversations` aceitam filtro de caixa, esta lista é a única forma de
- * separar quem é do número de hoje de quem veio de um número antigo.
+ * Aqui viviam `getWhatsappInstance`, `getWhatsappInboxes`, `connectWhatsapp`,
+ * `disconnectWhatsapp` e `setWhatsappInboxId` — a conexão feita PELO CRM, com
+ * o modelo de "um número = uma caixa" dele, e a lista de caixas que existia só
+ * para separar quem era do número de hoje de quem veio de um número antigo.
+ *
+ * Desde 18/09 o número da clínica é pareado direto na nossa conexão
+ * (`wa-conexao`, `getWhatsappInstanceEvolution`), e a caixa do CRM ficou vazia:
+ * o filtro por caixa já não filtrava nada e a tela de conectar já não
+ * conectava. Código que não tem como funcionar é o que faz a próxima auditoria
+ * custar caro.
  */
-export const getWhatsappInboxes = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
-  .handler(async ({ context }): Promise<InboxSnapshot> => {
-    const json = await callEdgeFunction("crm-whatsapp", {
-      ownerId: context.ownerId,
-      action: "inboxes",
-    });
-    return {
-      inboxes: json.inboxes ?? [],
-      conectadaId: json.conectadaId ?? null,
-      conectadaPhone: json.conectadaPhone ?? null,
-    };
-  });
-
-export const connectWhatsapp = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
-  .inputValidator((input: { phoneNumber?: string }) => input)
-  .handler(async ({ data, context }): Promise<WhatsappInstance> => {
-    const json = await callEdgeFunction("crm-whatsapp", {
-      ownerId: context.ownerId,
-      action: "connect",
-      phoneNumber: data.phoneNumber,
-    });
-    // O status vem do CRM: normalmente "connecting" (usuário ainda vai
-    // escanear), mas pode já vir "open" quando a instância daquele número
-    // já existia e estava conectada (`adopted`) — nesse caso não há QR.
-    return {
-      status: json.status === "open" ? "open" : "connecting",
-      qrCode: json.qrCode ?? null,
-      qrExpiresAt: null,
-      phoneNumber: data.phoneNumber ?? null,
-      lastError: null,
-    };
-  });
-
-export const disconnectWhatsapp = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
-  .handler(async ({ context }) => {
-    await callEdgeFunction("crm-whatsapp", { ownerId: context.ownerId, action: "disconnect" });
-    return { ok: true };
-  });
-
-// Fallback manual: se o usuário do CRM não tiver permissão pra criar (nem
-// listar) a inbox de WhatsApp, um admin cria pelo painel do CRM e cola o ID
-// aqui.
-export const setWhatsappInboxId = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
-  .inputValidator((input: { inboxId: string }) => input)
-  .handler(async ({ data, context }) => {
-    await callEdgeFunction("crm-whatsapp", {
-      ownerId: context.ownerId,
-      action: "set-inbox-id",
-      inboxId: data.inboxId,
-    });
-    return { ok: true };
-  });
 
 /**
  * A lista de conversas, lida do espelho local.
@@ -442,24 +361,15 @@ function ordenarConversas(linhas: ConversationRow[]): ConversationRow[] {
 export const getConversations = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<ConversationRow[]> => {
+    // O espelho é a fonte, e a única.
+    //
+    // Havia aqui uma reserva que lia o CRM quando o espelho falhasse. Ela era
+    // pior do que não ter: quando a leitura do espelho quebrou por um erro de
+    // consulta, o `catch` a mandou calada para o CRM e a caixa de entrada
+    // passou DIAS mostrando os dados de lá — com todo mundo chamado "Contato"
+    // — sem nenhum erro na tela para explicar. Agora o erro sobe.
     const espelhadas = await conversasDoEspelho(context.supabase, context.ownerId);
-    if (espelhadas) return ordenarConversas(espelhadas);
-
-    const json = await callEdgeFunction("crm-conversations", {
-      ownerId: context.ownerId,
-      action: "list",
-    });
-    // Leitura truncada (teto de páginas ou prazo) faz um contato que TEM
-    // conversa ser lido como se não tivesse — e o disparo abriria uma nova para
-    // ele. Quem impede isso de virar conversa duplicada é a checagem em
-    // `_shared/whatsapp-send.ts`, que pergunta ao CRM antes de criar; este log
-    // existe para o caso não ficar invisível quando acontecer.
-    if (json.truncado) {
-      console.warn(
-        `[getConversations] leitura truncada em ${(json.conversations ?? []).length} conversas de ${json.total ?? "?"}`,
-      );
-    }
-    return ordenarConversas((json.conversations ?? []).map(mapConversation));
+    return ordenarConversas(espelhadas ?? []);
   });
 
 export const getMessages = createServerFn({ method: "GET" })
@@ -547,34 +457,25 @@ async function conversasDoMesmoNumero(
   }
 }
 
-/** As mensagens de UMA conversa, da fonte certa para a origem dela. */
+/**
+ * As mensagens de UMA conversa.
+ *
+ * As duas origens saem do mesmo lugar agora. A da conexão própria sempre saiu:
+ * o id dela é um `remoteJid`, que o CRM nunca viu. A herdada era lida ao vivo
+ * lá, com o espelho como reserva — e essa leitura já não traz nada, porque a
+ * conta não tem mais caixa de WhatsApp desde 18/09.
+ *
+ * O que ficou é a cópia: 4.456 mensagens e 1.051 conversas, paradas no dia da
+ * migração. É o histórico inteiro que existia para ser copiado.
+ */
 async function mensagensDaConversa(
   context: { supabase: SupabaseDoContexto; ownerId: string },
   conversa: ConversaIrma,
 ): Promise<MessageRow[]> {
-  // A conexão própria: o id é um `remoteJid`, que o CRM nunca viu. E o motivo
-  // histórico de a thread não vir do espelho — o atraso do cron de 5 minutos
-  // — não vale aqui: o webhook grava no instante em que a mensagem chega.
-  if (conversa.origem === "evolution") {
-    return (
-      (await mensagensDoEspelho(context.supabase, context.ownerId, conversa.id, "evolution")) ?? []
-    );
-  }
-
-  try {
-    const json = await callEdgeFunction("crm-conversations", {
-      ownerId: context.ownerId,
-      action: "messages",
-      conversationId: conversa.id,
-    });
-    return (json.messages ?? []).map(mapMessage);
-  } catch (e) {
-    // Uma conversa antiga que o CRM recusa não pode apagar as outras da tela.
-    // O espelho tem uma cópia parcial dela; parcial com o erro no log é
-    // melhor do que a thread inteira falhando.
-    console.error(`[getMessages] CRM recusou a conversa ${conversa.id}:`, e);
-    return (await mensagensDoEspelho(context.supabase, context.ownerId, conversa.id, "wavy")) ?? [];
-  }
+  return (
+    (await mensagensDoEspelho(context.supabase, context.ownerId, conversa.id, conversa.origem)) ??
+    []
+  );
 }
 
 /** O cliente do Supabase como o contexto o entrega — sem os tipos gerados,
@@ -653,9 +554,8 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
     }) => input,
   )
   .handler(async ({ data, context }) => {
-    const json = await callEdgeFunction("crm-conversations", {
+    const json = await callEdgeFunction("wa-enviar", {
       ownerId: context.ownerId,
-      action: "send",
       conversationId: data.conversationId,
       content: data.text,
       isPrivate: !!data.isPrivate,
@@ -671,58 +571,132 @@ export interface ScheduledMessage {
   status: string;
 }
 
-// Estados do CRM: scheduled, executing, completed, failed, cancelled.
-function mapScheduled(row: any): ScheduledMessage {
-  return {
-    id: String(row?.id),
-    content: row?.payload?.content ?? null,
-    scheduledFor: row?.scheduled_for ?? null,
-    status: row?.status ?? "scheduled",
-  };
-}
-
+/**
+ * A mensagem agendada do chat.
+ *
+ * ── Onde ela morava ─────────────────────────────────────────────────────
+ *
+ * Em `/api/v1/scheduled_actions`, na conta do CRM — um recurso genérico dele,
+ * do qual só usávamos "mandar mensagem". Apagar a conta apagaria junto tudo o
+ * que estivesse marcado para sair.
+ *
+ * ── Onde ela mora agora ─────────────────────────────────────────────────
+ *
+ * Na MESMA fila do disparo (`whatsapp_broadcasts` + `whatsapp_broadcast_targets`).
+ * Uma mensagem agendada é uma fila de uma pessoa só, marcada para o futuro —
+ * e a fila já sabe tudo o que o agendamento precisa: o cron que roda de minuto
+ * em minuto, o cancelamento, o registro da falha, a cota do dia e o mesmo
+ * caminho de envio.
+ *
+ * Criar uma tabela própria significaria escrever de novo cada uma dessas
+ * coisas, e descobrir uma a uma, em produção, quais eu tinha esquecido.
+ */
 export const scheduleWhatsappMessage = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator(
     (input: {
       conversationId: string;
       contactId?: string | null;
+      /** O número de quem recebe. É por ele que o envio endereça. */
+      phone?: string | null;
+      contactName?: string | null;
       text: string;
       scheduledFor: string;
-    }) => input,
+    }) => {
+      if (!input.text?.trim()) throw new Error("Escreva a mensagem antes de agendar.");
+      const quando = new Date(input.scheduledFor).getTime();
+      if (!Number.isFinite(quando)) throw new Error("Data de envio inválida.");
+      // Um minuto de folga: o cron acorda de minuto em minuto, e marcar para
+      // "agora" faria a mensagem sair antes de quem agendou terminar de ler a
+      // confirmação na tela.
+      if (quando < Date.now() + 60_000) {
+        throw new Error("Escolha um horário pelo menos um minuto à frente.");
+      }
+      return input;
+    },
   )
   .handler(async ({ data, context }) => {
-    await callEdgeFunction("crm-conversations", {
+    const { callBroadcast } = await import("./broadcast.server");
+    await callBroadcast({
       ownerId: context.ownerId,
-      action: "schedule",
-      conversationId: data.conversationId,
-      contactId: data.contactId ?? null,
-      content: data.text,
-      scheduledFor: data.scheduledFor,
+      action: "create",
+      message: data.text,
+      name: "Mensagem agendada",
+      iniciarEm: data.scheduledFor,
+      targets: [
+        {
+          contactId: data.contactId || data.conversationId,
+          conversationId: data.conversationId,
+          name: data.contactName ?? null,
+          phone: data.phone ?? null,
+        },
+      ],
     });
     return { ok: true };
   });
 
+/**
+ * O que ainda está marcado para sair para esta pessoa.
+ *
+ * Lê a fila pela CONVERSA, e não pelo contato: o id de contato mudou de
+ * significado quando a base saiu do CRM, e a conversa é o que a tela do chat
+ * tem em mãos de qualquer jeito.
+ */
 export const getScheduledMessages = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
-  .inputValidator((input: { contactId: string }) => input)
+  .inputValidator((input: { conversationId: string }) => input)
   .handler(async ({ data, context }): Promise<ScheduledMessage[]> => {
-    const json = await callEdgeFunction("crm-conversations", {
-      ownerId: context.ownerId,
-      action: "list-scheduled",
-      contactId: data.contactId,
-    });
-    return (json.scheduled ?? []).map(mapScheduled);
+    const supabase: any = context.supabase;
+    const { data: alvos, error } = await supabase
+      .from("whatsapp_broadcast_targets")
+      .select("id, status, scheduled_for, broadcast_id")
+      .eq("owner_id", context.ownerId)
+      .eq("conversation_id", data.conversationId)
+      .eq("status", "pending")
+      .order("scheduled_for", { ascending: true });
+    if (error) throw new Error(error.message);
+    if (!alvos?.length) return [];
+
+    // O texto mora no lote, não no alvo — é por isso que corrigir a mensagem de
+    // um disparo em andamento funciona.
+    const { data: lotes, error: erroLotes } = await supabase
+      .from("whatsapp_broadcasts")
+      .select("id, message, status")
+      .eq("owner_id", context.ownerId)
+      .in("id", [...new Set(alvos.map((a: any) => a.broadcast_id))]);
+    if (erroLotes) throw new Error(erroLotes.message);
+    const porLote = new Map<string, { message: string | null; status: string }>(
+      (lotes ?? []).map((l: any) => [String(l.id), { message: l.message, status: l.status }]),
+    );
+
+    return (
+      alvos
+        // Lote cancelado ainda deixa o alvo como `pending` até o próximo tique.
+        // Mostrar o que não vai sair faria alguém contar com uma mensagem morta.
+        .filter((a: any) => porLote.get(String(a.broadcast_id))?.status === "running")
+        .map((a: any) => ({
+          id: String(a.id),
+          content: porLote.get(String(a.broadcast_id))?.message ?? null,
+          scheduledFor: a.scheduled_for ?? null,
+          // A tela filtra por "scheduled" — é o nome que ela conhece.
+          status: "scheduled",
+        }))
+    );
   });
 
 export const cancelScheduledMessage = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator((input: { scheduledId: string }) => input)
   .handler(async ({ data, context }) => {
-    await callEdgeFunction("crm-conversations", {
-      ownerId: context.ownerId,
-      action: "cancel-scheduled",
-      scheduledId: data.scheduledId,
-    });
+    const supabase: any = context.supabase;
+    const { error } = await supabase
+      .from("whatsapp_broadcast_targets")
+      .update({ status: "skipped", error: "Agendamento cancelado" })
+      .eq("id", data.scheduledId)
+      .eq("owner_id", context.ownerId)
+      // Só o que ainda não saiu. Sem isto, cancelar depois do envio marcaria
+      // como cancelada uma mensagem que o paciente já recebeu.
+      .eq("status", "pending");
+    if (error) throw new Error(error.message);
     return { ok: true };
   });

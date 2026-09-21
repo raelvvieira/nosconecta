@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, CheckCircle2, Loader2, MinusCircle } from "lucide-react";
-import { getWhatsappInstance } from "@/lib/atendimentos/atendimentos.functions";
+import { getConexaoPropria } from "@/lib/atendimentos/conexao.functions";
 import { getAutomationEngineStatus } from "@/lib/atendimentos/automations.functions";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +28,13 @@ function Item({
   acao?: React.ReactNode;
 }) {
   const Icone =
-    estado === "ok" ? CheckCircle2 : estado === "carregando" ? Loader2 : estado === "aviso" ? MinusCircle : AlertCircle;
+    estado === "ok"
+      ? CheckCircle2
+      : estado === "carregando"
+        ? Loader2
+        : estado === "aviso"
+          ? MinusCircle
+          : AlertCircle;
   return (
     <div className="flex items-start gap-2.5 px-3 py-2.5">
       <Icone
@@ -54,12 +60,12 @@ const LINK =
   "shrink-0 text-2xs font-semibold text-pink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded";
 
 export function PainelProntidao({ mandaWhatsapp }: { mandaWhatsapp: boolean }) {
-  const buscarInstancia = useServerFn(getWhatsappInstance);
+  const buscarInstancia = useServerFn(getConexaoPropria);
   const buscarMotor = useServerFn(getAutomationEngineStatus);
 
   const instancia = useQuery({
-    queryKey: ["whatsapp-instance"],
-    queryFn: () => buscarInstancia({}),
+    queryKey: ["conexao-propria"],
+    queryFn: () => buscarInstancia(),
     staleTime: 30_000,
     // Só interessa quando o fluxo de fato manda mensagem. Automação que só
     // move etapa ou dispara webhook não depende do WhatsApp.
@@ -72,7 +78,7 @@ export function PainelProntidao({ mandaWhatsapp }: { mandaWhatsapp: boolean }) {
     staleTime: 60_000,
   });
 
-  const conectado = instancia.data?.status === "open";
+  const conectado = instancia.data?.estado === "open";
 
   return (
     <div className="surface-card divide-y divide-border overflow-hidden">
@@ -88,7 +94,7 @@ export function PainelProntidao({ mandaWhatsapp }: { mandaWhatsapp: boolean }) {
             instancia.isLoading
               ? null
               : conectado
-                ? instancia.data?.phoneNumber ?? null
+                ? (instancia.data?.telefone ?? null)
                 : "Sem um número conectado, a mensagem não tem por onde sair."
           }
           acao={
@@ -130,9 +136,9 @@ export function PainelProntidao({ mandaWhatsapp }: { mandaWhatsapp: boolean }) {
               : // A frase diz o que fazer, não só o que está errado: este é um
                 // passo manual no Lovable, e sem nomeá-lo a pessoa fica sem saída.
                 (motor.data?.detalhe ?? null) +
-                  (motor.data?.estado === "ausente" || motor.data?.estado === "desatualizado"
-                    ? ' Publique com "Deploy the atendimento-automations edge function" no Lovable.'
-                    : "")
+                (motor.data?.estado === "ausente" || motor.data?.estado === "desatualizado"
+                  ? ' Publique com "Deploy the atendimento-automations edge function" no Lovable.'
+                  : "")
         }
       />
     </div>

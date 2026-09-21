@@ -53,6 +53,8 @@ export function ChatComposer({
   onAttachmentsChange,
   conversationId,
   contactId,
+  phone,
+  contactName,
   onScheduleAppointment,
 }: {
   value: string;
@@ -65,6 +67,9 @@ export function ChatComposer({
   onAttachmentsChange: (next: PendingAttachment[]) => void;
   conversationId: string;
   contactId: string | null;
+  /** O número de quem recebe, para a mensagem agendada saber o destino. */
+  phone: string | null;
+  contactName: string | null;
   /** Abre o formulário de agendamento da Agenda (mesmo formulário, mesma
    *  gravação) com o contato desta conversa já preenchido. */
   onScheduleAppointment: () => void;
@@ -166,11 +171,18 @@ export function ChatComposer({
   const canSend = (value.trim().length > 0 || attachments.length > 0) && !isSending && !isRecording;
 
   return (
-    <div className={cn("border-t border-border transition-colors", isPrivate ? "bg-warning-soft/40" : "bg-white/70")}>
+    <div
+      className={cn(
+        "border-t border-border transition-colors",
+        isPrivate ? "bg-warning-soft/40" : "bg-white/70",
+      )}
+    >
       {isPrivate && (
         <div className="flex items-center gap-2 px-4 pt-2.5 text-xs text-warning sm:px-6">
           <StickyNote className="h-3.5 w-3.5 shrink-0" />
-          <span className="flex-1">Nota interna — fica registrada na conversa, mas não é enviada ao contato.</span>
+          <span className="flex-1">
+            Nota interna — fica registrada na conversa, mas não é enviada ao contato.
+          </span>
           <button
             type="button"
             onClick={() => onPrivateChange(false)}
@@ -226,7 +238,13 @@ export function ChatComposer({
         {/* Anexos e ações */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-coral" aria-label="Mais ações">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 shrink-0 text-coral"
+              aria-label="Mais ações"
+            >
               <Plus className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -370,7 +388,9 @@ export function ChatComposer({
             "h-10 w-10 shrink-0",
             // Enquanto grava, o botão aparece também no celular — precisa
             // ter como parar sem abrir menu.
-            isRecording ? "animate-pulse bg-danger-soft text-danger" : "hidden text-coral sm:inline-flex",
+            isRecording
+              ? "animate-pulse bg-danger-soft text-danger"
+              : "hidden text-coral sm:inline-flex",
           )}
           onClick={() => (isRecording ? stopRecording() : startRecording())}
           title={isRecording ? "Parar gravação" : "Gravar áudio"}
@@ -420,7 +440,9 @@ export function ChatComposer({
                   className="block w-full rounded-xl px-3 py-2 text-left transition-colors hover:bg-muted"
                 >
                   <span className="block truncate text-sm font-medium">{t.name}</span>
-                  <span className="mt-0.5 block line-clamp-2 text-xs text-muted-foreground">{t.content}</span>
+                  <span className="mt-0.5 block line-clamp-2 text-xs text-muted-foreground">
+                    {t.content}
+                  </span>
                 </button>
               ))
             )}
@@ -453,6 +475,8 @@ export function ChatComposer({
         onOpenChange={setScheduleOpen}
         conversationId={conversationId}
         contactId={contactId}
+        phone={phone}
+        contactName={contactName}
         initialText={value}
         // Agendou usando o que estava escrito: limpa o campo pra não sobrar
         // o mesmo texto parecendo que ainda falta enviar.

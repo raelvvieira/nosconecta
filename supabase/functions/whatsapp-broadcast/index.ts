@@ -38,6 +38,13 @@ async function handleCreate(
   alvosEntrada: AlvoEntrada[],
   mediaPath: string | null,
   nome: string | null,
+  /** Quando a fila deve COMEÇAR a sair. Sem isto, agora.
+   *
+   *  É o que faz a mensagem agendada do chat caber aqui: ela é uma fila de uma
+   *  pessoa só, marcada para o futuro. Reaproveitar esta fila em vez de criar
+   *  outra significa que o agendamento herda o que ela já sabe fazer —
+   *  cancelar, registrar falha, respeitar a cota e sair pelo mesmo caminho. */
+  iniciarEm: string | null = null,
 ) {
   if (!message?.trim()) throw new Error("Escreva a mensagem antes de disparar.");
   if (!alvosEntrada?.length) throw new Error("Selecione ao menos um contato.");
@@ -117,7 +124,10 @@ async function handleCreate(
 
   // O ritmo mora aqui: cada alvo nasce com o horário em que deve sair, então a
   // fila é previsível e o cron não guarda estado nenhum.
-  const inicio = Date.now();
+  // Horário pedido, quando houver — e nunca no passado: uma fila marcada para
+  // ontem sairia inteira de uma vez no próximo tique.
+  const pedido = iniciarEm ? new Date(iniciarEm).getTime() : NaN;
+  const inicio = Number.isFinite(pedido) ? Math.max(pedido, Date.now()) : Date.now();
   const horarios = horariosDaFila(alvos.length, ritmo, inicio);
   const linhas = alvos.map((a, i) => ({
     broadcast_id: lote.id,
@@ -314,6 +324,7 @@ Deno.serve(async (req) => {
           body.targets ?? [],
           body.mediaPath ?? null,
           body.name ?? null,
+          body.iniciarEm ?? null,
         );
         break;
       case "cancel":

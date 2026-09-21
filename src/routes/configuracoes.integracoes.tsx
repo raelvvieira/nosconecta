@@ -3,17 +3,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
-import {
-  AlertCircle,
-  CheckCircle2,
-  MoreHorizontal,
-  Plus,
-  Send,
-  Zap,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, MoreHorizontal, Plus, Send, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
-import { InboxSnapshot } from "@/components/atendimentos/InboxSnapshot";
 import { MetaTriggerSheet } from "@/components/settings/MetaTriggerSheet";
 import {
   AlertDialog,
@@ -91,15 +83,16 @@ export const Route = createFileRoute("/configuracoes/integracoes")({
     ],
   }),
   errorComponent: ({ error }) => (
-    <ResponsiveRouteState error={error}
+    <ResponsiveRouteState
+      error={error}
       title="Não foi possível carregar as integrações"
       description="Houve uma falha ao buscar a configuração. Tente novamente em instantes."
       semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
-  semSidebar
-/>,
+  notFoundComponent: () => (
+    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
+  ),
   component: IntegrationsPage,
 });
 
@@ -155,10 +148,8 @@ function IntegrationsPage() {
     setEnabled(settings.data.enabled);
   }, [settings.data]);
 
-  const refreshSettings = () =>
-    queryClient.invalidateQueries({ queryKey: ["meta-capi-settings"] });
-  const refreshTriggers = () =>
-    queryClient.invalidateQueries({ queryKey: ["meta-capi-triggers"] });
+  const refreshSettings = () => queryClient.invalidateQueries({ queryKey: ["meta-capi-settings"] });
+  const refreshTriggers = () => queryClient.invalidateQueries({ queryKey: ["meta-capi-triggers"] });
   const refreshLog = () => queryClient.invalidateQueries({ queryKey: ["meta-capi-events"] });
 
   const saveMutation = useMutation({
@@ -216,7 +207,9 @@ function IntegrationsPage() {
         : "qualquer situação";
     }
     if (trigger.systemEvent === "pipeline.stage_changed") {
-      return trigger.conditions.stageId ? `etapa "${stageName(trigger.conditions.stageId)}"` : "qualquer etapa";
+      return trigger.conditions.stageId
+        ? `etapa "${stageName(trigger.conditions.stageId)}"`
+        : "qualquer etapa";
     }
     if (trigger.systemEvent === "appointment.status_changed") {
       return trigger.conditions.status
@@ -250,8 +243,6 @@ function IntegrationsPage() {
           paciente.
         </p>
       </header>
-
-      <InboxSnapshot />
 
       {/* Conexão */}
       <div className="surface-card mt-6 p-5 sm:p-6">
@@ -417,11 +408,16 @@ function IntegrationsPage() {
         {list.map((trigger) => {
           const condition = conditionText(trigger);
           return (
-            <div key={trigger.id} className="flex min-h-[92px] items-center gap-3 px-4 py-4 sm:px-5">
+            <div
+              key={trigger.id}
+              className="flex min-h-[92px] items-center gap-3 px-4 py-4 sm:px-5"
+            >
               <span
                 className={cn(
                   "grid h-11 w-11 shrink-0 place-items-center rounded-2xl",
-                  trigger.active ? "bg-gradient-primary text-white" : "bg-muted text-muted-foreground",
+                  trigger.active
+                    ? "bg-gradient-primary text-white"
+                    : "bg-muted text-muted-foreground",
                 )}
               >
                 <Zap className="h-5 w-5" />
@@ -451,10 +447,9 @@ function IntegrationsPage() {
                 {trigger.systemEvent === "deal.status_changed" &&
                   trigger.conditions.dealStatus === "won" && (
                     <p className="mt-1.5 rounded-xl bg-warning-soft px-2.5 py-1.5 text-2xs leading-4 text-warning">
-                      Este gatilho não dispara mais. Marcar uma negociação como
-                      ganha agora registra um atendimento realizado — aponte-o
-                      para "Agendamento muda de situação", com a situação
-                      "Concluído".
+                      Este gatilho não dispara mais. Marcar uma negociação como ganha agora registra
+                      um atendimento realizado — aponte-o para "Agendamento muda de situação", com a
+                      situação "Concluído".
                     </p>
                   )}
               </div>

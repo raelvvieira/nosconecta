@@ -51,7 +51,6 @@ import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBad
 import {
   getConversations,
   getMessages,
-  getWhatsappInstance,
   sendWhatsappMessage,
   type ConversationRow,
 } from "@/lib/atendimentos/atendimentos.functions";
@@ -126,31 +125,22 @@ function ChatPage() {
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
 
-  const fetchInstance = useServerFn(getWhatsappInstance);
   const fetchConversations = useServerFn(getConversations);
   const fetchMessages = useServerFn(getMessages);
   const doSendMessage = useServerFn(sendWhatsappMessage);
   const fetchConexaoPropria = useServerFn(getConexaoPropria);
 
-  const instanceQuery = useQuery({
-    queryKey: ["atendimentos-instance"],
-    queryFn: () => fetchInstance(),
-    staleTime: 8_000,
-    refetchInterval: (query) => (query.state.data?.status === "connecting" ? 4_000 : 20_000),
-  });
-  const instance = instanceQuery.data ?? null;
-
-  // A conexão própria também conta. Olhar só para o CRM fazia a tela dizer
-  // "Conecte pelo Dashboard" no dia em que o WhatsApp estava conectado — e,
-  // pior que o aviso errado, desligava o refetch de 15s da lista, então a
-  // conversa nova só aparecia se alguém recarregasse a página.
+  // A conexão que atende. Isto já olhou as DUAS — a do CRM e a própria —, e
+  // olhar só a do CRM fazia a tela dizer "Conecte pelo Dashboard" no dia em que
+  // o WhatsApp estava conectado. Pior que o aviso errado: desligava o refetch
+  // da lista, e a conversa nova só aparecia recarregando a página.
   const propriaQuery = useQuery({
     queryKey: ["conexao-propria"],
     queryFn: () => fetchConexaoPropria(),
     staleTime: 8_000,
     refetchInterval: (query) => (query.state.data?.estado === "connecting" ? 4_000 : 20_000),
   });
-  const connected = instance?.status === "open" || propriaQuery.data?.estado === "open";
+  const connected = propriaQuery.data?.estado === "open";
 
   // O banco avisa quando chega ou sai mensagem, em vez de a tela perguntar.
   // Enquanto o WebSocket estiver de pé, a consulta periódica desacelera — ela
@@ -902,6 +892,8 @@ function ChatPage() {
               onAttachmentsChange={setAttachments}
               conversationId={selected.id}
               contactId={selected.contactId}
+              phone={selected.phone}
+              contactName={selected.contactName}
               onScheduleAppointment={() => setAppointmentOpen(true)}
             />
           </>

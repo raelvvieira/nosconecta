@@ -11,8 +11,8 @@
 // escolheu como limite — exatamente o que o comentário do disparo já dizia.
 //
 // `supabase` é parâmetro explícito, nunca client de módulo por closure, pelo
-// mesmo motivo de `_shared/crm-auth.ts` e `_shared/whatsapp-send.ts`: este
-// arquivo é importado por mais de uma function, e cada uma tem o seu.
+// mesmo motivo de `_shared/whatsapp-send.ts`: este arquivo é importado por
+// mais de uma function, e cada uma tem o seu.
 
 /** Meia-noite de HOJE no fuso da clínica, em UTC.
  *

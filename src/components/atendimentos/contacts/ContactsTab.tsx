@@ -13,11 +13,10 @@ import {
   contarPorDdd,
   filtrarContatos,
 } from "@/lib/atendimentos/contactFilters";
-import { getConversations, getWhatsappInboxes } from "@/lib/atendimentos/atendimentos.functions";
+import { getConversations } from "@/lib/atendimentos/atendimentos.functions";
 import { getRecentRecipients } from "@/lib/atendimentos/broadcast.functions";
 import { getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
 import { getPatientContacts } from "@/lib/patients/patients.functions";
-import { contatosDaCaixa, daParaSepararPorNumero } from "@/lib/atendimentos/inboxSnapshot";
 import { calcularLote } from "@/lib/atendimentos/loteDeDisparo";
 import { pessoasUnicas } from "@/lib/atendimentos/prepararAlvos";
 import { conversaPorContato } from "@/lib/atendimentos/agruparConversas";
@@ -112,7 +111,6 @@ export function ContactsTab({
   barraFixa?: boolean;
 }) {
   const fetchConversations = useServerFn(getConversations);
-  const fetchInboxes = useServerFn(getWhatsappInboxes);
   const fetchPatientContacts = useServerFn(getPatientContacts);
   const fetchRecentRecipients = useServerFn(getRecentRecipients);
 
@@ -127,13 +125,6 @@ export function ContactsTab({
     queryFn: () => fetchConversations(),
     enabled: ativo,
     staleTime: 60_000,
-  });
-
-  const inboxesQuery = useQuery({
-    queryKey: ["crm-inboxes"],
-    queryFn: () => fetchInboxes(),
-    enabled: ativo,
-    staleTime: 5 * 60_000,
   });
 
   // Segunda fonte da audiência: pacientes da NÓS que nunca tiveram conversa,
@@ -188,7 +179,7 @@ export function ContactsTab({
   // essa gente é mandar mensagem de uma clínica que ela não reconhece. Não se
   // aplica a paciente sem CRM: não veio de sincronização nenhuma, é dado
   // nosso, não tem como estar "contaminado" por número antigo.
-  const [soDoNumeroAtual, setSoDoNumeroAtual] = useState(true);
+  const [soDoNumeroAtual, setSoDoNumeroAtual] = useState(false);
 
   // Quem recebeu disparo recente some da lista por padrão — mesmo espírito do
   // filtro de número acima: começa escondendo quem provavelmente não deveria
@@ -247,30 +238,16 @@ export function ContactsTab({
   );
 
   const conversas = conversationsQuery.data ?? SEM_CONVERSAS;
-  const conectadaId = inboxesQuery.data?.conectadaId ?? null;
-
-  // Sem caixa em nenhuma conversa, o recorte por número seria invenção — o
-  // filtro some em vez de fingir que separa.
-  const separavel = useMemo(
-    () => Boolean(conectadaId) && daParaSepararPorNumero(conversas),
-    [conversas, conectadaId],
-  );
-
-  const daCaixaAtual = useMemo(
-    () => (separavel && conectadaId ? contatosDaCaixa(conversas, conectadaId) : null),
-    [separavel, conectadaId, conversas],
-  );
-
-  const noEscopo = useMemo(
-    () =>
-      separavel && soDoNumeroAtual && daCaixaAtual
-        ? // Paciente sem CRM nunca é filtrado por caixa: não veio de sincronização
-          // nenhuma, então não tem como ser "do número antigo".
-          contatos.filter((c) => c.origem === "paciente" || daCaixaAtual.has(c.id))
-        : contatos,
-    [contatos, separavel, soDoNumeroAtual, daCaixaAtual],
-  );
-  const omitidos = contatos.length - noEscopo.length;
+  // O filtro "só do número atual" acabou junto com o CRM.
+  //
+  // Ele existia por um detalhe do modelo de lá: um número = uma caixa, e trocar
+  // de número não apagava a caixa antiga — as conversas dela ficavam na conta,
+  // e disparar para aquela gente era mandar mensagem de uma clínica que ela não
+  // reconhece. Nossa conexão não tem caixas: o que está aqui é do número que
+  // está conectado.
+  const separavel = false;
+  const noEscopo = contatos;
+  const omitidos = 0;
 
   // Contato → último envio, casado por duas chaves: contact_id bate direto
   // pra quem já veio do CRM (`ContatoUnificado.id` de origem "crm" É o

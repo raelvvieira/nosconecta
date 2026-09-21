@@ -7,43 +7,8 @@ import { gravarTolerandoColunaAusente, semColuna } from "@/lib/schema-fallback";
 import { normalizeBrazilianPhone } from "@/lib/atendimentos/phone";
 import { clinicTodayStr } from "@/lib/date";
 
-// Empurra o paciente pro CRM (fonte da verdade é sempre o paciente, nunca o
-// contrário). Best-effort: se o CRM estiver fora do ar ou a clínica ainda
-// não tiver credenciais cadastradas, o cadastro do paciente NUNCA pode
-// falhar por causa disso — só loga e segue.
-async function pushContactToCrm(
-  ownerId: string,
-  patientId: string,
-  name: string,
-  phone: string | null,
-): Promise<void> {
-  try {
-    const url = process.env.SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !serviceKey) return;
-    const res = await fetch(`${url}/functions/v1/crm-contacts`, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
-      body: JSON.stringify({ ownerId, action: "upsert", patient: { patientId, name, phone } }),
-    });
-    if (!res.ok) {
-      console.error(
-        "[pushContactToCrm] crm-contacts respondeu",
-        res.status,
-        await res.text().catch(() => ""),
-      );
-    }
-  } catch (e) {
-    console.error("[pushContactToCrm]", e);
-  }
-}
-
 export type PatientStatus =
-  | "active"
-  | "in_treatment"
-  | "return_pending"
-  | "delinquent"
-  | "inactive";
+  "active" | "in_treatment" | "return_pending" | "delinquent" | "inactive";
 export type PatientFilter = "all" | PatientStatus;
 
 export interface PatientAppointment {
@@ -533,7 +498,6 @@ export async function resolverPacienteDoContato(
   if (error) throw new Error(error.message);
 
   // Mesmos efeitos do createPatient, pelos mesmos motivos (ver comentários lá).
-  await pushContactToCrm(ownerId, criado.id, criado.name, criado.phone ?? null);
   const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
   await dispatchMetaCapiEvent(ownerId, "patient.created", {
     entityId: criado.id,
@@ -597,11 +561,6 @@ export const createPatient = createServerFn({ method: "POST" })
           .single(),
     });
     if (error) throw new Error(error.message);
-    // Aguarda (mas nunca propaga erro) — em runtime serverless (Cloudflare
-    // Workers) uma promise não aguardada pode ser cancelada assim que a
-    // resposta é enviada, então "fire-and-forget" de verdade não é seguro
-    // aqui.
-    await pushContactToCrm(context.ownerId, created.id, data.name, data.phone);
     const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
     await dispatchMetaCapiEvent(context.ownerId, "patient.created", {
       entityId: created.id,
@@ -655,7 +614,6 @@ export const updatePatient = createServerFn({ method: "POST" })
           .eq("owner_id", context.ownerId),
     });
     if (error) throw new Error(error.message);
-    await pushContactToCrm(context.ownerId, data.id, data.name, data.phone);
     return { ok: true };
   });
 
@@ -769,88 +727,20 @@ export const getContatosComPaciente = createServerFn({ method: "GET" })
   });
 
 /**
- * Cria (ou acha) o contato no CRM pra um paciente que ainda não tinha um —
- * é o que torna um paciente "sem conversa" disparável de verdade: o motor de
- * envio (whatsapp-broadcast) só sabe falar com um `contactId` do CRM, nunca
- * com um id de paciente.
+ * O contato do CRM: não existe mais.
  *
- * Ao contrário de `pushContactToCrm` (best-effort, silencioso, chamado no
- * salvar do cadastro), esta é síncrona e propaga erro: no disparo, não dar
- * pra vincular precisa impedir o envio, não ser engolido.
+ * Aqui viviam `pushContactToCrm`, `garantirContatoCrm` e
+ * `backfillCrmContactLinks` — três formas de empurrar paciente para a conta do
+ * CRM, porque o envio de lá endereçava por id de contato e não por número.
+ *
+ * As duas primeiras falhavam em silêncio de propósito (o cadastro do paciente
+ * nunca podia quebrar por causa disso), e a terceira era um botão de
+ * manutenção para vincular a base inteira de uma vez. Nada disso é necessário
+ * desde que o envio passou a endereçar pelo telefone.
+ *
+ * A coluna `patients.crm_contact_id` fica: é por ela que a Meta ainda acha o
+ * paciente de uma conversão antiga.
  */
-export const garantirContatoCrm = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
-  .inputValidator((input: { patientId: string; name: string; phone: string }) => input)
-  .handler(async ({ data, context }): Promise<{ contactId: string | null }> => {
-    const url = process.env.SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !serviceKey) throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
-    // Timeout do CRM é lentidão momentânea do outro lado: uma segunda
-    // tentativa costuma resolver, e só então viramos erro para o usuário.
-    let ultimoErro = "Falha ao vincular contato no CRM";
-    for (let tentativa = 0; tentativa < 2; tentativa++) {
-      try {
-        const res = await fetch(`${url}/functions/v1/crm-contacts`, {
-          method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
-          body: JSON.stringify({
-            ownerId: context.ownerId,
-            action: "upsert",
-            patient: { patientId: data.patientId, name: data.name, phone: data.phone },
-          }),
-          signal: AbortSignal.timeout(55_000),
-        });
-        const json = await res.json().catch(() => ({}));
-        if (res.ok) return { contactId: json.contactId ? String(json.contactId) : null };
-        ultimoErro = json?.error ?? `Falha ao vincular contato no CRM (${res.status})`;
-        // Erro de regra (4xx que não seja timeout) não melhora repetindo.
-        if (res.status < 500 && !/demorou|timeout|timed out/i.test(String(ultimoErro))) break;
-      } catch {
-        ultimoErro =
-          "O CRM demorou demais para responder ao cadastrar o contato. Tente novamente em instantes.";
-      }
-    }
-    throw new Error(ultimoErro);
-  });
-
-/**
- * Vincula de uma vez toda a base de pacientes sem `crm_contact_id` cujo
- * telefone já é um contato no CRM — o caso comum numa clínica cujo WhatsApp
- * já vinha recebendo mensagem dessas pessoas antes deste sistema existir.
- * Sem isto, cada disparo pra um paciente "sem conversa" nessa situação bate
- * no caminho lento de `garantirContatoCrm` (cria, toma 422 de telefone
- * duplicado, varre a base procurando) — rodar isto uma vez evita repetir
- * essa varredura a cada disparo.
- */
-export const backfillCrmContactLinks = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
-  .handler(
-    async ({
-      context,
-    }): Promise<{ pacientesSemVinculo: number; linkados: number; baseTruncada: boolean }> => {
-      if (!context.isAdmin) throw new Error("Apenas administradores podem rodar isto.");
-      const url = process.env.SUPABASE_URL;
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      if (!url || !serviceKey) throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
-      const res = await fetch(`${url}/functions/v1/crm-contacts`, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
-        body: JSON.stringify({ ownerId: context.ownerId, action: "backfill-links" }),
-        // A varredura completa da base de contatos pode levar até os 45s que
-        // handleList já se dá — sem uma margem por cima disso, uma base
-        // grande derrubava a chamada por timeout do lado de cá antes da
-        // Edge Function terminar.
-        signal: AbortSignal.timeout(55_000),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.error ?? `Falha ao vincular pacientes (${res.status})`);
-      return {
-        pacientesSemVinculo: Number(json.pacientesSemVinculo ?? 0),
-        linkados: Number(json.linkados ?? 0),
-        baseTruncada: Boolean(json.baseTruncada),
-      };
-    },
-  );
 
 /**
  * Corrige telefone de paciente salvo sem o "55" do Brasil (ex.:
