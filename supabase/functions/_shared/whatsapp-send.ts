@@ -6,6 +6,7 @@
 // explícito, nunca client de módulo por closure, porque este arquivo é
 // importado por mais de uma função e cada uma tem o seu.
 import { crmFetch } from "./crm-auth.ts";
+import type { AlvoDeEnvio } from "./alvo-de-envio.ts";
 import { unwrap } from "./crm-client.ts";
 import { decidirCaminho, evolutionFetch } from "./evolution-api.ts";
 import { gravarMensagemEspelhada, mensagemEnviada } from "./espelho-evolution.ts";
@@ -17,28 +18,10 @@ import {
   rota,
 } from "./evolution-enviar.ts";
 
-/** Para quem a mensagem vai.
- *
- *  Exportado — e não escrito à mão em cada chamador — porque foi exatamente aí
- *  que uma automação silenciosa nasceu: `atendimento-automations` montava o
- *  objeto em camelCase (`contact_id` virava `contactId`), o campo saía
- *  `undefined`, o JSON.stringify descartava e a chamada ia ao CRM sem contato
- *  nenhum. O disparo de campanhas nunca sofreu porque passa a linha de
- *  `whatsapp_broadcast_targets` direto, cujas colunas já têm estes nomes.
- *
- *  As Edge Functions rodam em Deno e ficam fora do `bunx tsc` do projeto, que
- *  cobre só `src/` — então aqui o nome único é a única defesa que existe. */
-export interface AlvoDeEnvio {
-  conversation_id: string | null;
-  contact_id: string;
-  /** O telefone, quando quem chama já o tem em mãos.
-   *
-   *  O CRM endereça por id de contato; a Evolution, por número. Passar o
-   *  telefone aqui evita uma consulta e, mais importante, evita o caso em que
-   *  ela não acha nada — contato que só existe no CRM, sem linha no espelho.
-   *  A fila de campanhas já carrega esta coluna. */
-  phone?: string | null;
-}
+// O tipo do alvo mora em `alvo-de-envio.ts`, junto da conta pura que o monta —
+// ver lá por que a decisão de "para quem vai" precisou sair daqui. Reexportado
+// para quem já importava daqui não ter de mudar.
+export type { AlvoDeEnvio };
 
 /** Imagem enviada JUNTO do texto, como legenda de uma mensagem só. */
 export interface MidiaDeEnvio {
@@ -104,6 +87,16 @@ export async function enviarWhatsapp(
     return { via: "conversation" };
   }
 
+  // Daqui para baixo tudo endereça pelo id de contato do CRM, e ele passou a
+  // ser opcional. Sem ele não há o que tentar: melhor dizer isso do que mandar
+  // `undefined` para o CRM e receber um 404 que não explica nada.
+  const contatoNoCrm = alvo.contact_id;
+  if (!contatoNoCrm) {
+    throw new Error(
+      "Sem contato no CRM e sem conversa aberta — não há por onde mandar por esse caminho.",
+    );
+  }
+
   // Sem conversa ainda: cria a conversa direto — caminho validado pelo time do
   // CRM (18/08) com disparo real entregue. Uma chamada só vincula contato↔inbox
   // (a partir do telefone), abre a conversa e manda a mensagem de saída. Troca
@@ -137,7 +130,7 @@ export async function enviarWhatsapp(
   // Reusar também conversa RESOLVIDA é de propósito: é a mesma pessoa e o
   // mesmo histórico. Abrir outra por ela estar encerrada é exatamente como a
   // caixa de entrada enche de linhas repetidas.
-  const existente = await conversaExistente(supabase, ownerId, alvo.contact_id);
+  const existente = await conversaExistente(supabase, ownerId, contatoNoCrm);
   if (existente) {
     return await enviarWhatsapp(
       supabase,
@@ -158,7 +151,7 @@ export async function enviarWhatsapp(
   // quem recebe.
   if (midia) {
     const form = new FormData();
-    form.append("contact_id", alvo.contact_id);
+    form.append("contact_id", contatoNoCrm);
     form.append("inbox_id", inboxId);
     form.append("message[content]", message);
     form.append(
@@ -183,7 +176,7 @@ export async function enviarWhatsapp(
       const status = Number((e as any)?.status ?? 0);
       if (status < 400 || status >= 500) throw e;
       console.warn("[whatsapp-send] multipart recusado na criação da conversa:", String(e).slice(0, 300));
-      await criarConversaSoTexto(supabase, ownerId, alvo.contact_id, inboxId, message);
+      await criarConversaSoTexto(supabase, ownerId, contatoNoCrm, inboxId, message);
       return {
         via: "conversation_new",
         midiaIgnorada: "O CRM recusou a imagem ao abrir a conversa; o texto foi enviado.",
@@ -191,7 +184,7 @@ export async function enviarWhatsapp(
     }
   }
 
-  await criarConversaSoTexto(supabase, ownerId, alvo.contact_id, inboxId, message);
+  await criarConversaSoTexto(supabase, ownerId, contatoNoCrm, inboxId, message);
   return { via: "conversation_new" };
 }
 
@@ -372,6 +365,11 @@ async function destinoDoAlvo(
     const daConversa = destinoDaMensagem(pessoa?.phone_e164);
     if (daConversa) return daConversa;
   }
+
+  // Os dois últimos degraus procuram pelo contato do CRM. Sem ele não há o que
+  // procurar: `.eq("crm_contact_id", undefined)` não é "nenhum resultado", é
+  // uma consulta malformada — e quem chama leria o erro como "sem número".
+  if (!alvo.contact_id) return null;
 
   const { data: contato } = await supabase
     .from("wa_contacts")

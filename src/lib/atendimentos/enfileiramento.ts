@@ -11,17 +11,20 @@ import {
 /**
  * O enfileiramento visto de fora.
  *
- * Entre confirmar o disparo e o lote existir no banco há um trecho que pode
- * levar dezenas de segundos: cada paciente sem contato no CRM precisa ser
- * vinculado lá antes de a fila poder existir. Isso acontecia em silêncio — a
+ * Entre confirmar o disparo e o lote existir no banco havia um trecho que
+ * podia levar dezenas de segundos: cada paciente sem contato no CRM precisava
+ * ser criado lá antes de a fila poder existir. Isso acontecia em silêncio — a
  * tela fechava, a lista continuava igual, e se o CRM estourasse o tempo o
  * único vestígio era um toast vermelho que sumia em segundos, levando junto a
  * mensagem, o ritmo, a imagem e a seleção de 200 pessoas.
  *
- * Aqui essa etapa vira um item de lista como qualquer outro: com etapa,
- * percentual, erro nomeado e retentativa a partir do mesmo payload. Guardado em
- * `sessionStorage` porque a falha típica é demora do CRM, e quem espera
- * dezenas de segundos costuma trocar de tela nesse meio-tempo.
+ * Aqui essa etapa virou um item de lista como qualquer outro: com etapa,
+ * percentual, erro nomeado e retentativa a partir do mesmo payload.
+ *
+ * A espera em si acabou — o disparo endereça pelo número e não precisa mais
+ * pedir nada a ninguém. O cartão continua, porque a fila ainda pode falhar ao
+ * ser criada e porque perder a seleção de 200 pessoas num toast vermelho
+ * continuaria sendo ruim.
  */
 
 export type EtapaDoEnfileiramento = "vinculando" | "criando" | "pronto" | "erro";
@@ -105,13 +108,25 @@ export function progressoDaPreparacao(i: DisparoEmPreparacao) {
   const feitos = i.aVincular.filter((p) => i.resolvidos[p.patientId]).length;
   const totalContatos = i.prontos.length + total;
   if (i.etapa === "criando" || i.etapa === "pronto") {
-    return { rotulo: i.etapa === "pronto" ? "Fila criada" : "Criando a fila", pct: 0.95, feitos: total, total, totalContatos };
+    return {
+      rotulo: i.etapa === "pronto" ? "Fila criada" : "Criando a fila",
+      pct: 0.95,
+      feitos: total,
+      total,
+      totalContatos,
+    };
   }
   if (i.etapa === "erro") {
-    return { rotulo: "Falhou ao enfileirar", pct: total ? feitos / total : 0, feitos, total, totalContatos };
+    return {
+      rotulo: "Falhou ao enfileirar",
+      pct: total ? feitos / total : 0,
+      feitos,
+      total,
+      totalContatos,
+    };
   }
   return {
-    rotulo: total ? "Vinculando contatos ao CRM" : "Criando a fila",
+    rotulo: total ? "Preparando a lista" : "Criando a fila",
     pct: total ? (feitos / total) * 0.9 : 0.5,
     feitos,
     total,
@@ -131,8 +146,8 @@ async function executar(localId: string) {
       const bloco = pendentes.slice(i, i + TAMANHO_DO_BLOCO);
       const mapa = await vincularAlvos({ data: { aVincular: bloco } });
       Object.assign(resolvidos, mapa);
-      // Marca também quem o CRM não resolveu, para a retentativa não insistir
-      // num bloco inteiro por causa de um contato impossível.
+      // Marca também quem ficou de fora, para a retentativa não insistir num
+      // bloco inteiro por causa de uma pessoa sem telefone.
       alterar(localId, { resolvidos: { ...resolvidos } });
     }
 
@@ -143,7 +158,7 @@ async function executar(localId: string) {
     for (const p of inicial.aVincular) {
       const contactId = resolvidos[p.patientId];
       if (!contactId) {
-        fora.push({ nome: p.name, motivo: "não pôde ser vinculado ao CRM." });
+        fora.push({ nome: p.name, motivo: "não tem telefone para receber." });
         continue;
       }
       vinculados.push({
@@ -156,7 +171,7 @@ async function executar(localId: string) {
 
     const alvos = [...inicial.prontos, ...vinculados];
     if (!alvos.length) {
-      throw new Error("Nenhum dos contatos selecionados pôde ser vinculado ao CRM.");
+      throw new Error("Nenhum dos contatos selecionados tem telefone para receber.");
     }
 
     const r = await criarDisparo({

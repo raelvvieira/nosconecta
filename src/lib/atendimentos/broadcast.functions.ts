@@ -24,9 +24,8 @@ export type { AlvoAVincular };
 export type { BroadcastAlvo, BroadcastResumo, RecentRecipient, RitmoDoDisparo };
 
 /**
- * Cria a fila de disparo. O vínculo com o CRM acontece aqui, numa chamada em
- * lote. Quem o CRM não conseguir vincular não derruba o disparo: volta nomeado
- * em `foraDoDisparo`.
+ * Cria a fila de disparo. Quem não puder entrar não derruba o disparo: volta
+ * nomeado em `foraDoDisparo`.
  */
 export const criarDisparo = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
@@ -37,7 +36,7 @@ export const criarDisparo = createServerFn({ method: "POST" })
       ritmo: RitmoDoDisparo;
       /** Contatos que já têm id no CRM. */
       prontos: BroadcastAlvo[];
-      /** Pacientes que precisam de vínculo — resolvidos aqui, em lote. */
+      /** Pacientes selecionados que ainda não têm id de contato. */
       aVincular: AlvoAVincular[];
       /** Caminho no bucket `crm-campaign-media`, não URL assinada. */
       mediaPath?: string | null;
@@ -50,14 +49,14 @@ export const criarDisparo = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }) => {
-    const mapa = await resolverEmLote(context.ownerId, data.aVincular ?? []);
+    const mapa = resolverEmLote(data.aVincular ?? []);
 
     const foraDoDisparo: { nome: string; motivo: string }[] = [];
     const vinculados: BroadcastAlvo[] = [];
     for (const p of data.aVincular ?? []) {
       const contactId = mapa[p.patientId];
       if (!contactId) {
-        foraDoDisparo.push({ nome: p.name, motivo: "não pôde ser vinculado ao CRM." });
+        foraDoDisparo.push({ nome: p.name, motivo: "não tem telefone para receber." });
         continue;
       }
       vinculados.push({
@@ -70,7 +69,7 @@ export const criarDisparo = createServerFn({ method: "POST" })
 
     const targets = [...(data.prontos ?? []), ...vinculados];
     if (!targets.length) {
-      throw new Error("Nenhum dos contatos selecionados pôde ser vinculado ao CRM.");
+      throw new Error("Nenhum dos contatos selecionados tem telefone para receber.");
     }
 
     const json = await callBroadcast({
@@ -91,17 +90,18 @@ export const criarDisparo = createServerFn({ method: "POST" })
   });
 
 /**
- * Vincula um bloco de pacientes ao CRM e devolve o mapa `patientId -> contactId`.
+ * Devolve o mapa `patientId -> id na fila` de um bloco de pacientes.
  *
- * A tela chama isto em blocos para poder mostrar o vínculo andando: numa
- * seleção de 200, "Vinculando contatos ao CRM" sem número é indistinguível de
- * travado. Quem o CRM não resolver simplesmente não aparece no mapa.
+ * A tela chama isto em blocos porque isto já foi uma ida ao CRM que levava
+ * dezenas de segundos numa seleção de 200. Hoje responde na hora, e os blocos
+ * ficaram só porque a barra de progresso é a mesma. Quem não tem telefone
+ * simplesmente não aparece no mapa.
  */
 export const vincularAlvos = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator((input: { aVincular: AlvoAVincular[] }) => input)
   .handler(async ({ data, context }): Promise<Record<string, string>> => {
-    return resolverEmLote(context.ownerId, data.aVincular ?? []);
+    return resolverEmLote(data.aVincular ?? []);
   });
 
 /** Um destinatário que não recebeu, com o motivo registrado pela fila. */

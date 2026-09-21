@@ -161,7 +161,11 @@ async function handleTick() {
   const agora = new Date().toISOString();
   const { data: alvos } = await supabase
     .from("whatsapp_broadcast_targets")
-    .select("id, owner_id, broadcast_id, contact_id, conversation_id, contact_name")
+    // `phone` entra na lista: a coluna sempre existiu e sempre foi preenchida,
+    // mas não era lida — e sem ela cada alvo chegava ao envio sem número, o que
+    // obrigava `destinoDoAlvo` a procurá-lo em duas ou três tabelas, uma vez
+    // por pessoa da fila. Agora a fila já sai com o endereço na mão.
+    .select("id, owner_id, broadcast_id, contact_id, conversation_id, contact_name, phone")
     .eq("status", "pending")
     .lte("scheduled_for", agora)
     .order("scheduled_for", { ascending: true })

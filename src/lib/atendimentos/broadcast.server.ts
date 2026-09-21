@@ -54,7 +54,7 @@ export async function callBroadcast(body: unknown): Promise<any> {
   return json;
 }
 
-/** Um paciente que ainda precisa de contato no CRM. */
+/** Um paciente selecionado para o disparo que ainda não tem id de contato. */
 export interface AlvoAVincular {
   patientId: string;
   name: string;
@@ -62,37 +62,35 @@ export interface AlvoAVincular {
   conversationId: string | null;
 }
 
-export async function resolverEmLote(
-  ownerId: string,
-  pacientes: AlvoAVincular[],
-): Promise<Record<string, string>> {
-  if (!pacientes.length) return {};
-  const url = process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
-  const res = await fetch(`${url}/functions/v1/crm-contacts`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
-    body: JSON.stringify({
-      ownerId,
-      action: "resolve-batch",
-      patients: pacientes.map((p) => ({ patientId: p.patientId, name: p.name, phone: p.phone })),
-    }),
-    // Uma chamada só, mas ela resolve a lista inteira.
-    signal: AbortSignal.timeout(110_000),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const desatualizada = erroDeFuncaoDesatualizada(
-      "crm-contacts",
-      res.status,
-      String(json?.error ?? ""),
-    );
-    throw new Error(
-      desatualizada ?? json?.error ?? `Falha ao vincular contatos no CRM (${res.status})`,
-    );
+/**
+ * O identificador de cada paciente na fila de disparo.
+ *
+ * ── O que isto era ──────────────────────────────────────────────────────
+ *
+ * Uma chamada ao CRM que criava um contato lá para cada paciente selecionado,
+ * só para a fila ter um id que o CRM aceitasse — com até 110 segundos de
+ * espera e um erro em vermelho quando ele demorava. Era a etapa "Vinculando
+ * contatos ao CRM" que o cartão de preparação mostrava.
+ *
+ * O envio não precisa mais disso: ele endereça pelo NÚMERO. Então o id de
+ * cada linha da fila passa a ser o do próprio paciente, que é nosso, já existe
+ * e não depende de ninguém responder. A etapa continua existindo no cartão
+ * porque a tela é a mesma — só que agora ela é instantânea.
+ *
+ * Quem não tem telefone fica de fora do mapa, e quem chama já nomeia essa
+ * pessoa em `foraDoDisparo` em vez de deixá-la sumir calada.
+ *
+ * O "já recebeu" da tela de contatos continua valendo: ele casa por id **ou**
+ * por telefone normalizado (`ContactsTab.tsx`), e o telefone vai gravado em
+ * toda linha da fila.
+ */
+export function resolverEmLote(pacientes: AlvoAVincular[]): Record<string, string> {
+  const mapa: Record<string, string> = {};
+  for (const p of pacientes) {
+    if (!p.patientId || !p.phone?.trim()) continue;
+    mapa[p.patientId] = p.patientId;
   }
-  return (json.contatos ?? {}) as Record<string, string>;
+  return mapa;
 }
 
 /**

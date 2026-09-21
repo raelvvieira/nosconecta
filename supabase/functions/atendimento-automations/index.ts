@@ -10,8 +10,8 @@
 // segredo. Só a EXECUÇÃO passa por aqui, porque as ações reais precisam da
 // service role / token do CRM.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { enviarWhatsapp, type AlvoDeEnvio } from "../_shared/whatsapp-send.ts";
-import { crmFetch } from "../_shared/crm-auth.ts";
+import { enviarWhatsapp } from "../_shared/whatsapp-send.ts";
+import { montarAlvo, type AlvoDeEnvio } from "../_shared/alvo-de-envio.ts";
 import { debitDailyUsage, getDailyUsage } from "../_shared/daily-quota.ts";
 import { pushToOwner } from "../_shared/push.ts";
 
@@ -495,81 +495,47 @@ async function enfileirar(
 
 // ---------- ações ----------
 
-/** Resolve um crm_contact_id pra mandar mensagem — reaproveita o mesmo
- *  upsert que garantirContatoCrm já usa (crm-contacts, action "upsert"),
- *  que só funciona com patientId (não aceita crmContactId direto). Sem
- *  patientId nem crmContactId, não tem pra quem mandar. */
-/** A conversa que este contato já tem, se tiver.
+/**
+ * Para quem esta automação vai mandar.
  *
- *  Sem isto, toda mensagem de automação entra pelo caminho "criar conversa" —
- *  e quem já conversa com a clínica recebe o aviso numa thread nova, separada
- *  do histórico. A aba Contatos já faz esse mesmo casamento por `contact.id`
- *  para decidir por onde o disparo sai (ContactsTab.tsx, `conversaPorContato`);
- *  aqui é a mesma ideia, só que consultada na hora do envio. */
-async function conversaDoContato(ownerId: string, contactId: string): Promise<string | null> {
-  try {
-    const res = await crmFetch(supabase, ownerId, "/api/v1/conversations");
-    const lista = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-    const achada = lista.find((c: any) => String(c?.contact?.id ?? "") === String(contactId));
-    return achada?.id ? String(achada.id) : null;
-  } catch {
-    // Falhar aqui não pode impedir o envio: sem conversa conhecida, o caminho
-    // de criar conversa continua valendo, que é o comportamento de antes.
-    return null;
-  }
-}
-
-// O tipo do alvo vem de `_shared/whatsapp-send.ts`, junto da função que o
-// consome — ver lá por que ele deixou de ser escrito à mão aqui.
+ * ── O que isto era, e por que mudou ─────────────────────────────────────
+ *
+ * Era uma ida ao CRM. Paciente sem contato lá tinha um contato CRIADO na
+ * hora, só para a mensagem poder sair — porque o CRM endereçava por id de
+ * contato, não por número. Quando o número da clínica saiu do CRM, essa ida
+ * virou um degrau que só podia atrapalhar: se ela falhasse, a função devolvia
+ * `null`, o envio virava `skipped_no_contact` no log e o paciente
+ * simplesmente NÃO recebia a confirmação nem o lembrete. Sem erro na tela,
+ * sem aviso para ninguém.
+ *
+ * Eram 1.156 pacientes com telefone e sem contato no CRM — a maior parte de
+ * quem se cadastrou depois que o sistema passou a andar sozinho.
+ *
+ * Agora o telefone do paciente é o endereço, que é o que a conexão própria
+ * usa de verdade. O `contact_id` continua sendo levado quando existe, porque
+ * o caminho do CRM ainda existe enquanto a conta não for desligada.
+ */
 async function resolverContatoParaEnvio(
   ownerId: string,
   ctx: DispatchContext,
 ): Promise<AlvoDeEnvio | null> {
-  if (ctx.crmContactId) {
-    return {
-      contact_id: ctx.crmContactId,
-      conversation_id: await conversaDoContato(ownerId, ctx.crmContactId),
-    };
-  }
-  if (!ctx.patientId) return null;
+  // Sem paciente, só o que o evento trouxe — é o caso da automação disparada
+  // por uma conversa de quem ainda não virou ficha.
+  if (!ctx.patientId) return montarAlvo({ contatoDoEvento: ctx.crmContactId });
 
   const { data: paciente } = await supabase
     .from("patients")
-    .select("name, phone, crm_contact_id")
+    .select("phone, crm_contact_id")
     .eq("id", ctx.patientId)
     .eq("owner_id", ownerId)
     .maybeSingle();
   if (!paciente) return null;
-  if (paciente.crm_contact_id) {
-    return {
-      contact_id: paciente.crm_contact_id,
-      conversation_id: await conversaDoContato(ownerId, paciente.crm_contact_id),
-      // O telefone vai junto porque a conexão própria endereça por NÚMERO, e
-      // não por id de contato do CRM. Sem ele, o envio teria de procurar o
-      // número em duas tabelas — e não acharia nada para contato que só
-      // existe do lado do CRM.
-      phone: paciente.phone ?? null,
-    };
-  }
-  if (!paciente.phone) return null;
 
-  const url = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const res = await fetch(`${url}/functions/v1/crm-contacts`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
-    body: JSON.stringify({
-      ownerId,
-      action: "upsert",
-      patient: { patientId: ctx.patientId, name: paciente.name, phone: paciente.phone },
-    }),
-    signal: AbortSignal.timeout(55_000),
+  return montarAlvo({
+    telefone: paciente.phone,
+    contatoDoEvento: ctx.crmContactId,
+    contatoDaFicha: paciente.crm_contact_id,
   });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok || !json?.contactId) return null;
-  // Contato acabou de ser criado no CRM: não existe conversa anterior para
-  // reaproveitar, e o caminho de criar conversa é o certo aqui.
-  return { contact_id: String(json.contactId), conversation_id: null, phone: paciente.phone ?? null };
 }
 
 /** URL de webhook só pode sair pra internet pública por HTTPS — guarda
