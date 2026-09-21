@@ -27,15 +27,16 @@ export const Route = createFileRoute("/atendimentos/")({
     ],
   }),
   errorComponent: ({ error }) => (
-    <ResponsiveRouteState error={error}
+    <ResponsiveRouteState
+      error={error}
       title="Não foi possível carregar o dashboard"
       description="Houve uma falha ao buscar as métricas de atendimento. Tente novamente em instantes."
       semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
-  semSidebar
-/>,
+  notFoundComponent: () => (
+    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
+  ),
   component: DashboardPage,
 });
 
@@ -56,11 +57,21 @@ function DashboardPage() {
   const conversations = conversationsQuery.data ?? [];
   const needsAttention = conversations.filter((c) => c.unreadCount > 0).length;
 
-  const stagesQuery = useQuery({ queryKey: ["pipeline-stages"], queryFn: () => fetchStages(), staleTime: 10_000 });
-  const configured = stagesQuery.data?.configured ?? false;
+  const stagesQuery = useQuery({
+    queryKey: ["pipeline-stages"],
+    queryFn: () => fetchStages(),
+    staleTime: 10_000,
+  });
   const stages = stagesQuery.data?.stages ?? [];
+  // "Configurado" passou a ser simplesmente ter etapa. O funil é nosso agora:
+  // não existe mais uma entidade a criar do outro lado antes de poder usá-lo.
+  const configured = stages.length > 0;
 
-  const itemsQuery = useQuery({ queryKey: ["pipeline-items"], queryFn: () => fetchItems(), staleTime: 8_000 });
+  const itemsQuery = useQuery({
+    queryKey: ["pipeline-items"],
+    queryFn: () => fetchItems(),
+    staleTime: 8_000,
+  });
   const items = itemsQuery.data?.items ?? [];
 
   // Era "campanhas ativas", contando `status === "running"` no motor do CRM —
@@ -75,7 +86,11 @@ function DashboardPage() {
     (d) => d.status === "running",
   ).length;
 
-  const usageQuery = useQuery({ queryKey: ["campaigns-usage"], queryFn: () => fetchUsage(), staleTime: 15_000 });
+  const usageQuery = useQuery({
+    queryKey: ["campaigns-usage"],
+    queryFn: () => fetchUsage(),
+    staleTime: 15_000,
+  });
 
   // Análise diária do CRM (sales_assistant/sales_playbook) — nunca deve
   // travar o dashboard: se falhar (ex.: conta sem esses recursos liberados),
@@ -104,10 +119,30 @@ function DashboardPage() {
 
       <div className="space-y-5 px-4 sm:px-6 lg:px-10">
         <GrupoDeKpis>
-          <KpiCard label="Conversas ativas" value={String(conversations.length)} icon={MessageCircle} tone="violet" />
-          <KpiCard label="Precisam de atenção" value={String(needsAttention)} icon={Bell} tone="warning" />
-          <KpiCard label="Contatos no funil" value={String(items.length)} icon={Workflow} tone="success" />
-          <KpiCard label="Disparos em andamento" value={String(disparosEmAndamento)} icon={Send} tone="danger" />
+          <KpiCard
+            label="Conversas ativas"
+            value={String(conversations.length)}
+            icon={MessageCircle}
+            tone="violet"
+          />
+          <KpiCard
+            label="Precisam de atenção"
+            value={String(needsAttention)}
+            icon={Bell}
+            tone="warning"
+          />
+          <KpiCard
+            label="Contatos no funil"
+            value={String(items.length)}
+            icon={Workflow}
+            tone="success"
+          />
+          <KpiCard
+            label="Disparos em andamento"
+            value={String(disparosEmAndamento)}
+            icon={Send}
+            tone="danger"
+          />
         </GrupoDeKpis>
 
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_360px]">

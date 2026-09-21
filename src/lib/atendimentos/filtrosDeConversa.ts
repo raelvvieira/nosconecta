@@ -3,6 +3,7 @@ import type { ConversationRow } from "./atendimentos.functions";
 import type { PipelineItem } from "./pipeline.functions";
 import type { Deal, DealStatus } from "./deals.functions";
 import { chavesDaNegociacao } from "./deal-key";
+import { cardDaPessoa } from "./funil";
 
 /**
  * Os recortes e a ordem da caixa de entrada.
@@ -80,23 +81,17 @@ export const CONTEXTO_VAZIO: ContextoDaLista = {
 /**
  * O card do funil de uma conversa.
  *
- * Casa pelos DOIS lados — pelo id da conversa e pelo id do contato — porque o
- * card pode ter nascido de um ou do outro. Casar só por conversa fazia um card
- * criado a partir do contato ficar invisível, mostrando "Sem etapa" no
- * cabeçalho; escolher uma etapa ali criaria um SEGUNDO card para a mesma
+ * Casa pelo TELEFONE, e pelo id da conversa como reserva — a regra mora em
+ * `funil.ts`, junto das checagens. Casar só por conversa fazia o card ficar
+ * invisível assim que a pessoa escrevia por outra thread: o cabeçalho dizia
+ * "Sem etapa", e escolher uma etapa ali criava um SEGUNDO card para a mesma
  * pessoa.
  *
  * Esta função existe para o cabeçalho e o filtro usarem a MESMA regra: com duas
  * cópias, a lista diria que alguém está numa etapa e o cabeçalho diria outra.
  */
 export function itemDoFunil(itens: PipelineItem[], conversa: ConversationRow): PipelineItem | null {
-  return (
-    itens.find(
-      (i) =>
-        (i.type === "conversation" && i.itemId === conversa.id) ||
-        (i.type === "contact" && conversa.contactId && i.itemId === conversa.contactId),
-    ) ?? null
-  );
+  return cardDaPessoa(itens, { conversaId: conversa.id, telefone: conversa.phone });
 }
 
 /** A negociação de uma conversa: o card manda, a conversa é a reserva. */

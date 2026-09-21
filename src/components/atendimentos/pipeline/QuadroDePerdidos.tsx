@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { RotateCcw, Send } from "lucide-react";
 import type { PipelineItem } from "@/lib/atendimentos/pipeline.functions";
+import { chaveDoTelefone } from "@/lib/atendimentos/funil";
 import {
   LOSS_REASONS,
   motivoEhDefinitivo,
@@ -112,8 +113,18 @@ export function QuadroDePerdidos({
 
   const perdidos = useMemo<Perdido[]>(() => {
     const termo = busca.trim().toLowerCase();
-    const porContato = new Map<string, ConversationRow>();
-    for (const c of conversas) if (c.contactId) porContato.set(c.contactId, c);
+
+    // Card → conversa, pelas duas chaves que um card pode ter. O card de
+    // "pessoa" guarda o telefone, então o mapa é por telefone normalizado —
+    // a mesma chave que a caixa de entrada usa para juntar as conversas de um
+    // número, e por isso ela casa com qualquer thread da pessoa.
+    const porTelefone = new Map<string, ConversationRow>();
+    const porConversa = new Map<string, ConversationRow>();
+    for (const c of conversas) {
+      porConversa.set(c.id, c);
+      const chave = chaveDoTelefone(c.phone);
+      if (chave && !porTelefone.has(chave)) porTelefone.set(chave, c);
+    }
 
     const lista: Perdido[] = [];
     for (const item of itens) {
@@ -122,18 +133,27 @@ export function QuadroDePerdidos({
       const nome = item.title ?? "";
       if (termo && !nome.toLowerCase().includes(termo)) continue;
 
-      const contactId = item.type === "contact" ? item.itemId : null;
-      const conversa = contactId ? porContato.get(contactId) : undefined;
+      const conversa =
+        item.type === "pessoa" ? porTelefone.get(item.itemId) : porConversa.get(item.itemId);
+      // O contato sai da CONVERSA, não do card: é ele que o histórico de
+      // disparos usa como chave, e o card passou a guardar o telefone.
+      const contactId = conversa?.contactId ?? null;
       lista.push({
         item,
         deal,
         contactId,
         conversationId: conversa?.id ?? null,
-        phone: conversa?.phone ?? null,
+        // O telefone do card serve mesmo quando nenhuma conversa casou — é ele
+        // que o disparo precisa, e perdê-lo tiraria a pessoa da reativação.
+        phone: conversa?.phone ?? (item.type === "pessoa" ? item.itemId : null),
         motivo: motivoNormalizado(deal.lossReason),
         etapa: classificar(
           regras,
-          sinaisDe(deal, contactId ? disparos.data?.[contactId] : undefined, conversa?.lastMessageAt),
+          sinaisDe(
+            deal,
+            contactId ? disparos.data?.[contactId] : undefined,
+            conversa?.lastMessageAt,
+          ),
         ),
       });
     }
@@ -170,7 +190,9 @@ export function QuadroDePerdidos({
             onClick={() => setMotivoFiltro(null)}
             className={cn(
               "rounded-full border px-2.5 py-1 text-2xs transition-colors",
-              !motivoFiltro ? "border-transparent bg-foreground text-white" : "border-border hover:bg-muted/50",
+              !motivoFiltro
+                ? "border-transparent bg-foreground text-white"
+                : "border-border hover:bg-muted/50",
             )}
           >
             Todos
@@ -194,78 +216,85 @@ export function QuadroDePerdidos({
       )}
 
       <div className="custom-scroll flex flex-1 gap-3 overflow-x-auto pb-2">
-        {regras.filter((r) => r.ativa).map((regra) => {
-          const etapa = regra.id;
-          const lista = filtrados.filter((p) => p.etapa === etapa);
-          return (
-            <div key={etapa} className="flex w-[280px] shrink-0 flex-col">
-              <div className="flex items-center gap-2 px-1 pb-2">
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: regra.cor }} />
-                <h3 className="truncate text-sm font-semibold">{regra.nome}</h3>
-                <span className="ml-auto text-xs font-semibold text-muted-foreground">
-                  {lista.length}
-                </span>
-              </div>
-              <p className="px-1 pb-2 text-3xs leading-snug text-muted-foreground">{regra.explica}</p>
+        {regras
+          .filter((r) => r.ativa)
+          .map((regra) => {
+            const etapa = regra.id;
+            const lista = filtrados.filter((p) => p.etapa === etapa);
+            return (
+              <div key={etapa} className="flex w-[280px] shrink-0 flex-col">
+                <div className="flex items-center gap-2 px-1 pb-2">
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ background: regra.cor }}
+                  />
+                  <h3 className="truncate text-sm font-semibold">{regra.nome}</h3>
+                  <span className="ml-auto text-xs font-semibold text-muted-foreground">
+                    {lista.length}
+                  </span>
+                </div>
+                <p className="px-1 pb-2 text-3xs leading-snug text-muted-foreground">
+                  {regra.explica}
+                </p>
 
-              {/* "Não perturbar" nunca ganha botão, e isso não é configurável:
+                {/* "Não perturbar" nunca ganha botão, e isso não é configurável:
                   a coluna existe exatamente para essas pessoas NÃO receberem.
                   Um botão ali seria um pedido de erro. */}
-              {/* A trava é pela CONDIÇÃO, não pelo id da etapa: coluna cujo
+                {/* A trava é pela CONDIÇÃO, não pelo id da etapa: coluna cujo
                   critério é "motivo definitivo" existe exatamente para essas
                   pessoas não receberem. Amarrar ao id "nao_perturbar" quebraria
                   assim que a clínica renomeasse a etapa ou criasse outra com o
                   mesmo critério — e é essa edição que estamos abrindo. */}
-              {regra.condicao !== "motivo_definitivo" && lista.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mb-2 h-8 w-full gap-1.5 text-2xs"
-                  onClick={() => abrir(lista.filter((p) => p.contactId).map(paraContato))}
-                >
-                  <Send className="h-3 w-3" />
-                  Disparar para {lista.filter((p) => p.contactId).length}
-                </Button>
-              )}
-
-              <div className="custom-scroll flex-1 space-y-2 overflow-y-auto overflow-x-hidden rounded-2xl bg-surface-subtle p-2">
-                {!lista.length ? (
-                  <p className="py-6 text-center text-2xs text-muted-foreground">Vazio</p>
-                ) : (
-                  lista.map(({ item, deal, motivo }) => (
-                    <div key={item.id} className="surface-card px-3 py-2.5">
-                      <p className="truncate text-sm font-semibold text-foreground">
-                        {item.title || "Sem nome"}
-                      </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-3xs font-semibold text-muted-foreground">
-                          {motivo}
-                        </span>
-                        {deal.value ? (
-                          <span className="text-3xs text-muted-foreground">
-                            {deal.value.toLocaleString("pt-BR", {
-                              style: "currency",
-                              currency: "BRL",
-                            })}
-                          </span>
-                        ) : null}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-2 h-7 w-full gap-1.5 text-2xs"
-                        onClick={() => onAbrir(item)}
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                        Reabrir
-                      </Button>
-                    </div>
-                  ))
+                {regra.condicao !== "motivo_definitivo" && lista.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mb-2 h-8 w-full gap-1.5 text-2xs"
+                    onClick={() => abrir(lista.filter((p) => p.contactId).map(paraContato))}
+                  >
+                    <Send className="h-3 w-3" />
+                    Disparar para {lista.filter((p) => p.contactId).length}
+                  </Button>
                 )}
+
+                <div className="custom-scroll flex-1 space-y-2 overflow-y-auto overflow-x-hidden rounded-2xl bg-surface-subtle p-2">
+                  {!lista.length ? (
+                    <p className="py-6 text-center text-2xs text-muted-foreground">Vazio</p>
+                  ) : (
+                    lista.map(({ item, deal, motivo }) => (
+                      <div key={item.id} className="surface-card px-3 py-2.5">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {item.title || "Sem nome"}
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-3xs font-semibold text-muted-foreground">
+                            {motivo}
+                          </span>
+                          {deal.value ? (
+                            <span className="text-3xs text-muted-foreground">
+                              {deal.value.toLocaleString("pt-BR", {
+                                style: "currency",
+                                currency: "BRL",
+                              })}
+                            </span>
+                          ) : null}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2 h-7 w-full gap-1.5 text-2xs"
+                          onClick={() => onAbrir(item)}
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          Reabrir
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
       {dialogo}
     </div>

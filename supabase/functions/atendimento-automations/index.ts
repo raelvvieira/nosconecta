@@ -642,26 +642,23 @@ async function executarAcao(
       return;
     }
     try {
-      // Chama a Edge Function crm-pipeline direto (não o server function
-      // movePipelineItem) — é essa escolha que evita o card mover, disparar
-      // pipeline.stage_changed de novo e criar um loop. Não mudar isto sem
+      // Escreve na tabela direto, e NÃO pelo server function
+      // `movePipelineItem` — é essa escolha que evita o card mover, disparar
+      // `pipeline.stage_changed` de novo e criar um laço. Antes o mesmo
+      // cuidado era ir à Edge Function `crm-pipeline` em vez do server
+      // function; a razão não mudou, só o destino. Não mudar isto sem
       // reconsiderar o guardrail (ver comentário em automations.server.ts).
-      const url = Deno.env.get("SUPABASE_URL")!;
-      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const res = await fetch(`${url}/functions/v1/crm-pipeline`, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
-        body: JSON.stringify({
-          ownerId,
-          action: "move-item",
-          move: { itemId: ctx.itemId, newStageId: action.stageId },
-        }),
-        signal: AbortSignal.timeout(30_000),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json?.error ?? `crm-pipeline respondeu ${res.status}`);
-      }
+      const { data: movido, error } = await supabase
+        .from("funnel_cards")
+        .update({ stage_id: action.stageId, updated_at: new Date().toISOString() })
+        .eq("id", ctx.itemId)
+        .eq("owner_id", ownerId)
+        .select("id")
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      // Card apagado entre o evento e a execução: dizer "movido" seria mentira
+      // no histórico da automação.
+      if (!movido) throw new Error("O card não existe mais no funil.");
       await logRun({ ...base, status: "sent" });
     } catch (e) {
       await logRun({ ...base, status: "failed", error: String(e).slice(0, 500) });

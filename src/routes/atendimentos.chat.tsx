@@ -252,8 +252,10 @@ function ChatPage() {
     // etapa até alguém clicar em alguém.
     staleTime: 30_000,
   });
-  const pipelineConfigured = pipelineStagesQuery.data?.configured ?? false;
   const pipelineStages = pipelineStagesQuery.data?.stages ?? [];
+  // Ter etapa É ter funil. Antes isto vinha do CRM, que precisava de um
+  // "pipeline" criado lá antes de qualquer etapa existir.
+  const pipelineConfigured = pipelineStages.length > 0;
 
   const pipelineItemsQuery = useQuery({
     queryKey: ["pipeline-items"],
@@ -371,7 +373,17 @@ function ChatPage() {
     mutationFn: (stageId: string) =>
       currentPipelineItem
         ? doMovePipelineItem({ data: { itemId: currentPipelineItem.id, newStageId: stageId } })
-        : doAddPipelineItem({ data: { type: "conversation", itemId: selected!.id, stageId } }),
+        : doAddPipelineItem({
+            data: {
+              stageId,
+              // O telefone é a identidade do card: assim ele segue a pessoa em
+              // vez de ficar preso à conversa que o criou.
+              conversaId: selected!.id,
+              telefone: selected!.phone,
+              contatoId: selected!.contactId,
+              title: selected!.contactName ?? selected!.phone ?? null,
+            },
+          }),
     onSuccess: () => {
       toast.success("Etapa atualizada");
       queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });

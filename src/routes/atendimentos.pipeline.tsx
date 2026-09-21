@@ -17,6 +17,7 @@ import { useCardDrag } from "@/components/atendimentos/pipeline/useCardDrag";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
 import { getConversations } from "@/lib/atendimentos/atendimentos.functions";
+import { chaveDoTelefone } from "@/lib/atendimentos/funil";
 import { getSalesAssistant } from "@/lib/atendimentos/insights.functions";
 import { getDeals, type Deal } from "@/lib/atendimentos/deals.functions";
 import { QuadroDeClientes } from "@/components/atendimentos/pipeline/QuadroDeClientes";
@@ -24,7 +25,6 @@ import { useDisparoDeColuna } from "@/components/atendimentos/pipeline/useDispar
 import type { ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
 import { QuadroDePerdidos } from "@/components/atendimentos/pipeline/QuadroDePerdidos";
 import {
-  createPipeline,
   deletePipelineStage,
   getPipelineItems,
   getPipelineStages,
@@ -85,7 +85,6 @@ function PipelinePage() {
   const fetchDeals = useServerFn(getDeals);
   const fetchConversations = useServerFn(getConversations);
   const fetchAssistant = useServerFn(getSalesAssistant);
-  const doCreatePipeline = useServerFn(createPipeline);
   const doMove = useServerFn(movePipelineItem);
   const doSaveStage = useServerFn(savePipelineStage);
   const doDeleteStage = useServerFn(deletePipelineStage);
@@ -96,11 +95,13 @@ function PipelinePage() {
     queryFn: () => fetchStages(),
     staleTime: 10_000,
   });
-  const configured = stagesQuery.data?.configured ?? false;
   const stages = useMemo(
     () => [...(stagesQuery.data?.stages ?? [])].sort((a, b) => a.position - b.position),
     [stagesQuery.data],
   );
+  // "Configurado" é ter etapa. Não existe mais um funil a criar antes: as
+  // etapas são a única coisa que precisa nascer, e nascem aqui na tela.
+  const configured = stages.length > 0;
 
   const itemsQuery = useQuery({
     queryKey: ["pipeline-items"],
@@ -143,11 +144,19 @@ function PipelinePage() {
     return map;
   }, [assistantQuery.data]);
 
+  /** A conversa por trás de um card.
+   *
+   *  Card de "pessoa" guarda o TELEFONE, então o casamento é pelo número
+   *  normalizado — a mesma chave que junta as conversas de alguém na caixa de
+   *  entrada. É o que faz o card continuar achando a pessoa depois de ela
+   *  escrever por outra thread. */
+  const conversaDoCard = (item: PipelineItem) =>
+    item.type === "pessoa"
+      ? conversations.find((c) => chaveDoTelefone(c.phone) === item.itemId)
+      : conversations.find((c) => c.id === item.itemId);
+
   const extrasFor = (item: PipelineItem): CardExtras => {
-    const conversation =
-      item.type === "conversation"
-        ? conversations.find((c) => c.id === item.itemId)
-        : conversations.find((c) => c.contactId === item.itemId);
+    const conversation = conversaDoCard(item);
     return {
       phone: conversation?.phone ?? null,
       unreadCount: conversation?.unreadCount ?? 0,
@@ -157,20 +166,16 @@ function PipelinePage() {
 
   /** Card do funil de Leads no formato que o disparo entende.
    *
-   *  Devolve `null` quando não há contato no CRM por trás — acontece com card
-   *  de conversa que o CRM ainda não associou a um contato. Sem isso o alvo
-   *  entraria na fila com contactId vazio e o envio falharia lá na frente. */
+   *  Devolve `null` para quem não tem número: o disparo endereça pelo
+   *  telefone, e um alvo sem ele entraria na fila para falhar lá na frente. */
   const paraContatoDoLead = (item: PipelineItem): ContatoSelecionado | null => {
-    const conversation =
-      item.type === "conversation"
-        ? conversations.find((c) => c.id === item.itemId)
-        : conversations.find((c) => c.contactId === item.itemId);
-    const contactId = item.type === "contact" ? item.itemId : (conversation?.contactId ?? null);
-    if (!contactId) return null;
+    const conversation = conversaDoCard(item);
+    const phone = conversation?.phone ?? (item.type === "pessoa" ? item.itemId : null);
+    if (!phone) return null;
     return {
-      id: contactId,
+      id: conversation?.contactId ?? item.itemId,
       name: item.title || "Sem nome",
-      phone: conversation?.phone ?? null,
+      phone,
       origem: "whatsapp",
       patientId: null,
       conversationId: conversation?.id ?? null,
@@ -182,16 +187,6 @@ function PipelinePage() {
     queryClient.invalidateQueries({ queryKey: ["pipeline-items"] });
   };
   const refreshDeals = () => queryClient.invalidateQueries({ queryKey: ["pipeline-deals"] });
-
-  const [pipelineNameInput, setPipelineNameInput] = useState("Atendimento");
-  const setupMutation = useMutation({
-    mutationFn: () => doCreatePipeline({ data: { name: pipelineNameInput.trim() } }),
-    onSuccess: () => {
-      toast.success("Pipeline criado");
-      refresh();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
 
   const moveMutation = useMutation({
     mutationFn: (vars: { itemId: string; newStageId: string; notes?: string }) =>
@@ -249,11 +244,7 @@ function PipelinePage() {
 
   const openItem = items.find((i) => i.id === openItemId) ?? null;
   const openStage = openItem ? (stages.find((s) => s.id === openItem.stageId) ?? null) : null;
-  const openConversation = openItem
-    ? openItem.type === "conversation"
-      ? conversations.find((c) => c.id === openItem.itemId)
-      : conversations.find((c) => c.contactId === openItem.itemId)
-    : undefined;
+  const openConversation = openItem ? conversaDoCard(openItem) : undefined;
 
   if (stagesQuery.isLoading) {
     return <main className="flex flex-1 items-center justify-center lg:h-full" />;
@@ -332,29 +323,26 @@ function PipelinePage() {
           </div>
         )}
 
+        {/* Sem etapa nenhuma, o convite é criar a primeira — e não "criar o
+            funil". O funil é nosso e já existe; o que faltava do outro lado era
+            uma entidade no CRM, que deixou de existir junto com ele. */}
         {!configured ? (
           <div className="flex flex-1 items-center justify-center px-4 pb-10 sm:px-6 lg:px-10">
             <section className="surface-card w-full max-w-[440px] px-6 py-8 text-center sm:px-10 sm:py-10">
               <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-coral-soft text-coral">
                 <Workflow className="h-6 w-6" />
               </span>
-              <h2 className="mt-5 text-xl font-semibold">Criar o pipeline</h2>
+              <h2 className="mt-5 text-xl font-semibold">Montar o funil</h2>
               <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-                Esta clínica ainda não tem um funil no CRM. Dê um nome e crie — depois dá pra
-                adicionar, renomear e reordenar as etapas livremente.
+                Crie as etapas do seu atendimento — "Primeiro contato", "Orçamento enviado", o que
+                fizer sentido aqui. Depois é só arrastar as pessoas entre elas.
               </p>
-              <Input
-                value={pipelineNameInput}
-                onChange={(e) => setPipelineNameInput(e.target.value)}
-                placeholder="Nome do pipeline"
-                className="mx-auto mt-5 h-11 max-w-xs rounded-xl bg-white text-center"
-              />
               <Button
-                className="mt-4 gap-2 bg-gradient-primary text-white"
-                disabled={!pipelineNameInput.trim() || setupMutation.isPending}
-                onClick={() => setupMutation.mutate()}
+                className="mt-5 gap-2 bg-gradient-primary text-white"
+                onClick={() => setConfigOpen(true)}
               >
-                Criar pipeline
+                <Plus className="h-4 w-4" />
+                Criar a primeira etapa
               </Button>
             </section>
           </div>
@@ -497,10 +485,8 @@ function PipelinePage() {
         stages={stages}
         deal={openItem ? (dealByItem.get(openItem.id) ?? null) : null}
         conversationId={openConversation?.id ?? null}
-        contactId={
-          openConversation?.contactId ?? (openItem?.type === "contact" ? openItem.itemId : null)
-        }
-        phone={openConversation?.phone ?? null}
+        contactId={openConversation?.contactId ?? null}
+        phone={openConversation?.phone ?? (openItem?.type === "pessoa" ? openItem.itemId : null)}
         onOpenChange={(open) => !open && setOpenItemId(null)}
         onMove={(toStageId, notes) =>
           openItem && moveMutation.mutate({ itemId: openItem.id, newStageId: toStageId, notes })

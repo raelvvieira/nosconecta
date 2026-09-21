@@ -115,32 +115,37 @@ function promptDeAprendizado(transcricoes: string[]): string {
 
 interface ItemDoFunil {
   id: string;
-  tipo: "conversation" | "contact";
-  itemId: string;
+  /** A conversa de onde o card nasceu, quando há uma. É dela que sai a
+   *  transcrição que o playbook aprende. */
+  conversaId: string | null;
   titulo: string | null;
 }
 
+/**
+ * Os cards do funil, por id.
+ *
+ * Lia `/api/v1/pipelines/{id}/pipeline_items` na conta do CRM. Agora é uma
+ * consulta na nossa tabela — e como deixou de ser uma ida à rede, a leitura
+ * preguiçosa lá embaixo perdeu quase toda a razão de ser; ficou por não haver
+ * motivo de tirá-la.
+ */
 async function itensDoFunil(ownerId: string): Promise<Map<string, ItemDoFunil>> {
-  const { data: cred } = await supabase
-    .from("crm_credentials")
-    .select("pipeline_id")
-    .eq("owner_id", ownerId)
-    .maybeSingle();
-  const pipelineId = cred?.pipeline_id;
   const mapa = new Map<string, ItemDoFunil>();
-  if (!pipelineId) return mapa;
+  const { data, error } = await supabase
+    .from("funnel_cards")
+    .select("id, conversation_id, title")
+    .eq("owner_id", ownerId);
+  // Erro não vira mapa vazio calado: sem isto, uma consulta quebrada faria o
+  // playbook dizer "nenhuma venda nova" para sempre.
+  if (error) throw new Error(`funnel_cards: ${error.message}`);
 
-  const res = await crmFetch(supabase, ownerId, `/api/v1/pipelines/${pipelineId}/pipeline_items`);
-  const bruto = unwrap(res);
-  const lista = Array.isArray(bruto) ? bruto : (bruto?.items ?? bruto?.pipeline_items ?? []);
-  for (const row of Array.isArray(lista) ? lista : []) {
+  for (const row of data ?? []) {
     const id = String(row?.id ?? "");
     if (!id) continue;
     mapa.set(id, {
       id,
-      tipo: row?.type === "contact" ? "contact" : "conversation",
-      itemId: String(row?.item_id ?? row?.conversation_id ?? row?.contact_id ?? ""),
-      titulo: row?.title ?? row?.contact?.name ?? null,
+      conversaId: row?.conversation_id ? String(row.conversation_id) : null,
+      titulo: row?.title ?? null,
     });
   }
   return mapa;
@@ -192,8 +197,8 @@ async function coletarVendas(
     novas.push({ conversation_id: id, contact_name: nome, source });
   };
 
-  // Itens do funil só são buscados se alguma das fontes precisar deles — é uma
-  // ida ao CRM, e a fonte de Ganho marcado em conversa dispensa.
+  // Os cards só são lidos se alguma das fontes precisar deles — a fonte de
+  // Ganho marcado em conversa dispensa.
   let itens: Map<string, ItemDoFunil> | null = null;
   const doFunil = async () => (itens ??= await itensDoFunil(ownerId));
 
@@ -217,7 +222,7 @@ async function coletarVendas(
       }
       // Ganho no card: a chave é o id do card, e a conversa vem do funil.
       const item = (await doFunil()).get(chave);
-      if (item?.tipo === "conversation") registrar(item.itemId, item.titulo, "ganho");
+      if (item?.conversaId) registrar(item.conversaId, item.titulo, "ganho");
     }
   }
 
@@ -236,10 +241,10 @@ async function coletarVendas(
     );
     for (const ev of emEtapaDeVitoria) {
       // `item_id` aqui é o id do CARD, não da conversa — por isso o cruzamento.
-      // Card que só existe como contato não tem transcrição para aprender e some
-      // em silêncio: não é erro, é card de outro tipo.
+      // Card que nasceu sem conversa não tem transcrição para aprender e some
+      // em silêncio: não é erro, é card sem o que ensinar.
       const item = (await doFunil()).get(String(ev.item_id));
-      if (item?.tipo === "conversation") registrar(item.itemId, item.titulo, "etapa");
+      if (item?.conversaId) registrar(item.conversaId, item.titulo, "etapa");
     }
   }
 
