@@ -1,5 +1,18 @@
 -- O funil de Leads passa a morar aqui.
 --
+-- ── Por que tudo aqui é IF NOT EXISTS ────────────────────────────────────
+--
+-- O agente do Lovable aplicou esta migration JUNTO com a do tempo real, numa
+-- só, gravada sob uma versão própria (20260921213038). Este arquivo continua
+-- constando como pendente para ele — e um segundo "aplicar migrations
+-- pendentes" tentaria criar tudo de novo. Sem as guardas, esse dia terminaria
+-- num erro de "tabela já existe" que ninguém saberia de onde veio.
+--
+-- Os gatilhos de `updated_at` no fim não estavam na versão que escrevi: o
+-- agente do Lovable os acrescentou por conta própria ao aplicar. Estão aqui
+-- porque o arquivo precisa descrever o banco que existe, e não o que eu
+-- imaginei.
+--
 -- ── O que ele era ────────────────────────────────────────────────────────
 --
 -- Etapas e cards viviam na conta do CRM externo, atrás de
@@ -18,7 +31,7 @@
 -- contatos que o WhatsApp identifica por lid — fica preso à conversa, que é o
 -- único identificador que existe para eles.
 
-CREATE TABLE public.funnel_stages (
+CREATE TABLE IF NOT EXISTS public.funnel_stages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   name text NOT NULL,
@@ -28,10 +41,10 @@ CREATE TABLE public.funnel_stages (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_funnel_stages_owner_pos
+CREATE INDEX IF NOT EXISTS idx_funnel_stages_owner_pos
   ON public.funnel_stages (owner_id, position);
 
-CREATE TABLE public.funnel_cards (
+CREATE TABLE IF NOT EXISTS public.funnel_cards (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   -- RESTRICT, não CASCADE: apagar uma coluna não pode sumir em silêncio com as
@@ -54,16 +67,16 @@ CREATE TABLE public.funnel_cards (
 -- Uma pessoa, um card. Sem isto, pôr no funil duas vezes a mesma pessoa a
 -- partir de duas conversas dela criaria dois cards em duas colunas — e o funil
 -- passaria a contar a mesma negociação duas vezes.
-CREATE UNIQUE INDEX idx_funnel_cards_owner_phone
+CREATE UNIQUE INDEX IF NOT EXISTS idx_funnel_cards_owner_phone
   ON public.funnel_cards (owner_id, phone)
   WHERE phone IS NOT NULL;
 
 -- Quem não tem telefone é identificado pela conversa.
-CREATE UNIQUE INDEX idx_funnel_cards_owner_conversa
+CREATE UNIQUE INDEX IF NOT EXISTS idx_funnel_cards_owner_conversa
   ON public.funnel_cards (owner_id, conversation_id)
   WHERE phone IS NULL AND conversation_id IS NOT NULL;
 
-CREATE INDEX idx_funnel_cards_owner_stage
+CREATE INDEX IF NOT EXISTS idx_funnel_cards_owner_stage
   ON public.funnel_cards (owner_id, stage_id);
 
 -- GRANT além da policy: no Supabase a RLS filtra linhas, mas sem privilégio de
@@ -91,3 +104,23 @@ CREATE POLICY funnel_cards_scoped ON public.funnel_cards
   FOR ALL TO authenticated
   USING (public.can_access_row(owner_id))
   WITH CHECK (public.can_access_row(owner_id));
+
+-- Marca de tempo automática.
+--
+-- Acrescentado pelo agente do Lovable na aplicação — ver o cabeçalho. A função
+-- já existia no banco; o `CREATE OR REPLACE` a deixa idêntica em qualquer
+-- ambiente que rode esta migration do zero.
+CREATE OR REPLACE FUNCTION public.update_updated_at_column() RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SET search_path = public;
+
+DROP TRIGGER IF EXISTS update_funnel_stages_updated_at ON public.funnel_stages;
+CREATE TRIGGER update_funnel_stages_updated_at BEFORE UPDATE ON public.funnel_stages
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_funnel_cards_updated_at ON public.funnel_cards;
+CREATE TRIGGER update_funnel_cards_updated_at BEFORE UPDATE ON public.funnel_cards
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
