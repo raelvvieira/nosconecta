@@ -171,7 +171,7 @@ function PipelinePage() {
       id: contactId,
       name: item.title || "Sem nome",
       phone: conversation?.phone ?? null,
-      origem: "crm",
+      origem: "whatsapp",
       patientId: null,
       conversationId: conversation?.id ?? null,
     };

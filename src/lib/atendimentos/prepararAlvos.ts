@@ -15,34 +15,34 @@ import { normalizeBrazilianPhone } from "./phone";
  *
  * 1. A leitura de contatos pedia seis páginas em paralelo sobre uma lista que o
  *    próprio disparo reordena, e juntava com `concat`. O mesmo contato caía no
- *    array duas vezes. (Corrigido na raiz em `useContatosIncremental`, mas a
- *    condição é de corrida e merece rede.)
- * 2. Duas pessoas na tela — uma como contato do CRM, outra como paciente local
+ *    array duas vezes. (A paginação acabou junto com a base do CRM, mas a
+ *    condição era de corrida e a rede continua fazendo falta.)
+ * 2. Duas pessoas na tela — uma vinda do WhatsApp, outra da ficha de paciente
  *    — com o mesmo telefone. `ContactsTab` une as duas fontes sem cruzá-las.
- * 3. Dois pacientes locais com o mesmo telefone: o vínculo em lote resolve os
- *    dois para o MESMO `contactId`.
+ * 3. Dois pacientes com o mesmo telefone cadastrado.
  *
  * ── As chaves ────────────────────────────────────────────────────────────
  *
- * `id` (que é o `contactId` quando a origem é o CRM) e o telefone normalizado.
- * A normalização é por COMPRIMENTO — `normalizeBrazilianPhone` —, então
- * "51993351821" e "5551993351821" são reconhecidos como a mesma pessoa. Sem
- * isso, o par que o próprio sistema sabe que é duplicado no CRM passaria batido.
+ * `id` e o telefone normalizado. A normalização é por COMPRIMENTO —
+ * `normalizeBrazilianPhone` —, então "51993351821" e "5551993351821" são
+ * reconhecidos como a mesma pessoa. Sem isso, o par que o próprio sistema sabe
+ * que é duplicado passaria batido.
  *
- * **Quem tem id do CRM ganha.** Ele já está resolvido; o paciente local ainda
- * precisaria de uma ida ao servidor para virar contato — e viraria ESTE mesmo.
+ * **Quem já tem conversa no WhatsApp ganha.** É a linha que carrega o histórico
+ * e a conversa aberta; a ficha de paciente do mesmo número é a mesma pessoa,
+ * vista pelo outro lado.
  *
  * **Sem telefone não agrupa ninguém.** Duas pessoas diferentes sem número não
  * são a mesma pessoa, e juntá-las faria uma delas deixar de receber calada.
  */
 export function pessoasUnicas<T extends ContatoUnificado>(contatos: T[]): T[] {
   const porId = new Set<string>();
-  // Telefones que já entraram por um contato do CRM. Um paciente local com o
-  // mesmo número é a mesma pessoa e não entra de novo.
-  const telefonesDoCrm = new Set<string>();
+  // Telefones que já entraram por uma conversa de WhatsApp. A ficha de paciente
+  // do mesmo número é a mesma pessoa e não entra de novo.
+  const telefonesComConversa = new Set<string>();
   for (const c of contatos) {
-    if (c.origem !== "crm" || !c.phone) continue;
-    telefonesDoCrm.add(normalizeBrazilianPhone(c.phone));
+    if (c.origem !== "whatsapp" || !c.phone) continue;
+    telefonesComConversa.add(normalizeBrazilianPhone(c.phone));
   }
 
   const telefonesUsados = new Set<string>();
@@ -53,9 +53,9 @@ export function pessoasUnicas<T extends ContatoUnificado>(contatos: T[]): T[] {
 
     const fone = c.phone ? normalizeBrazilianPhone(c.phone) : "";
     if (fone) {
-      // O paciente local perde para o contato do CRM do mesmo número, mesmo
-      // que venha antes na lista.
-      if (c.origem !== "crm" && telefonesDoCrm.has(fone)) continue;
+      // A ficha de paciente perde para a conversa do mesmo número, mesmo que
+      // venha antes na lista.
+      if (c.origem !== "whatsapp" && telefonesComConversa.has(fone)) continue;
       if (telefonesUsados.has(fone)) continue;
       telefonesUsados.add(fone);
     }
@@ -66,7 +66,7 @@ export function pessoasUnicas<T extends ContatoUnificado>(contatos: T[]): T[] {
   return unicos;
 }
 
-/** Contato que já tem id no CRM — entra direto na fila. */
+/** Contato que já tem conversa no WhatsApp — entra direto na fila. */
 export interface AlvoPronto {
   contactId: string;
   conversationId: string | null;
@@ -74,7 +74,7 @@ export interface AlvoPronto {
   phone: string | null;
 }
 
-/** Paciente que ainda não existe no CRM — o servidor resolve em lote. */
+/** Paciente sem conversa no WhatsApp — o servidor resolve em lote. */
 export interface AlvoAVincular {
   patientId: string;
   name: string;
@@ -97,15 +97,13 @@ export interface SelecaoClassificada {
  * Separar a seleção em "quem já dá para enfileirar", "quem precisa de vínculo"
  * e "quem não pode receber".
  *
- * Isto já foi uma função que FAZIA o vínculo, chamando `garantirContatoCrm`
- * dentro de um laço — uma ida ao servidor por contato, em série, cada uma com
- * duas tentativas e 55 segundos de timeout. Numa seleção de 200 pacientes isso
- * era o "Enfileirando…" que não terminava: até 110 segundos por pessoa, 200
- * vezes, com o navegador segurando tudo.
+ * Isto já foi uma função que criava um contato no CRM para cada pessoa
+ * selecionada, dentro de um laço — uma ida ao servidor por contato, em série,
+ * cada uma com duas tentativas e 55 segundos de timeout. Numa seleção de 200
+ * pacientes isso era o "Enfileirando…" que não terminava.
  *
- * Agora ela não faz I/O nenhum. Só classifica, e o vínculo acontece no servidor
- * em UMA chamada (ver `criarDisparo`), pelo mesmo `resolve_phones` em lote que
- * `handleBackfillLinks` já usa para a base inteira.
+ * Agora ela não faz I/O nenhum, e nem o servidor faz: o envio endereça pelo
+ * número, então não há o que resolver com ninguém.
  *
  * O ganho de ser pura não é só velocidade: ela passa a ser exercitável em
  * teste sem dublê de servidor, e esta é a conta que decide para quem a mensagem
@@ -123,9 +121,9 @@ export function classificarSelecao(contatos: ContatoSelecionado[]): SelecaoClass
   const duplicadosIgnorados = contatos.length - unicos.length;
 
   for (const c of unicos) {
-    // Origem "crm": o contato existe lá, com o telefone que o CRM tem. Nada a
-    // resolver.
-    if (c.origem === "crm") {
+    // Já tem conversa no WhatsApp: o telefone veio do espelho, que é a mesma
+    // fonte que o envio usa. Nada a resolver.
+    if (c.origem === "whatsapp") {
       prontos.push({
         contactId: c.id,
         conversationId: c.conversationId,
@@ -134,7 +132,7 @@ export function classificarSelecao(contatos: ContatoSelecionado[]): SelecaoClass
       });
       continue;
     }
-    // Sem telefone não há como criar contato no CRM, e a fila exige um id.
+    // Sem telefone não há endereço nenhum: a conexão própria manda por número.
     if (!c.phone) {
       foraDoDisparo.push({
         nome: c.name,

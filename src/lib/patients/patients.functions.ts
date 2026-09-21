@@ -714,13 +714,22 @@ export interface PatientContact {
 }
 
 /**
- * Pacientes da NÓS que nunca tiveram conversa de WhatsApp sincronizada — por
- * isso não aparecem na base de contatos do CRM (que só existe pra quem já
- * apareceu numa conversa daquele número).
+ * Todo paciente com telefone, para "Selecionar contatos" na campanha.
  *
- * Existe pra que "Selecionar contatos" na campanha alcance também quem foi
- * cadastrado direto no sistema e nunca mandou mensagem — sem isso, essas
- * pessoas eram invisíveis pra qualquer disparo filtrado.
+ * ── Por que deixou de filtrar ───────────────────────────────────────────
+ *
+ * Antes isto trazia só quem NÃO tinha contato no CRM, porque a outra fonte da
+ * tela era a lista de contatos do CRM — quem tinha contato lá já vinha por
+ * aquele caminho, e trazer de novo era duplicar.
+ *
+ * A outra fonte agora é o espelho do WhatsApp (`wa_contacts`), e os dois
+ * recortes não são o mesmo: existe paciente com `crm_contact_id` preenchido
+ * que nunca ganhou linha no espelho. Mantido o filtro, essa gente sumiria da
+ * tela de disparo sem nada avisando.
+ *
+ * Duplicar não é risco: `pessoasUnicas` (`prepararAlvos.ts`) fecha a lista
+ * pelo telefone normalizado antes de qualquer seleção, justamente porque um id
+ * repetido já virou, uma vez, duas mensagens para a mesma pessoa.
  */
 export const getPatientContacts = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
@@ -730,7 +739,6 @@ export const getPatientContacts = createServerFn({ method: "GET" })
       .from("patients")
       .select("id, name, phone")
       .eq("owner_id", context.ownerId)
-      .is("crm_contact_id", null)
       .not("phone", "is", null);
     if (error) throw new Error(error.message);
     return (data ?? [])

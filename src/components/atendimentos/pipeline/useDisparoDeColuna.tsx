@@ -83,5 +83,5 @@ export function useDisparoDeColuna() {
 /** Quantos daquela lista conseguem receber de fato — é o número que o botão
  *  mostra, para ele não prometer mais do que vai acontecer. */
 export function quantosPodemReceber(contatos: ContatoSelecionado[]): number {
-  return contatos.filter((c) => c.origem === "crm" || !!c.phone).length;
+  return contatos.filter((c) => c.origem === "whatsapp" || !!c.phone).length;
 }

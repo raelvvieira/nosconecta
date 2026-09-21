@@ -28,14 +28,14 @@ function quando(iso: string | null): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
 }
 
-/** Paciente sem `crm_contact_id` entra como origem "paciente": existe aqui mas
- *  ainda não no CRM, e `prepararAlvos` cria o contato lá na hora do envio. */
+/** Quem já apareceu numa conversa entra como origem "whatsapp"; quem só tem
+ *  ficha, como "paciente". Nos dois casos o disparo endereça pelo telefone. */
 function paraContato(c: ClienteNoFunil): ContatoSelecionado {
   return {
     id: c.crmContactId ?? c.patientId,
     name: c.name,
     phone: c.phone,
-    origem: c.crmContactId ? "crm" : "paciente",
+    origem: c.crmContactId ? "whatsapp" : "paciente",
     patientId: c.patientId,
     conversationId: null,
   };

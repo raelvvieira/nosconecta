@@ -63,11 +63,10 @@ export interface ContatoUnificado {
   id: string;
   name: string;
   phone: string | null;
-  /** "crm" = já sincronizado do WhatsApp, `id` é o contactId do CRM. "paciente"
-   *  = cadastrado na NÓS mas nunca teve conversa — `id` é o id do paciente, e
-   *  o CRM só ganha um contato pra ele na hora do disparo (ver `patientId`
-   *  em `garantirContatoCrm`, chamado antes de enfileirar). */
-  origem: "crm" | "paciente";
+  /** "whatsapp" = já apareceu numa conversa, `id` é o jid do espelho.
+   *  "paciente" = cadastrado na NÓS e nunca teve conversa — `id` é o id do
+   *  paciente. Nos dois casos o disparo endereça pelo telefone. */
+  origem: "whatsapp" | "paciente";
   patientId: string | null;
 }
 
@@ -218,7 +217,7 @@ export function ContactsTab({
           id: c.id,
           name: c.name,
           phone: c.phone,
-          origem: "crm" as const,
+          origem: "whatsapp" as const,
           patientId: null,
         })),
         ...(patientsQuery.data ?? SEM_PACIENTES)

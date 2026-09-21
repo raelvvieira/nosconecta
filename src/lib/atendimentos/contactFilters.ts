@@ -1,4 +1,4 @@
-import { ddd } from "./contacts.functions";
+import { ddd } from "./base-de-contatos";
 
 /** O mínimo que qualquer contato precisa ter pra ser buscado/filtrado/selecionado
  *  — genérico pra caber tanto o contato do CRM quanto o de paciente sem CRM. */

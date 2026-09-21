@@ -66,14 +66,14 @@ function sinaisDe(
   };
 }
 
-/** Card perdido no formato que o disparo entende. Sempre origem "crm": estes
- *  contatos nasceram de uma conversa no WhatsApp, então já existem lá. */
+/** Card perdido no formato que o disparo entende. Sempre origem "whatsapp":
+ *  estes contatos nasceram de uma conversa. */
 function paraContato(p: Perdido): ContatoSelecionado {
   return {
     id: p.contactId!,
     name: p.item.title || "Sem nome",
     phone: p.phone,
-    origem: "crm",
+    origem: "whatsapp",
     patientId: null,
     conversationId: p.conversationId,
   };

@@ -1,113 +1,77 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { montarBaseDeContatos, type ContatoDaBase } from "./base-de-contatos";
 
-export interface CrmContact {
-  id: string;
-  name: string;
-  /** Como veio do CRM: dígitos puros, tipo "5548984195309". */
-  phone: string | null;
-}
+/**
+ * A base de contatos para disparo.
+ *
+ * ── O que isto era ──────────────────────────────────────────────────────
+ *
+ * A lista de contatos do CRM, lida de `/api/v1/contacts` cem por vez, com seis
+ * páginas pedidas em paralelo, um teto de cinquenta páginas e um aviso de
+ * "truncado" para quando a base não coubesse. A tela levava segundos para se
+ * encher e o resultado dependia de um servidor de fora responder.
+ *
+ * Agora sai do nosso banco, de `wa_contacts`, que é o espelho do WhatsApp. São
+ * mais pessoas do que o CRM jamais teve, e chegam de uma vez.
+ *
+ * ── Quem entra ──────────────────────────────────────────────────────────
+ *
+ * A decisão mora em `base-de-contatos.ts`, sem I/O e com teste — ver lá por
+ * que um id de privacidade do WhatsApp (lid) precisa ficar de fora mesmo
+ * quando se parece com um telefone perfeitamente válido.
+ */
+export type { ContatoDaBase };
+
+/** Mantido: a tela e os filtros ainda chamam o contato por este nome. */
+export type CrmContact = ContatoDaBase;
 
 export interface CrmContactList {
-  contacts: CrmContact[];
-  /** Total que o CRM diz ter, mesmo se a lista veio truncada. */
+  contacts: ContatoDaBase[];
   total: number;
-  /** A paginação bateu no teto — a lista não é a base inteira. */
+  /** Sempre `false` agora. A lista é a base inteira — não há mais teto de
+   *  páginas de onde ela pudesse voltar cortada. Continua no tipo porque a
+   *  tela mostra o aviso, e tirá-lo é mexer em tela sem necessidade. */
   truncado: boolean;
 }
 
 /**
- * DDD de um telefone brasileiro, ou `null` quando não dá para afirmar.
+ * Quantas linhas por leitura.
  *
- * **Exige o código do país.** Um número sem o 55 é ambíguo de um jeito que
- * importa: "+1 415 555 2671", dos Estados Unidos, vira `14155552671` — onze
- * dígitos que se parecem com um celular nacional e cairiam no DDD 14, de São
- * José do Rio Preto. Quem filtra por um DDD para disparar não pode receber
- * alguém de outro país junto.
- *
- * Perder pouco: o CRM guarda o telefone com o país na frente, tanto o que nós
- * escrevemos (o `formatWhatsappNumber` também só reconhece `55`) quanto o que
- * vem do WhatsApp, cujo identificador é sempre `55…@s.whatsapp.net`. Quem
- * ficar sem DDD simplesmente não aparece nos recortes por DDD.
+ * O PostgREST devolve no máximo mil linhas por requisição, e `wa_contacts` tem
+ * mais que isso. Pedir "tudo" sem paginar não dá erro — devolve as mil
+ * primeiras e cala. Metade da base sumiria da tela de disparo sem nada
+ * acusando, que é a mesma forma de falhar que já custou dias neste sistema.
  */
-export function ddd(phone: string | null | undefined): string | null {
-  if (!phone) return null;
-  const d = phone.replace(/\D/g, "");
-  // 55 + DDD (2) + número (8 fixo, 9 celular).
-  return d.match(/^55(\d{2})\d{8,9}$/)?.[1] ?? null;
-}
+const POR_PAGINA = 1000;
 
-async function callContacts(body: unknown) {
-  const url = process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
-  const res = await fetch(`${url}/functions/v1/crm-contacts`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
-    body: JSON.stringify(body ?? {}),
-    // A função pagina o CRM inteiro do lado de dentro; sem um teto aqui, uma
-    // execução travada deixava a tela em "carregando" para sempre em vez de
-    // virar um erro que a interface já sabe mostrar.
-    signal: AbortSignal.timeout(55_000),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error ?? `Falha ao chamar crm-contacts (${res.status})`);
-  return json;
-}
+/** Teto de segurança. 4.328 linhas hoje; vinte páginas dão folga de quatro
+ *  vezes e impedem um laço infinito se a leitura passar a mentir o tamanho. */
+const MAX_PAGINAS = 20;
 
-/**
- * A base de contatos sincronizada com o CRM.
- *
- * Chamada única e pesada de propósito: o filtro por DDD precisa enxergar a base
- * inteira para saber quais DDDs existem e quantos são cada um. Filtrar no
- * servidor exigiria um parâmetro de busca que o CRM nunca foi testado para
- * aceitar — só `page` e `pageSize` estão confirmados.
- *
- * Mantida por compatibilidade, mas a tela usa `getCrmContactsPage` (abaixo)
- * para poder mostrar o que já chegou em vez de esperar a base inteira — ver
- * `useContatosIncremental.ts`.
- */
 export const getCrmContacts = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<CrmContactList> => {
-    const json = await callContacts({ ownerId: context.ownerId, action: "list" });
-    const contacts: CrmContact[] = (json.contacts ?? [])
-      .filter((c: any) => c?.id)
-      .map((c: any) => ({
-        id: String(c.id),
-        name: (c.name ?? "").trim() || "Sem nome",
-        phone: c.phone ?? null,
-      }));
-    return {
-      contacts,
-      total: Number(json.total ?? contacts.length),
-      truncado: Boolean(json.truncado),
-    };
-  });
+    const supabase = context.supabase;
+    const linhas: unknown[] = [];
 
-export interface CrmContactPage {
-  contacts: CrmContact[];
-  /** Total que o CRM diz ter — o mesmo em toda página, usado para calcular
-   *  quantas páginas ainda faltam pedir. */
-  total: number;
-}
+    for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
+      const de = pagina * POR_PAGINA;
+      const { data, error } = await supabase
+        .from("wa_contacts")
+        .select("crm_contact_id, name, phone_e164, phone_raw")
+        .eq("owner_id", context.ownerId)
+        .order("crm_contact_id", { ascending: true })
+        .range(de, de + POR_PAGINA - 1);
+      // Erro NÃO vira lista vazia. Já aconteceu duas vezes neste sistema de um
+      // `const { data }` sem `error` transformar uma consulta quebrada em
+      // "nenhum resultado" — e a tela ficar semanas mostrando o fallback.
+      if (error) throw new Error(error.message);
+      const lote = data ?? [];
+      linhas.push(...lote);
+      if (lote.length < POR_PAGINA) break;
+    }
 
-/**
- * Uma página só da base — sem laço nenhum do lado do servidor. É o que deixa
- * o front pedir várias ao mesmo tempo e mostrar contato assim que ele chega,
- * em vez de ficar com a tela presa em "carregando" até a base inteira voltar.
- */
-export const getCrmContactsPage = createServerFn({ method: "GET" })
-  .inputValidator((input: { page: number }) => input)
-  .middleware([requireClinicMembership])
-  .handler(async ({ data, context }): Promise<CrmContactPage> => {
-    const json = await callContacts({ ownerId: context.ownerId, action: "list", page: data.page });
-    const contacts: CrmContact[] = (json.contacts ?? [])
-      .filter((c: any) => c?.id)
-      .map((c: any) => ({
-        id: String(c.id),
-        name: (c.name ?? "").trim() || "Sem nome",
-        phone: c.phone ?? null,
-      }));
-    return { contacts, total: Number(json.total ?? 0) };
+    const contacts = montarBaseDeContatos(linhas as never);
+    return { contacts, total: contacts.length, truncado: false };
   });
