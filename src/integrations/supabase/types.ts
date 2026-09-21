@@ -1873,6 +1873,36 @@ export type Database = {
           },
         ]
       }
+      message_templates: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          media_url: string | null
+          name: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          id?: string
+          media_url?: string | null
+          name: string
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          media_url?: string | null
+          name?: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       meta_capi_credentials: {
         Row: {
           access_token: string | null
@@ -3044,6 +3074,27 @@ export type Database = {
           resume_after_minutes?: number
           status?: string
           total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      whatsapp_send_settings: {
+        Row: {
+          created_at: string
+          daily_send_limit: number
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          daily_send_limit?: number
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          daily_send_limit?: number
+          owner_id?: string
           updated_at?: string
         }
         Relationships: []
