@@ -1,5 +1,10 @@
 // Cota diária de envio de WhatsApp da clínica.
 //
+// A MESMA conta vive em `src/lib/atendimentos/cota.ts`, que a tela usa. Deno e
+// `src/` não se importam entre si, e as duas precisam responder igual: a tela
+// mostra o número e esta aqui decide se o envio sai. Divergindo, a tela diria
+// que ainda há cota e o envio recusaria.
+//
 // Extraída de `whatsapp-broadcast/index.ts` (onde nasceu) porque as
 // automações também precisam respeitá-la: o WhatsApp é um só, e dois
 // contadores separados deixariam o número exposto ao dobro do que a clínica
@@ -48,12 +53,15 @@ export async function getDailyUsage(
   supabase: any,
   ownerId: string,
 ): Promise<{ limit: number; usedToday: number }> {
-  const { data: cred } = await supabase
-    .from("crm_credentials")
+  // O limite morava numa coluna de `crm_credentials` — a tabela das credenciais
+  // do CRM, que vai ser apagada. Ele nunca teve a ver com credencial nenhuma:
+  // é uma decisão da clínica sobre o próprio número de WhatsApp.
+  const { data: ajuste } = await supabase
+    .from("whatsapp_send_settings")
     .select("daily_send_limit")
     .eq("owner_id", ownerId)
     .maybeSingle();
-  const limit = cred?.daily_send_limit ?? 200;
+  const limit = ajuste?.daily_send_limit ?? 200;
   const startOfDay = inicioDoDiaDaClinica();
   const { data: sends } = await supabase
     .from("crm_campaign_sends")

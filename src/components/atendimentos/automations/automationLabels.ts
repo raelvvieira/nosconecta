@@ -75,15 +75,16 @@ export const ESCOPO_LABEL: Record<"pessoa" | "clinica" | "fluxo", string> = {
 /** Por onde a ação sai, quando isso não é óbvio pela tela.
  *
  *  Existe porque a pergunta "essa mensagem usa o motor de campanhas ou o de
- *  disparo?" foi feita olhando este card, e ele não tinha como responder. São
- *  motores diferentes — campanhas passa por `crm-campaigns`, disparo por
- *  `_shared/whatsapp-send.ts` — e a automação usa o SEGUNDO, o mesmo do
- *  disparo por contato selecionado.
+ *  disparo?" foi feita olhando este card, e ele não tinha como responder.
+ *  Hoje a resposta é mais simples: só existe um caminho,
+ *  `_shared/whatsapp-send.ts`. O motor de campanhas do CRM nunca enviou nada e
+ *  foi removido junto com a conta.
  *
  *  Só ações cujo canal é ambíguo entram aqui: mover etapa e observação não
  *  saem por canal nenhum. */
 export const ACTION_CANAL: Partial<Record<AutomationActionType, string>> = {
-  send_whatsapp: "Sai pelo número conectado em Atendimentos, pelo mesmo caminho do disparo — e conta no limite diário.",
+  send_whatsapp:
+    "Sai pelo número conectado em Atendimentos, pelo mesmo caminho do disparo — e conta no limite diário.",
   send_push: "Notificação no aplicativo, para todos os aparelhos da clínica.",
   webhook: "Chamada HTTPS para o endereço configurado.",
   set_appointment_status:
@@ -155,7 +156,11 @@ export type TomDaExecucao = "ok" | "erro" | "pulado" | "espera" | "caminho";
 export const EXECUCAO: Record<string, { tom: TomDaExecucao; titulo: string; explica?: string }> = {
   sent: { tom: "ok", titulo: "Enviada" },
   failed: { tom: "erro", titulo: "Falhou" },
-  deferred: { tom: "espera", titulo: "Agendada para depois", explica: "A automação tem uma espera antes desta ação." },
+  deferred: {
+    tom: "espera",
+    titulo: "Agendada para depois",
+    explica: "A automação tem uma espera antes desta ação.",
+  },
   deferred_outside_window: {
     tom: "espera",
     titulo: "Adiada para a janela de horário",
@@ -164,7 +169,8 @@ export const EXECUCAO: Record<string, { tom: TomDaExecucao; titulo: string; expl
   skipped_outside_window: {
     tom: "pulado",
     titulo: "Fora da janela de horário",
-    explica: "O evento caiu fora do horário configurado, e a automação está como \"não enviar\" nesse caso.",
+    explica:
+      'O evento caiu fora do horário configurado, e a automação está como "não enviar" nesse caso.',
   },
   skipped_no_contact: {
     tom: "pulado",
@@ -175,13 +181,14 @@ export const EXECUCAO: Record<string, { tom: TomDaExecucao; titulo: string; expl
   skipped_daily_limit: {
     tom: "pulado",
     titulo: "Cota diária atingida",
-    explica: "O limite de mensagens do dia já tinha sido usado por campanhas, disparos ou outras automações.",
+    explica:
+      "O limite de mensagens do dia já tinha sido usado por campanhas, disparos ou outras automações.",
   },
   skipped_missing_var: {
     tom: "pulado",
     titulo: "Faltou dado para a mensagem",
     explica:
-      "Uma variável da mensagem ficou sem valor. A mensagem não sai pela metade: \"confirmado para o dia  às \" é pior do que não mandar.",
+      'Uma variável da mensagem ficou sem valor. A mensagem não sai pela metade: "confirmado para o dia  às " é pior do que não mandar.',
   },
   skipped_no_rule: {
     tom: "pulado",
@@ -192,7 +199,8 @@ export const EXECUCAO: Record<string, { tom: TomDaExecucao; titulo: string; expl
   skipped_no_flow: {
     tom: "erro",
     titulo: "Acionamento sem nada ligado",
-    explica: "O card de acionamento não está conectado a nenhum outro card, então não há o que executar.",
+    explica:
+      "O card de acionamento não está conectado a nenhum outro card, então não há o que executar.",
   },
   skipped_depth_limit: {
     tom: "pulado",
@@ -208,19 +216,31 @@ export function ehCaminho(status: string): boolean {
   return status.startsWith("branch_") && status !== "branch_dead_end";
 }
 
-export function rotuloDaExecucao(status: string): { tom: TomDaExecucao; titulo: string; explica?: string } {
+export function rotuloDaExecucao(status: string): {
+  tom: TomDaExecucao;
+  titulo: string;
+  explica?: string;
+} {
   // Ramo solto não é rastro de caminho, é o fim do fluxo — aparece alinhado
   // com os outros resultados, porque é ele que precisa de conserto.
   if (status === "branch_dead_end") {
     return {
       tom: "erro",
       titulo: "O caminho terminou sem ação",
-      explica: "A condição decidiu por um ramo que não está ligado a nenhum card, então o fluxo parou ali.",
+      explica:
+        "A condição decidiu por um ramo que não está ligado a nenhum card, então o fluxo parou ali.",
     };
   }
   if (ehCaminho(status)) {
     const ramo = status.slice("branch_".length);
-    const nome = ramo === "sim" ? "Sim" : ramo === "nao" ? "Não" : ramo === "nenhum" ? "nenhum ramo" : ramo.toUpperCase();
+    const nome =
+      ramo === "sim"
+        ? "Sim"
+        : ramo === "nao"
+          ? "Não"
+          : ramo === "nenhum"
+            ? "nenhum ramo"
+            : ramo.toUpperCase();
     return { tom: "caminho", titulo: `Seguiu por "${nome}"` };
   }
   // Status desconhecido mostra o valor cru: inventar um rótulo bonito para algo
