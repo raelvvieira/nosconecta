@@ -193,6 +193,7 @@ export type Database = {
       }
       ai_agents: {
         Row: {
+          api_key: string | null
           circuit_open_until: string | null
           created_at: string
           debounce_seconds: number
@@ -212,6 +213,7 @@ export type Database = {
           winning_stage_ids: Json
         }
         Insert: {
+          api_key?: string | null
           circuit_open_until?: string | null
           created_at?: string
           debounce_seconds?: number
@@ -231,6 +233,7 @@ export type Database = {
           winning_stage_ids?: Json
         }
         Update: {
+          api_key?: string | null
           circuit_open_until?: string | null
           created_at?: string
           debounce_seconds?: number
@@ -1301,72 +1304,6 @@ export type Database = {
           id?: string
           owner_id?: string
           recipient_count?: number
-        }
-        Relationships: []
-      }
-      crm_credentials: {
-        Row: {
-          access_token: string | null
-          created_at: string
-          crm_email: string
-          crm_password: string
-          crm_pipeline_debug: Json | null
-          crm_status_debug: Json | null
-          daily_send_limit: number
-          evolution_instance_name: string | null
-          id: string
-          inbox_id: string | null
-          last_error: string | null
-          owner_id: string
-          phone_number: string | null
-          pipeline_id: string | null
-          qr_code: string | null
-          qr_expires_at: string | null
-          token_expires_at: string | null
-          updated_at: string
-          whatsapp_status: string
-        }
-        Insert: {
-          access_token?: string | null
-          created_at?: string
-          crm_email: string
-          crm_password: string
-          crm_pipeline_debug?: Json | null
-          crm_status_debug?: Json | null
-          daily_send_limit?: number
-          evolution_instance_name?: string | null
-          id?: string
-          inbox_id?: string | null
-          last_error?: string | null
-          owner_id: string
-          phone_number?: string | null
-          pipeline_id?: string | null
-          qr_code?: string | null
-          qr_expires_at?: string | null
-          token_expires_at?: string | null
-          updated_at?: string
-          whatsapp_status?: string
-        }
-        Update: {
-          access_token?: string | null
-          created_at?: string
-          crm_email?: string
-          crm_password?: string
-          crm_pipeline_debug?: Json | null
-          crm_status_debug?: Json | null
-          daily_send_limit?: number
-          evolution_instance_name?: string | null
-          id?: string
-          inbox_id?: string | null
-          last_error?: string | null
-          owner_id?: string
-          phone_number?: string | null
-          pipeline_id?: string | null
-          qr_code?: string | null
-          qr_expires_at?: string | null
-          token_expires_at?: string | null
-          updated_at?: string
-          whatsapp_status?: string
         }
         Relationships: []
       }
