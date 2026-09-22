@@ -281,6 +281,12 @@ export interface ConfigDeAtendimento {
   /** `••••••••` com os quatro últimos. NUNCA a chave inteira — mesmo cuidado
    *  do token da Meta em `meta-capi`. Vazio quando não há chave gravada. */
   chaveResumida: string;
+  /** Só fala com quem ainda não tem ficha de paciente. */
+  soParaNaoPaciente: boolean;
+  /** Só fala em conversa que nasceu há pouco. */
+  soParaConversaNova: boolean;
+  /** Por quantos dias uma conversa ainda conta como nova. */
+  novoAteDias: number;
   regras: RegraDeComportamento[];
 }
 
@@ -316,6 +322,12 @@ export const getAtendimento = createServerFn({ method: "GET" })
       // alguém digitou não serve para nada e é o jeito mais fácil de ela
       // vazar num print de tela.
       chaveResumida: agente.api_key ? `••••••••${String(agente.api_key).slice(-4)}` : "",
+      // `!== false` e não `!!`: linha criada antes da coluna traz `undefined`,
+      // e com `!!` o filtro nasceria desligado justamente na clínica que já
+      // tinha agente — o oposto do `DEFAULT true` da migration.
+      soParaNaoPaciente: agente.so_para_nao_paciente !== false,
+      soParaConversaNova: agente.so_para_conversa_nova !== false,
+      novoAteDias: Number(agente.novo_ate_dias ?? 7),
       regras: (regras ?? []).map((r: any) => ({
         id: String(r.id),
         tipo: r.kind,
@@ -341,7 +353,22 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
       msPorCaractere?: number;
       /** A chave da IA. String vazia REMOVE a que estiver gravada. */
       chaveDaIa?: string;
+      soParaNaoPaciente?: boolean;
+      soParaConversaNova?: boolean;
+      novoAteDias?: number;
     }) => {
+      if (input.novoAteDias !== undefined) {
+        // O mesmo intervalo do CHECK do banco. Recusar aqui dá uma frase que
+        // explica; deixar passar dá um erro de constraint que não explica
+        // nada a quem está na tela.
+        if (
+          !Number.isInteger(input.novoAteDias) ||
+          input.novoAteDias < 1 ||
+          input.novoAteDias > 90
+        ) {
+          throw new Error("A janela de contato novo vai de 1 a 90 dias.");
+        }
+      }
       if (input.chaveDaIa !== undefined) {
         const chave = input.chaveDaIa.trim();
         // Vazio é intenção de remover, e é válido.
@@ -369,6 +396,10 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
     if (data.segmentar !== undefined) campos.segment_enabled = data.segmentar;
     if (data.limite !== undefined) campos.segment_limit = data.limite;
     if (data.minimo !== undefined) campos.segment_min_size = data.minimo;
+    if (data.soParaNaoPaciente !== undefined) campos.so_para_nao_paciente = data.soParaNaoPaciente;
+    if (data.soParaConversaNova !== undefined)
+      campos.so_para_conversa_nova = data.soParaConversaNova;
+    if (data.novoAteDias !== undefined) campos.novo_ate_dias = data.novoAteDias;
     if (data.msPorCaractere !== undefined) campos.delay_per_character = data.msPorCaractere;
     // `null` e não string vazia: a coluna vazia significaria "chave em branco"
     // para quem lesse, e a pergunta que o resto do código faz é se ela EXISTE.

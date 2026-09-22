@@ -232,6 +232,64 @@ function AtendimentoPage() {
                 )}
               </section>
 
+              {/* ── Com quem ela fala ───────────────────────────────────────────
+              A pergunta mais importante desta tela, e por isso vem antes do
+              ritmo: ritmo errado soa estranho, destinatário errado é a IA
+              falando com um paciente em tratamento como se ele fosse um lead
+              de anúncio. */}
+              <section className="rounded-3xl border border-border bg-white/70 p-6">
+                <h2 className="text-base font-semibold">Com quem ela fala</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Quem ficar de fora continua sendo atendido por uma pessoa, como hoje.
+                </p>
+
+                <div className="mt-5 grid gap-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Só quem ainda não é paciente</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Quem já tem ficha tem tratamento em andamento e combinado com a recepção.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={config?.soParaNaoPaciente ?? true}
+                      onCheckedChange={(v) => void gravar({ soParaNaoPaciente: v })}
+                      aria-label="Só quem ainda não é paciente"
+                    />
+                  </div>
+
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">Só quem chegou agora</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Lead antigo já trocou mensagem com alguém daqui.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={config?.soParaConversaNova ?? true}
+                      onCheckedChange={(v) => void gravar({ soParaConversaNova: v })}
+                      aria-label="Só quem chegou agora"
+                    />
+                  </div>
+
+                  {config?.soParaConversaNova !== false && (
+                    <Campo
+                      rotulo="Ainda conta como novo por"
+                      sufixo="dias"
+                      valor={config?.novoAteDias ?? 7}
+                      dica="Contado da primeira mensagem da pessoa, em qualquer conversa dela."
+                      onSalvar={(v) => void gravar({ novoAteDias: v })}
+                    />
+                  )}
+
+                  {config?.soParaNaoPaciente === false && (
+                    <p className="rounded-xl bg-warning-soft px-3.5 py-2.5 text-sm">
+                      Ela vai responder também quem já é paciente da clínica.
+                    </p>
+                  )}
+                </div>
+              </section>
+
               {/* ── Ritmo ───────────────────────────────────────────────────────
               Não é enfeite: um agente que responde em 200 ms com oito
               parágrafos se denuncia por melhor que seja o texto. */}

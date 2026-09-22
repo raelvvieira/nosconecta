@@ -30,6 +30,18 @@ export interface MensagemDeEntrada {
    *  `filtros-do-agente.ts`. Opcional para quem não tem como saber (a
    *  simulação da tela), e aí vale `false`. */
   ehGrupo?: boolean;
+  /**
+   * A pessoa já tem ficha de paciente.
+   *
+   * Opcional, e o padrão é `false` — o lado PERMISSIVO. Isso é seguro só
+   * porque o único chamador autorizado a omitir é a simulação da tela, que
+   * não envia nada a ninguém. O webhook passa os dois sempre, explicitamente:
+   * omitir ali soltaria a IA em cima de paciente sem que nada acusasse.
+   */
+  ehPaciente?: boolean;
+  /** A conversa nasceu dentro da janela de contato novo. Mesma regra de
+   *  omissão do campo acima. */
+  conversaNova?: boolean;
 }
 
 /** Manda um pedaço da resposta. `esperaMs` é o tempo de digitação antes dele. */
@@ -73,13 +85,24 @@ export async function atender(
   const sessao = await garantirSessao(supabase, ownerId, agente.id, entrada);
 
   const decisao = decidirSeResponde(
-    { ligado: !!agente.enabled, circuitoAbertoAte: agente.circuit_open_until ?? null },
+    {
+      ligado: !!agente.enabled,
+      circuitoAbertoAte: agente.circuit_open_until ?? null,
+      // `!== false` e não `!!`: a coluna nasceu depois das linhas que já
+      // existiam, e uma linha antiga traz `undefined`. Com `!!` o filtro
+      // nasceria DESLIGADO justamente na clínica que já tinha agente — o
+      // contrário do que a migration promete com `DEFAULT true`.
+      soParaNaoPaciente: agente.so_para_nao_paciente !== false,
+      soParaConversaNova: agente.so_para_conversa_nova !== false,
+    },
     { humanoAssumiuEm: sessao.human_took_over_at ?? null },
     {
       conteudo: entrada.conteudo,
       daClinica: entrada.daClinica,
       privada: entrada.privada,
       ehGrupo: !!entrada.ehGrupo,
+      ehPaciente: !!entrada.ehPaciente,
+      conversaNova: entrada.conversaNova !== false,
     },
     agora,
   );

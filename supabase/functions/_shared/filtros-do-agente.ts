@@ -14,6 +14,18 @@ export interface EstadoDoAgente {
   ligado: boolean;
   /** Disjuntor aberto até quando, se estiver aberto. */
   circuitoAbertoAte: string | null;
+  /**
+   * Só fala com quem ainda não tem ficha de paciente.
+   *
+   * Interruptor, e não regra fixa em código, por dois motivos. Afrouxar a
+   * regra ("quero que ela responda paciente também") vira um clique em vez de
+   * um deploy. E a posição DESLIGADO fica exercitável no teste: sem isso não
+   * há como provar que é este filtro que está calando o agente, e "a IA não
+   * respondeu" volta a ser mistério.
+   */
+  soParaNaoPaciente: boolean;
+  /** Só fala em conversa que nasceu há pouco. Mesma razão de ser interruptor. */
+  soParaConversaNova: boolean;
 }
 
 export interface EstadoDaSessao {
@@ -29,6 +41,15 @@ export interface MensagemRecebida {
   privada: boolean;
   /** true quando veio de um grupo do WhatsApp. */
   ehGrupo: boolean;
+  /**
+   * A pessoa já tem ficha de paciente na clínica.
+   *
+   * Chega como FATO, resolvido por quem tem banco à mão — esta função continua
+   * pura. Foi assim que `ehGrupo` entrou.
+   */
+  ehPaciente: boolean;
+  /** A conversa nasceu dentro da janela de "contato novo". */
+  conversaNova: boolean;
 }
 
 export type MotivoDeIgnorar =
@@ -36,6 +57,8 @@ export type MotivoDeIgnorar =
   | "disjuntor aberto"
   | "humano assumiu a conversa"
   | "mensagem de grupo"
+  | "conversa de paciente"
+  | "conversa antiga"
   | "mensagem da própria clínica"
   | "nota interna"
   | "mensagem sem texto";
@@ -86,6 +109,33 @@ export function decidirSeResponde(
   // Enquanto o número esteve no CRM isto nem se colocava: o CRM não entregava
   // grupo. A conexão própria entrega.
   if (mensagem.ehGrupo) return { responde: false, motivo: "mensagem de grupo" };
+
+  // ── Quem a IA pode atender ──────────────────────────────────────────
+  //
+  // Ela responde por nós só o contato que chegou agora e ainda não é
+  // paciente — o do anúncio. Paciente tem histórico, tratamento em curso e
+  // combinado com a recepção; lead de três meses atrás não é contato novo, é
+  // lead esquecido, e quem fala com ele é gente.
+  //
+  // Estes dois vêm DEPOIS de grupo porque grupo nunca é paciente e "conversa
+  // nova" não quer dizer nada num grupo: o motivo mais afiado se perderia.
+  //
+  // E vêm ANTES de "mensagem da própria clínica", que é o ponto que importa:
+  // é esse motivo que `atender` transforma em `human_took_over_at`. Se
+  // ficassem depois, cada mensagem que a recepção manda numa conversa de
+  // paciente marcaria "humano assumiu" numa conversa que a IA nunca poderia
+  // atender — a mesma sujeira de sessão que o filtro de grupo acima existe
+  // para impedir.
+  //
+  // Paciente antes de antiga porque é propriedade da pessoa e não muda; a
+  // idade muda quando alguém mexe na janela.
+  if (agente.soParaNaoPaciente && mensagem.ehPaciente) {
+    return { responde: false, motivo: "conversa de paciente" };
+  }
+
+  if (agente.soParaConversaNova && !mensagem.conversaNova) {
+    return { responde: false, motivo: "conversa antiga" };
+  }
 
   // Sem isto o agente responderia a própria resposta, em laço.
   if (mensagem.daClinica) return { responde: false, motivo: "mensagem da própria clínica" };

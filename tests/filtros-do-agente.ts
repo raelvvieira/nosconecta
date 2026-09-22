@@ -31,7 +31,12 @@ function conferir(nome: string, obtido: unknown, esperado: unknown) {
 }
 
 const AGORA = new Date("2026-09-22T12:00:00Z");
-const LIGADO: EstadoDoAgente = { ligado: true, circuitoAbertoAte: null };
+const LIGADO: EstadoDoAgente = {
+  ligado: true,
+  circuitoAbertoAte: null,
+  soParaNaoPaciente: true,
+  soParaConversaNova: true,
+};
 const LIVRE: EstadoDaSessao = { humanoAssumiuEm: null };
 
 function msg(p: Partial<MensagemRecebida> = {}): MensagemRecebida {
@@ -40,9 +45,13 @@ function msg(p: Partial<MensagemRecebida> = {}): MensagemRecebida {
     daClinica: p.daClinica ?? false,
     privada: p.privada ?? false,
     ehGrupo: p.ehGrupo ?? false,
+    // O padrão do teste é o contato que a IA DEVE atender: chegou agora, sem
+    // ficha. Assim todo caso abaixo que não fala de paciente continua medindo
+    // o que media antes.
+    ehPaciente: p.ehPaciente ?? false,
+    conversaNova: p.conversaNova ?? true,
   };
 }
-
 const motivo = (
   agente: EstadoDoAgente,
   sessao: EstadoDaSessao,
@@ -170,6 +179,96 @@ conferir(
 }
 // Sucesso zera tudo: o que importa são falhas SEGUIDAS.
 conferir("sucesso limpa", registrarSucesso(), { falhas: 0, abertoAte: null });
+
+// ── Quem a IA pode atender ───────────────────────────────────────────────
+//
+// O pedido foi específico: ela responde por nós o contato NOVO que ainda não é
+// paciente — o que chegou pelo anúncio. Paciente tem tratamento em curso e
+// combinado com a recepção; lead de três meses atrás não é contato novo, é
+// lead esquecido.
+
+conferir("contato novo sem ficha é atendido", motivo(LIGADO, LIVRE, msg()), null);
+conferir(
+  "paciente não é atendido",
+  motivo(LIGADO, LIVRE, msg({ ehPaciente: true })),
+  "conversa de paciente",
+);
+conferir(
+  "conversa antiga não é atendida",
+  motivo(LIGADO, LIVRE, msg({ conversaNova: false })),
+  "conversa antiga",
+);
+
+// Paciente antes de antiga: é propriedade da pessoa e não muda, enquanto a
+// idade muda quando alguém mexe na janela.
+conferir(
+  "paciente em conversa antiga: o motivo é o paciente",
+  motivo(LIGADO, LIVRE, msg({ ehPaciente: true, conversaNova: false })),
+  "conversa de paciente",
+);
+
+// Grupo continua ganhando dos dois. Se perdesse, um grupo sairia com o motivo
+// errado — e grupo é o caso que fala na frente de todo mundo.
+conferir(
+  "grupo ganha de paciente",
+  motivo(LIGADO, LIVRE, msg({ ehGrupo: true, ehPaciente: true })),
+  "mensagem de grupo",
+);
+conferir(
+  "grupo ganha de conversa antiga",
+  motivo(LIGADO, LIVRE, msg({ ehGrupo: true, conversaNova: false })),
+  "mensagem de grupo",
+);
+// E humano-assumiu continua acima de tudo isso: gravar "conversa de paciente"
+// quando a razão real foi o takeover esconderia o takeover da auditoria.
+conferir(
+  "humano assumiu ganha de paciente",
+  motivo(LIGADO, { humanoAssumiuEm: "2026-09-22T11:00:00Z" }, msg({ ehPaciente: true })),
+  "humano assumiu a conversa",
+);
+
+// ── O caso que justifica a POSIÇÃO na ordem ──────────────────────────────
+//
+// "mensagem da própria clínica" é o motivo que `atender` transforma em
+// `human_took_over_at`. Numa conversa de paciente a IA nunca vai responder de
+// qualquer jeito — então marcar takeover ali é sujeira de sessão numa conversa
+// que nunca foi dela. Por isso paciente e antiga vêm ANTES.
+//
+// Se alguém mover estas duas checagens para baixo, é esta linha que quebra.
+conferir(
+  "recepção falando com paciente NÃO vira takeover",
+  motivo(LIGADO, LIVRE, msg({ ehPaciente: true, daClinica: true })),
+  "conversa de paciente",
+);
+conferir(
+  "mas com contato novo, a mensagem da clínica ainda é takeover",
+  motivo(LIGADO, LIVRE, msg({ daClinica: true })),
+  "mensagem da própria clínica",
+);
+
+// ── Os interruptores ─────────────────────────────────────────────────────
+// Existem para afrouxar a regra sem deploy. Se não funcionassem, o único jeito
+// de a clínica mudar de ideia seria mexer no código.
+{
+  const semFiltroDePaciente: EstadoDoAgente = { ...LIGADO, soParaNaoPaciente: false };
+  conferir(
+    "filtro de paciente desligado: ela atende paciente",
+    motivo(semFiltroDePaciente, LIVRE, msg({ ehPaciente: true })),
+    null,
+  );
+  const semFiltroDeIdade: EstadoDoAgente = { ...LIGADO, soParaConversaNova: false };
+  conferir(
+    "filtro de idade desligado: ela atende conversa antiga",
+    motivo(semFiltroDeIdade, LIVRE, msg({ conversaNova: false })),
+    null,
+  );
+  // Desligar um não desliga o outro.
+  conferir(
+    "desligar o de paciente não solta a conversa antiga",
+    motivo(semFiltroDePaciente, LIVRE, msg({ conversaNova: false })),
+    "conversa antiga",
+  );
+}
 
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);

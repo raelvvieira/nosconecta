@@ -776,6 +776,13 @@ async function handleSimular(ownerId: string, texto: string) {
       privada: false,
       // A simulação nunca é grupo: quem escreve é quem está na tela.
       ehGrupo: false,
+      // Explícito, e não por omissão. A simulação existe para responder "o que
+      // ela diria?", e quem testa está fingindo ser o contato novo do anúncio
+      // — que é justamente quem a IA atende. Deixar o padrão agir daria o
+      // mesmo resultado hoje, mas por acidente: no dia em que o padrão mudar,
+      // a tela de teste passaria a exercitar um agente diferente do que roda.
+      ehPaciente: false,
+      conversaNova: true,
     },
   );
   return { ok: true, ...resultado, enviados };
