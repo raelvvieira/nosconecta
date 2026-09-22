@@ -1,0 +1,134 @@
+// O agente de IA atendendo pela conexão própria.
+//
+// ── O que isto substitui ────────────────────────────────────────────────
+//
+// A Edge Function `ai-agent-webhook`, que o CRM chamava a cada mensagem de
+// paciente. Quando o número saiu do CRM, em 18/09, ela parou de receber
+// qualquer coisa — o agente ficou sem entrada, e ninguém notou porque ele
+// estava desligado.
+//
+// ── Por que um arquivo, e não código dentro do webhook ──────────────────
+//
+// `wa-webhook` tem uma responsabilidade que não pode falhar: gravar a mensagem
+// do paciente. O agente é o oposto — ele é opcional, chama um modelo de fora,
+// demora segundos e pode dar erro. Misturar os dois no mesmo bloco faria uma
+// falha do agente derrubar a gravação, e a Evolution reenviaria o evento, e a
+// mensagem entraria duas vezes.
+//
+// Aqui embaixo, nada do que acontece pode subir. O pior caso é o agente não
+// responder, com o motivo no log.
+import { atender, type MensagemDeEntrada } from "./atendimento.ts";
+import { responderPaciente } from "./modelo-de-atendimento.ts";
+import { enviarWhatsapp } from "./whatsapp-send.ts";
+import type { MensagemEspelhada } from "./evolution-mapear.ts";
+
+/** Quantas mensagens da conversa vão como contexto para o modelo. */
+const JANELA_DE_CONTEXTO = 20;
+
+/**
+ * As últimas mensagens da conversa, para o modelo saber do que se fala.
+ *
+ * Lia `/api/v1/conversations/{id}/messages` no CRM. Agora sai do espelho, que
+ * é onde a mensagem acabou de ser gravada — inclusive a que está sendo
+ * respondida agora.
+ *
+ * Nota interna fica de fora: é conversa da equipe sobre o paciente, não com
+ * ele. Passá-la ao modelo faria o que foi combinado nos bastidores sair na
+ * resposta, para a pessoa de quem se falava.
+ */
+async function historicoDoEspelho(
+  supabase: any,
+  ownerId: string,
+  conversationId: string,
+): Promise<{ deQuem: "clinica" | "paciente"; texto: string }[]> {
+  const { data, error } = await supabase
+    .from("wa_messages")
+    .select("body, from_me, is_private, sent_at")
+    .eq("owner_id", ownerId)
+    .eq("crm_conversation_id", conversationId)
+    .order("sent_at", { ascending: false })
+    .limit(JANELA_DE_CONTEXTO);
+  if (error) {
+    // Sem histórico o agente responde só à última mensagem. Pior que com,
+    // muito melhor que não responder.
+    console.warn("[agente] histórico indisponível:", error.message);
+    return [];
+  }
+
+  return [...(data ?? [])]
+    .reverse()
+    .filter((m: any) => !m.is_private && String(m.body ?? "").trim())
+    .map((m: any) => ({
+      deQuem: m.from_me ? ("clinica" as const) : ("paciente" as const),
+      texto: String(m.body).trim(),
+    }));
+}
+
+/** Espera de verdade antes de mandar o pedaço — é o tempo de digitação. */
+const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Deixa o agente responder, se for o caso dele responder.
+ *
+ * Quem decide é `atender`, e dentro dele `decidirSeResponde` — agente
+ * desligado, grupo, mensagem da própria clínica, nota interna, disjuntor
+ * aberto e conversa assumida por uma pessoa saem todos por lá, cada um com o
+ * motivo gravado em `ai_agent_messages.skipped_reason`.
+ *
+ * Nada aqui levanta: o webhook já gravou a mensagem, e uma falha do agente não
+ * pode fazer a Evolution reenviar o evento.
+ */
+export async function deixarOAgenteResponder(
+  supabase: any,
+  ownerId: string,
+  m: MensagemEspelhada,
+): Promise<void> {
+  try {
+    const entrada: MensagemDeEntrada = {
+      conversationId: m.crmConversationId,
+      contactId: m.crmContactId,
+      contactName: m.contactName,
+      conteudo: m.body,
+      daClinica: m.fromMe,
+      // A conexão própria não tem nota interna do lado de fora: o que chega
+      // pelo webhook é sempre mensagem de verdade.
+      privada: false,
+      ehGrupo: m.ehGrupo,
+    };
+
+    const resultado = await atender(
+      {
+        supabase,
+        ownerId,
+        historico: (conversationId) => historicoDoEspelho(supabase, ownerId, conversationId),
+        responderComIa: responderPaciente,
+        enviar: async (pedaco, esperaMs) => {
+          // A espera é o tempo de digitação. Acontece de verdade aqui — é o
+          // que faz a resposta não chegar como um bloco instantâneo.
+          await dormir(esperaMs);
+          // O telefone vai junto, e é seguro: medido no banco, toda conversa
+          // que chega pelo webhook é `@s.whatsapp.net` (telefone de verdade)
+          // ou `@g.us` (grupo, que o filtro barra antes daqui). Os 1.962
+          // contatos que o WhatsApp identifica por `@lid` são PARTICIPANTES de
+          // grupo, e nenhum deles é uma conversa — se um dia fossem, o lid
+          // tem 14 ou 15 dígitos e passaria por `numeroParaEnvio` como se
+          // fosse um número internacional, mandando a resposta para um
+          // estranho.
+          await enviarWhatsapp(
+            supabase,
+            ownerId,
+            { conversation_id: m.crmConversationId, phone: m.phone },
+            pedaco,
+          );
+        },
+      },
+      entrada,
+    );
+
+    if (!resultado.respondeu && resultado.motivo) {
+      console.log(`[agente] não respondeu (${resultado.motivo}) em ${m.crmConversationId}`);
+    }
+  } catch (e) {
+    console.error("[agente] falhou:", e instanceof Error ? e.message : e);
+  }
+}

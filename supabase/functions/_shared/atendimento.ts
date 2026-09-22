@@ -2,11 +2,12 @@
 //
 // ── Por que mora em _shared/ ───────────────────────────────────────────────
 //
-// Dois caminhos entram aqui: o webhook público, que recebe do CRM, e a
-// SIMULAÇÃO da tela, que manda uma mensagem de mentira. Os dois passam por esta
-// mesma função — se a simulação tivesse código próprio, ela provaria o código
-// da simulação, não o do atendimento. O que muda entre eles é só o `enviar`:
-// um manda ao CRM, o outro coleta numa lista.
+// Dois caminhos entram aqui: o webhook da conexão própria, que recebe cada
+// mensagem que o paciente manda, e a SIMULAÇÃO da tela, que manda uma mensagem
+// de mentira. Os dois passam por esta mesma função — se a simulação tivesse
+// código próprio, ela provaria o código da simulação, não o do atendimento. O
+// que muda entre eles é o `enviar` (um manda pelo WhatsApp, o outro coleta
+// numa lista) e o `historico`.
 //
 // ── O que este arquivo NÃO decide ──────────────────────────────────────────
 //
@@ -25,6 +26,10 @@ export interface MensagemDeEntrada {
   conteudo: string | null;
   daClinica: boolean;
   privada: boolean;
+  /** Veio de um grupo do WhatsApp. O agente nunca responde em grupo — ver
+   *  `filtros-do-agente.ts`. Opcional para quem não tem como saber (a
+   *  simulação da tela), e aí vale `false`. */
+  ehGrupo?: boolean;
 }
 
 /** Manda um pedaço da resposta. `esperaMs` é o tempo de digitação antes dele. */
@@ -70,7 +75,12 @@ export async function atender(
   const decisao = decidirSeResponde(
     { ligado: !!agente.enabled, circuitoAbertoAte: agente.circuit_open_until ?? null },
     { humanoAssumiuEm: sessao.human_took_over_at ?? null },
-    { conteudo: entrada.conteudo, daClinica: entrada.daClinica, privada: entrada.privada },
+    {
+      conteudo: entrada.conteudo,
+      daClinica: entrada.daClinica,
+      privada: entrada.privada,
+      ehGrupo: !!entrada.ehGrupo,
+    },
     agora,
   );
 

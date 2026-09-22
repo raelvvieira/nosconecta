@@ -25,14 +25,17 @@ export interface MensagemRecebida {
   conteudo: string | null;
   /** true quando a mensagem saiu da clínica (a própria IA, ou uma pessoa). */
   daClinica: boolean;
-  /** Nota interna: fica registrada no CRM mas não vai ao paciente. */
+  /** Nota interna: fica registrada na conversa mas não vai ao paciente. */
   privada: boolean;
+  /** true quando veio de um grupo do WhatsApp. */
+  ehGrupo: boolean;
 }
 
 export type MotivoDeIgnorar =
   | "agente desligado"
   | "disjuntor aberto"
   | "humano assumiu a conversa"
+  | "mensagem de grupo"
   | "mensagem da própria clínica"
   | "nota interna"
   | "mensagem sem texto";
@@ -67,6 +70,22 @@ export function decidirSeResponde(
   if (sessao.humanoAssumiuEm) {
     return { responde: false, motivo: "humano assumiu a conversa" };
   }
+
+  // ── Grupo ───────────────────────────────────────────────────────────
+  //
+  // Vem ANTES de "mensagem da própria clínica" de propósito: se ficasse
+  // depois, a primeira mensagem de alguém da equipe num grupo seria lida como
+  // "uma pessoa assumiu a conversa" e gravaria `human_took_over_at` num grupo
+  // — sujando a sessão de uma conversa que nunca deveria ter existido.
+  //
+  // São 12 grupos na base, todos internos: "#NÓS Floripa - Gestão", "Grupo de
+  // Estudos Dr. Mauro K". Nenhum de paciente. Um agente solto ali responderia
+  // à conversa da equipe sobre os pacientes, na frente de todo mundo, achando
+  // que fala com alguém que perguntou preço de limpeza.
+  //
+  // Enquanto o número esteve no CRM isto nem se colocava: o CRM não entregava
+  // grupo. A conexão própria entrega.
+  if (mensagem.ehGrupo) return { responde: false, motivo: "mensagem de grupo" };
 
   // Sem isto o agente responderia a própria resposta, em laço.
   if (mensagem.daClinica) return { responde: false, motivo: "mensagem da própria clínica" };

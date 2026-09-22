@@ -517,10 +517,10 @@ async function handleInstrucao(ownerId: string) {
  *
  * Passa pelo MESMO `atender` do webhook — filtros, humanização, segmentação e
  * modelo. O que muda é só o `enviar`, que aqui coleta numa lista em vez de
- * falar com o CRM, e o histórico, que vem vazio.
+ * mandar pelo WhatsApp, e o histórico, que vem vazio.
  *
- * É o que torna o atendimento testável sem depender do registro no CRM: nada
- * sai para paciente nenhum.
+ * É o que torna o atendimento testável de verdade: nada sai para paciente
+ * nenhum.
  */
 async function handleSimular(ownerId: string, texto: string) {
   const enviados: { texto: string; esperaMs: number }[] = [];
@@ -542,6 +542,8 @@ async function handleSimular(ownerId: string, texto: string) {
       conteudo: texto,
       daClinica: false,
       privada: false,
+      // A simulação nunca é grupo: quem escreve é quem está na tela.
+      ehGrupo: false,
     },
   );
   return { ok: true, ...resultado, enviados };

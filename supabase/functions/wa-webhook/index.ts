@@ -29,6 +29,7 @@ import {
 } from "../_shared/evolution-mapear.ts";
 import { gravarMensagemEspelhada } from "../_shared/espelho-evolution.ts";
 import { pushToOwner } from "../_shared/push.ts";
+import { deixarOAgenteResponder } from "../_shared/agente-no-webhook.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -72,6 +73,13 @@ async function gravarMensagem(ownerId: string, data: any) {
   await gravarMensagemEspelhada(supabase, ownerId, m, data);
 
   await avisar(ownerId, m);
+
+  // O agente de IA, DEPOIS de gravar e avisar, e sem poder derrubar nenhum dos
+  // dois. Ele decide sozinho se é caso de responder — desligado, grupo,
+  // mensagem da própria clínica e conversa já assumida por uma pessoa saem
+  // todos em `filtros-do-agente.ts`. Hoje ele está desligado, então isto é um
+  // caminho pronto e parado.
+  await deixarOAgenteResponder(supabase, ownerId, m);
 
   return { gravado: m.crmMessageId, telefone: m.phone, grupo: m.ehGrupo };
 }
