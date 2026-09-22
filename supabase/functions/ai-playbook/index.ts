@@ -25,6 +25,9 @@ import {
 } from "../_shared/corpus-de-aprendizado.ts";
 import { lerTudo } from "../_shared/ler-paginado.ts";
 import { clienteDaIa, responderPaciente, temChave } from "../_shared/modelo-de-atendimento.ts";
+import { historicoDoEspelho } from "../_shared/historico-da-conversa.ts";
+import { ehPacienteDoContato } from "../_shared/quem-e-paciente.ts";
+import { FORMATO_DAS_SUGESTOES, promptDeSugestao } from "../_shared/sugestoes-de-fala.ts";
 import {
   CAMPOS_DO_MANUAL,
   manualEfetivo,
@@ -691,17 +694,21 @@ async function handleCiclo(ownerId: string) {
   return { ok: true, novas, ...resultado };
 }
 
-/** A instrução exata que o agente vai receber. A tela pede AQUI em vez de
- *  montar por conta: uma cópia no navegador poderia mostrar regras de segurança
- *  diferentes das que estão valendo. */
-async function handleInstrucao(ownerId: string) {
-  const agente = await garantirAgente(ownerId);
+/**
+ * O que a clínica é, para o modelo: nome, manual efetivo e tabela liberada.
+ *
+ * Um lugar só porque a instrução do agente e a sugestão de fala precisam
+ * EXATAMENTE do mesmo contexto. Duas montagens divergiriam — uma passaria a
+ * ler procedimento inativo, ou a esquecer o override — e o card sugeriria uma
+ * fala sobre um método diferente do que o agente segue na mesma conversa.
+ */
+async function contextoDaClinica(ownerId: string, agenteId: string) {
   const playbook = await garantirPlaybook(ownerId);
 
   const { data: escolhidos } = await supabase
     .from("ai_agent_procedures")
     .select("procedure_id")
-    .eq("agent_id", agente.id);
+    .eq("agent_id", agenteId);
   const ids = (escolhidos ?? []).map((e: any) => e.procedure_id);
 
   let procedimentos: any[] = [];
@@ -727,18 +734,101 @@ async function handleInstrucao(ownerId: string) {
     .maybeSingle();
 
   return {
-    ok: true,
-    instrucao: montarInstrucao({
-      clinica: unidade?.name ?? "NÓS Odontologia",
-      manual: manualEfetivo(playbook.learned, playbook.overrides),
-      procedimentos: procedimentos.map((p) => ({
-        nome: p.name,
-        preco: p.price ?? null,
-        duracaoMinutos: p.duration_minutes ?? null,
-        categoria: p.category ?? null,
-      })),
-    }),
+    clinica: String(unidade?.name ?? "NÓS Odontologia"),
+    manual: manualEfetivo(playbook.learned, playbook.overrides),
+    procedimentos: procedimentos.map((p) => ({
+      nome: p.name,
+      preco: p.price ?? null,
+      duracaoMinutos: p.duration_minutes ?? null,
+      categoria: p.category ?? null,
+    })),
   };
+}
+
+/** A instrução exata que o agente vai receber. A tela pede AQUI em vez de
+ *  montar por conta: uma cópia no navegador poderia mostrar regras de segurança
+ *  diferentes das que estão valendo. */
+async function handleInstrucao(ownerId: string) {
+  const agente = await garantirAgente(ownerId);
+  return { ok: true, instrucao: montarInstrucao(await contextoDaClinica(ownerId, agente.id)) };
+}
+
+/**
+ * O que dizer agora, nesta conversa.
+ *
+ * ── As três decisões que importam aqui ───────────────────────────────
+ *
+ * **Funciona com a IA desligada.** Não passa por `atender` nem por
+ * `decidirSeResponde`, não abre sessão e não grava `ai_agent_messages`:
+ * sugerir não é atender. Quem manda a mensagem continua sendo uma pessoa.
+ *
+ * **Sem chave não é erro.** Devolve 200 com a lista vazia e o motivo. Um erro
+ * vermelho no painel de TODA conversa aberta é pior que um card ausente, e a
+ * clínica que nunca configurou chave não fez nada errado.
+ *
+ * **Sem histórico não chama o modelo.** Sugerir a primeira fala de uma
+ * conversa vazia é inventar abertura — e abertura já é o campo `saudacao` do
+ * manual, que a pessoa pode ler na tela do Agente.
+ */
+async function handleSugerir(ownerId: string, conversationId: string) {
+  const agente = await garantirAgente(ownerId);
+  const chave: string | null = agente?.api_key ?? null;
+  if (!temChave(chave)) {
+    return { ok: true, sugestoes: [], motivo: "falta a chave da IA" };
+  }
+
+  const historico = await historicoDoEspelho(supabase, ownerId, conversationId);
+  if (!historico.length) {
+    return { ok: true, sugestoes: [], motivo: "esta conversa ainda não tem mensagem" };
+  }
+
+  const { data: conversa } = await supabase
+    .from("wa_conversas_por_pessoa")
+    .select("crm_contact_id, contact_name")
+    .eq("owner_id", ownerId)
+    .eq("crm_conversation_id", conversationId)
+    .maybeSingle();
+
+  const contexto = await contextoDaClinica(ownerId, agente.id);
+  const prompt = promptDeSugestao({
+    ...contexto,
+    historico,
+    ehPaciente: await ehPacienteDoContato(supabase, ownerId, conversa?.crm_contact_id),
+    nomeDoContato: conversa?.contact_name ?? null,
+  });
+
+  const resposta = await clienteDaIa(chave).messages.create({
+    model: "claude-opus-5",
+    max_tokens: 4000,
+    // Esforço baixo: a tarefa é escolher a próxima fala a partir de um método
+    // que já está escrito, não descobrir o método. E quem está com a conversa
+    // aberta está esperando.
+    thinking: { type: "adaptive" },
+    output_config: { effort: "low", format: FORMATO_DAS_SUGESTOES },
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  // Recusa NUNCA vira card. O painel simplesmente não mostra sugestão, como
+  // quando não há chave.
+  if (resposta.stop_reason === "refusal") {
+    return { ok: true, sugestoes: [], motivo: "o modelo preferiu não sugerir nesta conversa" };
+  }
+
+  const bloco = resposta.content.find((b: any) => b.type === "text");
+  try {
+    const lido = JSON.parse((bloco as any)?.text ?? "");
+    return {
+      ok: true,
+      etapaAtual: String(lido?.etapa_atual ?? "") || null,
+      porqueEssaEtapa: String(lido?.porque_essa_etapa ?? "") || null,
+      sugestoes: (Array.isArray(lido?.sugestoes) ? lido.sugestoes : [])
+        .map((s: any) => ({ fala: String(s?.fala ?? "").trim(), porque: String(s?.porque ?? "").trim() }))
+        .filter((s: any) => s.fala),
+      motivo: null,
+    };
+  } catch {
+    return { ok: true, sugestoes: [], motivo: "não deu para ler a resposta do modelo" };
+  }
 }
 
 /**
@@ -791,10 +881,11 @@ async function handleSimular(ownerId: string, texto: string) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
   try {
-    const { ownerId, action, texto } = (await req.json()) as {
+    const { ownerId, action, texto, conversationId } = (await req.json()) as {
       ownerId?: string;
       action?: string;
       texto?: string;
+      conversationId?: string;
     };
     if (!ownerId || !action) {
       return new Response(JSON.stringify({ error: "ownerId e action são obrigatórios" }), {
@@ -807,7 +898,14 @@ Deno.serve(async (req) => {
     else if (action === "ciclo") result = await handleCiclo(ownerId);
     else if (action === "instrucao") result = await handleInstrucao(ownerId);
     else if (action === "simular") result = await handleSimular(ownerId, String(texto ?? ""));
-    else {
+    else if (action === "sugerir") {
+      if (!conversationId) {
+        return new Response(JSON.stringify({ error: "conversationId é obrigatório" }), {
+          status: 400,
+        });
+      }
+      result = await handleSugerir(ownerId, conversationId);
+    } else {
       return new Response(JSON.stringify({ error: `action desconhecida: ${action}` }), {
         status: 400,
       });

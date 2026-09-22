@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,6 +36,8 @@ import { getContatosComPaciente } from "@/lib/patients/patients.functions";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { ChatComposer } from "@/components/atendimentos/chat/ChatComposer";
+import type { ComposerHandle } from "@/components/atendimentos/chat/ChatComposer";
+import { useArrastoDeSugestao } from "@/components/atendimentos/chat/useArrastoDeSugestao";
 import type { PendingAttachment } from "@/components/atendimentos/chat/AttachmentTray";
 import { AppointmentDrawer } from "@/components/agenda/AppointmentDrawer";
 import { useAgendaCatalog } from "@/lib/agenda/useAppointmentForm";
@@ -390,6 +392,12 @@ function ChatPage() {
   });
   const messages = messagesQuery.data ?? [];
 
+  // O id da última mensagem. É a chave da sugestão de fala: com ela, a
+  // sugestão é refeita quando a CONVERSA anda, e não a cada busca da thread
+  // (que se repete a cada 5–20 s). Sem isso, cada conversa aberta viraria uma
+  // chamada ao modelo por minuto.
+  const chaveDasMensagens = messages.length ? messages[messages.length - 1].id : null;
+
   // ── O painel do contato ────────────────────────────────────────────────
   //
   // No computador ele está SEMPRE aberto (a coluna lá embaixo), então este
@@ -474,6 +482,20 @@ function ChatPage() {
     navigate({ search: { conversationId: row.id } });
 
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // ── As sugestões de fala ────────────────────────────────────────────────
+  //
+  // O arraste vive AQUI, e não no painel, porque é aqui que estão as duas
+  // pontas: o nó da conversa (`scrollRef`) e o composer. O painel só dispara
+  // o gesto, na mesma direção em que já manda "Usar esta".
+  const composerRef = useRef<ComposerHandle | null>(null);
+
+  const usarSugestao = useCallback((texto: string) => {
+    composerRef.current?.inserir(texto);
+    composerRef.current?.focar();
+  }, []);
+
+  const arraste = useArrastoDeSugestao(usarSugestao);
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages.length]);
@@ -829,7 +851,10 @@ function ChatPage() {
             )}
 
             <div
-              ref={scrollRef}
+              ref={(el) => {
+                scrollRef.current = el;
+                arraste.registrarAlvo(el);
+              }}
               className="flex-1 min-w-0 overflow-y-auto overflow-x-clip px-4 py-5 sm:px-6 lg:px-8"
             >
               {/* Sem `mx-auto`: centralizada, a coluna flutuava no meio da
@@ -882,6 +907,7 @@ function ChatPage() {
             </div>
 
             <ChatComposer
+              ref={composerRef}
               value={draft}
               onChange={setDraft}
               onSend={() => sendMutation.mutate()}
@@ -919,6 +945,9 @@ function ChatPage() {
           <PainelDoContato
             conversa={selected}
             chaveDoDesfecho={chaveDoDesfecho}
+            chaveDasMensagens={chaveDasMensagens}
+            onUsarSugestao={usarSugestao}
+            onArrastarSugestao={arraste.start}
             className="w-full"
           />
         </aside>
@@ -934,10 +963,38 @@ function ChatPage() {
             <PainelDoContato
               conversa={selected}
               chaveDoDesfecho={chaveDoDesfecho}
+              chaveDasMensagens={chaveDasMensagens}
+              onUsarSugestao={usarSugestao}
+              onArrastarSugestao={arraste.start}
               className="min-h-0 flex-1"
             />
           </DrawerContent>
         </Drawer>
+      )}
+
+      {/* ── O fantasma da sugestão ────────────────────────────────────────
+          Fora do fluxo e sem estado por quadro: quem escreve a posição é o
+          `requestAnimationFrame` do hook, direto no nó. Re-renderizar a tela
+          do chat a cada quadro travaria a rolagem da conversa.
+
+          Quem pediu menos movimento não vê o fantasma — o texto ainda entra
+          no composer ao soltar. */}
+      {arraste.arrastando && !arraste.semAnimacao && (
+        <div
+          ref={arraste.fantasmaRef}
+          aria-hidden
+          className="pointer-events-none fixed left-0 top-0 z-50 w-[280px] will-change-transform"
+        >
+          <p
+            className={cn(
+              "line-clamp-3 rounded-2xl bg-success-soft p-3.5 text-sm leading-6 shadow-4",
+              "ring-1 transition-shadow",
+              arraste.sobreAConversa ? "ring-2 ring-success" : "ring-success/15",
+            )}
+          >
+            {arraste.arrastando}
+          </p>
+        </div>
       )}
 
       {/* Mesmo formulário e mesma gravação da Agenda — um agendamento feito

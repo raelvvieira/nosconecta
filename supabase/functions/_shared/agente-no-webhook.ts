@@ -20,51 +20,10 @@
 import { atender, type MensagemDeEntrada } from "./atendimento.ts";
 import { ehConversaNova, primeiraMensagemDaPessoa } from "./conversa-nova.ts";
 import { ehPacienteDoContato } from "./quem-e-paciente.ts";
+import { historicoDoEspelho } from "./historico-da-conversa.ts";
 import { responderPaciente } from "./modelo-de-atendimento.ts";
 import { enviarWhatsapp } from "./whatsapp-send.ts";
 import type { MensagemEspelhada } from "./evolution-mapear.ts";
-
-/** Quantas mensagens da conversa vão como contexto para o modelo. */
-const JANELA_DE_CONTEXTO = 20;
-
-/**
- * As últimas mensagens da conversa, para o modelo saber do que se fala.
- *
- * Lia `/api/v1/conversations/{id}/messages` no CRM. Agora sai do espelho, que
- * é onde a mensagem acabou de ser gravada — inclusive a que está sendo
- * respondida agora.
- *
- * Nota interna fica de fora: é conversa da equipe sobre o paciente, não com
- * ele. Passá-la ao modelo faria o que foi combinado nos bastidores sair na
- * resposta, para a pessoa de quem se falava.
- */
-async function historicoDoEspelho(
-  supabase: any,
-  ownerId: string,
-  conversationId: string,
-): Promise<{ deQuem: "clinica" | "paciente"; texto: string }[]> {
-  const { data, error } = await supabase
-    .from("wa_messages")
-    .select("body, from_me, is_private, sent_at")
-    .eq("owner_id", ownerId)
-    .eq("crm_conversation_id", conversationId)
-    .order("sent_at", { ascending: false })
-    .limit(JANELA_DE_CONTEXTO);
-  if (error) {
-    // Sem histórico o agente responde só à última mensagem. Pior que com,
-    // muito melhor que não responder.
-    console.warn("[agente] histórico indisponível:", error.message);
-    return [];
-  }
-
-  return [...(data ?? [])]
-    .reverse()
-    .filter((m: any) => !m.is_private && String(m.body ?? "").trim())
-    .map((m: any) => ({
-      deQuem: m.from_me ? ("clinica" as const) : ("paciente" as const),
-      texto: String(m.body).trim(),
-    }));
-}
 
 /** Espera de verdade antes de mandar o pedaço — é o tempo de digitação. */
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));

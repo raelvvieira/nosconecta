@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { FotoDoContato } from "@/components/atendimentos/chat/FotoDoContato";
 import { SeletorDeTags } from "@/components/tags/SeletorDeTags";
+import { CardDeSugestoes } from "./CardDeSugestoes";
 import { CardDoPainel, LinhaDoPainel, NumeroDoPainel } from "./CardDoPainel";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { formatBRL } from "@/lib/finance/format";
@@ -64,6 +65,9 @@ import { cn } from "@/lib/utils";
 export function PainelDoContato({
   conversa,
   chaveDoDesfecho,
+  chaveDasMensagens,
+  onUsarSugestao,
+  onArrastarSugestao,
   onFechar,
   className,
 }: {
@@ -71,6 +75,17 @@ export function PainelDoContato({
   /** Chave da negociação — card do funil, ou `conv:<id>`. `null` = sem chave,
    *  e aí não há onde pendurar nota. */
   chaveDoDesfecho: string | null;
+  /**
+   * O id da última mensagem da conversa.
+   *
+   * Um escalar, e não a lista de mensagens: o painel não precisa delas, e
+   * passar o array inteiro faria ele re-renderizar a cada busca da thread.
+   * É o que mantém a sugestão presa à CONVERSA e não ao relógio.
+   */
+  chaveDasMensagens?: string | null;
+  /** Põe o texto no composer, na posição do cursor. */
+  onUsarSugestao?: (texto: string) => void;
+  onArrastarSugestao?: (e: React.PointerEvent, texto: string) => void;
   onFechar?: () => void;
   className?: string;
 }) {
@@ -198,6 +213,8 @@ export function PainelDoContato({
         )}
 
         {/* ── Identidade ──────────────────────────────────────────────────── */}
+        {/* O card de sugestões vem logo DEPOIS dela, mais abaixo: saber quem é
+            a pessoa vem antes de saber o que dizer a ela. */}
         <section className="surface-card p-5">
           <div className="flex items-center gap-3.5">
             <FotoDoContato
@@ -249,6 +266,18 @@ export function PainelDoContato({
           <div className="flex justify-center py-3">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
+        )}
+
+        {/* ── O que dizer agora ─────────────────────────────────────────────
+            O único card do painel que pede ação — todo o resto é fato sobre a
+            pessoa. Por isso fica no alto, logo abaixo de quem ela é. */}
+        {onUsarSugestao && (
+          <CardDeSugestoes
+            conversationId={conversa.id}
+            chaveDasMensagens={chaveDasMensagens ?? null}
+            onUsar={onUsarSugestao}
+            onArrastar={onArrastarSugestao}
+          />
         )}
 
         {/* ── Dados ────────────────────────────────────────────────────────── */}

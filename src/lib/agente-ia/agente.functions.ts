@@ -588,3 +588,64 @@ export const getPainelDoFunil = createServerFn({ method: "GET" })
         .slice(0, 4),
     };
   });
+
+// ── Sugestões de fala no chat ──────────────────────────────────────────────
+
+export interface SugestaoDeFala {
+  /** O texto pronto para mandar. É ele que vai para o composer. */
+  fala: string;
+  /** Por que agora — em letra menor, sob a fala. */
+  porque: string;
+}
+
+export interface SugestoesDaConversa {
+  etapaAtual: string | null;
+  porqueEssaEtapa: string | null;
+  sugestoes: SugestaoDeFala[];
+  /** Por que não veio nada. Nulo quando veio. */
+  motivo: string | null;
+}
+
+/**
+ * O que dizer agora, nesta conversa.
+ *
+ * Isto NÃO é o agente. É uma sugestão para quem está atendendo: aparece no
+ * painel, a pessoa lê, decide, e o texto só sai se ela mandar. Por isso
+ * funciona com a IA desligada e não abre sessão de atendimento.
+ *
+ * **Nunca levanta erro.** Falta de chave, recusa do modelo ou conversa vazia
+ * voltam como `motivo` com a lista vazia, e o painel simplesmente não mostra o
+ * card. Um erro vermelho em toda conversa aberta seria pior que card nenhum.
+ */
+export const getSugestoesDaConversa = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { conversationId: string }) => input)
+  .handler(async ({ data, context }): Promise<SugestoesDaConversa> => {
+    const vazio = (motivo: string): SugestoesDaConversa => ({
+      etapaAtual: null,
+      porqueEssaEtapa: null,
+      sugestoes: [],
+      motivo,
+    });
+
+    if (!data.conversationId) return vazio("conversa não informada");
+
+    try {
+      const json = await chamar({
+        ownerId: context.ownerId,
+        action: "sugerir",
+        conversationId: data.conversationId,
+      });
+      return {
+        etapaAtual: json.etapaAtual ?? null,
+        porqueEssaEtapa: json.porqueEssaEtapa ?? null,
+        sugestoes: Array.isArray(json.sugestoes) ? json.sugestoes : [],
+        motivo: json.motivo ?? null,
+      };
+    } catch (e) {
+      // Sugestão é conforto, não função. Se ela cair, a conversa continua
+      // exatamente como era antes de este card existir.
+      console.warn("[sugestoes]", e);
+      return vazio(e instanceof Error ? e.message : "não deu para sugerir agora");
+    }
+  });

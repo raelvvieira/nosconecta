@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useImperativeHandle, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -42,7 +43,26 @@ import { ScheduleMessageDialog } from "./ScheduleMessageDialog";
 // previstos. Ligar depois é trocar o handler, a tela já existe.
 const SOON = "Em breve — falta o CRM disponibilizar esse recurso.";
 
+/**
+ * O que outra parte da tela pode pedir ao composer.
+ *
+ * Existe por causa das sugestões de fala do painel direito: elas precisam
+ * escrever no rascunho, e escrever no rascunho direito quer dizer respeitar o
+ * cursor — o mesmo `insertAtCursor` que o emoji e as mensagens rápidas já
+ * usam.
+ *
+ * A alternativa seria a rota fazer `setDraft(d => d + texto)`. Funciona e
+ * está errada: joga o texto no fim mesmo que a pessoa esteja escrevendo no
+ * meio, e duplica uma lógica que já existe aqui.
+ */
+export interface ComposerHandle {
+  /** Insere na posição do cursor. Nunca substitui o que já está escrito. */
+  inserir: (texto: string) => void;
+  focar: () => void;
+}
+
 export function ChatComposer({
+  ref,
   value,
   onChange,
   onSend,
@@ -57,6 +77,7 @@ export function ChatComposer({
   contactName,
   onScheduleAppointment,
 }: {
+  ref?: RefObject<ComposerHandle | null>;
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
@@ -113,6 +134,18 @@ export function ChatComposer({
       el.setSelectionRange(pos, pos);
     });
   };
+
+  // As dependências não são enfeite: `insertAtCursor` fecha sobre `value`, e
+  // sem elas o handle guardaria o PRIMEIRO rascunho para sempre — usar uma
+  // sugestão apagaria o que a pessoa tivesse digitado desde que a tela abriu.
+  useImperativeHandle(
+    ref,
+    () => ({
+      inserir: insertAtCursor,
+      focar: () => textareaRef.current?.focus(),
+    }),
+    [value, onChange],
+  );
 
   const addFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
