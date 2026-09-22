@@ -116,7 +116,10 @@ export const salvarConfiguracaoDoAgente = createServerFn({ method: "POST" })
     if (data.etapasDeVitoria !== undefined) campos.winning_stage_ids = data.etapasDeVitoria;
     if (data.aprenderDeGanhos !== undefined) campos.learn_from_won = data.aprenderDeGanhos;
 
-    const { error } = await supabase.from("ai_agents").update(campos).eq("owner_id", context.ownerId);
+    const { error } = await supabase
+      .from("ai_agents")
+      .update(campos)
+      .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
@@ -260,6 +263,11 @@ export interface ConfigDeAtendimento {
   msPorCaractere: number;
   /** Disjuntor aberto até quando, se estiver. */
   circuitoAbertoAte: string | null;
+  /** A clínica já gravou uma chave da IA aqui? */
+  temChavePropria: boolean;
+  /** `••••••••` com os quatro últimos. NUNCA a chave inteira — mesmo cuidado
+   *  do token da Meta em `meta-capi`. Vazio quando não há chave gravada. */
+  chaveResumida: string;
   regras: RegraDeComportamento[];
 }
 
@@ -289,6 +297,12 @@ export const getAtendimento = createServerFn({ method: "GET" })
       minimo: Number(agente.segment_min_size ?? 50),
       msPorCaractere: Number(agente.delay_per_character ?? 50),
       circuitoAbertoAte: agente.circuit_open_until ?? null,
+      temChavePropria: !!agente.api_key,
+      // O `select("*")` acima traz a chave para o SERVIDOR, e ela para aqui:
+      // o que desce para o navegador é só a marca. Ler de volta uma chave que
+      // alguém digitou não serve para nada e é o jeito mais fácil de ela
+      // vazar num print de tela.
+      chaveResumida: agente.api_key ? `••••••••${String(agente.api_key).slice(-4)}` : "",
       regras: (regras ?? []).map((r: any) => ({
         id: String(r.id),
         tipo: r.kind,
@@ -312,7 +326,26 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
       limite?: number;
       minimo?: number;
       msPorCaractere?: number;
-    }) => input,
+      /** A chave da IA. String vazia REMOVE a que estiver gravada. */
+      chaveDaIa?: string;
+    }) => {
+      if (input.chaveDaIa !== undefined) {
+        const chave = input.chaveDaIa.trim();
+        // Vazio é intenção de remover, e é válido.
+        if (chave) {
+          // Validação de FORMA, não de validade: uma chave errada só o
+          // provedor sabe recusar, e ele recusa com uma mensagem clara. O que
+          // dá para pegar aqui é o engano de colar outra coisa — um espaço no
+          // meio quase sempre é texto copiado junto.
+          if (/\s/.test(chave)) {
+            throw new Error("A chave não pode ter espaços. Copie só a chave, sem texto em volta.");
+          }
+          if (chave.length < 20)
+            throw new Error("Essa chave parece curta demais. Confira se copiou inteira.");
+        }
+      }
+      return input;
+    },
   )
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
@@ -324,8 +357,14 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
     if (data.limite !== undefined) campos.segment_limit = data.limite;
     if (data.minimo !== undefined) campos.segment_min_size = data.minimo;
     if (data.msPorCaractere !== undefined) campos.delay_per_character = data.msPorCaractere;
+    // `null` e não string vazia: a coluna vazia significaria "chave em branco"
+    // para quem lesse, e a pergunta que o resto do código faz é se ela EXISTE.
+    if (data.chaveDaIa !== undefined) campos.api_key = data.chaveDaIa.trim() || null;
 
-    const { error } = await supabase.from("ai_agents").update(campos).eq("owner_id", context.ownerId);
+    const { error } = await supabase
+      .from("ai_agents")
+      .update(campos)
+      .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

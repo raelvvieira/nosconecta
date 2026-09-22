@@ -46,6 +46,10 @@ function AtendimentoPage() {
   const config = query.data;
 
   const [eco, setEco] = useState("");
+  // A chave digitada agora. Nasce e morre no formulário: o servidor nunca a
+  // devolve, então não há o que preencher aqui ao abrir a tela.
+  const [chave, setChave] = useState("");
+  const [salvandoChave, setSalvandoChave] = useState(false);
   const [texto, setTexto] = useState("");
   const [simulando, setSimulando] = useState(false);
   const [saida, setSaida] = useState<{
@@ -149,11 +153,82 @@ function AtendimentoPage() {
                   </div>
                 )}
 
-                {modoIa && semChave && (
-                  <p className="mt-4 flex items-center gap-2.5 rounded-2xl bg-warning-soft px-4 py-3 text-sm">
-                    <KeyRound className="h-4 w-4 shrink-0 text-warning" />
-                    Falta a chave da IA — Lovable → Cloud → Secrets → ANTHROPIC_API_KEY.
-                  </p>
+                {/* ── A chave ──────────────────────────────────────────────
+                    Só no modo Inteligência: no modo frase fixa ela não é usada
+                    para nada, e um campo de chave numa tela que não precisa
+                    dela é um convite a colar a chave errada em algum lugar. */}
+                {modoIa && (
+                  <div className="mt-5 border-t border-border pt-5">
+                    <div className="flex items-center gap-2">
+                      <KeyRound
+                        className={cn(
+                          "h-4 w-4 shrink-0",
+                          semChave ? "text-warning" : "text-muted-foreground",
+                        )}
+                      />
+                      <p className="text-sm font-medium">Chave da IA</p>
+                      {config?.temChavePropria && (
+                        <span className="ml-auto font-mono text-xs text-muted-foreground">
+                          {config.chaveResumida}
+                        </span>
+                      )}
+                    </div>
+
+                    {semChave && (
+                      <p className="mt-2 text-xs leading-5 text-warning">
+                        Sem ela o agente não consegue responder. Cole a chave abaixo.
+                      </p>
+                    )}
+                    {!semChave && !config?.temChavePropria && (
+                      <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                        Em uso a chave configurada no servidor. Cole uma aqui para usar outra.
+                      </p>
+                    )}
+
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        type="password"
+                        value={chave}
+                        onChange={(e) => setChave(e.target.value)}
+                        placeholder={
+                          config?.temChavePropria ? "Trocar a chave" : "Cole a chave aqui"
+                        }
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="flex-1 font-mono"
+                      />
+                      <Button
+                        type="button"
+                        variant="premium"
+                        disabled={!chave.trim() || salvandoChave}
+                        onClick={async () => {
+                          setSalvandoChave(true);
+                          await gravar({ chaveDaIa: chave.trim() });
+                          // Some do campo assim que sai daqui: deixá-la na tela
+                          // só aumenta a chance de ela aparecer num print.
+                          setChave("");
+                          setSalvandoChave(false);
+                        }}
+                      >
+                        {salvandoChave ? "Salvando…" : "Salvar"}
+                      </Button>
+                    </div>
+
+                    <p className="mt-2 text-2xs leading-4 text-muted-foreground">
+                      Ela fica guardada nesta clínica e nunca volta inteira para a tela — nem para
+                      quem a digitou.
+                    </p>
+
+                    {config?.temChavePropria && (
+                      <button
+                        type="button"
+                        onClick={() => void gravar({ chaveDaIa: "" })}
+                        className="mt-3 text-xs text-muted-foreground underline-offset-2 hover:text-danger hover:underline"
+                      >
+                        Remover a chave desta clínica
+                      </button>
+                    )}
+                  </div>
                 )}
               </section>
 

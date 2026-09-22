@@ -422,8 +422,9 @@ async function handleEstado(ownerId: string) {
     confiavel: vendas >= MINIMO_PARA_CONFIAR,
     faltam: Math.max(MINIMO_PARA_CONFIAR - vendas, 0),
     // Só SE existe, nunca o valor. Sem isto, a falta da chave só aparecia como
-    // erro depois de alguém clicar em "Aprender agora".
-    temChave: temChave(),
+    // erro depois de alguém clicar em "Aprender agora". Considera a chave da
+    // clínica e o segredo do ambiente, nessa ordem.
+    temChave: temChave(agente?.api_key ?? null),
     // De onde o manual aprendeu. Responde "aprendeu com o quê?" — a pergunta
     // que aparece assim que o número surpreende.
     porFonte: {
@@ -524,12 +525,15 @@ async function handleInstrucao(ownerId: string) {
  */
 async function handleSimular(ownerId: string, texto: string) {
   const enviados: { texto: string; esperaMs: number }[] = [];
+  const agente = await garantirAgente(ownerId);
+  const chave: string | null = agente?.api_key ?? null;
   const resultado = await atender(
     {
       supabase,
       ownerId,
       historico: async () => [],
-      responderComIa: responderPaciente,
+      responderComIa: (instrucao, historico, mensagem) =>
+        responderPaciente(instrucao, historico, mensagem, chave),
       // Sem `dormir`: a simulação MOSTRA a espera calculada em vez de esperar.
       // Esperar de verdade aqui só faria a tela travar pelo mesmo tempo.
       enviar: async (pedaco, esperaMs) => {

@@ -9,15 +9,26 @@ import Anthropic from "npm:@anthropic-ai/sdk@0.122.0";
  *  paredão de texto é justamente o que a segmentação existe para evitar. */
 const MAX_TOKENS = 2000;
 
-export function temChave(): boolean {
-  return !!Deno.env.get("ANTHROPIC_API_KEY");
+/**
+ * A chave que vai ser usada.
+ *
+ * A da clínica, gravada na tela do agente, tem precedência. O segredo do
+ * ambiente fica como reserva — é onde a chave morava antes de a tela existir,
+ * e quem já o tinha configurado não precisou fazer nada.
+ */
+export function chaveEmUso(chaveDaClinica?: string | null): string | null {
+  return chaveDaClinica?.trim() || Deno.env.get("ANTHROPIC_API_KEY") || null;
 }
 
-export function clienteDaIa(): Anthropic {
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+export function temChave(chaveDaClinica?: string | null): boolean {
+  return !!chaveEmUso(chaveDaClinica);
+}
+
+export function clienteDaIa(chaveDaClinica?: string | null): Anthropic {
+  const apiKey = chaveEmUso(chaveDaClinica);
   if (!apiKey) {
     throw new Error(
-      "A chave da IA não está configurada. No Lovable: Cloud → Secrets → ANTHROPIC_API_KEY.",
+      "A chave da IA não está configurada. Informe-a em Agente IA → Atendimento.",
     );
   }
   return new Anthropic({ apiKey });
@@ -28,9 +39,9 @@ export function clienteDaIa(): Anthropic {
  *
  * A instrução vai em `system` — é ela que carrega o manual e as regras que não
  * podem ser quebradas. O histórico vai como conteúdo do usuário, não como
- * turnos alternados de verdade: o CRM é a fonte da conversa, e remontar turnos
- * a partir dele daria margem a inverter quem disse o quê. Rótulo explícito
- * ("VOCÊ" / "PACIENTE") é mais difícil de errar.
+ * turnos alternados de verdade: remontar turnos a partir do espelho daria
+ * margem a inverter quem disse o quê. Rótulo explícito ("VOCÊ" / "PACIENTE") é
+ * mais difícil de errar.
  *
  * Esforço baixo de propósito: responder uma pergunta de paciente com o método
  * já escrito não é tarefa de raciocínio longo, e latência aqui é alguém
@@ -40,6 +51,8 @@ export async function responderPaciente(
   instrucao: string,
   historico: string,
   mensagem: string,
+  /** A chave da clínica. Sem ela, cai no segredo do ambiente. */
+  chaveDaClinica?: string | null,
 ): Promise<string> {
   const partes = [
     historico ? `Conversa até agora:\n${historico}` : "Esta é a primeira mensagem da conversa.",
@@ -50,7 +63,7 @@ export async function responderPaciente(
     "explicar o que você está fazendo.",
   ].join("\n");
 
-  const resposta = await clienteDaIa().messages.create({
+  const resposta = await clienteDaIa(chaveDaClinica).messages.create({
     model: "claude-opus-5",
     max_tokens: MAX_TOKENS,
     system: instrucao,

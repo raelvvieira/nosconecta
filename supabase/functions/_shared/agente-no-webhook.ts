@@ -84,6 +84,15 @@ export async function deixarOAgenteResponder(
   m: MensagemEspelhada,
 ): Promise<void> {
   try {
+    // A chave da clínica, gravada na tela do agente. Vazia = cai no segredo do
+    // ambiente, que é onde ela morava antes de a tela existir.
+    const { data: agente } = await supabase
+      .from("ai_agents")
+      .select("api_key")
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    const chave: string | null = agente?.api_key ?? null;
+
     const entrada: MensagemDeEntrada = {
       conversationId: m.crmConversationId,
       contactId: m.crmContactId,
@@ -101,7 +110,8 @@ export async function deixarOAgenteResponder(
         supabase,
         ownerId,
         historico: (conversationId) => historicoDoEspelho(supabase, ownerId, conversationId),
-        responderComIa: responderPaciente,
+        responderComIa: (instrucao, historico, mensagem) =>
+          responderPaciente(instrucao, historico, mensagem, chave),
         enviar: async (pedaco, esperaMs) => {
           // A espera é o tempo de digitação. Acontece de verdade aqui — é o
           // que faz a resposta não chegar como um bloco instantâneo.
