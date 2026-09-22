@@ -1,37 +1,32 @@
 import { useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Search, Stethoscope } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
-import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
-import { PageHeading } from "@/components/layout/PageHeading";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   alternarProcedimentoDoAgente,
   getProcedimentosDoAgente,
 } from "@/lib/agente-ia/agente.functions";
-
-export const Route = createFileRoute("/agente-ia/procedimentos")({
-  errorComponent: ({ error }) => (
-    <ResponsiveRouteState
-      error={error}
-      title="Não foi possível carregar os procedimentos"
-      description="Tente novamente em instantes."
-      semSidebar
-    />
-  ),
-  notFoundComponent: () => (
-    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
-  ),
-  component: ProcedimentosPage,
-});
+import { Bloco } from "./campos";
 
 const reais = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
 
-function ProcedimentosPage() {
+/**
+ * O que a IA pode citar e precificar.
+ *
+ * Não é um catálogo novo: é o mesmo `clinic_procedures` da Agenda e do
+ * Financeiro, com a marcação do que ela tem permissão de falar. Duas listas de
+ * preço divergiriam, e preço errado dito a um paciente é o pior defeito
+ * possível aqui.
+ *
+ * Deixar tudo desligado não quer dizer "nada acontece": quer dizer que ela
+ * fica proibida de falar valor e passa toda pergunta de preço adiante.
+ */
+export function Procedimentos() {
   const queryClient = useQueryClient();
   const buscar = useServerFn(getProcedimentosDoAgente);
   const alternar = useServerFn(alternarProcedimentoDoAgente);
@@ -40,7 +35,9 @@ function ProcedimentosPage() {
   const [busca, setBusca] = useState("");
   const [emVoo, setEmVoo] = useState<string | null>(null);
 
-  const lista = query.data ?? [];
+  // `?? []` dentro do render cria um array novo a cada passagem, e o `useMemo`
+  // abaixo dependia dele — ou seja, recalculava sempre e não memorizava nada.
+  const lista = useMemo(() => query.data ?? [], [query.data]);
   const filtrados = useMemo(() => {
     const q = busca.trim().toLocaleLowerCase("pt-BR");
     if (!q) return lista;
@@ -66,43 +63,33 @@ function ProcedimentosPage() {
   };
 
   return (
-    <main className="w-full min-w-0 flex-1 px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
-      <PageHeading
-        className="pr-16 lg:pr-0"
-        icon={Stethoscope}
-        title="Procedimentos"
-        subtitle="O que o agente pode citar e precificar."
-      />
-
-      {/* A consequência de deixar tudo desligado não é "nada acontece": o agente
-          fica proibido de falar preço e passa a conversa adiante. Dizer isso
-          aqui evita a leitura de que a lista é opcional. */}
-      {/* Aviso e busca dividem a linha no monitor largo — esticar um campo de
-          busca por 1400px não ajuda ninguém a buscar. */}
-      <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center">
-        <p className="min-w-0 flex-1 rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">
-          {liberados === 0
-            ? "Nenhum liberado — ele vai passar toda pergunta de preço para uma pessoa."
-            : `${liberados} de ${lista.length} liberados. Fora da lista, ele chama uma pessoa.`}
-        </p>
-
-        <div className="relative shrink-0 lg:w-72">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar procedimento"
-            className="pl-10"
-          />
-        </div>
-      </div>
-
+    <Bloco
+      titulo="Preços que ela pode falar"
+      descricao={
+        liberados === 0
+          ? "Nenhum liberado — ela passa toda pergunta de preço para uma pessoa."
+          : `${liberados} de ${lista.length} liberados. Fora da lista, ela chama uma pessoa.`
+      }
+      acao={
+        lista.length > 0 ? (
+          <div className="relative w-48 shrink-0">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar"
+              className="pl-9"
+            />
+          </div>
+        ) : null
+      }
+    >
       {query.isPending ? (
-        <div className="mt-10 flex justify-center">
+        <div className="flex justify-center py-6">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : lista.length === 0 ? (
-        <p className="mt-10 rounded-3xl border border-border bg-white/70 p-8 text-center text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Nenhum procedimento cadastrado —{" "}
           <Link to="/configuracoes" className="underline underline-offset-2">
             cadastre em Configurações
@@ -110,11 +97,11 @@ function ProcedimentosPage() {
           .
         </p>
       ) : (
-        <ul className="mt-4 grid gap-2.5 sm:grid-cols-2 2xl:grid-cols-3">
+        <ul className="grid gap-2.5 sm:grid-cols-2 2xl:grid-cols-3">
           {filtrados.map((p) => (
             <li
               key={p.id}
-              className="flex items-center gap-4 rounded-2xl border border-border bg-white/70 px-4 py-3.5"
+              className="flex items-center gap-4 rounded-2xl border border-border bg-white px-4 py-3.5"
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{p.nome}</p>
@@ -137,6 +124,6 @@ function ProcedimentosPage() {
           ))}
         </ul>
       )}
-    </main>
+    </Bloco>
   );
 }

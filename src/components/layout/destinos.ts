@@ -2,7 +2,6 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Bot,
-  BookOpen,
   CalendarDays,
   Home,
   LayoutDashboard,
@@ -12,9 +11,7 @@ import {
   MessageCircle,
   Percent,
   Settings,
-  MessageSquare,
   Sparkles,
-  Stethoscope,
   TrendingUp,
   Users,
   Wallet,
@@ -38,9 +35,6 @@ export type RotaDoMenu =
   | "/pacientes"
   | "/atendimentos"
   | "/agente-ia"
-  | "/agente-ia/manual"
-  | "/agente-ia/atendimento"
-  | "/agente-ia/procedimentos"
   | "/configuracoes"
   | "/financeiro"
   | "/recebimentos"
@@ -92,20 +86,16 @@ export const ITENS_FINANCEIRO: ItemDoMenu[] = [
   { label: "Comissões", icon: Percent, to: "/comissoes", placeholder: true },
 ];
 
-/** O agente e as duas coisas que uma pessoa configura nele: o manual que ele
- *  aprendeu e o recorte do catálogo que ele pode citar.
+/** O Agente de IA é UMA página.
  *
- *  Procedimentos aparece aqui, e NÃO como módulo próprio, porque não é um
- *  catálogo novo: é o mesmo `clinic_procedures` da Agenda e do Financeiro, com
- *  a marcação do que o agente tem permissão de precificar. Um segundo catálogo
- *  divergiria do primeiro, e preço errado dito a um paciente é o pior defeito
- *  possível aqui. */
-export const ITENS_AGENTE_IA: Destino[] = [
-  { label: "Agente", icon: Sparkles, to: "/agente-ia" },
-  { label: "Aprendizado", icon: BookOpen, to: "/agente-ia/manual" },
-  { label: "Atendimento", icon: MessageSquare, to: "/agente-ia/atendimento" },
-  { label: "Procedimentos", icon: Stethoscope, to: "/agente-ia/procedimentos" },
-];
+ *  Já foi quatro — Agente, Aprendizado, Atendimento e Procedimentos. Parecia
+ *  organizado e escondia coisa: a chave da IA ficava em "Atendimento", dentro
+ *  do modo Inteligência, então quem estava em modo frase fixa não tinha onde
+ *  cadastrá-la. Achar uma configuração exigia adivinhar a aba.
+ *
+ *  Sem submenu, o módulo não entra em `SUBMENUS` — e a regra que já existe ali
+ *  cuida do resto: módulo de página única mantém a lista de módulos na tela e
+ *  só move o destaque. */
 
 export const ITENS_ATENDIMENTOS: Destino[] = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/atendimentos" },
@@ -125,7 +115,6 @@ export const ITENS_ATENDIMENTOS: Destino[] = [
 export const SUBMENUS: Record<string, { titulo: string; itens: ItemDoMenu[] }> = {
   financeiro: { titulo: "Financeiro", itens: ITENS_FINANCEIRO },
   atendimentos: { titulo: "Atendimentos", itens: ITENS_ATENDIMENTOS },
-  "agente-ia": { titulo: "Agente de IA", itens: ITENS_AGENTE_IA },
 };
 
 /** Grupos da gaveta "Mais" do celular. Deriva das mesmas listas acima, então
@@ -138,7 +127,6 @@ export const GRUPOS_DO_MAIS: { label: string; itens: ItemDoMenu[] }[] = [
     ),
   },
   { label: "Atendimentos", itens: ITENS_ATENDIMENTOS },
-  { label: "Agente de IA", itens: ITENS_AGENTE_IA },
   { label: "Financeiro", itens: ITENS_FINANCEIRO.filter((i) => i.placeholder !== true) },
 ];
 

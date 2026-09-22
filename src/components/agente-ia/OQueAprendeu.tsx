@@ -1,11 +1,8 @@
 import { useEffect, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Loader2, Pencil, ShieldCheck } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Pencil, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
-import { PageHeading } from "@/components/layout/PageHeading";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -16,7 +13,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  aprenderAgora,
   getEstadoDoAgente,
   getInstrucaoDoAgente,
   salvarCorrecao,
@@ -29,31 +25,17 @@ import {
   type EtapaDaConversa,
   type ManualDeVendas,
 } from "@/lib/agente-ia/manual";
-
-export const Route = createFileRoute("/agente-ia/manual")({
-  errorComponent: ({ error }) => (
-    <ResponsiveRouteState
-      error={error}
-      title="Não foi possível carregar o aprendizado"
-      description="Tente novamente em instantes."
-      semSidebar
-    />
-  ),
-  notFoundComponent: () => (
-    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
-  ),
-  component: ManualPage,
-});
+import { Bloco } from "./campos";
 
 /**
  * O que a IA aprendeu lendo as conversas, e a correção de cada parte.
  *
  * ── A leitura vem antes da edição ──────────────────────────────────────
  *
- * Esta página é lida muito mais vezes do que editada: alguém abre para
- * conferir se a IA entendeu o jeito da casa. Então o texto aprendido ocupa o
- * lugar principal, em coluna de medida confortável, e o que edita fica discreto
- * ao lado — presente, sem competir.
+ * Este bloco é lido muito mais vezes do que editado: alguém abre para conferir
+ * se a IA entendeu o jeito da casa. Então o texto aprendido ocupa o lugar
+ * principal, em coluna de medida confortável, e o que edita fica discreto ao
+ * lado — presente, sem competir.
  *
  * Sem caixas empilhadas: dez cartões com borda viram uma grade que se lê como
  * formulário, e isto não é formulário, é um texto sobre como a clínica atende.
@@ -66,12 +48,11 @@ export const Route = createFileRoute("/agente-ia/manual")({
  * "Corrigido" importa: sem ela ninguém sabe mais o que é da IA e o que a
  * equipe escreveu.
  */
-function ManualPage() {
+export function OQueAprendeu() {
   const queryClient = useQueryClient();
   const buscarEstado = useServerFn(getEstadoDoAgente);
   const buscarInstrucao = useServerFn(getInstrucaoDoAgente);
   const salvar = useServerFn(salvarCorrecao);
-  const rodarCiclo = useServerFn(aprenderAgora);
 
   const estadoQuery = useQuery({ queryKey: ["agente-ia"], queryFn: () => buscarEstado() });
   const estado = estadoQuery.data;
@@ -85,17 +66,6 @@ function ManualPage() {
     queryKey: ["agente-ia-instrucao"],
     queryFn: () => buscarInstrucao(),
     enabled: verInstrucao,
-  });
-
-  const aprender = useMutation({
-    mutationFn: () => rodarCiclo({ data: undefined }),
-    onSuccess: async (r) => {
-      await queryClient.invalidateQueries({ queryKey: ["agente-ia"] });
-      await queryClient.invalidateQueries({ queryKey: ["agente-ia-instrucao"] });
-      if (r.aprendeu) toast.success(`Releu ${r.novas} conversa(s) e atualizou o aprendizado.`);
-      else toast.info(r.motivo ?? "Nada novo para aprender.");
-    },
-    onError: (e: Error) => toast.error(e.message),
   });
 
   useEffect(() => {
@@ -119,79 +89,47 @@ function ManualPage() {
     }
   };
 
-  // Vendas do funil MAIS conversas do espelho. Antes era só `vendas`, e como o
-  // funil está vazio a página diria "nada aprendido" para sempre — inclusive
-  // depois de ele aprender com vinte conversas.
   const fontes = Number(estado?.vendas ?? 0) + Number(estado?.conversas ?? 0);
-  const vazio = !!estado && fontes === 0;
 
   return (
-    <main className="w-full min-w-0 flex-1 px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
-      <PageHeading
-        className="pr-16 lg:pr-0"
-        icon={BookOpen}
-        title="O que ela aprendeu"
-        subtitle="O jeito desta clínica atender, tirado das conversas reais."
-        actions={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setVerInstrucao(true)}>
-              Ver instrução
-            </Button>
-            <Button
-              variant="premium"
-              disabled={aprender.isPending}
-              onClick={() => aprender.mutate()}
-            >
-              {aprender.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Reler conversas
-            </Button>
-          </div>
-        }
-      />
-
+    <Bloco
+      titulo="O que ela aprendeu"
+      descricao="O jeito desta clínica atender, tirado das conversas reais."
+      acao={
+        <Button variant="outline" size="sm" onClick={() => setVerInstrucao(true)}>
+          Ver instrução
+        </Button>
+      }
+    >
       {estadoQuery.isPending ? (
-        <div className="mt-10 flex justify-center">
+        <div className="flex justify-center py-6">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
-      ) : vazio ? (
-        <p className="mt-10 max-w-[64ch] rounded-3xl border border-border bg-white/70 p-8 text-sm leading-7 text-muted-foreground">
-          Ela ainda não leu nada. Clique em <strong>Reler conversas</strong> — ela vai ler as
+      ) : fontes === 0 ? (
+        <p className="max-w-[64ch] text-sm leading-7 text-muted-foreground">
+          Ela ainda não leu nada. Use <strong>Aprender agora</strong>, ali em cima — ela vai ler as
           conversas do WhatsApp que tiveram troca dos dois lados, começando pelas de quem virou
           paciente, e escrever aqui o que encontrou.
         </p>
       ) : (
-        /* Coluna de medida confortável, alinhada à esquerda como o resto do
-           produto. Texto corrido em monitor largo passa dos 200 caracteres por
-           linha e fica ilegível; centralizar deixaria o cabeçalho flutuando
-           longe do menu, que é o que o resto das telas evita. */
-        <div className="mt-8 max-w-[70ch]">
-          {/* Uma linha, não um painel: quantas conversas sustentam o que está
-              escrito abaixo. É a pergunta que aparece antes de confiar no
-              texto. */}
-          <p className="text-sm text-muted-foreground">
-            {fontes} conversa{fontes === 1 ? "" : "s"} lida{fontes === 1 ? "" : "s"}
-            {estado?.aprendidoEm &&
-              ` · atualizado em ${new Date(estado.aprendidoEm).toLocaleDateString("pt-BR")}`}
-            {!estado?.confiavel && " · ainda é pouco para generalizar"}
-          </p>
-
-          <div className="mt-6 divide-y divide-border">
-            {SECOES.map(({ campo, titulo, pergunta }) => (
-              <Secao
-                key={campo}
-                titulo={titulo}
-                pergunta={pergunta}
-                corrigido={estado ? foiCorrigido(campo, estado.correcoes) : false}
-                onCorrigir={() => setEditando(campo)}
-              >
-                <Conteudo
-                  campo={campo}
-                  aprendido={estado?.aprendido ?? {}}
-                  correcoes={estado?.correcoes ?? {}}
-                />
-              </Secao>
-            ))}
-          </div>
+        /* Coluna de medida confortável: texto corrido em monitor largo passa
+           dos 200 caracteres por linha e fica ilegível. */
+        <div className="max-w-[70ch] divide-y divide-border">
+          {SECOES.map(({ campo, titulo, pergunta }) => (
+            <Secao
+              key={campo}
+              titulo={titulo}
+              pergunta={pergunta}
+              corrigido={estado ? foiCorrigido(campo, estado.correcoes) : false}
+              onCorrigir={() => setEditando(campo)}
+            >
+              <Conteudo
+                campo={campo}
+                aprendido={estado?.aprendido ?? {}}
+                correcoes={estado?.correcoes ?? {}}
+              />
+            </Secao>
+          ))}
         </div>
       )}
 
@@ -245,7 +183,7 @@ function ManualPage() {
           )}
         </DialogContent>
       </Dialog>
-    </main>
+    </Bloco>
   );
 }
 
@@ -267,7 +205,7 @@ function Secao({
     <section className="group py-7 first:pt-0">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold">{titulo}</h2>
+          <h3 className="text-sm font-semibold">{titulo}</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">{pergunta}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">

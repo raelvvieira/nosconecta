@@ -108,7 +108,7 @@ export function CardDeSugestoes({
             <>
               <p>Falta a chave da IA para ela poder sugerir.</p>
               <Link
-                to="/agente-ia/atendimento"
+                to="/agente-ia"
                 className="mt-1 inline-block font-medium text-success underline-offset-4 hover:underline"
               >
                 Cadastrar a chave
