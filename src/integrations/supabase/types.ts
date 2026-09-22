@@ -205,10 +205,13 @@ export type Database = {
           learn_from_won: boolean
           mode: string
           name: string
+          novo_ate_dias: number
           owner_id: string
           segment_enabled: boolean
           segment_limit: number
           segment_min_size: number
+          so_para_conversa_nova: boolean
+          so_para_nao_paciente: boolean
           updated_at: string
           winning_stage_ids: Json
         }
@@ -225,10 +228,13 @@ export type Database = {
           learn_from_won?: boolean
           mode?: string
           name?: string
+          novo_ate_dias?: number
           owner_id: string
           segment_enabled?: boolean
           segment_limit?: number
           segment_min_size?: number
+          so_para_conversa_nova?: boolean
+          so_para_nao_paciente?: boolean
           updated_at?: string
           winning_stage_ids?: Json
         }
@@ -245,10 +251,13 @@ export type Database = {
           learn_from_won?: boolean
           mode?: string
           name?: string
+          novo_ate_dias?: number
           owner_id?: string
           segment_enabled?: boolean
           segment_limit?: number
           segment_min_size?: number
+          so_para_conversa_nova?: boolean
+          so_para_nao_paciente?: boolean
           updated_at?: string
           winning_stage_ids?: Json
         }
