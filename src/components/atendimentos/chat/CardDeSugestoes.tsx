@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Sparkles } from "lucide-react";
@@ -59,11 +60,27 @@ export function CardDeSugestoes({
   const dados = query.data;
   const sugestoes = dados?.sugestoes ?? [];
 
-  // Sem chave, sem histórico ou recusa: o card some. Um aviso em toda conversa
-  // aberta seria ruído sobre algo que ninguém pediu — e a clínica que nunca
-  // configurou chave não fez nada errado.
-  if (!query.isPending && !sugestoes.length) return null;
+  // Conversa sem mensagem nenhuma: aí sim o card não tem o que fazer, e some.
+  // Sugerir a primeira fala de uma conversa vazia é inventar abertura.
   if (!chaveDasMensagens) return null;
+
+  /**
+   * ── Por que o card NÃO some quando não há sugestão ───────────────────
+   *
+   * A primeira versão sumia em silêncio: sem chave da IA, sem sugestão, sem
+   * card. A intenção era não fazer barulho — e o efeito foi outro. O card
+   * ausente é indistinguível de um card que não existe, então quem abriu a
+   * conversa concluiu, com razão, que a função não tinha sido feita.
+   *
+   * Sumir sem dizer nada é o mesmo defeito que este projeto já pagou caro em
+   * outros lugares: o envio que gravava `skipped_no_contact` e não avisava
+   * ninguém. Aqui o custo é menor, mas a forma é a mesma.
+   *
+   * Então o card aparece, com o motivo e o caminho para resolver. Uma linha
+   * curta, sem alarme.
+   */
+  const semSugestao = !query.isPending && !sugestoes.length;
+  const faltaChave = (dados?.motivo ?? "").includes("chave");
 
   return (
     <CardDoPainel
@@ -84,6 +101,22 @@ export function CardDeSugestoes({
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           Lendo a conversa…
+        </div>
+      ) : semSugestao ? (
+        <div className="text-sm leading-6 text-muted-foreground">
+          {faltaChave ? (
+            <>
+              <p>Falta a chave da IA para ela poder sugerir.</p>
+              <Link
+                to="/agente-ia/atendimento"
+                className="mt-1 inline-block font-medium text-success underline-offset-4 hover:underline"
+              >
+                Cadastrar a chave
+              </Link>
+            </>
+          ) : (
+            <p>{dados?.motivo ?? "Sem sugestão para esta conversa agora."}</p>
+          )}
         </div>
       ) : (
         <ul className="space-y-2.5">
