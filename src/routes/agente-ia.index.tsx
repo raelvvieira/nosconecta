@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Sparkles, Trophy } from "lucide-react";
+import { Check, Loader2, MessagesSquare, Sparkles, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PageHeading } from "@/components/layout/PageHeading";
@@ -97,9 +97,17 @@ function AgentePage() {
   // Número, sempre. Foi assim que a tela chegou a escrever "undefined conversas
   // aprendidas": interpolar direto um campo que pode não ter vindo.
   const vendas = Number(estado?.vendas ?? 0) || 0;
-  const semFonte = !!estado && !estado.aprenderDeGanhos && estado.etapasDeVitoria.length === 0;
-  const progresso = Math.min(100, Math.round((vendas / META_DE_APRENDIZADO) * 100));
-  const pronto = vendas >= META_DE_APRENDIZADO;
+  const conversas = Number(estado?.conversas ?? 0) || 0;
+
+  // O que sustenta o manual é a soma: venda marcada no funil MAIS conversa
+  // real do espelho. Antes isto era só `vendas`, e com o funil vazio a barra
+  // ficaria em zero para sempre — inclusive depois de ele aprender com vinte
+  // conversas.
+  const fontes = vendas + conversas;
+  const semFonteDoFunil =
+    !!estado && !estado.aprenderDeGanhos && estado.etapasDeVitoria.length === 0;
+  const progresso = Math.min(100, Math.round((fontes / META_DE_APRENDIZADO) * 100));
+  const pronto = fontes >= META_DE_APRENDIZADO;
 
   return (
     // Largura cheia e recuos do sistema (`px-4 sm:px-6 lg:px-10`). Antes era
@@ -113,7 +121,7 @@ function AgentePage() {
         className="pr-16 lg:pr-0"
         icon={Sparkles}
         title="Agente de IA"
-        subtitle="Aprende a atender lendo as conversas que fecharam tratamento."
+        subtitle="Aprende a atender lendo as conversas reais da clínica."
         actions={
           estado && (
             <div className="flex items-center gap-3 rounded-2xl border border-border bg-white/70 px-4 py-2.5">
@@ -150,19 +158,19 @@ function AgentePage() {
                   {pronto ? "Pronto para atender" : "Aprendendo"}
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {vendas === 0
+                  {fontes === 0
                     ? "Nenhuma conversa aprendida ainda."
-                    : `${vendas} conversa${vendas === 1 ? "" : "s"} aprendida${vendas === 1 ? "" : "s"}` +
-                      (pronto ? "." : ` · faltam ${META_DE_APRENDIZADO - vendas}.`)}
+                    : `${fontes} conversa${fontes === 1 ? "" : "s"} aprendida${fontes === 1 ? "" : "s"}` +
+                      (pronto ? "." : ` · faltam ${META_DE_APRENDIZADO - fontes}.`)}
                 </p>
               </div>
-              <span className="shrink-0 text-3xl font-semibold tabular-nums">{vendas}</span>
+              <span className="shrink-0 text-3xl font-semibold tabular-nums">{fontes}</span>
             </div>
 
             <div
               className="mt-4 h-2 overflow-hidden rounded-full bg-muted"
               role="progressbar"
-              aria-valuenow={vendas}
+              aria-valuenow={fontes}
               aria-valuemin={0}
               aria-valuemax={META_DE_APRENDIZADO}
               aria-label="Conversas aprendidas"
@@ -172,23 +180,33 @@ function AgentePage() {
                   "h-full rounded-full transition-[width] duration-500",
                   pronto ? "bg-gradient-primary" : "bg-coral/50",
                 )}
-                style={{ width: `${Math.max(progresso, vendas > 0 ? 8 : 0)}%` }}
+                style={{ width: `${Math.max(progresso, fontes > 0 ? 8 : 0)}%` }}
               />
             </div>
 
             {/* De onde veio — responde "aprendeu com o quê?", que é a primeira
                 pergunta quando o número surpreende. */}
-            {vendas > 0 && (
+            {fontes > 0 && (
               <p className="mt-3 text-xs text-muted-foreground">
-                {estado?.porFonte.ganho ?? 0} marcada(s) como Ganho · {estado?.porFonte.etapa ?? 0}{" "}
-                por etapa do funil
+                {[
+                  (estado?.porFonte.paciente ?? 0) > 0 &&
+                    `${estado?.porFonte.paciente} que viraram paciente`,
+                  (estado?.porFonte.conversa ?? 0) > 0 &&
+                    `${estado?.porFonte.conversa} com troca real`,
+                  (estado?.porFonte.ganho ?? 0) > 0 &&
+                    `${estado?.porFonte.ganho} marcada(s) como Ganho`,
+                  (estado?.porFonte.etapa ?? 0) > 0 &&
+                    `${estado?.porFonte.etapa} por etapa do funil`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
             )}
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <Button
                 variant="premium"
-                disabled={rodarCiclo.isPending || semFonte}
+                disabled={rodarCiclo.isPending}
                 onClick={() => rodarCiclo.mutate()}
               >
                 {rodarCiclo.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -208,19 +226,35 @@ function AgentePage() {
           </section>
 
           {/* ── De onde ele aprende ─────────────────────────────────────────
-              Duas fontes. A de Ganho é a principal nesta clínica, porque o
-              desfecho é marcado no chat e muitas vezes sem card no funil — ler
-              só etapa deixava a maior parte das vitórias invisível. */}
+              Três fontes, e a ordem importa: as duas do funil são escolha da
+              clínica (dá para desligar), a das conversas é sempre. Antes eram
+              só as do funil, e com o funil vazio o agente não tinha de onde
+              aprender — ficava "Aprendendo" para sempre, sem dizer por quê. */}
           <section
             className={cn(
               "rounded-3xl border bg-white/70 p-6",
-              semFonte ? "border-coral/40 ring-1 ring-coral/20" : "border-border",
+              semFonteDoFunil ? "border-coral/40 ring-1 ring-coral/20" : "border-border",
             )}
           >
             <h2 className="text-base font-semibold">De onde ele aprende</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              O que conta como tratamento fechado.
+              Ele sempre lê as conversas reais. Abaixo, o que conta como tratamento fechado.
             </p>
+
+            {/* A fonte que não tem interruptor. Fica em primeiro porque é a
+                que está sustentando o manual hoje — esconder isso faria a
+                clínica achar que o funil é que está ensinando. */}
+            <div className="mt-4 flex items-start gap-3 rounded-2xl bg-success-soft px-4 py-3.5">
+              <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/70 text-success">
+                <MessagesSquare className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium">As conversas do WhatsApp</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  As que tiveram troca dos dois lados, começando pelas de quem virou paciente.
+                </p>
+              </div>
+            </div>
 
             <div className="mt-4 flex items-start justify-between gap-4 rounded-2xl bg-muted/60 px-4 py-3.5">
               <div className="flex min-w-0 items-start gap-3">
@@ -279,9 +313,9 @@ function AgentePage() {
               </div>
             </div>
 
-            {semFonte && (
+            {semFonteDoFunil && (
               <p className="mt-4 rounded-xl bg-warning-soft px-3.5 py-2.5 text-sm">
-                Sem nenhuma fonte ligada ele não tem o que aprender.
+                Nenhuma fonte do funil ligada — ele aprende só pelas conversas.
               </p>
             )}
           </section>

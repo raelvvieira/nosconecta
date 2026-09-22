@@ -1,8 +1,8 @@
-// O motor que aprende a atender lendo as conversas que viraram venda.
+// O motor que aprende a atender lendo as conversas reais da clínica.
 //
 // ── O ciclo ────────────────────────────────────────────────────────────────
 //
-//   coletar  →  achar as conversas que entraram numa etapa de vitória
+//   coletar  →  escolher quais conversas ensinam
 //   aprender →  ler as transcrições e destilar o método desta clínica
 //
 // Cada passo tem uma condição de parada que evita gastar chamada de modelo à
@@ -18,6 +18,12 @@
 // nada.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { atender } from "../_shared/atendimento.ts";
+import {
+  contarPorConversa,
+  escolherConversas,
+  type ConversaDoCorpus,
+} from "../_shared/corpus-de-aprendizado.ts";
+import { lerTudo } from "../_shared/ler-paginado.ts";
 import { clienteDaIa, responderPaciente, temChave } from "../_shared/modelo-de-atendimento.ts";
 import {
   CAMPOS_DO_MANUAL,
@@ -61,7 +67,27 @@ const FORMATO_DO_MANUAL = {
     properties: {
       tom: { type: "string" },
       saudacao: { type: "string" },
+      // `minItems: 0` é deliberado. Com `required` de dez campos, o modelo é
+      // obrigado a devolver `etapas` — e um modelo obrigado a preencher uma
+      // lista que não viu acontecer INVENTA etapa. Lista vazia precisa ser
+      // resposta legítima, e o prompt diz isso em palavras também.
+      etapas: {
+        type: "array",
+        minItems: 0,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["nome", "sinais", "objetivo", "proximo_passo"],
+          properties: {
+            nome: { type: "string" },
+            sinais: { type: "string" },
+            objetivo: { type: "string" },
+            proximo_passo: { type: "string" },
+          },
+        },
+      },
       descoberta: { type: "string" },
+      duvidas_de_procedimento: { type: "string" },
       apresentacao_preco: { type: "string" },
       objecoes: {
         type: "array",
@@ -72,6 +98,7 @@ const FORMATO_DO_MANUAL = {
           properties: { objecao: { type: "string" }, resposta: { type: "string" } },
         },
       },
+      agendamento: { type: "string" },
       fechamento: { type: "string" },
       observacoes: { type: "string" },
     },
@@ -87,15 +114,34 @@ const FORMATO_DO_MANUAL = {
  * vender em geral. E "se só houver uma conversa, não generalize" evita que um
  * caso único vire lei, que é o erro mais provável no começo.
  */
-function promptDeAprendizado(transcricoes: string[]): string {
-  const vendas = transcricoes.map((t, i) => `--- VENDA ${i + 1} ---\n${t}`).join("\n\n");
+export interface FonteParaAprender {
+  texto: string;
+  /** A pessoa desta conversa virou paciente da clínica. */
+  virouPaciente: boolean;
+}
+
+function promptDeAprendizado(fontes: FonteParaAprender[]): string {
+  const blocos = fontes
+    .map((f, i) => {
+      const selo = f.virouPaciente ? "VIROU PACIENTE" : "desfecho desconhecido";
+      return `--- CONVERSA ${i + 1} (${selo}) ---\n${f.texto}`;
+    })
+    .join("\n\n");
+
   return [
-    "Abaixo estão conversas reais de WhatsApp que TERMINARAM EM VENDA nesta",
-    "clínica odontológica brasileira. Seu trabalho é descobrir o MÉTODO de",
-    "atendimento desta equipe: como ela fala, o que funciona, o que ela responde",
-    "quando o paciente hesita.",
+    "Abaixo estão conversas reais de WhatsApp de uma clínica odontológica",
+    "brasileira. Seu trabalho é descobrir o MÉTODO de atendimento desta equipe:",
+    "como ela fala, o que funciona, o que ela responde quando o paciente hesita.",
+    "",
+    "Cada conversa vem marcada. \"VIROU PACIENTE\" quer dizer que a pessoa acabou",
+    "virando paciente da clínica — é a evidência mais forte de que aquilo deu",
+    "certo. \"desfecho desconhecido\" quer dizer que não se sabe no que deu.",
     "",
     "Regras:",
+    "- Tire o método principalmente das conversas marcadas VIROU PACIENTE.",
+    "- Conversa de desfecho desconhecido serve para reconhecer o que NÃO",
+    "  destrava e para observar o jeito de falar. Não a cite como exemplo do",
+    "  que funciona.",
     "- Baseie tudo no que está escrito nas conversas. Não invente técnica de",
     "  vendas genérica que não apareça ali.",
     "- Cite frases reais sempre que puder — são elas que ensinam.",
@@ -104,8 +150,12 @@ function promptDeAprendizado(transcricoes: string[]): string {
     "  generalizar demais.",
     "- Não inclua preço específico em `apresentacao_preco`: descreva o MOMENTO e",
     "  a FORMA de falar de valor. Os preços vêm da tabela da clínica, não daqui.",
+    "- Em `etapas`, descreva só as etapas que você VIU acontecer nestas",
+    "  conversas, na ordem em que acontecem. Lista vazia é uma resposta válida",
+    "  e é melhor que uma etapa inventada. Em `sinais`, escreva o que o paciente",
+    "  diz ou faz que mostra que a conversa chegou ali.",
     "",
-    vendas,
+    blocos,
   ].join("\n");
 }
 
@@ -278,6 +328,142 @@ async function coletarVendas(
   };
 }
 
+// ── Coleta pelo espelho ────────────────────────────────────────────────────
+//
+// A coleta pelo funil acima não acha nada e não vai achar tão cedo: o funil
+// começou do zero quando saímos do CRM (0 cards), e os "ganhos" que sobraram
+// apontam para ids de cards que não existem mais. Ela fica, porque volta a ser
+// a melhor fonte no dia em que houver card — venda marcada por uma pessoa é
+// evidência mais forte do que qualquer inferência.
+//
+// Esta aqui é a que funciona hoje. A evidência que ela usa no lugar do funil é
+// a ficha: a pessoa daquela conversa virou paciente da clínica. São 42
+// conversas assim com troca real, contra 318 com troca real no total.
+
+/**
+ * Quem já é paciente, pelo id de contato do WhatsApp.
+ *
+ * `patients.crm_contact_id` e não `wa_contacts.patient_id`: a segunda parece
+ * feita para isto e tem 690 linhas preenchidas, mas **nada no código a
+ * escreve** — foi um backfill que congelou. Esta é a mesma coluna que
+ * `getPatientByCrmContact` usa para escrever "Paciente da clínica" no painel
+ * do chat, então a tela e o aprendizado enxergam a mesma pessoa.
+ */
+async function contatosComFicha(ownerId: string): Promise<Set<string>> {
+  const linhas = await lerTudo<{ crm_contact_id: string | null }>(
+    (de, ate) =>
+      supabase
+        .from("patients")
+        .select("crm_contact_id")
+        .eq("owner_id", ownerId)
+        .not("crm_contact_id", "is", null)
+        .order("crm_contact_id", { ascending: true })
+        .range(de, ate),
+    "pacientes",
+  );
+  return new Set(linhas.map((l) => String(l.crm_contact_id ?? "")).filter(Boolean));
+}
+
+/** As conversas do espelho, com quantas mensagens cada lado escreveu. */
+async function conversasDoEspelho(ownerId: string): Promise<ConversaDoCorpus[]> {
+  const [mensagens, conversas, comFicha] = await Promise.all([
+    lerTudo<{
+      crm_conversation_id: string | null;
+      from_me: boolean | null;
+      body: string | null;
+      is_private: boolean | null;
+    }>(
+      (de, ate) =>
+        supabase
+          .from("wa_messages")
+          .select("crm_conversation_id, from_me, body, is_private")
+          .eq("owner_id", ownerId)
+          // Ordem única: sem ela o `.range` repete linha e pula linha, calado.
+          .order("sent_at", { ascending: true })
+          .order("crm_message_id", { ascending: true })
+          .range(de, ate),
+      "mensagens do espelho",
+    ),
+    lerTudo<{
+      crm_conversation_id: string | null;
+      crm_contact_id: string | null;
+      last_message_at: string | null;
+    }>(
+      (de, ate) =>
+        supabase
+          .from("wa_conversations")
+          .select("crm_conversation_id, crm_contact_id, last_message_at")
+          .eq("owner_id", ownerId)
+          .order("crm_conversation_id", { ascending: true })
+          .range(de, ate),
+      "conversas do espelho",
+    ),
+    contatosComFicha(ownerId),
+  ]);
+
+  const contas = contarPorConversa(mensagens);
+
+  return conversas.map((c) => {
+    const id = String(c.crm_conversation_id ?? "");
+    const conta = contas.get(id) ?? { daClinica: 0, doContato: 0 };
+    return {
+      conversationId: id,
+      // O nome mora em `wa_contacts`, não aqui. Ele é só rótulo na tela de
+      // "de onde ele aprendeu" — não vale uma terceira leitura da base inteira.
+      contactName: null,
+      ehPaciente: comFicha.has(String(c.crm_contact_id ?? "")),
+      daClinica: conta.daClinica,
+      doContato: conta.doContato,
+      ultimaEm: String(c.last_message_at ?? ""),
+    };
+  });
+}
+
+/** Escolhe as conversas da rodada e as registra como fonte. */
+async function coletarDoEspelho(
+  ownerId: string,
+  playbookId: string,
+  vagas: number,
+): Promise<{ novas: number; motivo: string | null; porFonte?: Record<string, number> }> {
+  if (vagas <= 0) return { novas: 0, motivo: null };
+
+  const { data: jaConhecidas } = await supabase
+    .from("ai_playbook_sources")
+    .select("conversation_id")
+    .eq("playbook_id", playbookId);
+  const conhecidas = new Set((jaConhecidas ?? []).map((s: any) => String(s.conversation_id)));
+
+  const escolhidas = escolherConversas(await conversasDoEspelho(ownerId), conhecidas, vagas);
+  if (!escolhidas.length) {
+    return { novas: 0, motivo: "nenhuma conversa nova com troca dos dois lados" };
+  }
+
+  // `upsert` e não `insert`: o cron das 7h e o botão "Aprender agora" podem
+  // correr juntos, e o índice único faria a rodada inteira morrer por uma
+  // conversa repetida que não era problema nenhum.
+  const { error } = await supabase.from("ai_playbook_sources").upsert(
+    escolhidas.map((c) => ({
+      owner_id: ownerId,
+      playbook_id: playbookId,
+      conversation_id: c.conversationId,
+      contact_name: c.contactName,
+      source: c.source,
+      moved_by: "pessoa",
+    })),
+    { onConflict: "playbook_id,conversation_id", ignoreDuplicates: true },
+  );
+  if (error) throw new Error(error.message);
+
+  return {
+    novas: escolhidas.length,
+    motivo: null,
+    porFonte: {
+      paciente: escolhidas.filter((c) => c.source === "paciente").length,
+      conversa: escolhidas.filter((c) => c.source === "conversa").length,
+    },
+  };
+}
+
 // ── Transcrição ────────────────────────────────────────────────────────────
 
 async function transcricao(ownerId: string, conversationId: string): Promise<string | null> {
@@ -314,36 +500,63 @@ async function transcricao(ownerId: string, conversationId: string): Promise<str
 
 // ── Aprendizado ────────────────────────────────────────────────────────────
 
-async function aprender(ownerId: string, playbookId: string) {
+/**
+ * A ordem em que as fontes entram no prompt.
+ *
+ * Venda marcada por uma pessoa é a evidência mais forte; ficha de paciente vem
+ * logo atrás; conversa de desfecho desconhecido é a mais fraca. Sem esta
+ * ordem, vinte fontes gravadas no mesmo instante saem em ordem arbitrária do
+ * banco, e uma venda de verdade pode ficar de fora do prompt por sorteio.
+ */
+const PESO_DA_FONTE: Record<string, number> = { ganho: 0, etapa: 1, paciente: 2, conversa: 3 };
+
+async function aprender(ownerId: string, playbookId: string, chaveDaClinica: string | null) {
   const { data: fontes } = await supabase
     .from("ai_playbook_sources")
-    .select("conversation_id")
+    .select("conversation_id, source")
     // Só o que uma PESSOA moveu. Ver o comentário da coluna na migration: um
     // agente que move card sozinho geraria a própria matéria-prima de treino.
     .eq("moved_by", "pessoa")
     .eq("playbook_id", playbookId)
     .order("learned_at", { ascending: false })
-    .limit(MAX_FONTES);
+    // Lê mais do que cabe no prompt para poder ESCOLHER quais vão — o corte
+    // por peso abaixo é que decide, não a ordem de gravação.
+    .limit(MAX_FONTES * 3);
 
-  if (!fontes?.length) return { aprendeu: false, motivo: "nenhuma venda registrada ainda" };
+  if (!fontes?.length) return { aprendeu: false, motivo: "nenhuma conversa registrada ainda" };
 
-  const transcricoes: string[] = [];
-  for (const f of fontes) {
+  const ordenadas = [...fontes].sort(
+    (a: any, b: any) => (PESO_DA_FONTE[a.source] ?? 9) - (PESO_DA_FONTE[b.source] ?? 9),
+  );
+
+  const paraAprender: FonteParaAprender[] = [];
+  for (const f of ordenadas) {
+    if (paraAprender.length >= MAX_FONTES) break;
     const t = await transcricao(ownerId, String(f.conversation_id));
-    if (t) transcricoes.push(t);
+    if (t) {
+      paraAprender.push({
+        texto: t,
+        // "ganho" e "etapa" vêm do funil: alguém marcou a venda à mão. É a
+        // evidência mais forte que existe aqui, mais ainda que a ficha.
+        virouPaciente: f.source === "paciente" || f.source === "ganho" || f.source === "etapa",
+      });
+    }
   }
-  if (!transcricoes.length) {
-    return { aprendeu: false, motivo: "as conversas dessas vendas não têm mensagens legíveis" };
+  if (!paraAprender.length) {
+    return { aprendeu: false, motivo: "essas conversas não têm mensagens legíveis" };
   }
 
-  const resposta = await clienteDaIa().messages.create({
+  // A chave da clínica, quando ela tem uma. Sem este argumento o aprendizado
+  // usava só o segredo do ambiente — e a chave que a pessoa acabou de colar na
+  // tela do agente não valeria justamente aqui.
+  const resposta = await clienteDaIa(chaveDaClinica).messages.create({
     model: "claude-opus-5",
     max_tokens: 16000,
     // A tarefa é DESCREVER o que está escrito, não inventar método. Esforço
     // médio é o ponto em que ela é feita com cuidado sem virar ensaio.
     thinking: { type: "adaptive" },
     output_config: { effort: "medium", format: FORMATO_DO_MANUAL },
-    messages: [{ role: "user", content: promptDeAprendizado(transcricoes) }],
+    messages: [{ role: "user", content: promptDeAprendizado(paraAprender) }],
   });
 
   if (resposta.stop_reason === "refusal") {
@@ -372,7 +585,7 @@ async function aprender(ownerId: string, playbookId: string) {
     .eq("id", playbookId);
   if (error) throw new Error(error.message);
 
-  return { aprendeu: true, fontes: transcricoes.length };
+  return { aprendeu: true, fontes: paraAprender.length };
 }
 
 // ── Estado ─────────────────────────────────────────────────────────────────
@@ -413,14 +626,20 @@ async function handleEstado(ownerId: string) {
     .eq("playbook_id", playbook.id)
     .eq("moved_by", "pessoa");
   const lista = fontes ?? [];
-  const vendas = lista.length;
+  const total = lista.length;
+  // `vendas` conta só o que veio do funil — venda marcada por uma pessoa. As
+  // conversas do espelho contam para a confiança, mas NÃO podem ser somadas
+  // como venda: a tela diria "20 vendas" sem que exista uma, e o número que
+  // deveria dar segurança viraria o menos confiável da página.
+  const vendas = lista.filter((f: any) => f.source === "ganho" || f.source === "etapa").length;
   return {
     ok: true,
     agente,
     playbook,
     vendas,
-    confiavel: vendas >= MINIMO_PARA_CONFIAR,
-    faltam: Math.max(MINIMO_PARA_CONFIAR - vendas, 0),
+    conversas: total - vendas,
+    confiavel: total >= MINIMO_PARA_CONFIAR,
+    faltam: Math.max(MINIMO_PARA_CONFIAR - total, 0),
     // Só SE existe, nunca o valor. Sem isto, a falta da chave só aparecia como
     // erro depois de alguém clicar em "Aprender agora". Considera a chave da
     // clínica e o segredo do ambiente, nessa ordem.
@@ -429,7 +648,9 @@ async function handleEstado(ownerId: string) {
     // que aparece assim que o número surpreende.
     porFonte: {
       ganho: lista.filter((f: any) => f.source === "ganho").length,
-      etapa: lista.filter((f: any) => f.source !== "ganho").length,
+      etapa: lista.filter((f: any) => f.source === "etapa").length,
+      paciente: lista.filter((f: any) => f.source === "paciente").length,
+      conversa: lista.filter((f: any) => f.source === "conversa").length,
     },
   };
 }
@@ -442,25 +663,32 @@ async function handleCiclo(ownerId: string) {
     ? agente.winning_stage_ids.map(String)
     : [];
 
-  const coleta = await coletarVendas(ownerId, playbook.id, etapas, agente.learn_from_won !== false);
-  if (coleta.novas === 0) {
-    // Para aqui de propósito: reaprender sem venda nova gastaria uma chamada
-    // de modelo para produzir o mesmo texto.
+  // Duas fontes, nesta ordem. O funil primeiro porque venda marcada por uma
+  // pessoa é a evidência mais forte — hoje ele devolve zero, mas volta a
+  // valer assim que houver card. O espelho preenche as vagas que sobrarem.
+  const doFunil = await coletarVendas(ownerId, playbook.id, etapas, agente.learn_from_won !== false);
+  const doEspelho = await coletarDoEspelho(ownerId, playbook.id, MAX_FONTES - doFunil.novas);
+
+  const novas = doFunil.novas + doEspelho.novas;
+  if (novas === 0) {
+    // Para aqui de propósito: reaprender sem conversa nova gastaria uma
+    // chamada de modelo para produzir exatamente o mesmo texto.
+    const motivo = doEspelho.motivo ?? doFunil.motivo;
     await supabase
       .from("ai_sales_playbooks")
-      .update({ last_skip_reason: coleta.motivo })
+      .update({ last_skip_reason: motivo })
       .eq("id", playbook.id);
-    return { ok: true, novas: 0, aprendeu: false, motivo: coleta.motivo };
+    return { ok: true, novas: 0, aprendeu: false, motivo };
   }
 
-  const resultado = await aprender(ownerId, playbook.id);
+  const resultado = await aprender(ownerId, playbook.id, agente.api_key ?? null);
   if (!resultado.aprendeu) {
     await supabase
       .from("ai_sales_playbooks")
       .update({ last_skip_reason: resultado.motivo })
       .eq("id", playbook.id);
   }
-  return { ok: true, novas: coleta.novas, ...resultado };
+  return { ok: true, novas, ...resultado };
 }
 
 /** A instrução exata que o agente vai receber. A tela pede AQUI em vez de

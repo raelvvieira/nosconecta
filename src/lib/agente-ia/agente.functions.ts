@@ -11,11 +11,21 @@ export interface EstadoDoAgente {
   etapasDeVitoria: string[];
   /** Aprender com conversas marcadas como Ganho. Ligado por padrão. */
   aprenderDeGanhos: boolean;
-  /** Quantas vendas sustentam o manual hoje. */
+  /**
+   * Vendas marcadas por uma pessoa no funil. Hoje é zero: o funil começou do
+   * zero quando saímos do CRM.
+   *
+   * Contado separado das conversas de propósito. Somar os dois faria a tela
+   * dizer "20 vendas" sem que exista uma, e o número que deveria dar
+   * segurança seria o menos confiável da página.
+   */
   vendas: number;
+  /** Conversas reais do espelho que sustentam o manual. É daqui que ele vem
+   *  hoje. */
+  conversas: number;
   /** De onde vieram — responde "aprendeu com o quê?". */
-  porFonte: { ganho: number; etapa: number };
-  /** Menos de três vendas: o manual existe, mas generaliza demais. */
+  porFonte: { ganho: number; etapa: number; paciente: number; conversa: number };
+  /** Menos de três fontes: o manual existe, mas generaliza demais. */
   confiavel: boolean;
   faltam: number;
   /** A chave da IA está configurada? Só isso — nunca o valor. */
@@ -57,9 +67,12 @@ export const getEstadoDoAgente = createServerFn({ method: "GET" })
       etapasDeVitoria: Array.isArray(a.winning_stage_ids) ? a.winning_stage_ids.map(String) : [],
       aprenderDeGanhos: a.learn_from_won !== false,
       vendas: Number(json.vendas ?? 0),
+      conversas: Number(json.conversas ?? 0),
       porFonte: {
         ganho: Number(json.porFonte?.ganho ?? 0),
         etapa: Number(json.porFonte?.etapa ?? 0),
+        paciente: Number(json.porFonte?.paciente ?? 0),
+        conversa: Number(json.porFonte?.conversa ?? 0),
       },
       confiavel: !!json.confiavel,
       faltam: Number(json.faltam ?? 0),

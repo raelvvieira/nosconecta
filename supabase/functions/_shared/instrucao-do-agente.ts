@@ -23,13 +23,27 @@
 // da que de fato é enviada, e aí a tela mostraria regras de segurança que não
 // são as que estão valendo. Melhor uma ida ao servidor do que essa mentira.
 
-/** Os sete campos que o aprendizado extrai. */
+/** Uma etapa da conversa, como o aprendizado a reconheceu. */
+export interface EtapaDaConversa {
+  nome?: string | null;
+  /** O que o paciente diz ou faz que mostra que a conversa está AQUI. */
+  sinais?: string | null;
+  /** O que essa etapa precisa alcançar antes de seguir. */
+  objetivo?: string | null;
+  /** O que costuma vir depois, quando dá certo. */
+  proximo_passo?: string | null;
+}
+
+/** Os dez campos que o aprendizado extrai. */
 export interface ManualDeVendas {
   tom?: string | null;
   saudacao?: string | null;
+  etapas?: EtapaDaConversa[] | null;
   descoberta?: string | null;
+  duvidas_de_procedimento?: string | null;
   apresentacao_preco?: string | null;
   objecoes?: { objecao?: string | null; resposta?: string | null }[] | null;
+  agendamento?: string | null;
   fechamento?: string | null;
   observacoes?: string | null;
 }
@@ -37,9 +51,12 @@ export interface ManualDeVendas {
 export const CAMPOS_DO_MANUAL = [
   "tom",
   "saudacao",
+  "etapas",
   "descoberta",
+  "duvidas_de_procedimento",
   "apresentacao_preco",
   "objecoes",
+  "agendamento",
   "fechamento",
   "observacoes",
 ] as const;
@@ -79,11 +96,64 @@ function presente(valor: string | null | undefined): string {
   return t || AUSENTE;
 }
 
+/**
+ * Campo de lista corrigido à mão vira TEXTO.
+ *
+ * A tela de correção tem uma caixa de texto só, igual para os dez campos — é o
+ * que a torna simples de usar. Então `overrides.objecoes` e `overrides.etapas`
+ * chegam aqui como string, e `manualEfetivo` a põe por cima do array.
+ *
+ * Sem esta guarda, `(lista ?? []).filter` numa string estoura `TypeError`
+ * dentro de `montarInstrucao`, que roda DENTRO do `try` de `atender` — vira
+ * falha contada, e cinco delas abrem o disjuntor. Ou seja: corrigir o manual na
+ * tela derrubaria o agente, e a mensagem de erro não falaria de manual nenhum.
+ *
+ * Nunca aconteceu só porque nada nunca foi aprendido, e portanto nada nunca foi
+ * corrigido.
+ */
+function textoCorrigido(valor: unknown): string | null {
+  return typeof valor === "string" && valor.trim() ? valor.trim() : null;
+}
+
 function listaDeObjecoes(lista: ManualDeVendas["objecoes"]): string {
-  const linhas = (lista ?? [])
+  const escrito = textoCorrigido(lista);
+  if (escrito) return escrito;
+
+  const linhas = (Array.isArray(lista) ? lista : [])
     .filter((o) => String(o?.objecao ?? "").trim())
     .map((o) => `- Quando o cliente disser algo como "${String(o.objecao).trim()}":\n  ${String(o.resposta ?? "").trim()}`);
   return linhas.length ? linhas.join("\n") : "(nenhuma objeção aprendida ainda.)";
+}
+
+/**
+ * As etapas, numeradas.
+ *
+ * A numeração não é enfeite: é o que deixa o agente — e as sugestões de fala
+ * do chat — dizer "a conversa está na 2" em vez de inventar um nome de etapa
+ * a cada mensagem. `sinais` é como se reconhece a etapa; `proximo_passo` é
+ * para onde empurrar.
+ */
+function listaDeEtapas(lista: ManualDeVendas["etapas"]): string {
+  const escrito = textoCorrigido(lista);
+  if (escrito) return escrito;
+
+  const etapas = (Array.isArray(lista) ? lista : []).filter((e) =>
+    String(e?.nome ?? "").trim(),
+  );
+  if (!etapas.length) return "(as etapas ainda não foram aprendidas.)";
+
+  return etapas
+    .map((e, i) => {
+      const linhas = [`${i + 1}. ${String(e.nome).trim()}`];
+      const sinais = String(e.sinais ?? "").trim();
+      const objetivo = String(e.objetivo ?? "").trim();
+      const proximo = String(e.proximo_passo ?? "").trim();
+      if (sinais) linhas.push(`   Reconhece por: ${sinais}`);
+      if (objetivo) linhas.push(`   Objetivo: ${objetivo}`);
+      if (proximo) linhas.push(`   Depois: ${proximo}`);
+      return linhas.join("\n");
+    })
+    .join("\n");
 }
 
 function precoEmReais(v: number | null | undefined): string {
@@ -99,7 +169,7 @@ function precoEmReais(v: number | null | undefined): string {
  * um número, e num negócio de serviço esse é o pior erro possível — o paciente
  * chega na clínica com um preço na cabeça que ninguém combinou.
  */
-function tabelaDePrecos(procedimentos: ProcedimentoDoAgente[]): string {
+export function tabelaDePrecos(procedimentos: ProcedimentoDoAgente[]): string {
   if (!procedimentos.length) {
     return [
       "## Preços",
@@ -130,9 +200,9 @@ export function montarInstrucao({ clinica, manual, procedimentos }: EntradaDaIns
   const partes = [
     `Você atende pacientes por WhatsApp em nome de ${clinica}.`,
     "",
-    "Você aprendeu a atender lendo as conversas reais que fecharam venda nesta",
-    "clínica. Siga o método abaixo — ele é o jeito desta clínica atender, não um",
-    "roteiro genérico de vendas.",
+    "Você aprendeu a atender lendo as conversas reais desta clínica. Siga o",
+    "método abaixo — ele é o jeito desta clínica atender, não um roteiro",
+    "genérico de vendas.",
     "",
     "## Como falar",
     presente(manual.tom),
@@ -140,14 +210,26 @@ export function montarInstrucao({ clinica, manual, procedimentos }: EntradaDaIns
     "## Como começar a conversa",
     presente(manual.saudacao),
     "",
+    "## As etapas da conversa",
+    "Antes de responder, veja em qual etapa esta conversa está e conduza para a",
+    "próxima. Não pule etapa.",
+    "",
+    listaDeEtapas(manual.etapas),
+    "",
     "## O que descobrir antes de oferecer",
     presente(manual.descoberta),
+    "",
+    "## Como tirar dúvida sobre procedimento",
+    presente(manual.duvidas_de_procedimento),
     "",
     "## Quando e como falar de preço",
     presente(manual.apresentacao_preco),
     "",
     "## Como responder às dúvidas mais comuns",
     listaDeObjecoes(manual.objecoes),
+    "",
+    "## Como marcar a consulta",
+    presente(manual.agendamento),
     "",
     "## Como conduzir para a decisão",
     presente(manual.fechamento),
