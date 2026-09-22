@@ -102,7 +102,7 @@ export const ITENS_FINANCEIRO: ItemDoMenu[] = [
  *  possível aqui. */
 export const ITENS_AGENTE_IA: Destino[] = [
   { label: "Agente", icon: Sparkles, to: "/agente-ia" },
-  { label: "Manual", icon: BookOpen, to: "/agente-ia/manual" },
+  { label: "Aprendizado", icon: BookOpen, to: "/agente-ia/manual" },
   { label: "Atendimento", icon: MessageSquare, to: "/agente-ia/atendimento" },
   { label: "Procedimentos", icon: Stethoscope, to: "/agente-ia/procedimentos" },
 ];
@@ -131,7 +131,12 @@ export const SUBMENUS: Record<string, { titulo: string; itens: ItemDoMenu[] }> =
 /** Grupos da gaveta "Mais" do celular. Deriva das mesmas listas acima, então
  *  não tem como um item existir aqui com outro ícone — ou nem existir. */
 export const GRUPOS_DO_MAIS: { label: string; itens: ItemDoMenu[] }[] = [
-  { label: "Módulos", itens: MODULOS.filter((m) => m.to !== "/atendimentos" && m.to !== "/financeiro" && m.to !== "/agente-ia") },
+  {
+    label: "Módulos",
+    itens: MODULOS.filter(
+      (m) => m.to !== "/atendimentos" && m.to !== "/financeiro" && m.to !== "/agente-ia",
+    ),
+  },
   { label: "Atendimentos", itens: ITENS_ATENDIMENTOS },
   { label: "Agente de IA", itens: ITENS_AGENTE_IA },
   { label: "Financeiro", itens: ITENS_FINANCEIRO.filter((i) => i.placeholder !== true) },
@@ -144,7 +149,11 @@ export const GRUPOS_DO_MAIS: { label: string; itens: ItemDoMenu[] }[] = [
  *  montou: a lista chegava vazia e sobrava só o "+", encostado na borda. Como
  *  esse par nunca muda, a forma mora aqui e a página registra apenas o que de
  *  fato é dela — o que acontece ao tocar. */
-export const ACOES_DA_AGENDA: { id: "compromisso" | "calendario"; label: string; icon: LucideIcon }[] = [
+export const ACOES_DA_AGENDA: {
+  id: "compromisso" | "calendario";
+  label: string;
+  icon: LucideIcon;
+}[] = [
   { id: "compromisso", label: "Compromisso", icon: Lock },
   { id: "calendario", label: "Calendário", icon: CalendarDays },
 ];
