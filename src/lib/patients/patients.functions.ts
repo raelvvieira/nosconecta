@@ -332,14 +332,15 @@ const patientInput = (input: {
   guardianName?: string;
   guardianCpf?: string;
   /**
-   * Contato do CRM que originou este paciente, quando ele nasce de uma
-   * conversa de WhatsApp em vez do cadastro manual.
+   * Identificador da pessoa no WhatsApp que originou este paciente, quando ele
+   * nasce de uma conversa em vez do cadastro manual.
    *
-   * Gravar isto na criação importa por dois motivos. O `handleUpsert` do
-   * crm-contacts lê esta coluna: com ela preenchida ele faz PATCH no contato
-   * que já existe, sem ela cria um contato duplicado. E é por ela que o
-   * `resolvePerson` da Meta CAPI acha o paciente quando o evento não traz
-   * patientId.
+   * O nome diz "crm" por herança: a coluna nasceu quando os contatos vinham do
+   * CRM externo, que não existe mais. O que ela guarda continua valendo, e
+   * gravá-la na criação importa por dois motivos. É a chave que evita paciente
+   * duplicado — `resolverPacienteDoContato` reencontra por ela em vez de criar
+   * um segundo. E é por ela que o `resolvePerson` da Meta CAPI acha o paciente
+   * quando o evento não traz patientId, inclusive em conversão antiga.
    */
   crmContactId?: string;
   /** Só é lido de fato pra admin — quem não é admin sempre cai na própria
@@ -407,9 +408,9 @@ export const getPatientByCrmContact = createServerFn({ method: "GET" })
  * e o casamento na Meta se perde. Era o que acontecia com todo "Ganho" do
  * funil.
  *
- * É idempotente por `crm_contact_id`: reencontra em vez de duplicar, dos dois
- * lados — aqui e no `handleUpsert` do crm-contacts, que dá PATCH no contato
- * existente em vez de criar outro.
+ * É idempotente por `crm_contact_id`: reencontra em vez de duplicar. A coluna
+ * é o identificador da pessoa no WhatsApp — o nome é herança do CRM externo,
+ * que não existe mais, mas a chave continua sendo a mesma.
  *
  * O telefone é gravado no formato do `formatWhatsappNumber`, igual ao caminho
  * da Agenda. Duas convenções na mesma coluna seria pior que nenhuma; o

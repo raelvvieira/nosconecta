@@ -26,7 +26,8 @@
 // um arquivo por chamada, então viram mensagens seguidas, o texto como legenda
 // da primeira. É diferente do que era; perder os arquivos seria pior.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { decidirCaminho } from "../_shared/evolution-api.ts";
+import { conexaoParaEnviar } from "../_shared/evolution-api.ts";
+import { explicarSemConexao } from "../_shared/evolution-rota.ts";
 import { enviarPelaEvolution } from "../_shared/whatsapp-send.ts";
 
 const supabase = createClient(
@@ -89,12 +90,8 @@ async function handleSend(
     return await gravarNota(ownerId, conversationId, content);
   }
 
-  const { caminho, instancia } = await decidirCaminho(supabase, ownerId);
-  if (caminho !== "evolution" || !instancia) {
-    throw new Error(
-      "O WhatsApp da clínica não está conectado. Conecte o número em Atendimentos para poder responder.",
-    );
-  }
+  const { instancia, motivo } = await conexaoParaEnviar(supabase, ownerId);
+  if (!instancia) throw new Error(explicarSemConexao(motivo));
 
   const alvo = { conversation_id: conversationId };
 

@@ -5,7 +5,8 @@
 // client de módulo por closure, porque este arquivo é importado por mais de
 // uma função e cada uma tem o seu.
 import type { AlvoDeEnvio } from "./alvo-de-envio.ts";
-import { decidirCaminho, evolutionFetch } from "./evolution-api.ts";
+import { conexaoParaEnviar, evolutionFetch } from "./evolution-api.ts";
+import { explicarSemConexao } from "./evolution-rota.ts";
 import { gravarMensagemEspelhada, mensagemEnviada } from "./espelho-evolution.ts";
 import {
   corpoDeMidia,
@@ -47,19 +48,14 @@ export async function enviarWhatsapp(
   // e tudo que sair por ele cai no vazio. A decisão está em
   // `evolution-rota.ts`, e ela é tomada pelo ESTADO das duas conexões — não
   // por uma chave que alguém precisa lembrar de virar.
-  // Uma conexão, um caminho.
+  // Qual conexão atende.
   //
-  // Isto já decidiu entre dois: o CRM e a conexão própria. A decisão existia
-  // porque um número de WhatsApp só vive numa sessão por vez — no instante em
-  // que ele foi pareado aqui, o CRM perdeu a sessão e tudo o que saísse por lá
-  // cairia no vazio. Agora só há um lado, e `decidirCaminho` serve para dizer
-  // se ele está de pé.
-  const { caminho, instancia } = await decidirCaminho(supabase, ownerId);
-  if (caminho !== "evolution" || !instancia) {
-    throw new Error(
-      "O WhatsApp da clínica não está conectado. Conecte o número em Atendimentos para poder enviar.",
-    );
-  }
+  // Isto já escolheu entre duas — o CRM e a conexão própria. Hoje a pergunta é
+  // outra e continua não sendo trivial: mais de uma sessão aberta significa
+  // que alguém pareou um chip de teste, e mandar por ele é falar com paciente
+  // pelo número errado. A regra mora em `evolution-rota.ts`, com teste.
+  const { instancia, motivo } = await conexaoParaEnviar(supabase, ownerId);
+  if (!instancia) throw new Error(explicarSemConexao(motivo));
   return await enviarPelaEvolution(supabase, ownerId, instancia, alvo, message, midia);
 }
 
@@ -167,11 +163,11 @@ async function destinoDoAlvo(
 
   // Pela CONVERSA — que é o único dado que o chat tem em mãos.
   //
-  // `crm-conversations/handleSend` chama daqui com `contact_id: ""`: a tela
-  // manda o id da conversa, não o do contato. Numa conversa ANTIGA esse id é
-  // um UUID do CRM ("1edf217b-baf2-4288-a1b8-00c43bbb0ef1"), sem "@", então
-  // os dois degraus acima não pegam e os dois abaixo procuram por um contato
-  // vazio.
+  // `wa-enviar/handleSend` chama daqui sem `contact_id`: a tela manda o id da
+  // conversa, não o do contato. Numa conversa ANTIGA — das que foram copiadas
+  // do CRM antes de ele sair — esse id é um UUID ("1edf217b-baf2-4288-a1b8-
+  // 00c43bbb0ef1"), sem "@", então os dois degraus acima não pegam e os dois
+  // abaixo procuram por um contato vazio.
   //
   // Medido no banco: das 969 linhas da caixa de entrada, 961 abrem uma
   // conversa antiga — é a mais recente de cada pessoa. Sem este degrau, o

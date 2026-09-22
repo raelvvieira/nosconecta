@@ -1,159 +1,120 @@
-// Checagens de por onde a mensagem sai.
+// Checagens de qual conexão atende.
 //
-// O caso que mais importa aqui é o do TESTE: enquanto a conexão nova é
-// experimentada com um chip velho, existem duas conexões abertas ao mesmo
-// tempo. Errar isto manda campanha de verdade, para paciente de verdade,
-// pelo número errado.
-import { caminhoDeEnvio } from "../supabase/functions/_shared/evolution-rota.ts";
+// ── O que estas checagens protegiam antes ───────────────────────────────
+//
+// Havia duas conexões possíveis — a do CRM e a própria — e escolher errado
+// mandava campanha de verdade, para paciente de verdade, pelo número errado. O
+// caso concreto: o teste da conexão nova era feito com um chip velho, e uma
+// regra ingênua ("se tem instância conectada, manda por ela") faria todo
+// disparo da clínica sair por aquele chip.
+//
+// O CRM acabou, e com ele o segundo ponto de referência que dizia qual era o
+// número de verdade da clínica. O perigo NÃO acabou: continua sendo possível
+// alguém parear outro número para experimentar alguma coisa.
+//
+// A regra nova é a única honesta sem esse ponto de referência: uma conexão
+// aberta é a da clínica; duas ou mais, não dá para saber — e não saber é
+// motivo para não mandar. Recusar vira erro na fila e alguém desconecta a que
+// sobra. Adivinhar vira mensagem entregue pelo número errado, calada.
+import {
+  conexaoQueAtende,
+  explicarSemConexao,
+} from "../supabase/functions/_shared/evolution-rota.ts";
 
 let ok = 0;
 const falhas: string[] = [];
 function conferir(nome: string, obtido: unknown, esperado: unknown) {
-  if (obtido === esperado) ok++;
-  else falhas.push(`${nome} — esperado ${JSON.stringify(esperado)}, veio ${JSON.stringify(obtido)}`);
+  if (JSON.stringify(obtido) === JSON.stringify(esperado)) ok++;
+  else
+    falhas.push(`${nome} — esperado ${JSON.stringify(esperado)}, veio ${JSON.stringify(obtido)}`);
 }
 
-const CLINICA = "5548984195309";
-const CHIP_DE_TESTE = "5548999998888";
+const conexao = (instancia: string, telefone: string | null = "554884195309") => ({
+  instancia,
+  telefone,
+});
 
-// ── Hoje: só o CRM existe ────────────────────────────────────────────────
+// ── O caso normal ────────────────────────────────────────────────────────
+conferir("uma conexão aberta é a da clínica", conexaoQueAtende([conexao("nos-teste")]), {
+  instancia: "nos-teste",
+  motivo: null,
+});
+// Sem telefone registrado ainda — acabou de conectar e o evento não chegou.
+// Continua sendo a única, e é ela que atende.
 conferir(
-  "sem instância nenhuma",
-  caminhoDeEnvio({ instancia: null, telefoneDaInstancia: null, statusDoCrm: "open", telefoneDoCrm: CLINICA }),
-  "crm",
-);
-conferir(
-  "sem instância e CRM caído",
-  caminhoDeEnvio({ instancia: null, telefoneDaInstancia: null, statusDoCrm: "disconnected", telefoneDoCrm: CLINICA }),
-  "crm",
-);
-
-// ── O teste com outro chip: as duas abertas, números diferentes ──────────
-conferir(
-  "chip de teste não sequestra o envio",
-  caminhoDeEnvio({
-    instancia: "nos-a1b2c3d4",
-    telefoneDaInstancia: CHIP_DE_TESTE,
-    statusDoCrm: "open",
-    telefoneDoCrm: CLINICA,
-  }),
-  "crm",
-);
-// Mesmo antes de o webhook informar o número do chip, o CRM aberto manda.
-conferir(
-  "chip de teste ainda sem número conhecido",
-  caminhoDeEnvio({
-    instancia: "nos-a1b2c3d4",
-    telefoneDaInstancia: null,
-    statusDoCrm: "open",
-    telefoneDoCrm: CLINICA,
-  }),
-  "crm",
+  "uma conexão sem telefone ainda atende",
+  conexaoQueAtende([conexao("nos-teste", null)]).instancia,
+  "nos-teste",
 );
 
-// ── A virada ─────────────────────────────────────────────────────────────
-// O número da clínica aparece na nossa instância: migrou, mesmo que o CRM
-// ainda não tenha percebido e continue dizendo "open".
+// ── Nenhuma ──────────────────────────────────────────────────────────────
+conferir("nenhuma aberta", conexaoQueAtende([]), {
+  instancia: null,
+  motivo: "nenhuma conexão aberta",
+});
+
+// ── O CASO QUE IMPORTA: duas abertas ─────────────────────────────────────
+// O chip de teste pareado ao lado do número da clínica. Escolher qualquer uma
+// é um palpite sobre com qual número a clínica quer falar — e o palpite errado
+// fala com paciente.
+{
+  const r = conexaoQueAtende([
+    conexao("nos-clinica", "554884195309"),
+    conexao("chip-de-teste", "5551999990000"),
+  ]);
+  conferir("duas abertas: não escolhe", r.instancia, null);
+  conferir("e diz por quê", r.motivo, "mais de uma conexão aberta");
+}
+// Nem se forem três, nem se os telefones forem desconhecidos.
 conferir(
-  "mesmo número dos dois lados = migrou",
-  caminhoDeEnvio({
-    instancia: "nos-a1b2c3d4",
-    telefoneDaInstancia: CLINICA,
-    statusDoCrm: "open",
-    telefoneDoCrm: CLINICA,
-  }),
-  "evolution",
-);
-// Comparação por dígitos: os dois lados escrevem o número de jeitos diferentes.
-conferir(
-  "mesmo número escrito diferente",
-  caminhoDeEnvio({
-    instancia: "nos-a1b2c3d4",
-    telefoneDaInstancia: "5548984195309",
-    statusDoCrm: "open",
-    telefoneDoCrm: "+55 (48) 98419-5309",
-  }),
-  "evolution",
-);
-// O CRM já percebeu que perdeu a sessão.
-conferir(
-  "CRM desconectado e Evolution aberta",
-  caminhoDeEnvio({
-    instancia: "nos-a1b2c3d4",
-    telefoneDaInstancia: CLINICA,
-    statusDoCrm: "disconnected",
-    telefoneDoCrm: CLINICA,
-  }),
-  "evolution",
+  "três abertas também não",
+  conexaoQueAtende([conexao("a"), conexao("b"), conexao("c")]).instancia,
+  null,
 );
 conferir(
-  "CRM em erro e Evolution aberta",
-  caminhoDeEnvio({
-    instancia: "nos-a1b2c3d4",
-    telefoneDaInstancia: null,
-    statusDoCrm: "error",
-    telefoneDoCrm: null,
-  }),
-  "evolution",
-);
-// Clínica que nunca teve CRM: a nossa conexão é a única que existe.
-conferir(
-  "sem CRM nenhum",
-  caminhoDeEnvio({
-    instancia: "nos-a1b2c3d4",
-    telefoneDaInstancia: CLINICA,
-    statusDoCrm: null,
-    telefoneDoCrm: null,
-  }),
-  "evolution",
+  "duas sem telefone também não",
+  conexaoQueAtende([conexao("a", null), conexao("b", null)]).motivo,
+  "mais de uma conexão aberta",
 );
 
-// ── Casos de borda que não podem virar decisão errada ────────────────────
-// Número vazio não é "número igual": comparar "" com "" diria que migrou.
+// ── Lixo na lista não conta como conexão ─────────────────────────────────
+// Uma linha sem nome de instância não é uma conexão — e se contasse, ela
+// sozinha bloquearia o envio da clínica inteira por "mais de uma".
 conferir(
-  "dois números vazios não são iguais",
-  caminhoDeEnvio({ instancia: "nos-x", telefoneDaInstancia: "", statusDoCrm: "open", telefoneDoCrm: "" }),
-  "crm",
+  "linha sem nome é ignorada",
+  conexaoQueAtende([conexao("nos-teste"), { instancia: "", telefone: null }]).instancia,
+  "nos-teste",
 );
 conferir(
-  "número só com máscara não é igual",
-  caminhoDeEnvio({ instancia: "nos-x", telefoneDaInstancia: "()- ", statusDoCrm: "open", telefoneDoCrm: "+ " }),
-  "crm",
-);
-// O buraco que esta checagem fecha: durante o teste, um "connecting"
-// passageiro do CRM mandaria o disparo inteiro pelo chip de teste. Com os
-// dois números conhecidos e diferentes, não há status que mude a decisão.
-conferir(
-  "CRM piscando 'conectando' não entrega o disparo ao chip de teste",
-  caminhoDeEnvio({
-    instancia: "nos-x",
-    telefoneDaInstancia: CHIP_DE_TESTE,
-    statusDoCrm: "connecting",
-    telefoneDoCrm: CLINICA,
-  }),
-  "crm",
+  "só espaços também é ignorada",
+  conexaoQueAtende([conexao("nos-teste"), { instancia: "   ", telefone: null }]).instancia,
+  "nos-teste",
 );
 conferir(
-  "CRM caído não entrega o disparo ao chip de teste",
-  caminhoDeEnvio({
-    instancia: "nos-x",
-    telefoneDaInstancia: CHIP_DE_TESTE,
-    statusDoCrm: "disconnected",
-    telefoneDoCrm: CLINICA,
-  }),
-  "crm",
+  "lista só de lixo é nenhuma",
+  conexaoQueAtende([{ instancia: "", telefone: null }]).motivo,
+  "nenhuma conexão aberta",
 );
-// Sem saber o número da instância, o status do CRM volta a decidir — é a
-// janela de segundos entre parear e o webhook contar qual número é.
+
+// ── O motivo vira frase ──────────────────────────────────────────────────
+// Ela sobe até a tela de quem tentou enviar. "Não enviou" sem motivo é o que
+// faz alguém abrir o banco às onze da noite.
 conferir(
-  "CRM caído e número da instância ainda desconhecido",
-  caminhoDeEnvio({
-    instancia: "nos-x",
-    telefoneDaInstancia: null,
-    statusDoCrm: "disconnected",
-    telefoneDoCrm: CLINICA,
-  }),
-  "evolution",
+  "frase de duas conexões diz o que fazer",
+  explicarSemConexao("mais de uma conexão aberta").includes("Desconecte"),
+  true,
+);
+conferir(
+  "frase de nenhuma conexão diz o que fazer",
+  explicarSemConexao("nenhuma conexão aberta").includes("Conecte o número"),
+  true,
+);
+// As duas frases são diferentes: se fossem iguais, quem lesse iria conectar de
+// novo justamente quando o problema é ter conexão demais.
+conferir(
+  "as duas frases são diferentes",
+  explicarSemConexao("mais de uma conexão aberta") !== explicarSemConexao("nenhuma conexão aberta"),
+  true,
 );
 
 if (falhas.length) {
@@ -161,4 +122,4 @@ if (falhas.length) {
   for (const f of falhas) console.error("  - " + f);
   process.exit(1);
 }
-console.log(`ok — ${ok} checagens do caminho de envio`);
+console.log(`ok — ${ok} checagens da conexão que atende`);

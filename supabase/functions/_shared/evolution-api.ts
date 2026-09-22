@@ -8,7 +8,7 @@
 // O `supabase` entra sempre como parâmetro, nunca por closure de módulo: este
 // arquivo é importado por mais de uma Edge Function e cada uma tem o seu.
 
-import { type Caminho, caminhoDeEnvio } from "./evolution-rota.ts";
+import { type EscolhaDaConexao, conexaoQueAtende } from "./evolution-rota.ts";
 
 const BASE = (Deno.env.get("EVOLUTION_API_URL") ?? "").replace(/\/+$/, "");
 const CHAVE = Deno.env.get("EVOLUTION_API_KEY") ?? "";
@@ -45,71 +45,52 @@ export async function evolutionFetch(
 }
 
 /**
- * O nome da instância CONECTADA desta clínica, ou `null`.
+ * A conexão que atende esta clínica.
  *
- * É esta função que decide por onde uma mensagem sai. E ela pergunta ao
- * ESTADO, não a uma bandeira de configuração: enquanto nenhum número estiver
- * pareado aqui, tudo continua saindo pelo CRM sem ninguém precisar lembrar de
- * desligar nada. E voltar atrás, se a conexão nova der problema, é
- * desconectar o número — não um deploy.
+ * Pergunta ao ESTADO, não a uma bandeira de configuração: `status` é escrito
+ * pelo `wa-webhook` no evento `connection.update` e pela `wa-conexao` a cada
+ * consulta. Voltar atrás, se a conexão der problema, é desconectar o número —
+ * não um deploy.
  *
- * `status` é escrito pelo `wa-webhook` no evento `connection.update` e pela
- * `wa-conexao` a cada consulta de estado.
+ * Traz TODAS as abertas, e não a mais recente: a regra de qual delas atende
+ * mora em `evolution-rota.ts`, que é pura e tem teste. Pegar a mais recente
+ * aqui seria justamente o engano que aquele arquivo existe para impedir — o
+ * chip de teste é, por definição, o que acabou de ser pareado.
  */
+export async function conexaoParaEnviar(
+  supabase: any,
+  ownerId: string,
+): Promise<EscolhaDaConexao> {
+  if (!evolutionConfigurada()) {
+    return { instancia: null, motivo: "nenhuma conexão aberta" };
+  }
+
+  const { data, error } = await supabase
+    .from("wa_instances")
+    .select("instance_name, phone_e164")
+    .eq("owner_id", ownerId)
+    .eq("status", "open");
+  if (error) {
+    // Não dá para saber o que está conectado. Tratar como "nenhuma" e não
+    // mandar: o erro aparece na fila, com motivo. Chutar aqui mandaria pela
+    // instância errada.
+    console.warn("[evolution-api] não deu para ler wa_instances:", error.message);
+    return { instancia: null, motivo: "nenhuma conexão aberta" };
+  }
+
+  return conexaoQueAtende(
+    (data ?? []).map((linha: any) => ({
+      instancia: String(linha.instance_name ?? ""),
+      telefone: linha.phone_e164 ?? null,
+    })),
+  );
+}
+
+/** O nome da instância conectada, ou `null`. Para quem só precisa saber se há
+ *  uma — o estado da tela, por exemplo — e não vai enviar nada. */
 export async function instanciaConectada(
   supabase: any,
   ownerId: string,
 ): Promise<string | null> {
-  if (!evolutionConfigurada()) return null;
-  const { data, error } = await supabase
-    .from("wa_instances")
-    .select("instance_name")
-    .eq("owner_id", ownerId)
-    .eq("status", "open")
-    .order("connected_at", { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) {
-    // Não dá para saber se está conectado: segue pelo CRM, que é o caminho
-    // que funciona hoje. Falha de leitura não pode virar mensagem não enviada.
-    console.warn("[evolution-api] não deu para ler wa_instances:", error.message);
-    return null;
-  }
-  return data?.instance_name ?? null;
-}
-
-/**
- * A decisão de por onde a mensagem sai, com as leituras que ela precisa.
- *
- * Mora aqui, e não em `evolution-rota.ts`, porque aquele arquivo é puro de
- * propósito — é ele que a suíte de testes exercita, caso a caso, sem banco.
- * Aqui ficam as consultas; lá fica a regra.
- *
- * Um ponto só de decisão: o chat e o hub de campanhas/automações chamam esta
- * função. Decidir duas vezes na mesma mensagem custaria quatro consultas e
- * criaria a chance de as duas respostas divergirem.
- */
-export async function decidirCaminho(
-  supabase: any,
-  ownerId: string,
-): Promise<{ caminho: Caminho; instancia: string | null }> {
-  const instancia = await instanciaConectada(supabase, ownerId);
-  if (!instancia) return { caminho: "crm", instancia: null };
-
-  const [{ data: cred }, { data: inst }] = await Promise.all([
-    supabase
-      .from("crm_credentials")
-      .select("whatsapp_status, phone_number")
-      .eq("owner_id", ownerId)
-      .maybeSingle(),
-    supabase.from("wa_instances").select("phone_e164").eq("instance_name", instancia).maybeSingle(),
-  ]);
-
-  const caminho = caminhoDeEnvio({
-    instancia,
-    telefoneDaInstancia: inst?.phone_e164 ?? null,
-    statusDoCrm: cred?.whatsapp_status ?? null,
-    telefoneDoCrm: cred?.phone_number ?? null,
-  });
-  return { caminho, instancia };
+  return (await conexaoParaEnviar(supabase, ownerId)).instancia;
 }

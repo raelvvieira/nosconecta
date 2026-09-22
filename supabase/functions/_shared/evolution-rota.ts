@@ -1,69 +1,69 @@
-// Por onde a mensagem sai: pela Evolution própria ou pelo CRM.
+// Qual conexão atende — e quando é mais seguro não mandar nada.
 //
-// ── Por que não é uma bandeira de configuração ──────────────────────────
+// ── O que este arquivo decidia antes ────────────────────────────────────
 //
-// Uma chave "usar_evolution: true" precisaria ser virada por alguém, no
-// minuto exato, e esquecer de virar é o sistema mudo. A decisão sai do
-// ESTADO real das duas conexões, então ela acontece sozinha na hora em que o
-// número muda de lado — e voltar atrás é reconectar, não um deploy.
+// Por onde a mensagem sairia: pela Evolution própria ou pelo CRM. Havia duas
+// conexões possíveis, e escolher errado mandava a mensagem pelo caminho que já
+// tinha perdido a sessão do número — ou, pior, pelo número errado.
 //
-// ── O caso que essa decisão existe para não estragar ────────────────────
+// O CRM acabou. Sobrou uma pergunta mais simples, mas **não trivial**.
 //
-// O teste é feito com OUTRO número — um chip velho. Nesse momento existem
-// duas conexões abertas ao mesmo tempo: a do chip de teste, aqui, e a do
-// número da clínica, no CRM. Uma regra ingênua ("se tem instância conectada,
-// manda por ela") faria toda campanha da clínica sair pelo chip de teste,
-// para pacientes de verdade, com o número errado.
+// ── O caso que esta decisão existe para não estragar ────────────────────
 //
-// Daí as duas perguntas abaixo, nesta ordem.
+// A regra antiga protegia contra o chip de teste: alguém pareia OUTRO número
+// para experimentar alguma coisa, e o disparo da clínica inteiro sai por ele,
+// para pacientes de verdade, com um número que ninguém reconhece. A proteção
+// era comparar com o número que o CRM dizia atender.
+//
+// Sem o CRM não existe mais esse segundo ponto de referência — e pegar "a
+// conexão aberta mais recente" traria o problema de volta inteiro, porque o
+// chip de teste é, por definição, o que acabou de ser pareado.
+//
+// Então a regra passa a ser: **uma conexão aberta é a da clínica; duas ou mais
+// não dá para saber, e não saber é motivo para não mandar.** Recusar aparece
+// como erro na fila, e alguém desconecta a que sobra. Adivinhar aparece como
+// mensagem entregue pelo número errado, e ninguém fica sabendo.
 
-/** O que se sabe das duas conexões, já lido do banco. */
-export interface EstadoDasConexoes {
-  /** Nome da instância da Evolution com sessão aberta, ou `null`. */
-  instancia: string | null;
-  /** Número pareado nessa instância, em dígitos. */
-  telefoneDaInstancia: string | null;
-  /** `whatsapp_status` do CRM — "open" quando ele ainda atende. */
-  statusDoCrm: string | null;
-  /** Número que o CRM diz atender. */
-  telefoneDoCrm: string | null;
+/** Uma conexão da Evolution, como o banco a devolve. */
+export interface ConexaoAberta {
+  instancia: string;
+  telefone: string | null;
 }
 
-export type Caminho = "evolution" | "crm";
-
-/** Só os dígitos, para comparar dois números escritos de jeitos diferentes. */
-function digitos(valor: unknown): string {
-  return String(valor ?? "").replace(/\D/g, "");
-}
+export type EscolhaDaConexao =
+  | { instancia: string; motivo: null }
+  | { instancia: null; motivo: "nenhuma conexão aberta" | "mais de uma conexão aberta" };
 
 /**
- * A decisão.
+ * A conexão que atende.
  *
- * 1. **O número da clínica migrou.** A instância aberta está com o MESMO
- *    número que o CRM diz atender: a virada aconteceu, e o CRM só ainda não
- *    percebeu. Vai pela Evolution.
- * 2. **O CRM não atende mais e a Evolution atende.** É a virada já refletida
- *    dos dois lados. Vai pela Evolution.
- * 3. **Qualquer outra coisa** — inclusive o teste com outro chip, em que as
- *    duas estão abertas com números diferentes — continua pelo CRM, que é
- *    quem tem a sessão do número da clínica.
+ * `motivo` preenchido é a razão de não haver uma — e ele sobe até a mensagem
+ * de erro de quem tentou enviar, porque "não enviou" sem motivo é o que faz
+ * alguém abrir o banco às onze da noite.
  */
-export function caminhoDeEnvio(estado: EstadoDasConexoes): Caminho {
-  if (!estado.instancia) return "crm";
+export function conexaoQueAtende(abertas: ConexaoAberta[]): EscolhaDaConexao {
+  const validas = abertas.filter((c) => c?.instancia?.trim());
 
-  const daInstancia = digitos(estado.telefoneDaInstancia);
-  const doCrm = digitos(estado.telefoneDoCrm);
+  if (validas.length === 0) return { instancia: null, motivo: "nenhuma conexão aberta" };
 
-  if (daInstancia && doCrm) {
-    // Os dois números são conhecidos, então não há o que adivinhar.
-    // Diferentes = a instância aberta aqui NÃO é o número da clínica. É o chip
-    // de teste, e ele nunca manda pela clínica — nem que o CRM pisque
-    // "conectando" por um minuto, o que sozinho bastaria para sequestrar um
-    // disparo inteiro para o número errado.
-    return daInstancia === doCrm ? "evolution" : "crm";
+  if (validas.length > 1) {
+    // Duas sessões abertas ao mesmo tempo é sempre um engano de alguém — um
+    // chip de teste que ficou pareado, uma reconexão que não fechou a
+    // anterior. Qualquer escolha automática aqui é um palpite sobre qual
+    // número a clínica quer usar, e o palpite errado fala com paciente.
+    return { instancia: null, motivo: "mais de uma conexão aberta" };
   }
 
-  if (estado.statusDoCrm !== "open") return "evolution";
+  return { instancia: validas[0].instancia, motivo: null };
+}
 
-  return "crm";
+/** A frase que quem tentou enviar vai ler. */
+export function explicarSemConexao(motivo: EscolhaDaConexao["motivo"]): string {
+  if (motivo === "mais de uma conexão aberta") {
+    return (
+      "Há mais de um WhatsApp conectado nesta clínica, e não dá para saber por qual mandar. " +
+      "Desconecte o que não for o número oficial em Atendimentos."
+    );
+  }
+  return "O WhatsApp da clínica não está conectado. Conecte o número em Atendimentos para poder enviar.";
 }

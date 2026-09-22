@@ -22,7 +22,6 @@ function conversa(p: Partial<ConversationRow> & { id: string }): ConversationRow
   return {
     id: p.id,
     contactId: p.contactId ?? null,
-    inboxId: p.inboxId ?? null,
     contactName: p.contactName ?? null,
     phone: p.phone ?? null,
     avatarUrl: p.avatarUrl ?? null,

@@ -6,27 +6,11 @@ import { erroDaEdgeFunction } from "@/lib/atendimentos/erro-de-edge-function";
 
 export type { MessageAttachment };
 
-export interface WhatsappInstance {
-  status: "disconnected" | "connecting" | "open" | "error";
-  qrCode: string | null;
-  qrExpiresAt: string | null;
-  phoneNumber: string | null;
-  lastError: string | null;
-}
-
 export interface ConversationRow {
   id: string;
   // Id do contato no CRM — exigido por /scheduled_actions (agendamento) e
   // pelas consultas por contato. Vinha na resposta e era descartado.
   contactId: string | null;
-  /**
-   * Caixa a que a conversa pertence — ou seja, por qual NÚMERO ela entrou.
-   *
-   * `null` quando o CRM não informa. É o dado que decide se um contato é do
-   * número conectado hoje ou de um número anterior, e ele vinha sendo
-   * descartado no mapeamento junto com todo o resto da resposta.
-   */
-  inboxId: string | null;
   contactName: string | null;
   phone: string | null;
   /**
@@ -117,46 +101,6 @@ async function callEdgeFunction(name: string, body: unknown, tentativa = 0): Pro
   return json;
 }
 
-function mapInstance(row: any): WhatsappInstance {
-  return {
-    status: row?.whatsapp_status ?? "disconnected",
-    qrCode: row?.qr_code ?? null,
-    qrExpiresAt: row?.qr_expires_at ?? null,
-    phoneNumber: row?.phone_number ?? null,
-    lastError: row?.last_error ?? null,
-  };
-}
-
-// Formato confirmado com dado real do CRM: o contato vem em `row.contact`
-// (não `meta.sender`), e a lista de conversas não traz preview/timestamp da
-// última mensagem — só `created_at` (criação da conversa, não da última
-// mensagem) e `unread_count`. Sem endpoint de "última mensagem" na lista,
-// não dá pra mostrar preview real por enquanto.
-function mapConversation(row: any): ConversationRow {
-  const contact = row?.contact ?? {};
-  // O nome do campo não está confirmado com o Wavy: tentamos as três formas
-  // plausíveis e ficamos com nulo em vez de inventar uma caixa.
-  const inbox = row?.inbox_id ?? row?.inboxId ?? row?.inbox?.id ?? null;
-  return {
-    id: String(row?.id),
-    contactId: contact?.id ? String(contact.id) : null,
-    inboxId: inbox ? String(inbox) : null,
-    contactName: contact?.name ?? null,
-    phone: contact?.phone_number ?? null,
-    // Ler um campo que talvez não exista é inofensivo — vira `null` e a tela
-    // segue com as iniciais. (Diferente de MANDAR um campo inventado numa
-    // requisição, que faz o CRM recusar a chamada inteira.) `thumbnail` é o
-    // nome no Chatwoot; `avatar_url` fica como apelido comum, que não custa
-    // nada tentar.
-    avatarUrl: contact?.thumbnail || contact?.avatar_url || null,
-    lastMessagePreview: null,
-    lastMessageAt: toIso(row?.created_at),
-    unreadCount: row?.unread_count ?? 0,
-    status:
-      row?.status === "resolved" ? "resolved" : row?.status === "pending" ? "pending" : "open",
-  };
-}
-
 // message_type: 0 = incoming (do contato), 1 = outgoing (da clínica).
 // Aceita número ou string porque o valor chegou como string em teste real —
 // com a comparação estrita em número, TODA mensagem caía como recebida e as
@@ -243,7 +187,7 @@ async function conversasDoEspelho(
   const { data: conversas, error } = await supabase
     .from("wa_conversations")
     .select(
-      "origem, crm_conversation_id, crm_contact_id, inbox_id, status, unread_count, last_message_at, last_message_preview",
+      "origem, crm_conversation_id, crm_contact_id, status, unread_count, last_message_at, last_message_preview",
     )
     .eq("owner_id", ownerId)
     .order("last_message_at", { ascending: false, nullsFirst: false })
@@ -310,7 +254,6 @@ async function conversasDoEspelho(
     return {
       id: String(row.crm_conversation_id),
       contactId: row.crm_contact_id ? String(row.crm_contact_id) : null,
-      inboxId: row.inbox_id ?? null,
       contactName: contato?.name ?? null,
       phone: contato?.phone_raw ?? null,
       avatarUrl: contato?.avatar_url ?? null,

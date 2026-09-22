@@ -107,10 +107,10 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
    * telefone e sem nome, e o match na Meta se perdia. Conferir o telefone na
    * tela sem gravar aqui seria confirmar um dado que nunca é enviado.
    *
-   * Gravar o `crmContactId` é o que evita duplicata dos dois lados: o
-   * `handleUpsert` do crm-contacts usa essa coluna para dar PATCH no contato
-   * que já existe em vez de criar outro, e o próximo agendamento do mesmo
-   * contato reencontra este paciente em vez de criar um segundo.
+   * Gravar o `crmContactId` é o que evita duplicata: o próximo agendamento da
+   * mesma pessoa reencontra este paciente por essa coluna em vez de criar um
+   * segundo. O nome dela é herança do CRM externo, que não existe mais; o que
+   * ela guarda é o identificador da pessoa no WhatsApp.
    */
   const resolvePatientId = async (
     data: Partial<Appointment>,
