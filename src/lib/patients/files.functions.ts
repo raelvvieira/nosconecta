@@ -36,6 +36,8 @@ function lancarSeErroReal(error: any): void {
 }
 
 export type TipoDeArquivo = "image" | "document";
+/** De que lado da comparação a foto está. `null` = arquivo comum. */
+export type FaseDaFoto = "antes" | "depois";
 
 export interface ArquivoDoPaciente {
   id: string;
@@ -45,11 +47,15 @@ export interface ArquivoDoPaciente {
   sizeBytes: number | null;
   professionalName: string | null;
   createdAt: string;
+  /** Nome da pasta ("Ortodontia 2026"). `null` = arquivo solto. */
+  album: string | null;
+  phase: FaseDaFoto | null;
   /** Gerada na leitura, nunca guardada. Null quando o bucket ainda não existe
    *  ou a assinatura falhou — a tela mostra o item sem miniatura em vez de
    *  sumir com ele, porque o registro existe mesmo que o link não abra. */
   url: string | null;
 }
+
 
 export interface ArquivosDoPaciente {
   arquivos: ArquivoDoPaciente[];
@@ -63,7 +69,9 @@ export const getArquivos = createServerFn({ method: "GET" })
     const supabase: any = context.supabase;
     const { data: rows, error } = await supabase
       .from("patient_files")
-      .select("id, kind, title, storage_path, mime, size_bytes, professional_name, created_at")
+      .select(
+        "id, kind, title, storage_path, mime, size_bytes, professional_name, created_at, album, phase",
+      )
       .eq("patient_id", data.patientId)
       .order("created_at", { ascending: false });
 
@@ -99,6 +107,8 @@ export const getArquivos = createServerFn({ method: "GET" })
         mime: r.mime ?? null,
         sizeBytes: r.size_bytes ?? null,
         professionalName: r.professional_name ?? null,
+        album: r.album ?? null,
+        phase: (r.phase as FaseDaFoto | null) ?? null,
         createdAt: r.created_at,
         url: porCaminho.get(r.storage_path) ?? null,
       })),
@@ -115,6 +125,9 @@ export const registrarArquivo = createServerFn({ method: "POST" })
       storagePath: string;
       mime?: string | null;
       sizeBytes?: number | null;
+      /** Pasta ("Ortodontia 2026"). Ausente = arquivo solto. */
+      album?: string | null;
+      phase?: FaseDaFoto | null;
     }) => {
       if (!input.patientId) throw new Error("Paciente não informado.");
       if (!input.storagePath) throw new Error("Arquivo não informado.");
@@ -140,6 +153,8 @@ export const registrarArquivo = createServerFn({ method: "POST" })
         storage_path: data.storagePath,
         mime: data.mime ?? null,
         size_bytes: data.sizeBytes ?? null,
+        album: data.album?.trim() || null,
+        phase: data.phase ?? null,
         professional_name: prof?.name ?? null,
       })
       .select("id")

@@ -28,6 +28,8 @@ import { ConversaDoPaciente } from "@/components/patients/ConversaDoPaciente";
 import { Prontuario } from "@/components/patients/Prontuario";
 import { Tratamentos } from "@/components/patients/Tratamentos";
 import { ArquivosDoPaciente } from "@/components/patients/ArquivosDoPaciente";
+import { FotoDoRosto } from "@/components/patients/FotoDoRosto";
+
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
@@ -143,9 +145,8 @@ function PatientDetailPage() {
         </header>
 
         <section className="surface-card mt-6 flex items-center gap-4 p-5 sm:gap-5 sm:p-7">
-          <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-violet-soft text-xl font-bold text-violet sm:h-20 sm:w-20 sm:text-2xl">
-            {patient.initials}
-          </span>
+          <FotoDoRosto patientId={patient.id} iniciais={patient.initials} nome={patient.name} />
+
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="truncate text-2xl font-semibold lg:text-3xl leading-[1.1]">

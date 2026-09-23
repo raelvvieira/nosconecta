@@ -12,6 +12,8 @@ import {
   type ArquivoDoPaciente,
 } from "@/lib/patients/files.functions";
 import { Button } from "@/components/ui/button";
+import { AlbunsDoPaciente } from "@/components/patients/AlbunsDoPaciente";
+
 
 // Imagens e documentos do paciente, numa aba só.
 //
@@ -182,12 +184,17 @@ export function ArquivosDoPaciente({ patientId }: { patientId: string }) {
 
   if (arquivos.data?.indisponivel) return <div className="mt-5"><AindaNaoLigado /></div>;
 
-  const lista = arquivos.data?.arquivos ?? [];
+  // Fotos que moram numa pasta de antes/depois têm seção própria logo acima —
+  // repeti-las aqui faria a mesma foto aparecer duas vezes na mesma tela.
+  const lista = (arquivos.data?.arquivos ?? []).filter((a) => !a.album);
   const imagens = lista.filter((a) => a.kind === "image");
   const documentos = lista.filter((a) => a.kind === "document");
 
   return (
     <div className="mt-5 space-y-5">
+      <AlbunsDoPaciente patientId={patientId} />
+
+
       <section className="surface-card flex flex-wrap items-center justify-between gap-3 p-5">
         <div>
           <h2 className="text-sm font-semibold">Arquivos do paciente</h2>
