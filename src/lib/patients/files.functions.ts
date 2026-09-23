@@ -36,6 +36,8 @@ function lancarSeErroReal(error: any): void {
 }
 
 export type TipoDeArquivo = "image" | "document";
+/** De que lado da comparação a foto está. `null` = arquivo comum. */
+export type FaseDaFoto = "antes" | "depois";
 
 export interface ArquivoDoPaciente {
   id: string;
@@ -45,11 +47,15 @@ export interface ArquivoDoPaciente {
   sizeBytes: number | null;
   professionalName: string | null;
   createdAt: string;
+  /** Nome da pasta ("Ortodontia 2026"). `null` = arquivo solto. */
+  album: string | null;
+  phase: FaseDaFoto | null;
   /** Gerada na leitura, nunca guardada. Null quando o bucket ainda não existe
    *  ou a assinatura falhou — a tela mostra o item sem miniatura em vez de
    *  sumir com ele, porque o registro existe mesmo que o link não abra. */
   url: string | null;
 }
+
 
 export interface ArquivosDoPaciente {
   arquivos: ArquivoDoPaciente[];
