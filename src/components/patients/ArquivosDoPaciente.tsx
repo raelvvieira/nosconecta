@@ -12,6 +12,8 @@ import {
   type ArquivoDoPaciente,
 } from "@/lib/patients/files.functions";
 import { Button } from "@/components/ui/button";
+import { AlbunsDoPaciente } from "@/components/patients/AlbunsDoPaciente";
+
 
 // Imagens e documentos do paciente, numa aba só.
 //
