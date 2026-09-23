@@ -2055,33 +2055,39 @@ export type Database = {
       }
       patient_files: {
         Row: {
+          album: string | null
           created_at: string
           id: string
           kind: string
           mime: string | null
           patient_id: string
+          phase: string | null
           professional_name: string | null
           size_bytes: number | null
           storage_path: string
           title: string
         }
         Insert: {
+          album?: string | null
           created_at?: string
           id?: string
           kind: string
           mime?: string | null
           patient_id: string
+          phase?: string | null
           professional_name?: string | null
           size_bytes?: number | null
           storage_path: string
           title: string
         }
         Update: {
+          album?: string | null
           created_at?: string
           id?: string
           kind?: string
           mime?: string | null
           patient_id?: string
+          phase?: string | null
           professional_name?: string | null
           size_bytes?: number | null
           storage_path?: string
@@ -2190,6 +2196,7 @@ export type Database = {
           notes: string | null
           owner_id: string | null
           phone: string | null
+          photo_path: string | null
           responsible_professional_id: string | null
           state: string | null
           status: string
@@ -2220,6 +2227,7 @@ export type Database = {
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
+          photo_path?: string | null
           responsible_professional_id?: string | null
           state?: string | null
           status?: string
@@ -2250,6 +2258,7 @@ export type Database = {
           notes?: string | null
           owner_id?: string | null
           phone?: string | null
+          photo_path?: string | null
           responsible_professional_id?: string | null
           state?: string | null
           status?: string
