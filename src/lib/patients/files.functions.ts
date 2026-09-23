@@ -107,6 +107,8 @@ export const getArquivos = createServerFn({ method: "GET" })
         mime: r.mime ?? null,
         sizeBytes: r.size_bytes ?? null,
         professionalName: r.professional_name ?? null,
+        album: r.album ?? null,
+        phase: (r.phase as FaseDaFoto | null) ?? null,
         createdAt: r.created_at,
         url: porCaminho.get(r.storage_path) ?? null,
       })),
