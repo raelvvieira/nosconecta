@@ -125,6 +125,9 @@ export const registrarArquivo = createServerFn({ method: "POST" })
       storagePath: string;
       mime?: string | null;
       sizeBytes?: number | null;
+      /** Pasta ("Ortodontia 2026"). Ausente = arquivo solto. */
+      album?: string | null;
+      phase?: FaseDaFoto | null;
     }) => {
       if (!input.patientId) throw new Error("Paciente não informado.");
       if (!input.storagePath) throw new Error("Arquivo não informado.");
