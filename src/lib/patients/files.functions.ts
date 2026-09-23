@@ -69,7 +69,9 @@ export const getArquivos = createServerFn({ method: "GET" })
     const supabase: any = context.supabase;
     const { data: rows, error } = await supabase
       .from("patient_files")
-      .select("id, kind, title, storage_path, mime, size_bytes, professional_name, created_at")
+      .select(
+        "id, kind, title, storage_path, mime, size_bytes, professional_name, created_at, album, phase",
+      )
       .eq("patient_id", data.patientId)
       .order("created_at", { ascending: false });
 
