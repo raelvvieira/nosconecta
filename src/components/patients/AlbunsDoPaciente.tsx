@@ -25,7 +25,11 @@ const MAX_BYTES = 20 * 1024 * 1024;
 const FASES: FaseDaFoto[] = ["antes", "depois"];
 
 function quando(iso: string): string {
-  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  return new Date(iso).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
 }
 
 export function AlbunsDoPaciente({ patientId }: { patientId: string }) {
@@ -97,7 +101,9 @@ export function AlbunsDoPaciente({ patientId }: { patientId: string }) {
       toast.success("Fotos enviadas");
       invalidar();
     } catch (e) {
-      toast.error(e instanceof Error ? `Falha ao enviar: ${e.message}` : "Falha ao enviar as fotos.");
+      toast.error(
+        e instanceof Error ? `Falha ao enviar: ${e.message}` : "Falha ao enviar as fotos.",
+      );
     } finally {
       setEnviandoEm(null);
     }
@@ -234,14 +240,21 @@ function Coluna({
             <div key={f.id} className="group relative overflow-hidden rounded-xl bg-white">
               {f.url ? (
                 <a href={f.url} target="_blank" rel="noreferrer">
-                  <img src={f.url} alt={f.title} loading="lazy" className="h-28 w-full object-cover" />
+                  <img
+                    src={f.url}
+                    alt={f.title}
+                    loading="lazy"
+                    className="h-28 w-full object-cover"
+                  />
                 </a>
               ) : (
                 <div className="grid h-28 w-full place-items-center text-2xs text-muted-foreground">
                   Prévia indisponível
                 </div>
               )}
-              <p className="truncate px-2 py-1 text-2xs text-muted-foreground">{quando(f.createdAt)}</p>
+              <p className="truncate px-2 py-1 text-2xs text-muted-foreground">
+                {quando(f.createdAt)}
+              </p>
               <button
                 type="button"
                 onClick={() => onExcluir(f.id)}

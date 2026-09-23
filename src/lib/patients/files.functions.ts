@@ -56,7 +56,6 @@ export interface ArquivoDoPaciente {
   url: string | null;
 }
 
-
 export interface ArquivosDoPaciente {
   arquivos: ArquivoDoPaciente[];
   indisponivel: boolean;
