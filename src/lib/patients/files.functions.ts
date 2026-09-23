@@ -153,6 +153,8 @@ export const registrarArquivo = createServerFn({ method: "POST" })
         storage_path: data.storagePath,
         mime: data.mime ?? null,
         size_bytes: data.sizeBytes ?? null,
+        album: data.album?.trim() || null,
+        phase: data.phase ?? null,
         professional_name: prof?.name ?? null,
       })
       .select("id")
