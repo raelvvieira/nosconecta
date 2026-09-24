@@ -20,6 +20,8 @@ import {
 import { formatPatientWhatsApp, getPatientDetail } from "@/lib/patients/patients.functions";
 import { montarPainel } from "@/lib/atendimentos/painelDoContato";
 import { historicoDoPaciente, type ConsultaDoHistorico } from "@/lib/agenda/historicoDoPaciente";
+import { FotoDoContato } from "@/components/atendimentos/chat/FotoDoContato";
+import { getFotoDoWhatsapp } from "@/lib/atendimentos/contacts.functions";
 import { STATUS_LABEL } from "./appointment-utils";
 import { clinicNowStamp, diaParaLer } from "@/lib/date";
 import { formatBRL } from "@/lib/finance/format";
@@ -80,6 +82,23 @@ export function ResumoDoPaciente({
 
   const detalhe = ficha.data ?? null;
 
+  // A foto do WhatsApp. Só depois da ficha, porque é dela que saem os dois
+  // dados que identificam a pessoa com segurança — ver o comentário longo em
+  // `getFotoDoWhatsapp` sobre por que o telefone sozinho não serve.
+  const buscarFoto = useServerFn(getFotoDoWhatsapp);
+  const foto = useQuery({
+    queryKey: ["foto-whatsapp", detalhe?.crmContactId ?? null, detalhe?.phone ?? null],
+    queryFn: () =>
+      buscarFoto({
+        data: { crmContactId: detalhe?.crmContactId ?? null, phone: detalhe?.phone ?? null },
+      }),
+    enabled: Boolean(detalhe?.crmContactId || detalhe?.phone),
+    // A URL do WhatsApp vence, mas não em minutos: cinco minutos de cache
+    // evita uma ida ao banco a cada agendamento reaberto.
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
   // O prontuário não entra: `allergyNotes` vem da própria ficha, e é a única
   // coisa dali que este resumo mostra. Uma consulta a mais numa tabela com
   // zero linhas não pagaria por si.
@@ -116,8 +135,27 @@ export function ResumoDoPaciente({
         </p>
       )}
 
-      {/* ── 2. Contato e atalhos ─────────────────────────────────────── */}
+      {/* ── 2. Quem é, e como falar com ela ──────────────────────────────
+          A foto vem do WhatsApp e existe por um motivo prático: a dentista
+          nem sempre lembra quem é pelo nome, e pelo rosto reconhece na hora.
+
+          Quando não há foto — hoje 14 dos 23 pacientes com agendamento — as
+          iniciais ficam, que é o mesmo que o resto do sistema já mostra. */}
       <CardDoPainel icone={Phone} titulo="Contato">
+        <div className="mb-4 flex items-center gap-3.5">
+          <FotoDoContato
+            nome={detalhe?.name ?? patientName}
+            url={foto.data?.url ?? null}
+            className="h-16 w-16 rounded-2xl bg-coral-soft text-lg text-coral"
+          />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{detalhe?.name ?? patientName}</p>
+            {detalhe?.age !== null && detalhe?.age !== undefined && (
+              <p className="mt-0.5 text-xs text-muted-foreground">{detalhe.age} anos</p>
+            )}
+          </div>
+        </div>
+
         <div className="divide-y divide-border">
           <LinhaDoPainel rotulo="Telefone" valor={detalhe?.phone ?? null} />
           {painel.dados

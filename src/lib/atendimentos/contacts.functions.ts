@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { montarBaseDeContatos, type ContatoDaBase } from "./base-de-contatos";
+import { variantesDoNumero } from "./phone";
 
 /**
  * A base de contatos para disparo.
@@ -74,4 +75,120 @@ export const getCrmContacts = createServerFn({ method: "GET" })
 
     const contacts = montarBaseDeContatos(linhas as never);
     return { contacts, total: contacts.length, truncado: false };
+  });
+
+/** O que o WhatsApp sabe sobre esta pessoa. */
+export interface FotoDoWhatsapp {
+  url: string | null;
+  /** Por que não há foto. Nulo quando há. Não vai para a tela — serve para
+   *  quem for investigar "por que esse paciente não mostra foto". */
+  motivo: string | null;
+}
+
+/**
+ * A foto de perfil do WhatsApp de um paciente.
+ *
+ * ── Para que serve ──────────────────────────────────────────────────────
+ *
+ * A dentista abre o agendamento e nem sempre lembra quem é pelo nome. Pela
+ * foto ela reconhece na hora. É a mesma foto que já aparece na conversa —
+ * trazida para onde a decisão acontece.
+ *
+ * ── Por que NÃO casa por telefone quando o número é de mais de um ───────
+ *
+ * Esta é a parte que importa, e ela contraria a intuição.
+ *
+ * A migration do espelho já tinha medido: dos 203 números que aparecem em
+ * mais de uma ficha, **147 têm nomes diferentes** — mãe e filho, responsável
+ * e criança, o normal em odontologia. A decisão registrada lá é que o
+ * telefone SUGERE, com alguém confirmando, e nunca DECIDE sozinho.
+ *
+ * Aqui isso é literal: entre os pacientes com agendamento, 5 de 22 dividem o
+ * telefone com uma ficha de outro nome. Casar por número traria a foto da mãe
+ * na ficha do filho — e o propósito desta foto é justamente reconhecer quem
+ * vai sentar na cadeira. Foto errada, mostrada com confiança, é pior que
+ * inicial nenhuma: ela faz a dentista cumprimentar a pessoa errada.
+ *
+ * Então a ordem é: primeiro o identificador do contato, que é exato; depois o
+ * telefone, e só quando ele pertence a UMA ficha. Medido: a regra exata sozinha
+ * acha 7 dos 23; com o telefone exclusivo, 9; com o telefone solto seriam 10 —
+ * uma foto a mais, em troca de até 5 erradas.
+ *
+ * ── O nono dígito ───────────────────────────────────────────────────────
+ *
+ * A ficha guarda `5551993967887` e o WhatsApp `555193967887`. `variantesDoNumero`
+ * devolve as duas formas, e o `IN` com valores exatos usa o índice
+ * `idx_wa_contacts_fone`.
+ *
+ * ── A URL expira, e é esperado ──────────────────────────────────────────
+ *
+ * `avatar_url` aponta para `pps.whatsapp.net` e vem assinada com prazo. O
+ * espelho a renova a cada evento do contato. Quando vence, `FotoDoContato` cai
+ * nas iniciais pelo `onError`. É por isso que a foto NÃO é copiada para o nosso
+ * Storage: guardar foto de perfil de paciente sem necessidade é uma
+ * responsabilidade que um avatar não justifica.
+ */
+export const getFotoDoWhatsapp = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { crmContactId?: string | null; phone?: string | null }) => input)
+  .handler(async ({ data, context }): Promise<FotoDoWhatsapp> => {
+    const buscarAvatar = async (coluna: string, valores: string[]) => {
+      const { data: linhas, error } = await context.supabase
+        .from("wa_contacts")
+        .select("avatar_url, synced_at")
+        .eq("owner_id", context.ownerId)
+        .in(coluna, valores)
+        .not("avatar_url", "is", null)
+        // O mesmo número pode ter linha em mais de uma origem. A mais
+        // recém-sincronizada é a que tem a URL que ainda vale.
+        .order("synced_at", { ascending: false, nullsFirst: false })
+        .limit(1);
+      // Foto é conforto, não função: um erro aqui mostra as iniciais, como
+      // para os outros 14 pacientes que não têm foto nenhuma.
+      if (error) {
+        console.warn("[foto-whatsapp]", error.message);
+        return null;
+      }
+      return (linhas?.[0]?.avatar_url as string | undefined) ?? null;
+    };
+
+    // ── 1. Pelo identificador do contato — exato, sem ambiguidade ────────
+    const contato = String(data.crmContactId ?? "").trim();
+    if (contato) {
+      const url = await buscarAvatar("crm_contact_id", [contato]);
+      if (url) return { url, motivo: null };
+    }
+
+    // ── 2. Pelo telefone, e só se ele for de uma ficha só ────────────────
+    const formas = variantesDoNumero(data.phone);
+    if (!formas.length) return { url: null, motivo: "sem telefone" };
+
+    const { data: fichas, error: erroFichas } = await context.supabase
+      .from("patients")
+      .select("name")
+      .eq("owner_id", context.ownerId)
+      .in("phone", formas)
+      .limit(20);
+
+    // Sem conseguir conferir de quem é o número, não usa o número. Errar aqui
+    // é mostrar o rosto de outra pessoa.
+    if (erroFichas) {
+      console.warn("[foto-whatsapp] não deu para conferir o telefone:", erroFichas.message);
+      return { url: null, motivo: "não deu para conferir de quem é o número" };
+    }
+
+    const nomes = new Set(
+      (fichas ?? []).map((f: { name?: string | null }) =>
+        String(f.name ?? "")
+          .trim()
+          .toLocaleLowerCase("pt-BR"),
+      ),
+    );
+    nomes.delete("");
+    if (nomes.size > 1) {
+      return { url: null, motivo: "número dividido entre fichas de nomes diferentes" };
+    }
+
+    const url = await buscarAvatar("phone_e164", formas);
+    return url ? { url, motivo: null } : { url: null, motivo: "contato sem foto no WhatsApp" };
   });

@@ -56,3 +56,55 @@ export function telefoneBrasileiroValido(raw: string | null | undefined): boolea
   const d = normalizeBrazilianPhone(raw);
   return d.length === 12 || d.length === 13;
 }
+
+/**
+ * As formas em que o MESMO número aparece — com e sem o nono dígito.
+ *
+ * ── O problema que isto resolve ─────────────────────────────────────────
+ *
+ * A ficha do paciente e o WhatsApp guardam o mesmo celular de jeitos
+ * diferentes. Medido nesta base:
+ *
+ *     ficha:    5551993967887   (13 dígitos, com o 9)
+ *     WhatsApp:  555193967887   (12 dígitos, sem o 9)
+ *
+ * Comparar literalmente falha, e falha em silêncio: o paciente simplesmente
+ * "não tem contato no WhatsApp". Dos 23 pacientes com agendamento, casar
+ * literalmente achava 3; tolerando o nono dígito acha 10.
+ *
+ * A causa é histórica — os celulares brasileiros ganharam um 9 na frente, e o
+ * WhatsApp às vezes reporta o identificador antigo.
+ *
+ * ── Por que devolver as duas formas, e não uma chave curta ──────────────
+ *
+ * A tentação é cortar para "DDD + 8 últimos" e comparar por aí. Funciona, mas
+ * obriga a calcular isso dos DOIS lados dentro da consulta, o que impede o uso
+ * do índice `idx_wa_contacts_fone` e vira varredura da tabela inteira.
+ *
+ * Devolvendo as duas formas completas, a busca é um `IN` com dois valores
+ * exatos — índice, e nada de varredura.
+ *
+ * ── O 9 só entra em celular ─────────────────────────────────────────────
+ *
+ * Um fixo também tem 8 dígitos. Acrescentar o 9 a ele geraria um número que
+ * não existe; não casaria com nada, mas é lixo na consulta. Celular antigo
+ * começa com 6, 7, 8 ou 9 — fixo começa com 2, 3, 4 ou 5.
+ */
+export function variantesDoNumero(raw: string | null | undefined): string[] {
+  const completo = normalizeBrazilianPhone(String(raw ?? ""));
+  if (!completo.startsWith("55") || completo.length < 12) return completo ? [completo] : [];
+
+  const ddd = completo.slice(2, 4);
+  const resto = completo.slice(4);
+  const formas = new Set<string>([completo]);
+
+  if (resto.length === 9 && resto.startsWith("9")) {
+    // Com o 9 → acrescenta a forma sem ele.
+    formas.add(`55${ddd}${resto.slice(1)}`);
+  } else if (resto.length === 8 && /^[6-9]/.test(resto)) {
+    // Celular antigo, sem o 9 → acrescenta a forma com ele.
+    formas.add(`55${ddd}9${resto}`);
+  }
+
+  return [...formas];
+}
