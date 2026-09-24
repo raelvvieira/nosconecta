@@ -37,6 +37,7 @@ import {
   type ProcedimentoDoAgendamento,
 } from "@/lib/agenda/procedimentos";
 import { dividirNome, juntarNome } from "@/lib/patients/nome";
+import { cn } from "@/lib/utils";
 import type { NomeDoPacienteNovo } from "@/lib/agenda/useSaveAppointment";
 
 /**
@@ -92,6 +93,15 @@ interface Props {
    * "Compromisso" ali seria uma opção sem sentido no contexto.
    */
   onTrocarParaCompromisso?: () => void;
+  /**
+   * O resumo do paciente, na coluna da direita.
+   *
+   * Opcional e `ReactNode` de propósito: só a Agenda passa. O chat já tem o
+   * painel do contato ao lado e o funil já é uma gaveta com os dados do
+   * contato — nos dois, uma segunda coluna aqui mostraria a mesma informação
+   * duas vezes. Sem ela, o modal fica idêntico ao que sempre foi.
+   */
+  resumo?: React.ReactNode;
 }
 
 // "completed" ficou de fora de propósito: concluir passou a ser uma ação
@@ -128,6 +138,7 @@ export function AppointmentDrawer({
   onClose,
   onSave,
   onTrocarParaCompromisso,
+  resumo,
 }: Props) {
   const isEdit = !!appointment;
 
@@ -383,7 +394,12 @@ export function AppointmentDrawer({
 
       {/* Modal */}
       <div
-        className="relative flex max-h-[90dvh] w-full max-w-[480px] flex-col overflow-hidden rounded-3xl bg-white"
+        className={cn(
+          "relative flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-3xl bg-white",
+          // A largura só cresce quando há resumo. Um modal de 880px com o lado
+          // direito vazio é pior que o de 480px de sempre.
+          resumo ? "max-w-[480px] lg:max-w-[880px]" : "max-w-[480px]",
+        )}
         style={{ boxShadow: "var(--shadow-4)" }}
       >
         {/* Header */}
@@ -411,187 +427,226 @@ export function AppointmentDrawer({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto overflow-x-clip px-6 py-5 space-y-6">
-          {/* Consulta ou compromisso — só ao criar pela Agenda. */}
-          {!isEdit && onTrocarParaCompromisso && (
-            <div className="flex gap-2">
-              <Button type="button" variant="premium" className="h-10 flex-1 rounded-full">
-                Consulta
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10 flex-1 rounded-full"
-                onClick={onTrocarParaCompromisso}
-              >
-                Compromisso
-              </Button>
-            </div>
-          )}
+        {/* Corpo: o formulário e, quando há, o resumo do paciente.
+            `min-h-0` nos dois é obrigatório — item de flex tem altura mínima
+            automática, e sem isso a coluna mais alta estoura os 90dvh do modal
+            em vez de rolar por dentro. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+          <div
+            className={cn(
+              "min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-clip px-6 py-5 space-y-6",
+              resumo && "lg:w-[480px] lg:flex-none",
+            )}
+          >
+            {/* Consulta ou compromisso — só ao criar pela Agenda. */}
+            {!isEdit && onTrocarParaCompromisso && (
+              <div className="flex gap-2">
+                <Button type="button" variant="premium" className="h-10 flex-1 rounded-full">
+                  Consulta
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 flex-1 rounded-full"
+                  onClick={onTrocarParaCompromisso}
+                >
+                  Compromisso
+                </Button>
+              </div>
+            )}
 
-          {origin && (
-            <p className="rounded-xl bg-coral-soft px-3 py-2 text-xs leading-5 text-coral">
-              {origin}
-            </p>
-          )}
+            {origin && (
+              <p className="rounded-xl bg-coral-soft px-3 py-2 text-xs leading-5 text-coral">
+                {origin}
+              </p>
+            )}
 
-          {/* Data já passada num agendamento novo: é registro retroativo, e a
+            {/* Data já passada num agendamento novo: é registro retroativo, e a
               tela precisa dizer que ninguém vai ser avisado disso. */}
-          {!isEdit && dataNoPassado && (
-            <p className="rounded-xl bg-surface px-3 py-2 text-xs leading-5 text-foreground-secondary">
-              Esta data já passou. O agendamento entra como registro — o paciente não recebe
-              confirmação nem lembretes.
-            </p>
-          )}
+            {!isEdit && dataNoPassado && (
+              <p className="rounded-xl bg-surface px-3 py-2 text-xs leading-5 text-foreground-secondary">
+                Esta data já passou. O agendamento entra como registro — o paciente não recebe
+                confirmação nem lembretes.
+              </p>
+            )}
 
-          {/* Confirmar que aconteceu é a ação mais importante deste card, então
+            {/* Confirmar que aconteceu é a ação mais importante deste card, então
               fica no topo — não escondida num select entre outros status.
               Aparece também ao criar com data passada: é assim que se registra
               um atendimento antigo, com o valor cobrado, sem ter de salvar,
               reabrir e confirmar depois. */}
-          {(isEdit || dataNoPassado) && (
-            <ConfirmCompletion
-              expectedRevenue={form.expectedRevenue ?? 0}
-              actualRevenue={form.status === "completed" ? (form.actualRevenue ?? 0) : null}
-              appointmentDate={form.date ?? localDateStr()}
-              generateFinancial={form.generateFinancial ?? true}
-              isPending={isSaving}
-              onConfirm={({ valor, retornoEm, gerarCobranca, pagamentoRecebido }) => {
-                // Criando pelo registro retroativo, este é o botão que grava —
-                // então a checagem do paciente tem de valer aqui também.
-                const nome = conferirPaciente();
-                if (nome === false) return;
-                onSave(
-                  {
-                    ...form,
-                    status: "completed",
-                    actualRevenue: valor,
-                    generateFinancial: gerarCobranca,
-                  },
-                  { retornoEm, nome, pagamentoRecebido },
-                );
-              }}
-            />
-          )}
+            {(isEdit || dataNoPassado) && (
+              <ConfirmCompletion
+                expectedRevenue={form.expectedRevenue ?? 0}
+                actualRevenue={form.status === "completed" ? (form.actualRevenue ?? 0) : null}
+                appointmentDate={form.date ?? localDateStr()}
+                generateFinancial={form.generateFinancial ?? true}
+                isPending={isSaving}
+                onConfirm={({ valor, retornoEm, gerarCobranca, pagamentoRecebido }) => {
+                  // Criando pelo registro retroativo, este é o botão que grava —
+                  // então a checagem do paciente tem de valer aqui também.
+                  const nome = conferirPaciente();
+                  if (nome === false) return;
+                  onSave(
+                    {
+                      ...form,
+                      status: "completed",
+                      actualRevenue: valor,
+                      generateFinancial: gerarCobranca,
+                    },
+                    { retornoEm, nome, pagamentoRecebido },
+                  );
+                }}
+              />
+            )}
 
-          {/* Dados do paciente */}
-          <section className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Paciente
-              </h3>
-              {/* Só editando e com ficha vinculada: sem ficha não há telefone
+            {/* Dados do paciente */}
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Paciente
+                </h3>
+                {/* Só editando e com ficha vinculada: sem ficha não há telefone
                   para mandar, e o servidor recusaria de qualquer jeito. */}
-              {isEdit && form.patientId && (
-                <button
-                  type="button"
-                  onClick={() => reenvio.mutate()}
-                  disabled={reenvio.isPending}
-                  title="Reenviar a conversão deste agendamento à Meta. Só funciona se ela tiver saído sem telefone nem e-mail — o servidor confere antes."
-                  aria-label="Reenviar conversão à Meta"
-                  className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-2xs text-muted-foreground transition-colors hover:bg-surface hover:text-foreground disabled:opacity-50"
-                >
-                  <Send className="h-3 w-3" strokeWidth={1.75} />
-                  {reenvio.isPending ? "Reenviando…" : "Reenviar à Meta"}
-                </button>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="patient" className="text-sm text-foreground-secondary">
-                Nome do paciente *
-              </Label>
-              {modoContato ? (
-                <>
-                  {/* Campos de texto comuns, não o combobox: o nome que veio do
+                {isEdit && form.patientId && (
+                  <button
+                    type="button"
+                    onClick={() => reenvio.mutate()}
+                    disabled={reenvio.isPending}
+                    title="Reenviar a conversão deste agendamento à Meta. Só funciona se ela tiver saído sem telefone nem e-mail — o servidor confere antes."
+                    aria-label="Reenviar conversão à Meta"
+                    className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-2xs text-muted-foreground transition-colors hover:bg-surface hover:text-foreground disabled:opacity-50"
+                  >
+                    <Send className="h-3 w-3" strokeWidth={1.75} />
+                    {reenvio.isPending ? "Reenviando…" : "Reenviar à Meta"}
+                  </button>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="patient" className="text-sm text-foreground-secondary">
+                  Nome do paciente *
+                </Label>
+                {modoContato ? (
+                  <>
+                    {/* Campos de texto comuns, não o combobox: o nome que veio do
                       WhatsApp quase nunca é o nome da pessoa, e o que se quer
                       aqui é corrigir o que está escrito — não procurar alguém.
                       Separados porque é daqui que a ficha nasce, e a Meta
                       recebe nome e sobrenome como dois hashes distintos. */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      id="patient"
-                      value={partesDoNome.primeiro}
-                      onChange={(e) => mudarParte("primeiro", e.target.value)}
-                      placeholder="Nome"
-                      className="rounded-xl border-border"
-                    />
-                    <Input
-                      id="patient-sobrenome"
-                      aria-label="Sobrenome do paciente"
-                      value={partesDoNome.sobrenome}
-                      onChange={(e) => mudarParte("sobrenome", e.target.value)}
-                      placeholder="Sobrenome"
-                      className="rounded-xl border-border"
-                    />
-                  </div>
-                  {/* `relative tap-44` porque o texto sozinho dá 16px de alvo,
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        id="patient"
+                        value={partesDoNome.primeiro}
+                        onChange={(e) => mudarParte("primeiro", e.target.value)}
+                        placeholder="Nome"
+                        className="rounded-xl border-border"
+                      />
+                      <Input
+                        id="patient-sobrenome"
+                        aria-label="Sobrenome do paciente"
+                        value={partesDoNome.sobrenome}
+                        onChange={(e) => mudarParte("sobrenome", e.target.value)}
+                        placeholder="Sobrenome"
+                        className="rounded-xl border-border"
+                      />
+                    </div>
+                    {/* `relative tap-44` porque o texto sozinho dá 16px de alvo,
                       bem abaixo do mínimo que o resto do app já respeita. */}
-                  <button
-                    type="button"
-                    onClick={() => setBuscandoPaciente(true)}
-                    className="relative tap-44 text-xs text-coral underline-offset-2 hover:underline"
-                  >
-                    Vincular a um paciente existente
-                  </button>
-                </>
-              ) : (
-                <PatientCombobox
-                  value={form.patientName ?? ""}
-                  patientId={form.patientId}
-                  onChange={({ id, name }) => {
-                    setForm((f) => ({ ...f, patientId: id, patientName: name }));
-                    // Sem ficha vinculada, o nome digitado vira as duas partes
-                    // do bloco abaixo — já preenchidas, para quem agenda só
-                    // corrigir onde a divisão automática errou.
-                    if (!id) setPartesDoNome(dividirNome(name));
-                  }}
-                  className="rounded-xl border-border"
-                />
-              )}
-            </div>
+                    <button
+                      type="button"
+                      onClick={() => setBuscandoPaciente(true)}
+                      className="relative tap-44 text-xs text-coral underline-offset-2 hover:underline"
+                    >
+                      Vincular a um paciente existente
+                    </button>
+                  </>
+                ) : (
+                  <PatientCombobox
+                    value={form.patientName ?? ""}
+                    patientId={form.patientId}
+                    onChange={({ id, name }) => {
+                      setForm((f) => ({ ...f, patientId: id, patientName: name }));
+                      // Sem ficha vinculada, o nome digitado vira as duas partes
+                      // do bloco abaixo — já preenchidas, para quem agenda só
+                      // corrigir onde a divisão automática errou.
+                      if (!id) setPartesDoNome(dividirNome(name));
+                    }}
+                    className="rounded-xl border-border"
+                  />
+                )}
+              </div>
 
-            {/* Paciente novo: a ficha nasce daqui, então os dados que a Meta
+              {/* Paciente novo: a ficha nasce daqui, então os dados que a Meta
                 usa para casar a conversão são pedidos AGORA — depois ninguém
                 volta para completar. Fica em bloco destacado porque é a
                 diferença entre o Lead contar e o Lead sumir. */}
-            {pacienteNovo && (
-              <div className="space-y-3 rounded-xl border border-coral/30 bg-coral-soft/40 p-3">
-                <p className="text-2xs font-semibold uppercase tracking-wider text-coral">
-                  {isEdit ? "Este agendamento não tem ficha de paciente" : "Paciente novo"}
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="novo-nome" className="text-xs text-foreground-secondary">
-                      Nome
-                    </Label>
-                    <Input
-                      id="novo-nome"
-                      value={partesDoNome.primeiro}
-                      onChange={(e) => mudarParte("primeiro", e.target.value)}
-                      placeholder="Nome"
-                      className="rounded-xl border-border bg-white"
-                    />
+              {pacienteNovo && (
+                <div className="space-y-3 rounded-xl border border-coral/30 bg-coral-soft/40 p-3">
+                  <p className="text-2xs font-semibold uppercase tracking-wider text-coral">
+                    {isEdit ? "Este agendamento não tem ficha de paciente" : "Paciente novo"}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="novo-nome" className="text-xs text-foreground-secondary">
+                        Nome
+                      </Label>
+                      <Input
+                        id="novo-nome"
+                        value={partesDoNome.primeiro}
+                        onChange={(e) => mudarParte("primeiro", e.target.value)}
+                        placeholder="Nome"
+                        className="rounded-xl border-border bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="novo-sobrenome" className="text-xs text-foreground-secondary">
+                        Sobrenome
+                      </Label>
+                      <Input
+                        id="novo-sobrenome"
+                        value={partesDoNome.sobrenome}
+                        onChange={(e) => mudarParte("sobrenome", e.target.value)}
+                        placeholder="Sobrenome"
+                        className="rounded-xl border-border bg-white"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="novo-sobrenome" className="text-xs text-foreground-secondary">
-                      Sobrenome
+                    <Label htmlFor="novo-telefone" className="text-xs text-foreground-secondary">
+                      Telefone (WhatsApp){isEdit ? "" : " *"}
                     </Label>
                     <Input
-                      id="novo-sobrenome"
-                      value={partesDoNome.sobrenome}
-                      onChange={(e) => mudarParte("sobrenome", e.target.value)}
-                      placeholder="Sobrenome"
-                      className="rounded-xl border-border bg-white"
+                      id="novo-telefone"
+                      type="tel"
+                      inputMode="tel"
+                      value={telefoneNovo}
+                      onChange={(e) => setTelefoneNovo(e.target.value)}
+                      placeholder="(48) 99999-9999"
+                      aria-invalid={Boolean(telefoneNovo) && !telefoneOk}
+                      className="rounded-xl border-border bg-white font-mono"
                     />
+                    <p className="text-2xs leading-4 text-muted-foreground">
+                      {telefoneNovo && !telefoneOk
+                        ? "Número incompleto — faltam dígitos do DDD ou do número."
+                        : isEdit
+                          ? "Preencher agora cria a ficha deste paciente. O Lead deste agendamento já passou, mas a conversão de quando ele for concluído passa a ser reconhecida pela Meta."
+                          : "Obrigatório: é por este número que a Meta reconhece o paciente como um Lead do seu anúncio, e é por ele que sai o lembrete da consulta."}
+                    </p>
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="novo-telefone" className="text-xs text-foreground-secondary">
+              )}
+
+              {/* Modo contato SEM número na conversa. O nome já tem campos
+                próprios acima, então aqui falta só o telefone — e ele falta
+                mesmo: foi por este caminho que nasceu uma ficha sem telefone
+                hoje, que é o bug que este campo existe para impedir. */}
+              {faltaTelefone && !pacienteNovo && (
+                <div className="space-y-1.5 rounded-xl border border-coral/30 bg-coral-soft/40 p-3">
+                  <Label htmlFor="contato-telefone" className="text-xs text-foreground-secondary">
                     Telefone (WhatsApp){isEdit ? "" : " *"}
                   </Label>
                   <Input
-                    id="novo-telefone"
+                    id="contato-telefone"
                     type="tel"
                     inputMode="tel"
                     value={telefoneNovo}
@@ -603,149 +658,119 @@ export function AppointmentDrawer({
                   <p className="text-2xs leading-4 text-muted-foreground">
                     {telefoneNovo && !telefoneOk
                       ? "Número incompleto — faltam dígitos do DDD ou do número."
-                      : isEdit
-                        ? "Preencher agora cria a ficha deste paciente. O Lead deste agendamento já passou, mas a conversão de quando ele for concluído passa a ser reconhecida pela Meta."
-                        : "Obrigatório: é por este número que a Meta reconhece o paciente como um Lead do seu anúncio, e é por ele que sai o lembrete da consulta."}
+                      : "Esta conversa não tem número registrado. Sem ele, o paciente não recebe lembrete e o anúncio não recebe o Lead."}
                   </p>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Modo contato SEM número na conversa. O nome já tem campos
-                próprios acima, então aqui falta só o telefone — e ele falta
-                mesmo: foi por este caminho que nasceu uma ficha sem telefone
-                hoje, que é o bug que este campo existe para impedir. */}
-            {faltaTelefone && !pacienteNovo && (
-              <div className="space-y-1.5 rounded-xl border border-coral/30 bg-coral-soft/40 p-3">
-                <Label htmlFor="contato-telefone" className="text-xs text-foreground-secondary">
-                  Telefone (WhatsApp){isEdit ? "" : " *"}
-                </Label>
-                <Input
-                  id="contato-telefone"
-                  type="tel"
-                  inputMode="tel"
-                  value={telefoneNovo}
-                  onChange={(e) => setTelefoneNovo(e.target.value)}
-                  placeholder="(48) 99999-9999"
-                  aria-invalid={Boolean(telefoneNovo) && !telefoneOk}
-                  className="rounded-xl border-border bg-white font-mono"
-                />
-                <p className="text-2xs leading-4 text-muted-foreground">
-                  {telefoneNovo && !telefoneOk
-                    ? "Número incompleto — faltam dígitos do DDD ou do número."
-                    : "Esta conversa não tem número registrado. Sem ele, o paciente não recebe lembrete e o anúncio não recebe o Lead."}
-                </p>
-              </div>
-            )}
-
-            {/* Telefone do WhatsApp, só leitura. É o número da própria conversa,
+              {/* Telefone do WhatsApp, só leitura. É o número da própria conversa,
                 então já está correto — aparece para conferência porque é ele que
                 vai para a Meta, e um número errado ali é um match perdido. */}
-            {!isEdit && contact?.phone && (
-              <div className="space-y-1.5 rounded-xl bg-surface px-3 py-2.5">
-                <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Telefone do WhatsApp
-                </p>
-                <p className="font-mono text-sm text-foreground">
-                  {formatWhatsappNumber(contact.phone)}
-                </p>
-                <p className="text-2xs leading-4 text-muted-foreground">
-                  Confira antes de salvar: é este número que será enviado à Meta.
-                </p>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="notes_patient" className="text-sm text-foreground-secondary">
-                Observações
-              </Label>
-              <Textarea
-                id="notes_patient"
-                placeholder="Observações sobre o paciente..."
-                rows={2}
-                value={form.notes}
-                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                className="rounded-xl border-border resize-none"
-              />
-            </div>
-          </section>
-
-          {/* Dados do atendimento */}
-          <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Atendimento
-            </h3>
-            <ProcedimentosDoAgendamento
-              procedimentos={form.procedures ?? []}
-              catalogo={procedures}
-              onChange={mudarProcedimentos}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label className="text-sm text-foreground-secondary">Tipo</Label>
-                <select
-                  className="w-full text-sm border border-border rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-pink/30"
-                  value={form.type}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, type: e.target.value as AppointmentType }))
-                  }
-                >
-                  {TYPE_OPTIONS.map((t) => (
-                    <option key={t} value={t}>
-                      {TYPE_LABEL[t]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm text-foreground-secondary">Profissional</Label>
-                <Combobox
-                  value={form.professionalId ?? ""}
-                  onChange={handleProfessional}
-                  options={professionals.map((p) => ({ value: p.id, label: p.name }))}
-                  placeholder="Selecionar..."
-                  searchPlaceholder="Buscar profissional..."
-                  emptyText="Nenhum profissional encontrado"
-                />
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label className="text-sm text-foreground-secondary">Sala</Label>
-                <Combobox
-                  value={form.roomId ?? ""}
-                  onChange={handleRoom}
-                  options={rooms.map((r) => ({
-                    value: r.id,
-                    // A unidade entra no rótulo: é ela que decide a unidade do
-                    // agendamento, então precisa estar visível na hora de
-                    // escolher — e não escondida no cadastro da cadeira.
-                    //
-                    // Pelas partes CRUAS, e não concatenando por cima de
-                    // `r.name`: quando a sala se chama como a unidade, o nome
-                    // saía "Cadeira · NÓS Florianópolis — NÓS Florianópolis".
-                    label: rotuloDeSala([r.chairName ?? r.name, r.roomName, r.unitName]),
-                  }))}
-                  placeholder="Selecionar..."
-                  searchPlaceholder="Buscar sala ou unidade..."
-                  emptyText="Nenhuma sala encontrada"
-                />
-                {salaEscolhida?.unitName && (
-                  <p className="text-2xs text-muted-foreground">
-                    Este agendamento entra na unidade{" "}
-                    <span className="font-medium text-foreground-secondary">
-                      {salaEscolhida.unitName}
-                    </span>
-                    .
+              {!isEdit && contact?.phone && (
+                <div className="space-y-1.5 rounded-xl bg-surface px-3 py-2.5">
+                  <p className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Telefone do WhatsApp
                   </p>
-                )}
+                  <p className="font-mono text-sm text-foreground">
+                    {formatWhatsappNumber(contact.phone)}
+                  </p>
+                  <p className="text-2xs leading-4 text-muted-foreground">
+                    Confira antes de salvar: é este número que será enviado à Meta.
+                  </p>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="notes_patient" className="text-sm text-foreground-secondary">
+                  Observações
+                </Label>
+                <Textarea
+                  id="notes_patient"
+                  placeholder="Observações sobre o paciente..."
+                  rows={2}
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  className="rounded-xl border-border resize-none"
+                />
               </div>
-            </div>
-          </section>
+            </section>
 
-          {/* Data e horário */}
-          <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Data e Horário
-            </h3>
-            {/* Duas colunas no celular, três a partir do tablet.
+            {/* Dados do atendimento */}
+            <section className="space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Atendimento
+              </h3>
+              <ProcedimentosDoAgendamento
+                procedimentos={form.procedures ?? []}
+                catalogo={procedures}
+                onChange={mudarProcedimentos}
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-sm text-foreground-secondary">Tipo</Label>
+                  <select
+                    className="w-full text-sm border border-border rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-pink/30"
+                    value={form.type}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, type: e.target.value as AppointmentType }))
+                    }
+                  >
+                    {TYPE_OPTIONS.map((t) => (
+                      <option key={t} value={t}>
+                        {TYPE_LABEL[t]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm text-foreground-secondary">Profissional</Label>
+                  <Combobox
+                    value={form.professionalId ?? ""}
+                    onChange={handleProfessional}
+                    options={professionals.map((p) => ({ value: p.id, label: p.name }))}
+                    placeholder="Selecionar..."
+                    searchPlaceholder="Buscar profissional..."
+                    emptyText="Nenhum profissional encontrado"
+                  />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <Label className="text-sm text-foreground-secondary">Sala</Label>
+                  <Combobox
+                    value={form.roomId ?? ""}
+                    onChange={handleRoom}
+                    options={rooms.map((r) => ({
+                      value: r.id,
+                      // A unidade entra no rótulo: é ela que decide a unidade do
+                      // agendamento, então precisa estar visível na hora de
+                      // escolher — e não escondida no cadastro da cadeira.
+                      //
+                      // Pelas partes CRUAS, e não concatenando por cima de
+                      // `r.name`: quando a sala se chama como a unidade, o nome
+                      // saía "Cadeira · NÓS Florianópolis — NÓS Florianópolis".
+                      label: rotuloDeSala([r.chairName ?? r.name, r.roomName, r.unitName]),
+                    }))}
+                    placeholder="Selecionar..."
+                    searchPlaceholder="Buscar sala ou unidade..."
+                    emptyText="Nenhuma sala encontrada"
+                  />
+                  {salaEscolhida?.unitName && (
+                    <p className="text-2xs text-muted-foreground">
+                      Este agendamento entra na unidade{" "}
+                      <span className="font-medium text-foreground-secondary">
+                        {salaEscolhida.unitName}
+                      </span>
+                      .
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* Data e horário */}
+            <section className="space-y-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Data e Horário
+              </h3>
+              {/* Duas colunas no celular, três a partir do tablet.
                 Três lado a lado num telefone dá ~95px por campo, e aí duas
                 coisas quebram: o Safari reserva uma largura mínima própria
                 para `input[type=time]`, que então transborda por cima do
@@ -753,98 +778,114 @@ export function AppointmentDrawer({
                 e "Confirmado" aparece cortado como "Confirma". O `min-w-0`
                 nas células e nos controles é o que autoriza encolher — sem
                 ele, item de grade não vai abaixo do próprio conteúdo. */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <div className="col-span-2 space-y-2 sm:col-span-3">
-                <Label className="text-sm text-foreground-secondary">Data</Label>
-                <Input
-                  type="date"
-                  value={form.date}
-                  onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                  className="w-full min-w-0 rounded-xl border-border"
-                />
-              </div>
-              <div className="min-w-0 space-y-2">
-                <Label className="text-sm text-foreground-secondary">Início</Label>
-                <Input
-                  type="time"
-                  value={form.startTime}
-                  onChange={(e) => mudarInicio(e.target.value)}
-                  className="w-full min-w-0 rounded-xl border-border"
-                />
-              </div>
-              {/* Duração no lugar do horário de fim. O fim vira consequência,
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="col-span-2 space-y-2 sm:col-span-3">
+                  <Label className="text-sm text-foreground-secondary">Data</Label>
+                  <Input
+                    type="date"
+                    value={form.date}
+                    onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+                    className="w-full min-w-0 rounded-xl border-border"
+                  />
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <Label className="text-sm text-foreground-secondary">Início</Label>
+                  <Input
+                    type="time"
+                    value={form.startTime}
+                    onChange={(e) => mudarInicio(e.target.value)}
+                    className="w-full min-w-0 rounded-xl border-border"
+                  />
+                </div>
+                {/* Duração no lugar do horário de fim. O fim vira consequência,
                   não outro campo para preencher — e é isso que conserta o
                   problema antigo: mudar o início depois de escolher o
                   procedimento mantinha o fim velho, e a consulta encolhia ou
                   esticava sem ninguém ver. */}
-              <div className="min-w-0 space-y-2">
-                <Label className="text-sm text-foreground-secondary">Duração (min)</Label>
-                <select
-                  className="w-full min-w-0 text-sm border border-border rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
-                  value={duracao}
-                  onChange={(e) => mudarDuracao(Number(e.target.value))}
-                >
-                  {opcoesDuracao.map((min) => (
-                    <option key={min} value={min}>
-                      {min}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {/* No celular o Status ocupa a linha inteira: é o rótulo mais
+                <div className="min-w-0 space-y-2">
+                  <Label className="text-sm text-foreground-secondary">Duração (min)</Label>
+                  <select
+                    className="w-full min-w-0 text-sm border border-border rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
+                    value={duracao}
+                    onChange={(e) => mudarDuracao(Number(e.target.value))}
+                  >
+                    {opcoesDuracao.map((min) => (
+                      <option key={min} value={min}>
+                        {min}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {/* No celular o Status ocupa a linha inteira: é o rótulo mais
                   longo dos três e o único que perde sentido cortado. */}
-              <div className="col-span-2 min-w-0 space-y-2 sm:col-span-1">
-                <Label className="text-sm text-foreground-secondary">Status</Label>
-                <select
-                  className="w-full min-w-0 text-sm border border-border rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
-                  value={form.status}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, status: e.target.value as AppointmentStatus }))
-                  }
-                >
-                  {/* Já concluído entra na lista só para o select ter o que
+                <div className="col-span-2 min-w-0 space-y-2 sm:col-span-1">
+                  <Label className="text-sm text-foreground-secondary">Status</Label>
+                  <select
+                    className="w-full min-w-0 text-sm border border-border rounded-xl px-3 py-2 text-foreground bg-white focus:outline-none"
+                    value={form.status}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, status: e.target.value as AppointmentStatus }))
+                    }
+                  >
+                    {/* Já concluído entra na lista só para o select ter o que
                       exibir — sem isso ele apareceria em branco. Não é uma
                       opção nova: quem ainda não concluiu não a vê. */}
-                  {(form.status === "completed"
-                    ? [...STATUS_OPTIONS, "completed" as AppointmentStatus]
-                    : STATUS_OPTIONS
-                  ).map((s) => (
-                    <option key={s} value={s}>
-                      {STATUS_LABEL[s]}
-                    </option>
-                  ))}
-                </select>
+                    {(form.status === "completed"
+                      ? [...STATUS_OPTIONS, "completed" as AppointmentStatus]
+                      : STATUS_OPTIONS
+                    ).map((s) => (
+                      <option key={s} value={s}>
+                        {STATUS_LABEL[s]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
 
-          {/* Confirmação e lembretes (Brevo).
+            {/* Confirmação e lembretes (Brevo).
               Desceu para o fim: é acompanhamento, não preenchimento. Ficava
               entre o paciente e o atendimento, empurrando para baixo justamente
               o que se vem editar aqui. */}
-          {isEdit && (
-            <section className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Confirmação e Lembretes
-              </h3>
-              <div className="rounded-xl border border-border divide-y divide-surface-muted px-3">
-                {NOTIFICATION_KINDS.map((k) => (
-                  <NotificationRow
-                    key={k.value}
-                    label={k.label}
-                    kind={k.value}
-                    notifications={appointment?.notifications}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
+            {isEdit && (
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Confirmação e Lembretes
+                </h3>
+                <div className="rounded-xl border border-border divide-y divide-surface-muted px-3">
+                  {NOTIFICATION_KINDS.map((k) => (
+                    <NotificationRow
+                      key={k.value}
+                      label={k.label}
+                      kind={k.value}
+                      notifications={appointment?.notifications}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
 
-          {/* A seção Financeiro saiu daqui. O valor previsto continua vindo do
+            {/* A seção Financeiro saiu daqui. O valor previsto continua vindo do
               procedimento escolhido (ver `handleProcedure`) e continua servindo
               de sugestão na confirmação — só não é mais um campo para preencher
               semanas antes de existir cobrança. O interruptor de recebimento foi
               junto, para dentro do ConfirmCompletion, onde a decisão cabe. */}
+          </div>
+
+          {/* O resumo é o SEGUNDO no DOM e sobe por `order` no celular.
+              Posto primeiro, o primeiro Tab do modal cairia em "Ver ficha" em
+              vez do campo do paciente, e quem usa teclado tabularia por três
+              links antes de conseguir editar.
+
+              No celular ele fica em cima — foi o pedido — mas limitado a 38dvh
+              com rolagem própria: assim o "Confirmar atendimento", que é o
+              gesto mais frequente do dia, continua a uma rolagem curta em vez
+              de ser empurrado uma tela inteira para baixo. */}
+          {resumo && (
+            <aside className="order-first min-h-0 max-h-[38dvh] shrink-0 overflow-y-auto overscroll-contain border-b border-border bg-surface/50 p-4 lg:order-last lg:max-h-none lg:w-[400px] lg:border-b-0 lg:border-l lg:p-5">
+              {resumo}
+            </aside>
+          )}
         </div>
 
         {/* Footer */}

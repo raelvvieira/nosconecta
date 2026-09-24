@@ -11,6 +11,7 @@ import { Sidebar } from "@/components/finance/Sidebar";
 import { AgendaStatsCards } from "@/components/agenda/AgendaStatsCards";
 import { WeeklyCalendar } from "@/components/agenda/WeeklyCalendar";
 import { AppointmentDrawer, type OpcoesDoSave } from "@/components/agenda/AppointmentDrawer";
+import { ResumoDoPaciente } from "@/components/agenda/ResumoDoPaciente";
 import { CommitmentDrawer } from "@/components/agenda/CommitmentDrawer";
 import { RightSidebar } from "@/components/agenda/RightSidebar";
 import { type ExtrasDaConclusao, MobileAgenda } from "@/components/agenda/mobile/MobileAgenda";
