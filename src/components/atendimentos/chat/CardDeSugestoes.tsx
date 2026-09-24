@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, Sparkles } from "lucide-react";
 import { getSugestoesDaConversa } from "@/lib/agente-ia/agente.functions";
-import { CardDoPainel } from "./CardDoPainel";
+import { CardDoPainel } from "@/components/painel/CardDoPainel";
 import { cn } from "@/lib/utils";
 
 /**

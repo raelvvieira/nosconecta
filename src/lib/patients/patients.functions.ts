@@ -1,6 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import {
+  historicoDoPaciente,
+  type ConsultaDoHistorico,
+  type HistoricoDoPaciente,
+} from "@/lib/agenda/historicoDoPaciente";
+import { clinicNowStamp } from "@/lib/date";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 import { dividirNome, montarNome } from "./nome";
 import { gravarTolerandoColunaAusente, semColuna } from "@/lib/schema-fallback";
@@ -136,7 +142,11 @@ function effectiveStatus(row: any, overdueAmount: number): PatientStatus {
   return overdueAmount > 0 ? "delinquent" : "active";
 }
 
-function buildSummary(row: any, transactions: any[]): PatientSummary {
+function buildSummary(
+  row: any,
+  transactions: any[],
+  historico?: HistoricoDoPaciente | null,
+): PatientSummary {
   // Enquanto a migration não roda, `first_name`/`last_name` nem existem na
   // linha e chegam `undefined`; `montarNome` cai na divisão automática do nome
   // inteiro, e o formulário de edição já abre com as duas partes preenchidas
@@ -180,13 +190,41 @@ function buildSummary(row: any, transactions: any[]): PatientSummary {
     guardianName: row.guardian_name ?? null,
     guardianCpf: row.guardian_cpf ?? null,
     legacyPatientId: row.legacy_patient_id ?? null,
-    nextAppointment: null,
-    lastAppointment: null,
+    // Vinham `null` FIXOS daqui, e por isso o card "Agenda" do painel do chat
+    // e o bloco "Próximo agendamento" da ficha nasceram vazios e nunca
+    // encheram. Quem tem o histórico passa; quem não tem (a lista de
+    // pacientes, que não vai pagar uma consulta por linha) continua sem — mas
+    // agora isso é uma ausência declarada, não um literal mudo.
+    nextAppointment: historico?.proxima ? paraConsultaDaFicha(historico.proxima) : null,
+    lastAppointment: historico?.ultima ? paraConsultaDaFicha(historico.ultima) : null,
     overdueAmount,
     pendingAmount,
+    // Os três de tratamento continuam vazios, e de propósito. Existem DOIS
+    // modelos no banco: o legado `patient_treatments`, que tem exatamente
+    // estes campos, e o atual `treatment_plans`/`treatment_items`, que é o que
+    // `getTratamentos` lê e o que a clínica vai usar. Ligar o legado seria
+    // ressuscitar o modelo morto; ligar o novo custa duas consultas a mais em
+    // toda abertura de ficha por uma tabela com zero linhas hoje.
+    //
+    // Quando existir o primeiro plano, o caminho é o painel buscar
+    // `getTratamentos` sob demanda — o mesmo jeito preguiçoso que ele já usa
+    // para o prontuário. `montarPainel` esconde o card enquanto `totalSessions`
+    // for zero, então nada mente na tela.
     treatmentName: null,
     completedSessions: 0,
     totalSessions: 0,
+  };
+}
+
+/** Uma consulta do histórico no formato que a ficha e o painel já desenham. */
+function paraConsultaDaFicha(c: ConsultaDoHistorico): PatientAppointment {
+  return {
+    id: c.id,
+    date: c.date,
+    time: String(c.startTime ?? "").slice(0, 5),
+    procedure: c.procedureName,
+    professional: c.professionalName,
+    status: c.status,
   };
 }
 
@@ -264,21 +302,64 @@ export const getPatientDetail = createServerFn({ method: "GET" })
     if (patientRes.error) throw new Error(patientRes.error.message);
     const row = patientRes.data;
     if (!row) throw new Error("Paciente não encontrado.");
-    const transactionsRes = await supabase
-      .from("financial_transactions")
-      .select("id,patient_id,description,amount,due_date,paid_date,status")
-      .eq("type", "receivable")
-      .eq("patient_id", data.patientId);
-    const base = { transactions: transactionsRes.data ?? [] };
-    const summary = buildSummary(row, base.transactions);
+    // As três em paralelo. Eram três `await` em fila, e a consulta de
+    // agendamentos que entra aqui sairia de graça mesmo assim — mas em fila
+    // ela somaria uma ida inteira ao banco em toda abertura de ficha e de
+    // conversa. Em paralelo, a chamada fica MAIS rápida que antes.
+    const [transactionsRes, professionalsRes, appointmentsRes] = await Promise.all([
+      supabase
+        .from("financial_transactions")
+        .select("id,patient_id,description,amount,due_date,paid_date,status")
+        .eq("type", "receivable")
+        .eq("patient_id", data.patientId),
+      row.responsible_professional_id
+        ? supabase
+            .from("professionals")
+            .select("name")
+            .eq("id", row.responsible_professional_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      // Sem filtro de unidade: a RLS já recorta o que esta clínica enxerga, e
+      // a ficha é da PESSOA, não da sala. Alguém atendido nas duas unidades
+      // tem um histórico só.
+      //
+      // `procedure_name` basta — a coluna já guarda o resumo unido por " + ",
+      // que é exatamente o que a lista mostra. Ler `appointment_procedures`
+      // seria uma quarta consulta para reescrever o mesmo texto.
+      supabase
+        .from("appointments")
+        .select(
+          "id,patient_id,date,start_time,status,procedure_name,professional_name,expected_revenue,actual_revenue",
+        )
+        .eq("patient_id", data.patientId)
+        .eq("owner_id", context.ownerId)
+        .order("date", { ascending: false })
+        .order("start_time", { ascending: false })
+        .limit(200),
+    ]);
 
-    const professionalsRes = row.responsible_professional_id
-      ? await supabase
-          .from("professionals")
-          .select("name")
-          .eq("id", row.responsible_professional_id)
-          .maybeSingle()
-      : { data: null };
+    const base = { transactions: transactionsRes.data ?? [] };
+
+    // O MESMO cálculo que a agenda faz com o que já tem em memória. Duas
+    // implementações divergiriam no que conta como "aconteceu", e a mesma
+    // pessoa teria duas últimas consultas diferentes em duas telas.
+    const historico = historicoDoPaciente(
+      (appointmentsRes.data ?? []).map((a: any): ConsultaDoHistorico => ({
+        id: String(a.id),
+        patientId: a.patient_id ?? null,
+        date: String(a.date ?? ""),
+        startTime: String(a.start_time ?? ""),
+        status: a.status,
+        procedureName: a.procedure_name ?? "",
+        professionalName: a.professional_name ?? "",
+        expectedRevenue: money(a.expected_revenue),
+        actualRevenue: a.actual_revenue === null ? null : money(a.actual_revenue),
+      })),
+      data.patientId,
+      clinicNowStamp(),
+    );
+
+    const summary = buildSummary(row, base.transactions, historico);
     const finances = base.transactions
       .filter((item: any) => item.patient_id === data.patientId)
       .map((item: any) => ({
@@ -296,7 +377,7 @@ export const getPatientDetail = createServerFn({ method: "GET" })
       createdAt: row.created_at ?? null,
       treatmentId: null,
       timeline: [],
-      appointments: [],
+      appointments: historico.historico.map(paraConsultaDaFicha),
       finances,
       receivedAmount: finances
         .filter((item: PatientFinanceRow) => item.status === "paid")

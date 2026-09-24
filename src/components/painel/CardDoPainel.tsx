@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { diaParaLer } from "@/lib/date";
 
 /**
  * A casca de um card do painel do contato.
@@ -86,6 +87,37 @@ export function NumeroDoPainel({
         )}
       >
         {valor ?? "—"}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Uma consulta — a próxima ou a última.
+ *
+ * Mora aqui, e não dentro do painel do chat onde nasceu, porque o resumo do
+ * paciente na agenda mostra exatamente as mesmas duas linhas. Duas cópias
+ * divergiriam no formato da data, que é justamente onde este projeto já
+ * tropeçou antes (ver `dia` abaixo).
+ */
+export function CardDeConsulta({
+  rotulo,
+  c,
+  destaque,
+}: {
+  rotulo: string;
+  c: { date: string; time: string; procedure: string; professional: string };
+  destaque?: boolean;
+}) {
+  return (
+    <div className={cn("rounded-2xl px-4 py-3", destaque ? "bg-coral-soft" : "bg-muted/60")}>
+      <p className={cn("text-2xs", destaque ? "text-coral" : "text-muted-foreground")}>{rotulo}</p>
+      <p className="mt-0.5 text-sm font-semibold">
+        {diaParaLer(c.date)} · {c.time}
+      </p>
+      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+        {c.procedure}
+        {c.professional && ` · ${c.professional}`}
       </p>
     </div>
   );

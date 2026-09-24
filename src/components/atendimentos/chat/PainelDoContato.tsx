@@ -21,7 +21,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { FotoDoContato } from "@/components/atendimentos/chat/FotoDoContato";
 import { SeletorDeTags } from "@/components/tags/SeletorDeTags";
 import { CardDeSugestoes } from "./CardDeSugestoes";
-import { CardDoPainel, LinhaDoPainel, NumeroDoPainel } from "./CardDoPainel";
+import {
+  CardDeConsulta,
+  CardDoPainel,
+  LinhaDoPainel,
+  NumeroDoPainel,
+} from "@/components/painel/CardDoPainel";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { formatBRL } from "@/lib/finance/format";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
@@ -297,9 +302,11 @@ export function PainelDoContato({
             ) : (
               <div className="grid gap-3">
                 {painel.agenda.proxima && (
-                  <Consulta rotulo="Próxima" c={painel.agenda.proxima} destaque />
+                  <CardDeConsulta rotulo="Próxima" c={painel.agenda.proxima} destaque />
                 )}
-                {painel.agenda.ultima && <Consulta rotulo="Última" c={painel.agenda.ultima} />}
+                {painel.agenda.ultima && (
+                  <CardDeConsulta rotulo="Última" c={painel.agenda.ultima} />
+                )}
               </div>
             )}
           </CardDoPainel>
@@ -460,34 +467,6 @@ export function PainelDoContato({
       </div>
     </div>
   );
-}
-
-function Consulta({
-  rotulo,
-  c,
-  destaque,
-}: {
-  rotulo: string;
-  c: { date: string; time: string; procedure: string; professional: string };
-  destaque?: boolean;
-}) {
-  return (
-    <div className={cn("rounded-2xl px-4 py-3", destaque ? "bg-coral-soft" : "bg-muted/60")}>
-      <p className={cn("text-2xs", destaque ? "text-coral" : "text-muted-foreground")}>{rotulo}</p>
-      <p className="mt-0.5 text-sm font-semibold">
-        {dia(c.date)} · {c.time}
-      </p>
-      <p className="mt-0.5 truncate text-xs text-muted-foreground">
-        {c.procedure}
-        {c.professional && ` · ${c.professional}`}
-      </p>
-    </div>
-  );
-}
-
-function dia(iso: string): string {
-  const d = iso.length === 10 ? new Date(`${iso}T00:00:00`) : new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("pt-BR");
 }
 
 function quando(iso: string): string {

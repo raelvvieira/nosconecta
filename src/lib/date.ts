@@ -35,6 +35,51 @@ export function clinicTodayStr(d: Date = new Date()): string {
   return fmtDataClinica.format(d);
 }
 
+/**
+ * "YYYY-MM-DDTHH:MM" no fuso da clínica — data e hora juntas, para COMPARAR.
+ *
+ * ── Por que texto, e não um `Date` ──────────────────────────────────────
+ *
+ * Na agenda, `date` e `start_time` são colunas separadas. Para saber se uma
+ * consulta já passou é preciso juntar as duas — e montar um `Date` a partir
+ * delas obriga a escolher um fuso duas vezes: o do Worker (UTC) e o do
+ * navegador de quem abriu. É exatamente o erro que o comentário no topo deste
+ * arquivo descreve.
+ *
+ * Como os dois campos são zero-padded, `"2026-09-05T09:00" < "2026-09-12T08:00"`
+ * compara certo como texto puro, sem fuso nenhum no meio.
+ *
+ * `hourCycle: "h23"` não é detalhe: com `hour12: false` sozinho, alguns ICU
+ * devolvem "24" para a meia-noite. Um "2026-09-24T24:10" ordena depois de
+ * tudo do dia seguinte, e a consulta da madrugada sumiria da lista — um bug
+ * que só aparece uma hora por dia.
+ */
+const fmtMarcoDaClinica = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Sao_Paulo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+export function clinicNowStamp(d: Date = new Date()): string {
+  const p: Record<string, string> = {};
+  for (const parte of fmtMarcoDaClinica.formatToParts(d)) p[parte.type] = parte.value;
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+/**
+ * Uma data ISO para ler, em pt-BR.
+ *
+ * Mesma razão do `T00:00:00` explicada no topo: sem ele a data volta um dia.
+ */
+export function diaParaLer(iso: string): string {
+  const d = iso.length === 10 ? new Date(`${iso}T00:00:00`) : new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("pt-BR");
+}
+
 /** Soma meses preservando o dia; 31/01 + 1 mês cai em 03/03 nos anos comuns,
  *  que é o comportamento nativo do Date e o mesmo já usado no financeiro. */
 export function addMonths(dateStr: string, months: number): string {
