@@ -237,8 +237,19 @@ function AgendaPage() {
   const handleSaveBlock = (data: Partial<(typeof blocked)[number]>) =>
     saveBlockMutation.mutate(data);
 
-  const handleApptClick = (appt: Appointment) => {
+  /**
+   * Abrir um agendamento — e em qual dos dois modos.
+   *
+   * No computador o clique no bloco da agenda é "quero ver": o modal abre em
+   * leitura, com o botão "Editar" no rodapé. No celular a gaveta de leitura
+   * já apareceu antes, e só se chega aqui tocando em "Editar agendamento" —
+   * então lá o formulário abre direto.
+   */
+  const [abrirEditando, setAbrirEditando] = useState(false);
+
+  const handleApptClick = (appt: Appointment, editando = false) => {
     setSelectedAppt(appt);
+    setAbrirEditando(editando);
     setApptDrawerOpen(true);
   };
 
@@ -348,7 +359,7 @@ function AgendaPage() {
         onFiltersChange={setFilters}
         onNewAppointment={openNewAppointment}
         onNewBlock={() => setBlockDrawerOpen(true)}
-        onEditAppointment={handleApptClick}
+        onEditAppointment={(appt) => handleApptClick(appt, true)}
         onStatusChange={handleStatusChange}
       />
 
@@ -437,6 +448,7 @@ function AgendaPage() {
         }
         catalog={{ professionals, rooms, procedures }}
         isSaving={saveApptMutation.isPending}
+        abrirEditando={abrirEditando}
         /* Quem é a pessoa, na coluna ao lado.
            Só em EDIÇÃO: em "Novo Agendamento" ainda não há paciente, e sem a
            prop o modal volta à largura de sempre.

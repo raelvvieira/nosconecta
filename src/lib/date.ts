@@ -122,3 +122,35 @@ export function durationBetween(startTime: string, endTime: string): number {
 export function overlaps(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
   return timeToMinutes(aStart) < timeToMinutes(bEnd) && timeToMinutes(bStart) < timeToMinutes(aEnd);
 }
+
+const fmtPorExtenso = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+});
+const fmtPorExtensoComAno = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+/**
+ * A data como se lê em voz alta: "Quinta-feira, 24 de setembro".
+ *
+ * Existe para o modo leitura do agendamento. "24/09/2026" obriga quem lê a
+ * traduzir para saber que dia da semana é — e o dia da semana é justamente o
+ * que se quer saber ao abrir um agendamento.
+ *
+ * O ano só aparece quando NÃO é o ano corrente. Escrevê-lo sempre gasta cinco
+ * caracteres para dizer o óbvio em 99% dos casos; omiti-lo sempre faria uma
+ * consulta de 2027 parecer desta semana.
+ *
+ * `T00:00:00` pelo mesmo motivo do `diaParaLer` — sem ele a data volta um dia.
+ */
+export function dataPorExtenso(iso: string, anoDeHoje = new Date().getFullYear()): string {
+  const d = iso.length === 10 ? new Date(`${iso}T00:00:00`) : new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const texto = (d.getFullYear() === anoDeHoje ? fmtPorExtenso : fmtPorExtensoComAno).format(d);
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}

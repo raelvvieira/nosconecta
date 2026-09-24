@@ -6,17 +6,10 @@ import {
   CalendarDays,
   CircleDollarSign,
   ExternalLink,
-  History,
   MessageCircle,
-  Phone,
   StickyNote,
 } from "lucide-react";
-import {
-  CardDeConsulta,
-  CardDoPainel,
-  LinhaDoPainel,
-  NumeroDoPainel,
-} from "@/components/painel/CardDoPainel";
+import { CardDoPainel, NumeroDoPainel } from "@/components/painel/CardDoPainel";
 import { formatPatientWhatsApp, getPatientDetail } from "@/lib/patients/patients.functions";
 import { montarPainel } from "@/lib/atendimentos/painelDoContato";
 import { historicoDoPaciente, type ConsultaDoHistorico } from "@/lib/agenda/historicoDoPaciente";
@@ -112,6 +105,19 @@ export function ResumoDoPaciente({
   const historico = historicoDoPaciente(appointments, patientId, clinicNowStamp());
   const whatsapp = formatPatientWhatsApp(detalhe?.phone ?? null);
 
+  /**
+   * O card de dinheiro só aparece quando há dinheiro.
+   *
+   * Antes bastava o valor não ser `null` — e a clínica não tem cobrança
+   * nenhuma, então ele aparecia com três zeros em toda ficha, ocupando um
+   * card inteiro para dizer que não há nada a dizer.
+   *
+   * O atraso saiu daqui: ele tem a própria faixa lá em cima, em amarelo, que
+   * é onde ele muda o que alguém faz. Repetido como terceira coluna, era o
+   * mesmo número duas vezes na mesma coluna da tela.
+   */
+  const temFinanceiro = Boolean(painel.financeiro?.aReceber || painel.financeiro?.pago);
+
   if (!patientId) return <SemFicha />;
 
   return (
@@ -136,95 +142,80 @@ export function ResumoDoPaciente({
       )}
 
       {/* ── 2. Quem é, e como falar com ela ──────────────────────────────
+          Sem moldura de card: é o cabeçalho da coluna, não mais uma seção
+          entre outras. Era um card "Contato" com título, ícone e o nome
+          dentro — e o nome já está no topo do modal, a um palmo daqui.
+          Escrito três vezes na mesma tela, ele parava de ser identificação e
+          virava ruído.
+
           A foto vem do WhatsApp e existe por um motivo prático: a dentista
           nem sempre lembra quem é pelo nome, e pelo rosto reconhece na hora.
+          Quando não há — hoje 14 dos 23 pacientes com agendamento — ficam as
+          iniciais, como no resto do sistema.
 
-          Quando não há foto — hoje 14 dos 23 pacientes com agendamento — as
-          iniciais ficam, que é o mesmo que o resto do sistema já mostra. */}
-      <CardDoPainel icone={Phone} titulo="Contato">
-        <div className="mb-4 flex items-center gap-3.5">
-          <FotoDoContato
-            nome={detalhe?.name ?? patientName}
-            url={foto.data?.url ?? null}
-            className="h-16 w-16 rounded-2xl bg-coral-soft text-lg text-coral"
-          />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{detalhe?.name ?? patientName}</p>
-            {detalhe?.age !== null && detalhe?.age !== undefined && (
-              <p className="mt-0.5 text-xs text-muted-foreground">{detalhe.age} anos</p>
-            )}
-          </div>
+          O telefone fica grande e em fonte de largura fixa porque é o que se
+          lê em voz alta para ligar; a idade e o nascimento, pequenos ao lado,
+          porque são conferência. */}
+      <div className="flex items-center gap-3.5">
+        <FotoDoContato
+          nome={detalhe?.name ?? patientName}
+          url={foto.data?.url ?? null}
+          className="h-14 w-14 shrink-0 rounded-2xl bg-coral-soft text-base text-coral"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-mono text-sm text-foreground">
+            {detalhe?.phone ?? "Sem telefone"}
+          </p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {[
+              detalhe?.age !== null && detalhe?.age !== undefined ? `${detalhe.age} anos` : null,
+              painel.dados.find((d) => d.rotulo === "Nascimento" && d.valor)?.valor ?? null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || "Paciente da clínica"}
+          </p>
         </div>
+      </div>
 
-        <div className="divide-y divide-border">
-          <LinhaDoPainel rotulo="Telefone" valor={detalhe?.phone ?? null} />
-          {painel.dados
-            .filter((d) => d.rotulo === "Nascimento" && d.valor)
-            .map((d) => (
-              <LinhaDoPainel key={d.rotulo} rotulo={d.rotulo} valor={d.valor} />
-            ))}
-        </div>
-
-        <div className="mt-3.5 flex flex-wrap gap-2">
-          <Link
-            to="/pacientes/$patientId"
-            params={{ patientId }}
-            className="press inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+      <div className="flex flex-wrap gap-2">
+        <Link
+          to="/pacientes/$patientId"
+          params={{ patientId }}
+          className="press inline-flex items-center gap-1.5 rounded-xl border border-border bg-white px-3 py-1.5 text-xs font-medium hover:bg-muted"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+          Ver ficha
+        </Link>
+        {whatsapp && (
+          <a
+            href={whatsapp}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="press inline-flex items-center gap-1.5 rounded-xl border border-border bg-white px-3 py-1.5 text-xs font-medium hover:bg-muted"
           >
-            <ExternalLink className="h-3.5 w-3.5" />
-            Ver ficha
-          </Link>
-          {whatsapp && (
-            <a
-              href={whatsapp}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="press inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
-            >
-              <MessageCircle className="h-3.5 w-3.5" />
-              WhatsApp
-            </a>
-          )}
-        </div>
-      </CardDoPainel>
+            <MessageCircle className="h-3.5 w-3.5" />
+            WhatsApp
+          </a>
+        )}
+      </div>
 
-      {/* ── 3. Próxima e última ──────────────────────────────────────────
-          Quase sempre tem conteúdo: o próprio agendamento aberto conta. */}
-      {(historico.proxima || historico.ultima) && (
-        <CardDoPainel icone={CalendarDays} titulo="Agenda">
-          <div className="space-y-2">
-            {historico.proxima && (
-              <CardDeConsulta
-                rotulo="Próxima"
-                destaque
-                c={{
-                  date: historico.proxima.date,
-                  time: historico.proxima.startTime.slice(0, 5),
-                  procedure: historico.proxima.procedureName,
-                  professional: historico.proxima.professionalName,
-                }}
-              />
-            )}
-            {historico.ultima && (
-              <CardDeConsulta
-                rotulo="Última"
-                c={{
-                  date: historico.ultima.date,
-                  time: historico.ultima.startTime.slice(0, 5),
-                  procedure: historico.ultima.procedureName,
-                  professional: historico.ultima.professionalName,
-                }}
-              />
-            )}
-          </div>
-        </CardDoPainel>
-      )}
+      {/* ── 3. As consultas, numa lista só ───────────────────────────────
+          Eram dois cards. "Agenda" mostrava a próxima e a última; "Histórico"
+          mostrava a lista inteira — que começa pela próxima e traz a última
+          logo abaixo. As mesmas duas consultas apareciam duas vezes cada, uma
+          acima da outra, e ocupavam metade da coluna para isso.
 
-      {/* ── 4. O histórico ─────────────────────────────────────────────── */}
+          A lista vem da mais recente para a mais antiga, então a próxima já
+          está no topo e a última logo depois das futuras: a ordem responde
+          "quando eu vi essa pessoa" sem precisar de rótulo.
+
+          A contagem sobrou só com falta e cancelamento. "1 realizada · 1
+          marcada" repetia o que as duas linhas abaixo já diziam; "faltou duas
+          vezes" é o que não dá para ver correndo o olho. */}
       {historico.historico.length > 0 && (
         <CardDoPainel
-          icone={History}
-          titulo="Histórico"
+          icone={CalendarDays}
+          titulo="Consultas"
           acao={
             historico.historico.length > MAX_NO_HISTORICO ? (
               <Link
@@ -238,18 +229,7 @@ export function ResumoDoPaciente({
             ) : null
           }
         >
-          <p className="text-xs text-muted-foreground">
-            {[
-              historico.contagem.realizadas > 0 && `${historico.contagem.realizadas} realizada(s)`,
-              historico.contagem.futuras > 0 && `${historico.contagem.futuras} marcada(s)`,
-              historico.contagem.faltas > 0 && `${historico.contagem.faltas} falta(s)`,
-              historico.contagem.canceladas > 0 && `${historico.contagem.canceladas} cancelada(s)`,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-
-          <ul className="mt-3 space-y-2">
+          <ul className="space-y-2">
             {historico.historico.slice(0, MAX_NO_HISTORICO).map((c) => {
               const esta = c.id === appointmentId;
               return (
@@ -276,38 +256,43 @@ export function ResumoDoPaciente({
               );
             })}
           </ul>
+
+          {(historico.contagem.faltas > 0 || historico.contagem.canceladas > 0) && (
+            <p className="mt-3 text-2xs text-muted-foreground">
+              {[
+                historico.contagem.faltas > 0 && `${historico.contagem.faltas} falta(s)`,
+                historico.contagem.canceladas > 0 &&
+                  `${historico.contagem.canceladas} cancelada(s)`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
         </CardDoPainel>
       )}
 
       {/* ── 5. Financeiro ────────────────────────────────────────────────
           Só quando há algum número. Três travessões lado a lado pareceriam
           uma tela quebrada, e hoje a clínica não tem cobrança nenhuma. */}
-      {painel.financeiro &&
-        (painel.financeiro.atraso !== null ||
-          painel.financeiro.aReceber !== null ||
-          painel.financeiro.pago !== null) && (
-          <CardDoPainel icone={CircleDollarSign} titulo="Financeiro">
-            <div className="grid grid-cols-3 gap-3">
-              <NumeroDoPainel
-                rotulo="Em atraso"
-                tom="atraso"
-                valor={
-                  painel.financeiro.atraso !== null ? formatBRL(painel.financeiro.atraso) : null
-                }
-              />
-              <NumeroDoPainel
-                rotulo="A receber"
-                valor={
-                  painel.financeiro.aReceber !== null ? formatBRL(painel.financeiro.aReceber) : null
-                }
-              />
-              <NumeroDoPainel
-                rotulo="Já pago"
-                valor={painel.financeiro.pago !== null ? formatBRL(painel.financeiro.pago) : null}
-              />
-            </div>
-          </CardDoPainel>
-        )}
+      {temFinanceiro && (
+        <CardDoPainel icone={CircleDollarSign} titulo="Financeiro">
+          {/* Travessão, nunca "R$ 0,00": `dinheiro()` já devolve `null` para
+              zero, e a regra do painel é que ausência não é zero — "tudo pago"
+              e "ninguém lançou nada" são histórias opostas. */}
+          <div className="grid grid-cols-2 gap-3">
+            <NumeroDoPainel
+              rotulo="A receber"
+              valor={
+                painel.financeiro?.aReceber != null ? formatBRL(painel.financeiro.aReceber) : null
+              }
+            />
+            <NumeroDoPainel
+              rotulo="Já pago"
+              valor={painel.financeiro?.pago != null ? formatBRL(painel.financeiro.pago) : null}
+            />
+          </div>
+        </CardDoPainel>
+      )}
 
       {/* ── 6. Observações DA FICHA ──────────────────────────────────────
           O rótulo diz "da ficha" de propósito: o formulário ao lado tem um
