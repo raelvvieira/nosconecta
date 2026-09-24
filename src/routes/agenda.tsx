@@ -437,6 +437,21 @@ function AgendaPage() {
         }
         catalog={{ professionals, rooms, procedures }}
         isSaving={saveApptMutation.isPending}
+        /* Quem é a pessoa, na coluna ao lado.
+           Só em EDIÇÃO: em "Novo Agendamento" ainda não há paciente, e sem a
+           prop o modal volta à largura de sempre.
+           Os agendamentos vão como estão — já estão todos em memória, então o
+           histórico aparece na hora, sem esperar a rede. */
+        resumo={
+          selectedAppt ? (
+            <ResumoDoPaciente
+              patientId={selectedAppt.patientId}
+              patientName={selectedAppt.patientName}
+              appointments={appointments}
+              appointmentId={selectedAppt.id}
+            />
+          ) : undefined
+        }
         onClose={() => {
           setApptDrawerOpen(false);
           setSelectedAppt(null);
