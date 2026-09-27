@@ -81,12 +81,24 @@ export interface ProcedimentoDoAgente {
   preco: number | null;
   duracaoMinutos?: number | null;
   categoria?: string | null;
+  /**
+   * O preço é um piso, não um valor fechado.
+   *
+   * O NÓS Prevent é anunciado como "a partir de R$ 800" — e essa frase saiu 200
+   * vezes no WhatsApp. Sem esta distinção a instrução diria "R$ 800,00" e a IA
+   * cotaria oitocentos FECHADOS para algo que começa em oitocentos. Cotar o piso
+   * como preço é uma promessa que a clínica não fez.
+   */
+  aPartirDe?: boolean;
 }
 
 export interface EntradaDaInstrucao {
   clinica: string;
   manual: ManualDeVendas;
   procedimentos: ProcedimentoDoAgente[];
+  /** Condição de parcelamento da clínica, em texto livre ("em até 10x no
+   *  cartão"). Vazio = a IA não fala de parcelamento. */
+  parcelamento?: string | null;
   /**
    * Os horários de verdade a oferecer, já escolhidos.
    *
@@ -143,7 +155,10 @@ function listaDeObjecoes(lista: ManualDeVendas["objecoes"]): string {
 
   const linhas = (Array.isArray(lista) ? lista : [])
     .filter((o) => String(o?.objecao ?? "").trim())
-    .map((o) => `- Quando o cliente disser algo como "${String(o.objecao).trim()}":\n  ${String(o.resposta ?? "").trim()}`);
+    .map(
+      (o) =>
+        `- Quando o cliente disser algo como "${String(o.objecao).trim()}":\n  ${String(o.resposta ?? "").trim()}`,
+    );
   return linhas.length ? linhas.join("\n") : "(nenhuma objeção aprendida ainda.)";
 }
 
@@ -159,9 +174,7 @@ function listaDeEtapas(lista: ManualDeVendas["etapas"]): string {
   const escrito = textoCorrigido(lista);
   if (escrito) return escrito;
 
-  const etapas = (Array.isArray(lista) ? lista : []).filter((e) =>
-    String(e?.nome ?? "").trim(),
-  );
+  const etapas = (Array.isArray(lista) ? lista : []).filter((e) => String(e?.nome ?? "").trim());
   if (!etapas.length) return "(as etapas ainda não foram aprendidas.)";
 
   return etapas
@@ -191,7 +204,10 @@ function precoEmReais(v: number | null | undefined): string {
  * um número, e num negócio de serviço esse é o pior erro possível — o paciente
  * chega na clínica com um preço na cabeça que ninguém combinou.
  */
-export function tabelaDePrecos(procedimentos: ProcedimentoDoAgente[]): string {
+export function tabelaDePrecos(
+  procedimentos: ProcedimentoDoAgente[],
+  parcelamento?: string | null,
+): string {
   if (!procedimentos.length) {
     return [
       "## Preços",
@@ -202,15 +218,37 @@ export function tabelaDePrecos(procedimentos: ProcedimentoDoAgente[]): string {
   }
   const linhas = procedimentos.map((p) => {
     const dur = p.duracaoMinutos ? ` · ${p.duracaoMinutos} min` : "";
-    return `- ${p.nome}: ${precoEmReais(p.preco)}${dur}`;
+    const valor = p.aPartirDe ? `a partir de ${precoEmReais(p.preco)}` : precoEmReais(p.preco);
+    return `- ${p.nome}: ${valor}${dur}`;
   });
-  return [
+  const partes = [
     "## Preços que você pode informar",
     "Estes, e somente estes. Perguntaram de algo que não está na lista? Diga que",
     "vai confirmar e passe para uma pessoa.",
     "",
     ...linhas,
-  ].join("\n");
+  ];
+  // "A partir de" só serve se a IA souber o que fazer com ele. Sem esta frase
+  // ela repetiria o número e o paciente ouviria um preço fechado de qualquer
+  // jeito — que é exatamente o que a coluna existe para evitar.
+  if (procedimentos.some((p) => p.aPartirDe)) {
+    partes.push(
+      "",
+      'Onde está escrito "a partir de", esse é o valor MÍNIMO: o final depende da',
+      'avaliação. Diga "a partir de" também, nunca o número sozinho, e nunca',
+      "prometa que vai ficar nesse valor.",
+    );
+  }
+  if (parcelamento?.trim()) {
+    // O manual pede o parcelamento JUNTO do valor, para o paciente não descobrir
+    // depois que existia condição melhor.
+    partes.push(
+      "",
+      `Todos estes valores podem ser pagos ${parcelamento.trim()}. Informe isso`,
+      "junto do valor, não depois.",
+    );
+  }
+  return partes.join("\n");
 }
 
 /**
@@ -325,6 +363,7 @@ export function montarInstrucao({
   clinica,
   manual,
   procedimentos,
+  parcelamento,
   horarios,
 }: EntradaDaInstrucao): string {
   const partes = [
@@ -368,7 +407,7 @@ export function montarInstrucao({
   const obs = String(manual.observacoes ?? "").trim();
   if (obs) partes.push("", "## Outros pontos importantes", obs);
 
-  partes.push("", tabelaDePrecos(procedimentos));
+  partes.push("", tabelaDePrecos(procedimentos, parcelamento));
   partes.push("", secaoDeHorarios(horarios));
 
   partes.push(
@@ -391,7 +430,7 @@ export function montarInstrucao({
     "4. Nunca prometa prazo, desconto, resultado ou condição que não apareça",
     "   explicitamente no método acima.",
     "",
-    "5. Nunca discuta com o paciente e nunca insista depois de um \"não\".",
+    '5. Nunca discuta com o paciente e nunca insista depois de um "não".',
     "",
     "6. Escreva como alguém daqui escreveria: mensagens curtas, em português do",
     "   Brasil, sem parecer robô e sem se identificar como inteligência",

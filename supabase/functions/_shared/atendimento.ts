@@ -244,7 +244,7 @@ async function responderComModelo(
   if (ids.length) {
     const { data } = await supabase
       .from("clinic_procedures")
-      .select("name, price, duration_minutes, category")
+      .select("name, price, price_from, duration_minutes, category")
       .eq("owner_id", ownerId)
       .eq("active", true)
       .in("id", ids);
@@ -277,7 +277,9 @@ async function responderComModelo(
       preco: p.price ?? null,
       duracaoMinutos: p.duration_minutes ?? null,
       categoria: p.category ?? null,
+      aPartirDe: p.price_from === true,
     })),
+    parcelamento: agente.parcelamento ?? null,
   });
 
   const anteriores = await deps.historico(entrada.conversationId);

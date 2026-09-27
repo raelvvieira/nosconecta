@@ -723,7 +723,9 @@ async function handleCiclo(ownerId: string) {
  * ler procedimento inativo, ou a esquecer o override — e o card sugeriria uma
  * fala sobre um método diferente do que o agente segue na mesma conversa.
  */
-async function contextoDaClinica(ownerId: string, agenteId: string) {
+// deno-lint-ignore no-explicit-any
+async function contextoDaClinica(ownerId: string, agente: any) {
+  const agenteId = String(agente?.id ?? "");
   const playbook = await garantirPlaybook(ownerId);
 
   const { data: escolhidos } = await supabase
@@ -736,7 +738,7 @@ async function contextoDaClinica(ownerId: string, agenteId: string) {
   if (ids.length) {
     const { data } = await supabase
       .from("clinic_procedures")
-      .select("name, price, duration_minutes, category")
+      .select("name, price, price_from, duration_minutes, category")
       .eq("owner_id", ownerId)
       .eq("active", true)
       .in("id", ids);
@@ -757,11 +759,13 @@ async function contextoDaClinica(ownerId: string, agenteId: string) {
   return {
     clinica: String(unidade?.name ?? "NÓS Odontologia"),
     manual: manualEfetivo(playbook.learned, playbook.overrides),
+    parcelamento: agente?.parcelamento ?? null,
     procedimentos: procedimentos.map((p) => ({
       nome: p.name,
       preco: p.price ?? null,
       duracaoMinutos: p.duration_minutes ?? null,
       categoria: p.category ?? null,
+      aPartirDe: p.price_from === true,
     })),
   };
 }
@@ -777,7 +781,7 @@ async function handleInstrucao(ownerId: string) {
   const horarios = await horariosParaOferecer(supabase, ownerId);
   return {
     ok: true,
-    instrucao: montarInstrucao({ ...(await contextoDaClinica(ownerId, agente.id)), horarios }),
+    instrucao: montarInstrucao({ ...(await contextoDaClinica(ownerId, agente)), horarios }),
   };
 }
 
@@ -817,7 +821,7 @@ async function handleSugerir(ownerId: string, conversationId: string) {
     .eq("crm_conversation_id", conversationId)
     .maybeSingle();
 
-  const contexto = await contextoDaClinica(ownerId, agente.id);
+  const contexto = await contextoDaClinica(ownerId, agente);
   const prompt = promptDeSugestao({
     ...contexto,
     historico,
