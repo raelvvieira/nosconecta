@@ -1,0 +1,1 @@
+ALTER FUNCTION public.telefone_br_normalizado(text) SET search_path = public;
