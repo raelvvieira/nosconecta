@@ -26,7 +26,7 @@ import {
 import { lerTudo } from "../_shared/ler-paginado.ts";
 import { chamarModelo, responderPaciente, temChave } from "../_shared/modelo-de-atendimento.ts";
 import { historicoDoEspelho } from "../_shared/historico-da-conversa.ts";
-import { horariosParaOferecer } from "../_shared/agenda-da-clinica.ts";
+import { agoraNaClinica, horariosParaOferecer } from "../_shared/agenda-da-clinica.ts";
 import { ehPacienteDoContato } from "../_shared/quem-e-paciente.ts";
 import {
   FORMATO_DAS_SUGESTOES,
@@ -760,6 +760,11 @@ async function contextoDaClinica(ownerId: string, agente: any) {
     clinica: String(unidade?.name ?? "NÓS Odontologia"),
     manual: manualEfetivo(playbook.learned, playbook.overrides),
     parcelamento: agente?.parcelamento ?? null,
+    pacienteModelo: {
+      ate: agente?.paciente_modelo_ate ?? null,
+      texto: agente?.paciente_modelo_texto ?? null,
+    },
+    hoje: agoraNaClinica().date,
     procedimentos: procedimentos.map((p) => ({
       nome: p.name,
       preco: p.price ?? null,

@@ -18,7 +18,7 @@
 import { decidirSeResponde, registrarFalha, registrarSucesso } from "./filtros-do-agente.ts";
 import { esperaDeDigitacao, normalizarRitmo, segmentar } from "./humanizacao.ts";
 import { manualEfetivo, montarInstrucao } from "./instrucao-do-agente.ts";
-import { horariosParaOferecer } from "./agenda-da-clinica.ts";
+import { agoraNaClinica, horariosParaOferecer } from "./agenda-da-clinica.ts";
 
 export interface MensagemDeEntrada {
   conversationId: string;
@@ -280,6 +280,11 @@ async function responderComModelo(
       aPartirDe: p.price_from === true,
     })),
     parcelamento: agente.parcelamento ?? null,
+    pacienteModelo: {
+      ate: agente.paciente_modelo_ate ?? null,
+      texto: agente.paciente_modelo_texto ?? null,
+    },
+    hoje: agoraNaClinica(agoraDoAtendimento(deps)).date,
   });
 
   const anteriores = await deps.historico(entrada.conversationId);

@@ -99,6 +99,11 @@ export interface EntradaDaInstrucao {
   /** Condição de parcelamento da clínica, em texto livre ("em até 10x no
    *  cartão"). Vazio = a IA não fala de parcelamento. */
   parcelamento?: string | null;
+  /** A oferta de paciente modelo. Ver `secaoDePacienteModelo`. */
+  pacienteModelo?: PacienteModelo | null;
+  /** Hoje, "YYYY-MM-DD", no fuso da clínica — é o que decide se a oferta de
+   *  paciente modelo ainda vale. Obrigatório quando `pacienteModelo` vem. */
+  hoje?: string;
   /**
    * Os horários de verdade a oferecer, já escolhidos.
    *
@@ -251,6 +256,75 @@ export function tabelaDePrecos(
   return partes.join("\n");
 }
 
+/** A oferta de paciente modelo, e se ela está aberta. */
+export interface PacienteModelo {
+  /** Último dia da edição, "YYYY-MM-DD". Vazio = não há edição aberta. */
+  ate: string | null;
+  /** O que a IA pode dizer sobre a edição. */
+  texto: string | null;
+}
+
+/**
+ * Paciente modelo e harmonização facial.
+ *
+ * ── Por que esta seção existe separada ───────────────────────────────────
+ *
+ * Porque são as duas coisas em que dar um preço errado custa mais caro, e por
+ * motivos opostos.
+ *
+ * **Harmonização facial**, para quem procura direto: NÃO tem preço por WhatsApp,
+ * ponto. O valor depende do rosto da pessoa e só sai da avaliação com a Dra.
+ * Mariane. Qualquer número dito aqui é uma promessa feita sem ter visto ninguém.
+ *
+ * **Paciente modelo**: tem preço, mas ele é exclusivo de uma edição da mentoria,
+ * com data. A edição de agosto foi nos dias 28 e 29, e o anúncio diz "valores
+ * exclusivos para essa mentoria". Fora da edição, aqueles valores não existem —
+ * e convidar alguém para uma mentoria que já passou não dá erro em lugar nenhum:
+ * dá uma pessoa chegando na clínica achando que tinha vaga.
+ *
+ * Por isso a oferta depende de `ate` estar no futuro. Expira sozinha.
+ */
+export function secaoDePacienteModelo(pm: PacienteModelo | null | undefined, hoje: string): string {
+  const partes = ["## Harmonização facial e paciente modelo"];
+
+  partes.push(
+    "Para quem procura harmonização facial, preenchimento, botox ou",
+    'bioestimulador: você NUNCA dá valor por aqui, nem faixa, nem "a partir',
+    'de", nem compara com outro procedimento. O valor depende do rosto da',
+    "pessoa e sai da avaliação com a Dra. Mariane. Explique o procedimento se",
+    "perguntarem, e conduza para a avaliação.",
+  );
+
+  const aberta = Boolean(pm?.ate && pm.ate >= hoje && pm?.texto?.trim());
+
+  if (aberta) {
+    partes.push(
+      "",
+      "Há uma edição de PACIENTE MODELO aberta. Você pode falar dela quando a",
+      "pessoa demonstrar interesse em harmonização facial, ou se ela perguntar:",
+      "",
+      String(pm?.texto ?? "").trim(),
+    );
+  } else {
+    partes.push(
+      "",
+      "NÃO há edição de paciente modelo aberta agora. Não ofereça, não mencione e",
+      "não cite valores de mentoria — aqueles valores valem só dentro de uma",
+      "edição, e a última já passou. Se a pessoa perguntar por paciente modelo,",
+      "diga que vai confirmar quando abre a próxima e passe a conversa para uma",
+      "pessoa.",
+    );
+  }
+
+  partes.push(
+    "",
+    "E em nenhum dos dois casos você manda dados de pagamento: nem pix, nem CPF,",
+    "nem link. Quem manda isso é uma pessoa da clínica.",
+  );
+
+  return partes.join("\n");
+}
+
 /**
  * Os horários, do jeito que o agente pode usar.
  *
@@ -364,6 +438,8 @@ export function montarInstrucao({
   manual,
   procedimentos,
   parcelamento,
+  pacienteModelo,
+  hoje,
   horarios,
 }: EntradaDaInstrucao): string {
   const partes = [
@@ -409,6 +485,12 @@ export function montarInstrucao({
 
   partes.push("", tabelaDePrecos(procedimentos, parcelamento));
   partes.push("", secaoDeHorarios(horarios));
+  // Depois dos preços e dos horários de propósito: é a seção que RESTRINGE os
+  // dois, e uma restrição lida antes da regra que ela restringe se perde.
+  // `9999-12-31` quando quem chamou não informou a data: nenhuma edição real é
+  // maior que isso, então a oferta nasce FECHADA. Falha fechada de propósito —
+  // convidar para uma mentoria que já passou é pior que não convidar.
+  partes.push("", secaoDePacienteModelo(pacienteModelo, hoje ?? "9999-12-31"));
 
   partes.push(
     "",
