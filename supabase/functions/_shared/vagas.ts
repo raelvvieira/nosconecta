@@ -218,3 +218,190 @@ export function vagasLivres(p: PedidoDeVagas): ResultadoDeVagas {
 
   return { vagas, diasSobConsulta };
 }
+
+// ── Quais vagas oferecer ────────────────────────────────────────────────
+//
+// O cálculo acima acha TUDO: com 4 cadeiras e a agenda vazia, mais de 500 vagas
+// em quinze dias. Isso não vai para a instrução do modelo, e não por economia:
+// uma lista de 500 horários é maior que o manual inteiro, e o manual pede DUAS
+// opções.
+//
+// ── O erro que isto existe para impedir ─────────────────────────────────
+//
+// As quatro primeiras vagas cronológicas são a MESMA hora em quatro cadeiras
+// diferentes. Pegar "as duas primeiras" ofereceria "15h ou 15h" — que não é
+// escolha, é um bug que parece descuido de quem escreveu a mensagem.
+//
+// Então a escolha é por MOMENTO (dia + hora), não por vaga. A cadeira vai junto
+// para quem grava, mas duas cadeiras na mesma hora contam como uma opção.
+//
+// ── As faixas de preferência ────────────────────────────────────────────
+//
+// Regra da clínica, 28/09: o melhor é nas próximas 3 horas; não havendo, nos
+// dois dias seguintes; depois dentro de sete dias; por último, quinze.
+//
+// A faixa mais próxima ganha, e só se ela não tiver o suficiente a seguinte
+// entra — oferecer uma opção de hoje e uma de duas semanas na mesma mensagem
+// faria a de hoje parecer a única de verdade.
+
+export interface Faixa {
+  rotulo: string;
+  ateMinutos: number;
+}
+
+/** Da mais desejada para a menos. Ver o comentário acima. */
+export const FAIXAS: readonly Faixa[] = [
+  { rotulo: "nas próximas 3 horas", ateMinutos: 3 * 60 },
+  { rotulo: "nos próximos 2 dias", ateMinutos: 2 * 24 * 60 },
+  { rotulo: "nos próximos 7 dias", ateMinutos: 7 * 24 * 60 },
+  { rotulo: "nos próximos 15 dias", ateMinutos: 15 * 24 * 60 },
+];
+
+/** Dias de calendário entre duas datas "YYYY-MM-DD". */
+export function diasEntre(de: string, ate: string): number {
+  const n = (iso: string) => {
+    const [a, m, d] = iso.split("-").map(Number);
+    return Date.UTC(a, (m || 1) - 1, d || 1);
+  };
+  return Math.round((n(ate) - n(de)) / 86_400_000);
+}
+
+export interface Momento {
+  date: string;
+  hora: string;
+  /** Quantos minutos daqui. Usado para ordenar e para achar a faixa. */
+  emMinutosDaqui: number;
+  /** Uma opção por momento; as cadeiras livres nessa hora vêm todas, e quem
+   *  grava escolhe a primeira. Sem isto, o agendamento não saberia a sala. */
+  vagas: Vaga[];
+}
+
+/** Manhã, tarde ou noite. É por período que uma pessoa pensa a própria agenda —
+ *  ninguém responde "prefiro às 14h30", responde "prefiro à tarde". */
+export function periodoDoDia(hora: string): "manhã" | "tarde" | "noite" {
+  const m = emMinutos(hora);
+  if (m < 12 * 60) return "manhã";
+  if (m < 17 * 60) return "tarde";
+  return "noite";
+}
+
+/**
+ * Escolhe espalhando por dia e período, começando pelo mais próximo.
+ *
+ * ── O defeito que isto conserta ──────────────────────────────────────────
+ *
+ * Pegar "os N primeiros" cronologicamente devolvia 08:00, 08:30, 09:00, 09:30…
+ * da mesma manhã. Duas consequências, as duas vistas rodando com a agenda real:
+ *
+ * "Tenho segunda às 08:00 ou segunda às 08:30" não é uma escolha — são trinta
+ * minutos de diferença, e quem não pode às oito também não pode às oito e meia.
+ *
+ * E a reserva (o que responde "nenhum desses serve, prefiro à tarde") ficava
+ * inteira na manhã de segunda. Não havia o que responder.
+ *
+ * Então a primeira passada pega UM por (dia, período), em ordem cronológica: o
+ * mais próximo continua sendo o primeiro — a preferência da clínica —, mas o
+ * segundo já é uma alternativa de verdade. A segunda passada completa com os
+ * mais próximos que sobraram, para nunca devolver menos do que havia.
+ */
+export function espalharMomentos(
+  momentos: readonly Momento[],
+  quantos: number,
+  /**
+   * Períodos a evitar na primeira passada, no formato `YYYY-MM-DD|manhã`.
+   *
+   * É o que faz a reserva não começar meia hora depois do que a pessoa acabou de
+   * recusar: quem disse não para segunda às 08:00 não quer segunda às 08:30.
+   */
+  evitar: ReadonlySet<string> = new Set(),
+): Momento[] {
+  const escolhidos: Momento[] = [];
+  const vistos = new Set<string>(evitar);
+  const usados = new Set<Momento>();
+
+  for (const m of momentos) {
+    if (escolhidos.length >= quantos) break;
+    const chave = `${m.date}|${periodoDoDia(m.hora)}`;
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    escolhidos.push(m);
+    usados.add(m);
+  }
+
+  for (const m of momentos) {
+    if (escolhidos.length >= quantos) break;
+    if (usados.has(m)) continue;
+    escolhidos.push(m);
+  }
+
+  // Cronológica no fim: a segunda passada pode ter inserido algo anterior ao que
+  // a primeira já tinha pego, e uma lista fora de ordem faria o agente oferecer
+  // quinta antes de segunda.
+  return escolhidos.sort((a, b) => a.emMinutosDaqui - b.emMinutosDaqui);
+}
+
+/**
+ * Os momentos a oferecer, da faixa mais próxima que tiver o suficiente.
+ *
+ * Devolve mais que `quantas` de propósito — `paraOferecer` é o que a Luna deve
+ * propor agora, e `reserva` é para quando a pessoa disser "nenhum desses" e
+ * informar um período. Sem a reserva, responder a isso exigiria uma segunda ida
+ * ao banco no meio da conversa; com ela, a resposta já está na mesa.
+ */
+export function escolherMomentos(
+  vagas: readonly Vaga[],
+  agora: { date: string; hora: string },
+  quantas = 2,
+  naReserva = 10,
+): { paraOferecer: Momento[]; reserva: Momento[]; faixa: string | null } {
+  const porMomento = new Map<string, Momento>();
+  for (const v of vagas) {
+    const chave = `${v.date}T${v.hora}`;
+    const existente = porMomento.get(chave);
+    if (existente) {
+      existente.vagas.push(v);
+      continue;
+    }
+    porMomento.set(chave, {
+      date: v.date,
+      hora: v.hora,
+      emMinutosDaqui:
+        diasEntre(agora.date, v.date) * 24 * 60 + (emMinutos(v.hora) - emMinutos(agora.hora)),
+      vagas: [v],
+    });
+  }
+
+  const momentos = [...porMomento.values()]
+    // Nada no passado chega aqui em condições normais, mas a guarda é barata e
+    // o custo de errar é oferecer um horário que já passou.
+    .filter((m) => m.emMinutosDaqui >= 0)
+    .sort((a, b) => a.emMinutosDaqui - b.emMinutosDaqui);
+
+  // A primeira faixa que contém `quantas` opções. Não havendo em nenhuma, vale
+  // a última — é melhor oferecer uma opção distante que nenhuma.
+  let faixa: Faixa | null = null;
+  for (const f of FAIXAS) {
+    if (momentos.filter((m) => m.emMinutosDaqui <= f.ateMinutos).length >= quantas) {
+      faixa = f;
+      break;
+    }
+  }
+  const limite = faixa?.ateMinutos ?? FAIXAS[FAIXAS.length - 1].ateMinutos;
+  const dentro = momentos.filter((m) => m.emMinutosDaqui <= limite);
+
+  const paraOferecer = espalharMomentos(dentro, quantas);
+
+  // A reserva sai do intervalo INTEIRO, não só da faixa escolhida: ela existe
+  // para responder "prefiro à tarde", e a tarde pode não estar na faixa de três
+  // horas. Espalhada pelo mesmo critério, ela cobre manhã, tarde e noite de
+  // vários dias em vez de dez meia-horas seguidas.
+  const jaOferecidos = new Set(paraOferecer);
+  const restantes = momentos.filter((m) => !jaOferecidos.has(m));
+  const periodosOferecidos = new Set(paraOferecer.map((m) => `${m.date}|${periodoDoDia(m.hora)}`));
+
+  return {
+    paraOferecer,
+    reserva: espalharMomentos(restantes, naReserva, periodosOferecidos),
+    faixa: dentro.length ? (faixa?.rotulo ?? FAIXAS[FAIXAS.length - 1].rotulo) : null,
+  };
+}

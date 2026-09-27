@@ -21,15 +21,21 @@
 //   **Deixar a vaga passar do fechamento.** Uma avaliação de 60 min às 13:30 num
 //   sábado que fecha 14:00 não cabe.
 import {
+  FAIXAS,
   colide,
+  espalharMomentos,
+  periodoDoDia,
   diaDaSemana,
+  diasEntre,
   emHora,
   emMinutos,
+  escolherMomentos,
   somarDias,
   vagasLivres,
   type Jornada,
   type Ocupado,
   type Sala,
+  type Vaga,
 } from "../supabase/functions/_shared/vagas.ts";
 
 let ok = 0;
@@ -237,6 +243,196 @@ conferir(
   vagasLivres({ ...base, passoMin: 30 }).vagas.length,
   21,
 );
+
+// ── A escolha dos momentos a oferecer ───────────────────────────────────
+//
+// O erro que esta parte existe para impedir: com 4 cadeiras livres, as quatro
+// primeiras vagas cronológicas são a MESMA hora. "15h ou 15h" não é escolha.
+
+const CADEIRAS = ["s1", "s2", "s3", "s4"];
+function vagasEm(date: string, horas: string[]): Vaga[] {
+  const saida: Vaga[] = [];
+  for (const hora of horas)
+    for (const id of CADEIRAS)
+      saida.push({
+        date,
+        hora,
+        salaId: id,
+        salaNome: id,
+        unidadeId: UNIDADE,
+        unidadeNome: "NÓS Florianópolis",
+      });
+  return saida;
+}
+
+conferir(
+  "as faixas vão da mais perto para a mais longe",
+  FAIXAS.map((f) => f.ateMinutos),
+  [180, 2880, 10080, 21600],
+);
+conferir("dias entre datas", diasEntre("2026-09-28", "2026-09-30"), 2);
+conferir("dias entre datas vira o mês", diasEntre("2026-09-30", "2026-10-02"), 2);
+
+// Quatro cadeiras na mesma hora = UMA opção, nunca duas.
+{
+  const r = escolherMomentos(vagasEm("2026-09-28", ["15:00", "16:00"]), {
+    date: "2026-09-28",
+    hora: "14:00",
+  });
+  conferir("duas opções, não duas cadeiras", r.paraOferecer.length, 2);
+  conferir(
+    "e são horas diferentes",
+    r.paraOferecer.map((m) => m.hora),
+    ["15:00", "16:00"],
+  );
+  conferir("as quatro cadeiras viajam juntas", r.paraOferecer[0].vagas.length, 4);
+}
+
+// A faixa de 3 horas ganha quando tem duas opções dentro dela.
+{
+  const r = escolherMomentos(
+    [...vagasEm("2026-09-28", ["15:00", "16:00"]), ...vagasEm("2026-10-05", ["09:00"])],
+    { date: "2026-09-28", hora: "14:00" },
+  );
+  conferir("a faixa escolhida é a mais próxima", r.faixa, "nas próximas 3 horas");
+  conferir(
+    "e nada de outra semana entra",
+    r.paraOferecer.every((m) => m.date === "2026-09-28"),
+    true,
+  );
+}
+
+// Só UMA opção em 3 horas: a faixa cede para a seguinte, em vez de oferecer uma.
+{
+  const r = escolherMomentos(
+    [...vagasEm("2026-09-28", ["15:00"]), ...vagasEm("2026-09-29", ["09:00", "10:00"])],
+    { date: "2026-09-28", hora: "14:00" },
+  );
+  conferir("uma só não fecha a faixa de 3 horas", r.faixa, "nos próximos 2 dias");
+  conferir("e a de hoje continua sendo a primeira oferecida", r.paraOferecer[0].hora, "15:00");
+  conferir("a segunda vem de amanhã", r.paraOferecer[1].date, "2026-09-29");
+}
+
+// Nada em 2 dias nem em 7: cai para 15.
+{
+  const r = escolherMomentos(vagasEm("2026-10-10", ["09:00", "10:00"]), {
+    date: "2026-09-28",
+    hora: "14:00",
+  });
+  conferir("faixa de 15 dias quando é o que há", r.faixa, "nos próximos 15 dias");
+  conferir("e oferece as duas", r.paraOferecer.length, 2);
+}
+
+// A reserva é o que responde "nenhum desses serve" sem ir ao banco de novo.
+{
+  const r = escolherMomentos(vagasEm("2026-09-29", ["09:00", "10:00", "11:00", "14:00", "15:00"]), {
+    date: "2026-09-28",
+    hora: "14:00",
+  });
+  conferir("oferece dois", r.paraOferecer.length, 2);
+  // Um da manhã e um da tarde, não duas horas seguidas da manhã: é o que
+  // transforma a oferta numa escolha de verdade.
+  conferir(
+    "um por período",
+    r.paraOferecer.map((m) => m.hora),
+    ["09:00", "14:00"],
+  );
+  // Aqui TODO o resto cai em períodos já oferecidos, e a reserva devolve mesmo
+  // assim — melhor uma alternativa próxima do que nenhuma.
+  conferir(
+    "e guarda o resto de reserva",
+    r.reserva.map((m) => m.hora),
+    ["10:00", "11:00", "15:00"],
+  );
+}
+
+// ── O espalhamento ──────────────────────────────────────────────────────
+//
+// O defeito que isto conserta foi visto rodando com a agenda real: a escolha
+// cronológica devolvia "segunda às 08:00 ou segunda às 08:30". Trinta minutos de
+// diferença não é escolha — quem não pode às oito não pode às oito e meia.
+conferir("manhã até 11:59", periodoDoDia("11:59"), "manhã");
+conferir("tarde do meio-dia às 16:59", periodoDoDia("12:00"), "tarde");
+conferir("noite das 17h em diante", periodoDoDia("17:00"), "noite");
+
+{
+  const horas: string[] = [];
+  for (let t = 8 * 60; t <= 18 * 60; t += 30) horas.push(emHora(t));
+  const r = escolherMomentos(vagasEm("2026-09-29", horas), { date: "2026-09-28", hora: "14:00" });
+  conferir("o mais próximo continua sendo o primeiro", r.paraOferecer[0].hora, "08:00");
+  conferir("mas o segundo é de outro período", periodoDoDia(r.paraOferecer[1].hora), "tarde");
+  conferir("nunca meia hora depois", r.paraOferecer[1].hora === "08:30", false);
+  // A reserva PRIORIZA o período não recusado, mas a lista sai em ordem
+  // cronológica, então 08:30 volta à frente — e está certo: num dia só, cabe
+  // tudo, e uma alternativa próxima vale mais que uma lista curta. O que a
+  // priorização garante é que a opção da noite não seja expulsa pelo teto.
+  conferir(
+    "a noite entra na reserva",
+    r.reserva.some((m) => periodoDoDia(m.hora) === "noite"),
+    true,
+  );
+}
+
+// Vários dias: a reserva cobre manhã, tarde e noite de dias diferentes — é o que
+// responde "prefiro à tarde" sem segunda ida ao banco.
+{
+  const muitos = [
+    ...vagasEm("2026-09-29", ["08:00", "12:00", "17:00"]),
+    ...vagasEm("2026-09-30", ["08:00", "12:00", "17:00"]),
+  ];
+  const r = escolherMomentos(muitos, { date: "2026-09-28", hora: "14:00" }, 2, 10);
+  conferir(
+    "a reserva tem os três períodos",
+    new Set(r.reserva.map((m) => periodoDoDia(m.hora))).size,
+    3,
+  );
+  conferir("e mais de um dia", new Set(r.reserva.map((m) => m.date)).size, 2);
+}
+
+// Espalhar nunca devolve menos do que havia: sem diversidade, completa com os
+// mais próximos em vez de encurtar a lista.
+{
+  const tudoDeManha = escolherMomentos(vagasEm("2026-09-29", ["08:00", "08:30", "09:00"]), {
+    date: "2026-09-28",
+    hora: "14:00",
+  });
+  conferir("sem diversidade ainda oferece dois", tudoDeManha.paraOferecer.length, 2);
+  conferir("e sobra um de reserva", tudoDeManha.reserva.length, 1);
+  conferir("espalhar respeita o pedido", espalharMomentos(tudoDeManha.reserva, 5).length, 1);
+}
+
+// A ordem cronológica é preservada mesmo depois de espalhar.
+{
+  const r = escolherMomentos(
+    [...vagasEm("2026-09-30", ["08:00"]), ...vagasEm("2026-09-29", ["15:00"])],
+    { date: "2026-09-28", hora: "14:00" },
+  );
+  conferir(
+    "o dia anterior vem primeiro",
+    r.paraOferecer.map((m) => m.date),
+    ["2026-09-29", "2026-09-30"],
+  );
+}
+
+// Agenda vazia: nenhuma faixa, e isso precisa ser distinguível de "achei".
+{
+  const r = escolherMomentos([], { date: "2026-09-28", hora: "14:00" });
+  conferir("sem vaga, sem faixa", r.faixa, null);
+  conferir("e sem oferta", r.paraOferecer.length, 0);
+}
+
+// Horário que já passou não é oferecido nem entra na reserva.
+{
+  const r = escolherMomentos(vagasEm("2026-09-28", ["09:00", "16:00"]), {
+    date: "2026-09-28",
+    hora: "14:00",
+  });
+  conferir(
+    "a manhã que passou não aparece",
+    r.paraOferecer.map((m) => m.hora),
+    ["16:00"],
+  );
+}
 
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);

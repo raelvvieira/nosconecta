@@ -18,6 +18,7 @@
 import { decidirSeResponde, registrarFalha, registrarSucesso } from "./filtros-do-agente.ts";
 import { esperaDeDigitacao, normalizarRitmo, segmentar } from "./humanizacao.ts";
 import { manualEfetivo, montarInstrucao } from "./instrucao-do-agente.ts";
+import { horariosParaOferecer } from "./agenda-da-clinica.ts";
 
 export interface MensagemDeEntrada {
   conversationId: string;
@@ -89,6 +90,12 @@ export interface ResultadoDoAtendimento {
   respondeu: boolean;
   motivo?: string;
   pedacos: string[];
+}
+
+/** O relógio que vale, respeitando `deps.agora` — é o que permite fixar o tempo
+ *  no teste e na simulação em vez de depender da hora em que se roda. */
+function agoraDoAtendimento(deps: Dependencias): Date {
+  return deps.agora ?? new Date();
 }
 
 /** Quantas mensagens da conversa vão como contexto. Suficiente para o modelo
@@ -252,7 +259,17 @@ async function responderComModelo(
     .limit(1)
     .maybeSingle();
 
+  // Os horários de verdade, ao lado das outras leituras de contexto. É o que
+  // torna a regra dos dois horários possível — antes disto o agente não tinha
+  // como saber que horário existe, e a regra fixa mandava calar sobre agenda.
+  //
+  // Devolve `null` quando a agenda não pôde ser lida, e `null` na instrução
+  // significa "não consultei", nunca "não há vaga". A diferença importa: um
+  // banco instável não pode virar "estamos sem horário" para quem quer marcar.
+  const horarios = await horariosParaOferecer(supabase, ownerId, agoraDoAtendimento(deps));
+
   const instrucao = montarInstrucao({
+    horarios,
     clinica: unidade?.name ?? "NÓS Odontologia",
     manual: manualEfetivo(playbook?.learned, playbook?.overrides),
     procedimentos: procedimentos.map((p) => ({

@@ -26,6 +26,7 @@ import {
 import { lerTudo } from "../_shared/ler-paginado.ts";
 import { chamarModelo, responderPaciente, temChave } from "../_shared/modelo-de-atendimento.ts";
 import { historicoDoEspelho } from "../_shared/historico-da-conversa.ts";
+import { horariosParaOferecer } from "../_shared/agenda-da-clinica.ts";
 import { ehPacienteDoContato } from "../_shared/quem-e-paciente.ts";
 import {
   FORMATO_DAS_SUGESTOES,
@@ -770,7 +771,14 @@ async function contextoDaClinica(ownerId: string, agenteId: string) {
  *  diferentes das que estão valendo. */
 async function handleInstrucao(ownerId: string) {
   const agente = await garantirAgente(ownerId);
-  return { ok: true, instrucao: montarInstrucao(await contextoDaClinica(ownerId, agente.id)) };
+  // Os horários entram na prévia também. Sem isso a tela mostraria uma
+  // instrução sem agenda enquanto o agente recebe uma com agenda — e quem
+  // fosse conferir por que a Luna ofereceu um horário não acharia de onde veio.
+  const horarios = await horariosParaOferecer(supabase, ownerId);
+  return {
+    ok: true,
+    instrucao: montarInstrucao({ ...(await contextoDaClinica(ownerId, agente.id)), horarios }),
+  };
 }
 
 /**

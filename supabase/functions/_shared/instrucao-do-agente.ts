@@ -87,6 +87,28 @@ export interface EntradaDaInstrucao {
   clinica: string;
   manual: ManualDeVendas;
   procedimentos: ProcedimentoDoAgente[];
+  /**
+   * Os horários de verdade a oferecer, já escolhidos.
+   *
+   * Opcional porque a tela de prévia e os testes antigos montam a instrução sem
+   * agenda, e porque a ausência tem de ter um texto próprio: "não sei a
+   * disponibilidade" é diferente de "não há vaga", e as duas coisas fazem o
+   * agente dizer frases diferentes.
+   */
+  horarios?: HorariosParaOferecer | null;
+}
+
+/** O que a agenda respondeu. Ver `escolherMomentos` em `vagas.ts`. */
+export interface HorariosParaOferecer {
+  /** Os que a IA deve propor AGORA — dois, pela regra da clínica. */
+  paraOferecer: { date: string; hora: string; unidadeNome: string }[];
+  /** Os seguintes, para responder "nenhum desses serve" sem ir ao banco de
+   *  novo no meio da conversa. */
+  reserva: { date: string; hora: string; unidadeNome: string }[];
+  /** "nas próximas 3 horas", "nos próximos 2 dias"… Nulo quando não há vaga. */
+  faixa: string | null;
+  /** Dias que são "sob consulta com a Dra." — não oferecer, não negar. */
+  diasSobConsulta: string[];
 }
 
 const AUSENTE = "(a IA ainda não aprendeu isso — seja natural e, na dúvida, pergunte.)";
@@ -192,11 +214,119 @@ export function tabelaDePrecos(procedimentos: ProcedimentoDoAgente[]): string {
 }
 
 /**
+ * Os horários, do jeito que o agente pode usar.
+ *
+ * Espelha `tabelaDePrecos` de propósito: bloco próprio, e a frase "estes e
+ * somente estes". É o mesmo problema — um dado que só o sistema conhece e que o
+ * modelo inventaria de boa vontade se não fosse dito que não pode.
+ *
+ * ── Por que a ausência tem três textos diferentes ─────────────────────────
+ *
+ * "Não consultei a agenda", "consultei e não há vaga" e "este dia é sob
+ * consulta" levam a três respostas distintas ao paciente. Com um texto só, o
+ * agente diria "não temos horário" nos três casos — e no terceiro isso é falso,
+ * porque domingo na NÓS não é fechado: é confirmar com a Dra.
+ */
+export function secaoDeHorarios(h: HorariosParaOferecer | null | undefined): string {
+  if (!h) {
+    return [
+      "## Horários",
+      "Você NÃO consultou a agenda. Não diga horário nenhum, nem invente, nem",
+      "diga que não há vaga. Se a pessoa quiser marcar, diga que vai confirmar a",
+      "agenda e passe a conversa para uma pessoa.",
+    ].join("\n");
+  }
+
+  const linha = (v: { date: string; hora: string; unidadeNome: string }) =>
+    `- ${diaDaSemanaEmTexto(v.date)}, ${diaMesEmTexto(v.date)}, às ${v.hora}, na ${v.unidadeNome}`;
+
+  const partes = ["## Horários que existem de verdade na agenda"];
+
+  if (!h.paraOferecer.length) {
+    partes.push(
+      "A agenda foi consultada e NÃO há vaga nos próximos quinze dias. Não",
+      "ofereça horário e não invente. Diga que vai ver uma possibilidade com a",
+      "equipe e passe a conversa para uma pessoa.",
+    );
+  } else {
+    partes.push(
+      `Ofereça DOIS destes, e só destes — são reais e estão livres (${h.faixa}):`,
+      "",
+      ...h.paraOferecer.map(linha),
+      "",
+      "Ofereça os dois de uma vez, numa frase, e pergunte qual fica melhor. Não",
+      "mande a agenda inteira e não pergunte primeiro quando a pessoa pode.",
+    );
+    if (h.reserva.length) {
+      partes.push(
+        "",
+        "Se a pessoa disser que nenhum dos dois serve, pergunte que período é",
+        "melhor para ela e então ofereça dois DESTES, conforme a resposta:",
+        "",
+        ...h.reserva.map(linha),
+      );
+    }
+  }
+
+  if (h.diasSobConsulta.length) {
+    partes.push(
+      "",
+      "Estes dias são só SOB CONSULTA com a Dra. Mariane:",
+      ...h.diasSobConsulta.map((d) => `- ${diaDaSemanaEmTexto(d)}, ${diaMesEmTexto(d)}`),
+      "Não ofereça nenhum deles por conta própria — e também NÃO diga que a",
+      "clínica não atende nesse dia, porque atende. Se a pessoa pedir um desses,",
+      "diga que precisa confirmar com a Dra. e passe a conversa para uma pessoa.",
+    );
+  }
+
+  partes.push(
+    "",
+    "Você NÃO marca a consulta. Quando a pessoa escolher um dos horários,",
+    "confirme que anotou e diga que a equipe finaliza com ela.",
+  );
+
+  return partes.join("\n");
+}
+
+const DIAS_DA_SEMANA = [
+  "domingo",
+  "segunda-feira",
+  "terça-feira",
+  "quarta-feira",
+  "quinta-feira",
+  "sexta-feira",
+  "sábado",
+];
+
+/** "quinta-feira" a partir de "2026-10-01".
+ *
+ *  À mão, e não por `Intl` — que existe e funciona no Deno. O motivo é outro: o
+ *  texto precisa ser IDÊNTICO no teste e em produção, e dados de idioma variam
+ *  entre runtimes. Uma lista de sete palavras não vale uma dependência que pode
+ *  devolver "Thursday" num ambiente e "quinta-feira" no outro. */
+function diaDaSemanaEmTexto(iso: string): string {
+  const [a, m, d] = iso.split("-").map(Number);
+  const dia = new Date(Date.UTC(a, (m || 1) - 1, d || 1)).getUTCDay();
+  return DIAS_DA_SEMANA[dia] ?? iso;
+}
+
+/** "01/10" a partir de "2026-10-01". */
+function diaMesEmTexto(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${d}/${m}`;
+}
+
+/**
  * Monta a instrução completa. Função pura: mesma entrada, mesmo texto — é o
  * que permite exercitá-la sem servidor, sem modelo e sem enviar nada a
  * ninguém.
  */
-export function montarInstrucao({ clinica, manual, procedimentos }: EntradaDaInstrucao): string {
+export function montarInstrucao({
+  clinica,
+  manual,
+  procedimentos,
+  horarios,
+}: EntradaDaInstrucao): string {
   const partes = [
     `Você atende pacientes por WhatsApp em nome de ${clinica}.`,
     "",
@@ -239,6 +369,7 @@ export function montarInstrucao({ clinica, manual, procedimentos }: EntradaDaIns
   if (obs) partes.push("", "## Outros pontos importantes", obs);
 
   partes.push("", tabelaDePrecos(procedimentos));
+  partes.push("", secaoDeHorarios(horarios));
 
   partes.push(
     "",
@@ -248,9 +379,11 @@ export function montarInstrucao({ clinica, manual, procedimentos }: EntradaDaIns
     "   situações acontecer:",
     ...REGRAS_DE_REPASSE.map((r) => `   - ${r}`),
     "",
-    "2. Nunca invente informação. Se não souber preço, horário, disponibilidade,",
-    "   endereço, nome de profissional ou qualquer dado que não esteja acima,",
-    "   diga que vai confirmar e passe para uma pessoa.",
+    "2. Nunca invente informação. Preço, horário, disponibilidade, endereço,",
+    "   nome de profissional: só o que está escrito ACIMA nesta instrução. Um",
+    "   horário que não está na lista de horários não existe, mesmo que pareça",
+    "   razoável. Fora do que está acima, diga que vai confirmar e passe para",
+    "   uma pessoa.",
     "",
     "3. Nunca dê orientação clínica, diagnóstico, nome de remédio ou conduta —",
     "   nem para tranquilizar. Isso vale mesmo que a pergunta pareça simples.",
