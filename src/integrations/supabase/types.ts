@@ -3140,6 +3140,20 @@ export type Database = {
     }
     Functions: {
       accept_invitation: { Args: { _token: string }; Returns: boolean }
+      agendamento_por_telefone: {
+        Args: { _hoje: string; _owner: string; _variantes: string[] }
+        Returns: {
+          appointment_id: string
+          data: string
+          hora: string
+          patient_id: string
+          patient_name: string
+          procedure_name: string
+          professional_name: string
+          status: string
+          unit_id: string
+        }[]
+      }
       appointment_recalc_procedures: {
         Args: { p_appointment_id: string; p_owner: string }
         Returns: undefined
@@ -3220,6 +3234,7 @@ export type Database = {
         Returns: Record<string, unknown>
       }
       primary_clinic_owner: { Args: never; Returns: string }
+      telefone_br_normalizado: { Args: { _raw: string }; Returns: string }
       wa_e164_br: { Args: { raw: string }; Returns: string }
       wa_recalc_conversa: {
         Args: { p_conversa: string; p_owner: string }
