@@ -24,10 +24,14 @@ import {
   type ConversaDoCorpus,
 } from "../_shared/corpus-de-aprendizado.ts";
 import { lerTudo } from "../_shared/ler-paginado.ts";
-import { clienteDaIa, responderPaciente, temChave } from "../_shared/modelo-de-atendimento.ts";
+import { chamarModelo, responderPaciente, temChave } from "../_shared/modelo-de-atendimento.ts";
 import { historicoDoEspelho } from "../_shared/historico-da-conversa.ts";
 import { ehPacienteDoContato } from "../_shared/quem-e-paciente.ts";
-import { FORMATO_DAS_SUGESTOES, promptDeSugestao } from "../_shared/sugestoes-de-fala.ts";
+import {
+  FORMATO_DAS_SUGESTOES,
+  QUANTAS_SUGESTOES,
+  promptDeSugestao,
+} from "../_shared/sugestoes-de-fala.ts";
 import {
   CAMPOS_DO_MANUAL,
   manualEfetivo,
@@ -51,7 +55,6 @@ const MAX_CARACTERES = 400;
 const MINIMO_PARA_CONFIAR = 3;
 
 // ── O modelo ───────────────────────────────────────────────────────────────
-
 
 /**
  * O formato exigido da resposta.
@@ -136,9 +139,9 @@ function promptDeAprendizado(fontes: FonteParaAprender[]): string {
     "brasileira. Seu trabalho é descobrir o MÉTODO de atendimento desta equipe:",
     "como ela fala, o que funciona, o que ela responde quando o paciente hesita.",
     "",
-    "Cada conversa vem marcada. \"VIROU PACIENTE\" quer dizer que a pessoa acabou",
+    'Cada conversa vem marcada. "VIROU PACIENTE" quer dizer que a pessoa acabou',
     "virando paciente da clínica — é a evidência mais forte de que aquilo deu",
-    "certo. \"desfecho desconhecido\" quer dizer que não se sabe no que deu.",
+    'certo. "desfecho desconhecido" quer dizer que não se sabe no que deu.',
     "",
     "Regras:",
     "- Tire o método principalmente das conversas marcadas VIROU PACIENTE.",
@@ -513,7 +516,12 @@ async function transcricao(ownerId: string, conversationId: string): Promise<str
  */
 const PESO_DA_FONTE: Record<string, number> = { ganho: 0, etapa: 1, paciente: 2, conversa: 3 };
 
-async function aprender(ownerId: string, playbookId: string, chaveDaClinica: string | null) {
+async function aprender(
+  ownerId: string,
+  playbookId: string,
+  chaveDaClinica: string | null,
+  modelo: string | null,
+) {
   const { data: fontes } = await supabase
     .from("ai_playbook_sources")
     .select("conversation_id, source")
@@ -552,22 +560,20 @@ async function aprender(ownerId: string, playbookId: string, chaveDaClinica: str
   // A chave da clínica, quando ela tem uma. Sem este argumento o aprendizado
   // usava só o segredo do ambiente — e a chave que a pessoa acabou de colar na
   // tela do agente não valeria justamente aqui.
-  const resposta = await clienteDaIa(chaveDaClinica).messages.create({
-    model: "claude-opus-5",
-    max_tokens: 16000,
-    // A tarefa é DESCREVER o que está escrito, não inventar método. Esforço
-    // médio é o ponto em que ela é feita com cuidado sem virar ensaio.
-    thinking: { type: "adaptive" },
-    output_config: { effort: "medium", format: FORMATO_DO_MANUAL },
-    messages: [{ role: "user", content: promptDeAprendizado(paraAprender) }],
+  const texto = await chamarModelo({
+    chave: chaveDaClinica,
+    modelo,
+    pergunta: promptDeAprendizado(paraAprender),
+    maxTokens: 16000,
+    formato: FORMATO_DO_MANUAL,
+    nomeDoFormato: "manual_de_vendas",
   });
 
-  if (resposta.stop_reason === "refusal") {
+  // Texto vazio é recusa do modelo (ver `textoDaResposta`). Não vira manual
+  // vazio sobrescrevendo o que já foi aprendido.
+  if (!texto) {
     return { aprendeu: false, motivo: "o modelo recusou analisar estas conversas" };
   }
-
-  const bloco = resposta.content.find((b: any) => b.type === "text");
-  const texto = (bloco as any)?.text ?? "";
   let manual: ManualDeVendas;
   try {
     manual = JSON.parse(texto);
@@ -610,7 +616,11 @@ async function garantirPlaybook(ownerId: string) {
 }
 
 async function garantirAgente(ownerId: string) {
-  const { data } = await supabase.from("ai_agents").select("*").eq("owner_id", ownerId).maybeSingle();
+  const { data } = await supabase
+    .from("ai_agents")
+    .select("*")
+    .eq("owner_id", ownerId)
+    .maybeSingle();
   if (data) return data;
   const { data: novo, error } = await supabase
     .from("ai_agents")
@@ -669,7 +679,12 @@ async function handleCiclo(ownerId: string) {
   // Duas fontes, nesta ordem. O funil primeiro porque venda marcada por uma
   // pessoa é a evidência mais forte — hoje ele devolve zero, mas volta a
   // valer assim que houver card. O espelho preenche as vagas que sobrarem.
-  const doFunil = await coletarVendas(ownerId, playbook.id, etapas, agente.learn_from_won !== false);
+  const doFunil = await coletarVendas(
+    ownerId,
+    playbook.id,
+    etapas,
+    agente.learn_from_won !== false,
+  );
   const doEspelho = await coletarDoEspelho(ownerId, playbook.id, MAX_FONTES - doFunil.novas);
 
   const novas = doFunil.novas + doEspelho.novas;
@@ -684,7 +699,12 @@ async function handleCiclo(ownerId: string) {
     return { ok: true, novas: 0, aprendeu: false, motivo };
   }
 
-  const resultado = await aprender(ownerId, playbook.id, agente.api_key ?? null);
+  const resultado = await aprender(
+    ownerId,
+    playbook.id,
+    agente.api_key ?? null,
+    agente.model ?? null,
+  );
   if (!resultado.aprendeu) {
     await supabase
       .from("ai_sales_playbooks")
@@ -797,33 +817,38 @@ async function handleSugerir(ownerId: string, conversationId: string) {
     nomeDoContato: conversa?.contact_name ?? null,
   });
 
-  const resposta = await clienteDaIa(chave).messages.create({
-    model: "claude-opus-5",
-    max_tokens: 4000,
-    // Esforço baixo: a tarefa é escolher a próxima fala a partir de um método
-    // que já está escrito, não descobrir o método. E quem está com a conversa
-    // aberta está esperando.
-    thinking: { type: "adaptive" },
-    output_config: { effort: "low", format: FORMATO_DAS_SUGESTOES },
-    messages: [{ role: "user", content: prompt }],
+  const texto = await chamarModelo({
+    chave,
+    modelo: agente?.model ?? null,
+    pergunta: prompt,
+    maxTokens: 4000,
+    formato: FORMATO_DAS_SUGESTOES,
+    nomeDoFormato: "sugestoes_de_fala",
   });
 
   // Recusa NUNCA vira card. O painel simplesmente não mostra sugestão, como
   // quando não há chave.
-  if (resposta.stop_reason === "refusal") {
+  if (!texto) {
     return { ok: true, sugestoes: [], motivo: "o modelo preferiu não sugerir nesta conversa" };
   }
 
-  const bloco = resposta.content.find((b: any) => b.type === "text");
   try {
-    const lido = JSON.parse((bloco as any)?.text ?? "");
+    const lido = JSON.parse(texto);
     return {
       ok: true,
       etapaAtual: String(lido?.etapa_atual ?? "") || null,
       porqueEssaEtapa: String(lido?.porque_essa_etapa ?? "") || null,
       sugestoes: (Array.isArray(lido?.sugestoes) ? lido.sugestoes : [])
-        .map((s: any) => ({ fala: String(s?.fala ?? "").trim(), porque: String(s?.porque ?? "").trim() }))
-        .filter((s: any) => s.fala),
+        .map((s: any) => ({
+          fala: String(s?.fala ?? "").trim(),
+          porque: String(s?.porque ?? "").trim(),
+        }))
+        .filter((s: any) => s.fala)
+        // O corte é AQUI agora, e não no esquema: o modo estrito da OpenAI
+        // recusa `maxItems`, então ele é removido na tradução (ver
+        // `paraModoEstrito`). Sem este slice, um modelo generoso encheria o
+        // painel de cards.
+        .slice(0, QUANTAS_SUGESTOES),
       motivo: null,
     };
   } catch {
@@ -851,12 +876,17 @@ async function handleSimular(ownerId: string, texto: string) {
       ownerId,
       historico: async () => [],
       responderComIa: (instrucao, historico, mensagem) =>
-        responderPaciente(instrucao, historico, mensagem, chave),
+        responderPaciente(instrucao, historico, mensagem, chave, agente?.model ?? null),
       // Sem `dormir`: a simulação MOSTRA a espera calculada em vez de esperar.
       // Esperar de verdade aqui só faria a tela travar pelo mesmo tempo.
       enviar: async (pedaco, esperaMs) => {
         enviados.push({ texto: pedaco, esperaMs });
       },
+      // Roda mesmo com o interruptor desligado — ver o comentário longo em
+      // `Dependencias`. Sem isto, a única forma de ver uma resposta era ligar o
+      // agente em cima das conversas reais, que é justamente o risco que esta
+      // tela existe para evitar.
+      ignorarInterruptor: true,
     },
     {
       conversationId: `simulacao-${ownerId}`,
@@ -875,7 +905,10 @@ async function handleSimular(ownerId: string, texto: string) {
       conversaNova: true,
     },
   );
-  return { ok: true, ...resultado, enviados };
+  // A tela precisa dizer "isto é uma prévia" quando o agente está desligado.
+  // Sem este sinal, ver uma resposta bonita aqui daria a impressão de que ele
+  // já está atendendo paciente.
+  return { ok: true, ...resultado, enviados, desligado: !agente?.enabled };
 }
 
 Deno.serve(async (req) => {

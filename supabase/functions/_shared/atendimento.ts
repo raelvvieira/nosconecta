@@ -51,11 +51,38 @@ export interface Dependencias {
   supabase: any;
   ownerId: string;
   /** As últimas mensagens da conversa, para o modelo ter contexto. */
-  historico: (conversationId: string) => Promise<{ deQuem: "clinica" | "paciente"; texto: string }[]>;
+  historico: (
+    conversationId: string,
+  ) => Promise<{ deQuem: "clinica" | "paciente"; texto: string }[]>;
   /** Chama o modelo. Separado para a simulação poder rodar sem chave. */
   responderComIa: (instrucao: string, historico: string, mensagem: string) => Promise<string>;
   enviar: Enviar;
   agora?: Date;
+  /**
+   * Rodar mesmo com o agente desligado. **Só a simulação da tela passa isto.**
+   *
+   * ── Por que existe ────────────────────────────────────────────────────
+   *
+   * A simulação existe para responder "o que ela diria?" sem deixar que ela
+   * diga a um paciente. Mas `decidirSeResponde` checa o interruptor primeiro,
+   * então com o agente desligado a tela de teste devolvia "agente desligado" e
+   * mais nada — e a única maneira de ver uma resposta era LIGAR o agente em
+   * cima das conversas reais.
+   *
+   * Isto é o oposto do que a tela promete. Ela virava um botão que só
+   * funcionava depois de você ter corrido o risco que ela existe para evitar.
+   *
+   * ── Por que não é o filtro que muda ───────────────────────────────────
+   *
+   * `decidirSeResponde` continua pura e continua dizendo a verdade: agente
+   * desligado não responde. O que muda é o estado que ESTE chamador informa, e
+   * só quando quem chamou é a simulação — que não tem `enviar` para o
+   * WhatsApp, e por isso não tem como escapar para ninguém.
+   *
+   * Os outros filtros continuam todos valendo, inclusive o disjuntor: se o
+   * modelo estiver falhando, a simulação precisa mostrar isso e não esconder.
+   */
+  ignorarInterruptor?: boolean;
 }
 
 export interface ResultadoDoAtendimento {
@@ -86,7 +113,9 @@ export async function atender(
 
   const decisao = decidirSeResponde(
     {
-      ligado: !!agente.enabled,
+      // Ver `ignorarInterruptor` em `Dependencias`: só a simulação da tela
+      // passa `true`, e ela não envia nada a ninguém.
+      ligado: deps.ignorarInterruptor === true || !!agente.enabled,
       circuitoAbertoAte: agente.circuit_open_until ?? null,
       // `!== false` e não `!!`: a coluna nasceu depois das linhas que já
       // existiam, e uma linha antiga traz `undefined`. Com `!!` o filtro

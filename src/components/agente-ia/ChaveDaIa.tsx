@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getEstadoDoAgente } from "@/lib/agente-ia/agente.functions";
+import { getEstadoDoAgente, listarModelosDaIa } from "@/lib/agente-ia/agente.functions";
 import { useAtendimento } from "./useAtendimento";
 import { Bloco } from "./campos";
 import { cn } from "@/lib/utils";
@@ -43,6 +43,19 @@ export function ChaveDaIa() {
 
   const semChave = estadoQuery.data && !estadoQuery.data.temChave;
   const temPropria = !!config?.temChavePropria;
+
+  // A lista de modelos vem da CONTA, não do código — ver `listarModelosDaIa`.
+  // Só é buscada quando há chave: sem ela a resposta seria sempre o mesmo erro.
+  const buscarModelos = useServerFn(listarModelosDaIa);
+  const modelosQuery = useQuery({
+    queryKey: ["modelos-da-ia", temPropria],
+    queryFn: () => buscarModelos(),
+    enabled: Boolean(temPropria || (estadoQuery.data && estadoQuery.data.temChave)),
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
+  const modelos = modelosQuery.data?.modelos ?? [];
+  const modeloEscolhido = config?.modelo ?? "";
 
   return (
     <Bloco
@@ -101,8 +114,61 @@ export function ChaveDaIa() {
       </div>
 
       <p className="mt-2 text-2xs leading-4 text-muted-foreground">
-        Fica guardada nesta clínica e nunca volta inteira para a tela — nem para quem a digitou.
+        Chave da OpenAI (começa com <span className="font-mono">sk-</span>). Fica guardada nesta
+        clínica e nunca volta inteira para a tela — nem para quem a digitou.
       </p>
+
+      {/* ── Qual modelo atende ───────────────────────────────────────────
+          A lista é a da SUA conta. Nenhum nome de modelo está escrito no
+          código: quais existem depende do plano e do que a OpenAI lançou
+          depois, e um nome fixo aqui falharia com "model not found" no meio
+          de um atendimento — com o paciente esperando. */}
+      <div className="mt-5 border-t border-border pt-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-sm font-medium">Qual modelo atende</p>
+          {modelosQuery.isFetching && (
+            <span className="text-2xs text-muted-foreground">buscando na sua conta…</span>
+          )}
+        </div>
+
+        {!modeloEscolhido && (
+          <p className="mt-1 text-xs leading-5 text-warning">
+            Nenhum modelo escolhido — a IA não responde e as sugestões não aparecem.
+          </p>
+        )}
+
+        {modelosQuery.data?.erro ? (
+          <p className="mt-2 text-xs leading-5 text-danger">{modelosQuery.data.erro}</p>
+        ) : (
+          <select
+            value={modeloEscolhido}
+            disabled={!modelos.length}
+            onChange={(e) => void gravar({ modelo: e.target.value })}
+            className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2 font-mono text-sm disabled:opacity-60"
+          >
+            <option value="">
+              {modelos.length ? "Escolha um modelo…" : "Cadastre a chave para ver a lista"}
+            </option>
+            {/* O que está gravado entra na lista mesmo que a conta não o
+                devolva mais: sem isto, um modelo descontinuado apareceria
+                como "nenhum escolhido" e o campo mentiria sobre o que roda. */}
+            {modeloEscolhido && !modelos.includes(modeloEscolhido) && (
+              <option value={modeloEscolhido}>{modeloEscolhido} (não está mais na conta)</option>
+            )}
+            {modelos.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        )}
+
+        <p className="mt-2 text-2xs leading-4 text-muted-foreground">
+          {modelos.length
+            ? `${modelos.length} modelos disponíveis nesta chave.`
+            : "A lista vem da sua conta OpenAI — não de uma lista fixa aqui dentro."}
+        </p>
+      </div>
 
       {temPropria && (
         <button

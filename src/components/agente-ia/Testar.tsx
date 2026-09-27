@@ -15,6 +15,14 @@ import { Bloco } from "./campos";
  *
  * É o que torna o atendimento testável de verdade. Sem isto, a única maneira
  * de saber o que a IA diria seria deixá-la dizer a um paciente.
+ *
+ * ── E o interruptor não atrapalha mais ──────────────────────────────────
+ *
+ * Com o agente desligado, esta tela devolvia "agente desligado" e mais nada,
+ * porque é o primeiro filtro que `decidirSeResponde` checa. Ou seja: só
+ * funcionava depois de você ter ligado a IA em cima das conversas reais — o
+ * exato risco que ela existe para evitar. Agora a simulação passa por cima do
+ * interruptor (e só ela) e avisa na tela que aquilo é prévia.
  */
 export function Testar() {
   const simular = useServerFn(simularAtendimento);
@@ -24,6 +32,7 @@ export function Testar() {
     respondeu: boolean;
     motivo?: string;
     enviados: { texto: string; esperaMs: number }[];
+    desligado: boolean;
   } | null>(null);
 
   const rodar = async () => {
@@ -55,6 +64,13 @@ export function Testar() {
           {simulando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
         </Button>
       </div>
+
+      {saida?.desligado && (
+        <p className="mt-4 rounded-xl bg-surface px-3 py-2 text-xs leading-5 text-foreground-secondary">
+          O agente está <strong>desligado</strong>. Isto é o que ele responderia se estivesse ligado
+          — nenhum paciente recebeu nada.
+        </p>
+      )}
 
       {saida && (
         <div className="mt-5">

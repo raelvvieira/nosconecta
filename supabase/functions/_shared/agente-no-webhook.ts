@@ -90,7 +90,7 @@ export async function deixarOAgenteResponder(
         ownerId,
         historico: (conversationId) => historicoDoEspelho(supabase, ownerId, conversationId),
         responderComIa: (instrucao, historico, mensagem) =>
-          responderPaciente(instrucao, historico, mensagem, chave),
+          responderPaciente(instrucao, historico, mensagem, chave, agente?.model ?? null),
         enviar: async (pedaco, esperaMs) => {
           // A espera é o tempo de digitação. Acontece de verdade aqui — é o
           // que faz a resposta não chegar como um bloco instantâneo.

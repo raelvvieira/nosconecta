@@ -287,6 +287,15 @@ export interface ConfigDeAtendimento {
   soParaConversaNova: boolean;
   /** Por quantos dias uma conversa ainda conta como nova. */
   novoAteDias: number;
+  /**
+   * O modelo da OpenAI que atende. Vazio = nada roda.
+   *
+   * Não tem padrão de propósito: quais modelos existem depende da conta, e um
+   * nome chutado no código falharia com "model not found" no meio de um
+   * atendimento — com o paciente esperando. Vazio falha na tela, onde alguém
+   * pode escolher.
+   */
+  modelo: string;
   regras: RegraDeComportamento[];
 }
 
@@ -328,6 +337,7 @@ export const getAtendimento = createServerFn({ method: "GET" })
       soParaNaoPaciente: agente.so_para_nao_paciente !== false,
       soParaConversaNova: agente.so_para_conversa_nova !== false,
       novoAteDias: Number(agente.novo_ate_dias ?? 7),
+      modelo: String(agente.model ?? ""),
       regras: (regras ?? []).map((r: any) => ({
         id: String(r.id),
         tipo: r.kind,
@@ -356,6 +366,8 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
       soParaNaoPaciente?: boolean;
       soParaConversaNova?: boolean;
       novoAteDias?: number;
+      /** O modelo da OpenAI. String vazia limpa a escolha. */
+      modelo?: string;
     }) => {
       if (input.novoAteDias !== undefined) {
         // O mesmo intervalo do CHECK do banco. Recusar aqui dá uma frase que
@@ -404,6 +416,9 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
     // `null` e não string vazia: a coluna vazia significaria "chave em branco"
     // para quem lesse, e a pergunta que o resto do código faz é se ela EXISTE.
     if (data.chaveDaIa !== undefined) campos.api_key = data.chaveDaIa.trim() || null;
+    // Mesma razão do `null` acima: "ninguém escolheu" é diferente de "escolheu
+    // uma string vazia", e é a primeira coisa que o código pergunta.
+    if (data.modelo !== undefined) campos.model = data.modelo.trim() || null;
 
     const { error } = await supabase
       .from("ai_agents")
@@ -422,6 +437,78 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
  * de coisa que só se descobre semanas depois, quando o manual já aprendeu com
  * os próprios enganos.
  */
+/**
+ * Os modelos que a chave desta clínica pode usar, perguntados à OpenAI.
+ *
+ * ── Por que a lista não está no código ──────────────────────────────────
+ *
+ * Porque ela não é nossa. Quais modelos existem depende do plano da conta, do
+ * que a organização liberou e do que a OpenAI lançou depois deste commit.
+ * Qualquer lista escrita aqui começa desatualizada e envelhece calada — e o
+ * sintoma, semanas depois, é "model not found" no meio de um atendimento.
+ *
+ * Perguntando à conta, a tela mostra os nomes DE VERDADE. Se o modelo que
+ * alguém procura não estiver ali, isso também é a resposta.
+ *
+ * ── O que não sai daqui ─────────────────────────────────────────────────
+ *
+ * A chave. Ela é lida no servidor, usada no cabeçalho da chamada e descartada.
+ * O que desce para o navegador é uma lista de nomes.
+ */
+export const listarModelosDaIa = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .handler(async ({ context }): Promise<{ modelos: string[]; erro: string | null }> => {
+    // `types.ts` é gerado pelo Lovable e não conhece a coluna `model`, que
+    // nasceu agora — mesma razão do `any` nas outras funções deste arquivo.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase: any = context.supabase;
+    const { data: agente } = await supabase
+      .from("ai_agents")
+      .select("api_key")
+      .eq("owner_id", context.ownerId)
+      .maybeSingle();
+
+    const chave = String(agente?.api_key ?? "").trim() || process.env.OPENAI_API_KEY || "";
+    if (!chave) return { modelos: [], erro: "Cadastre a chave da OpenAI primeiro." };
+
+    try {
+      const res = await fetch("https://api.openai.com/v1/models", {
+        headers: { authorization: `Bearer ${chave}` },
+        signal: AbortSignal.timeout(20_000),
+      });
+      // A forma mínima que se lê da resposta. Tipar só isto é mais honesto que
+      // `any`: o resto do corpo da OpenAI não interessa a esta tela.
+      const json = (await res.json().catch(() => null)) as {
+        data?: { id?: string }[];
+        error?: { message?: string };
+      } | null;
+      if (!res.ok) {
+        // A mensagem da OpenAI vem inteira de propósito: "incorrect API key"
+        // e "you exceeded your quota" pedem ações diferentes, e traduzir as
+        // duas para "não deu" esconderia justamente o que resolver.
+        return { modelos: [], erro: json?.error?.message ?? `A OpenAI respondeu ${res.status}.` };
+      }
+      const nomes: string[] = (Array.isArray(json?.data) ? json.data : [])
+        .map((m) => String(m?.id ?? ""))
+        .filter(Boolean)
+        // Fora o que não conversa: transcrição, imagem, voz, embedding e
+        // moderação aparecem na mesma lista e só atrapalhariam a escolha.
+        .filter(
+          (id: string) =>
+            !/whisper|tts|dall-e|embedding|moderation|image|audio|realtime|transcribe|search|sora/i.test(
+              id,
+            ),
+        )
+        .sort();
+      return { modelos: [...new Set(nomes)], erro: null };
+    } catch (e) {
+      return {
+        modelos: [],
+        erro: e instanceof Error ? e.message : "Não deu para falar com a OpenAI.",
+      };
+    }
+  });
+
 export const salvarRegra = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator(
@@ -503,6 +590,8 @@ export const simularAtendimento = createServerFn({ method: "POST" })
       respondeu: boolean;
       motivo?: string;
       enviados: { texto: string; esperaMs: number }[];
+      /** O agente está desligado — a tela precisa dizer que isto é prévia. */
+      desligado: boolean;
     }> => {
       const json = await chamar({
         ownerId: context.ownerId,
@@ -513,6 +602,7 @@ export const simularAtendimento = createServerFn({ method: "POST" })
         respondeu: !!json.respondeu,
         motivo: json.motivo ?? undefined,
         enviados: json.enviados ?? [],
+        desligado: !!json.desligado,
       };
     },
   );
