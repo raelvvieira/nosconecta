@@ -202,12 +202,16 @@ export type Database = {
           enabled: boolean
           failure_count: number
           id: string
+          instrucao_base: string | null
           learn_from_won: boolean
           mode: string
           model: string | null
           name: string
           novo_ate_dias: number
           owner_id: string
+          paciente_modelo_ate: string | null
+          paciente_modelo_texto: string | null
+          parcelamento: string | null
           segment_enabled: boolean
           segment_limit: number
           segment_min_size: number
@@ -226,12 +230,16 @@ export type Database = {
           enabled?: boolean
           failure_count?: number
           id?: string
+          instrucao_base?: string | null
           learn_from_won?: boolean
           mode?: string
           model?: string | null
           name?: string
           novo_ate_dias?: number
           owner_id: string
+          paciente_modelo_ate?: string | null
+          paciente_modelo_texto?: string | null
+          parcelamento?: string | null
           segment_enabled?: boolean
           segment_limit?: number
           segment_min_size?: number
@@ -250,12 +258,16 @@ export type Database = {
           enabled?: boolean
           failure_count?: number
           id?: string
+          instrucao_base?: string | null
           learn_from_won?: boolean
           mode?: string
           model?: string | null
           name?: string
           novo_ate_dias?: number
           owner_id?: string
+          paciente_modelo_ate?: string | null
+          paciente_modelo_texto?: string | null
+          parcelamento?: string | null
           segment_enabled?: boolean
           segment_limit?: number
           segment_min_size?: number
@@ -887,6 +899,50 @@ export type Database = {
           },
         ]
       }
+      clinic_business_hours: {
+        Row: {
+          closes_at: string | null
+          created_at: string
+          id: string
+          modo: string
+          opens_at: string | null
+          owner_id: string
+          unit_id: string
+          updated_at: string
+          weekday: number
+        }
+        Insert: {
+          closes_at?: string | null
+          created_at?: string
+          id?: string
+          modo?: string
+          opens_at?: string | null
+          owner_id: string
+          unit_id: string
+          updated_at?: string
+          weekday: number
+        }
+        Update: {
+          closes_at?: string | null
+          created_at?: string
+          id?: string
+          modo?: string
+          opens_at?: string | null
+          owner_id?: string
+          unit_id?: string
+          updated_at?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_business_hours_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_chairs: {
         Row: {
           active: boolean
@@ -1095,6 +1151,7 @@ export type Database = {
           name: string
           owner_id: string
           price: number
+          price_from: boolean
           tuss_code: string | null
           tuss_name: string | null
           updated_at: string
@@ -1109,6 +1166,7 @@ export type Database = {
           name: string
           owner_id: string
           price?: number
+          price_from?: boolean
           tuss_code?: string | null
           tuss_name?: string | null
           updated_at?: string
@@ -1123,6 +1181,7 @@ export type Database = {
           name?: string
           owner_id?: string
           price?: number
+          price_from?: boolean
           tuss_code?: string | null
           tuss_name?: string | null
           updated_at?: string
