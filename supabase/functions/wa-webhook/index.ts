@@ -30,6 +30,7 @@ import {
 import { gravarMensagemEspelhada } from "../_shared/espelho-evolution.ts";
 import { pushToOwner } from "../_shared/push.ts";
 import { deixarOAgenteResponder } from "../_shared/agente-no-webhook.ts";
+import { tratarRespostaDoPaciente } from "../_shared/resposta-do-paciente.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -74,6 +75,24 @@ async function gravarMensagem(ownerId: string, data: any) {
 
   await avisar(ownerId, m);
 
+  // "SIM" / "NÃO" ao lembrete de véspera.
+  //
+  // DEPOIS de gravar e avisar, e blindado: uma falha aqui não pode virar 500,
+  // porque 500 faz a Evolution reenviar o evento — e o reenvio gravaria a
+  // mensagem de novo. Perder a leitura de uma resposta é ruim; duplicar a
+  // mensagem do paciente no espelho é pior.
+  //
+  // A função decide sozinha se é caso de tratar. A imensa maioria das
+  // mensagens não é: sem consulta marcada, sem lembrete recente, grupo, ou
+  // mensagem da própria clínica saem todas lá dentro, e o motivo volta no
+  // retorno para aparecer no log da Evolution.
+  let resposta: unknown = null;
+  try {
+    resposta = await tratarRespostaDoPaciente(supabase, ownerId, m);
+  } catch (e) {
+    console.error("[wa-webhook] resposta não foi lida:", e instanceof Error ? e.message : e);
+  }
+
   // O agente de IA, DEPOIS de gravar e avisar, e sem poder derrubar nenhum dos
   // dois. Ele decide sozinho se é caso de responder — desligado, grupo,
   // mensagem da própria clínica e conversa já assumida por uma pessoa saem
@@ -81,7 +100,7 @@ async function gravarMensagem(ownerId: string, data: any) {
   // caminho pronto e parado.
   await deixarOAgenteResponder(supabase, ownerId, m);
 
-  return { gravado: m.crmMessageId, telefone: m.phone, grupo: m.ehGrupo };
+  return { gravado: m.crmMessageId, telefone: m.phone, grupo: m.ehGrupo, resposta };
 }
 
 /**

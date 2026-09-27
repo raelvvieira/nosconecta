@@ -1,3 +1,14 @@
+// ⚠️ CAMINHO DESLIGADO em 27/09. Os avisos de consulta saem pela Evolution
+// (automações + `wa-webhook`), e a leitura do "SIM"/"NÃO" mora agora em
+// `_shared/resposta-do-paciente.ts`, chamada pelo `wa-webhook`. O cron que
+// alimentava o lado Brevo foi desagendado — ver
+// `20260927120000_resposta_pelo_evolution.sql` para os números que motivaram
+// isso (SMS falhando em 100% das tentativas, e-mail pulado em 25 de 27).
+//
+// A função continua aqui, e inteira, porque religar o Brevo é reagendar o
+// cron: nada aqui precisaria ser reescrito. Enquanto isso, ela não recebe
+// evento nenhum — o Brevo não manda mais nada para cá.
+//
 // Receives Brevo Conversations webhooks (conversationFragment events) for
 // inbound WhatsApp replies, matches the sender's phone number to a patient
 // and their nearest upcoming appointment, and auto-confirms it when the
@@ -12,15 +23,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { pushToOwner } from "../_shared/push.ts";
 import { onlyDigits, phoneMatches } from "../_shared/phone-match.ts";
+import { classificarResposta } from "../_shared/resposta-do-paciente.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-
-function stripAccents(value: string): string {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "");
-}
 
 /** Manda a resposta para o motor de automações.
  *
@@ -48,16 +56,13 @@ async function dispatchAutomation(ownerId: string, context: Record<string, unkno
   }
 }
 
+/** Dois nomes para a mesma decisão: o texto desta função mora em
+ *  `_shared/resposta-do-paciente.ts`, que é quem o caminho da Evolution usa.
+ *  Duas listas de "palavras que confirmam" divergiriam, e aí a mesma resposta
+ *  teria dois significados dependendo de por onde entrou. */
 function classifyReply(text: string): "confirm" | "decline" | "unclear" {
-  const norm = stripAccents(text).toLowerCase().trim();
-  const confirmWords = ["sim", "s", "confirmo", "confirmar", "confirmado", "ok", "okay", "beleza", "1"];
-  const declineWords = ["nao", "n", "cancelar", "cancela", "cancelo", "remarcar", "desmarcar", "2"];
-  const tokens = norm.split(/[\s,.!]+/).filter(Boolean);
-  const hasConfirm = tokens.some((t) => confirmWords.includes(t));
-  const hasDecline = tokens.some((t) => declineWords.includes(t));
-  if (hasConfirm && !hasDecline) return "confirm";
-  if (hasDecline && !hasConfirm) return "decline";
-  return "unclear";
+  const d = classificarResposta(text);
+  return d === "confirma" ? "confirm" : d === "remarca" ? "decline" : "unclear";
 }
 
 async function logReply(input: {

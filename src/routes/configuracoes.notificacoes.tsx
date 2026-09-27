@@ -1,8 +1,15 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Mail, MessageCircle, MessageSquareText, RotateCw, Send, TriangleAlert } from "lucide-react";
+import {
+  Mail,
+  MessageCircle,
+  MessageSquareText,
+  RotateCw,
+  Send,
+  TriangleAlert,
+} from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -32,19 +39,23 @@ export const Route = createFileRoute("/configuracoes/notificacoes")({
   head: () => ({
     meta: [
       { title: "Notificações · NÓS Conecta" },
-      { name: "description", content: "Confirmação e lembretes automáticos por e-mail, SMS e WhatsApp." },
+      {
+        name: "description",
+        content: "Confirmação e lembretes automáticos por e-mail, SMS e WhatsApp.",
+      },
     ],
   }),
   errorComponent: ({ error }) => (
-    <ResponsiveRouteState error={error}
+    <ResponsiveRouteState
+      error={error}
       title="Não foi possível carregar as notificações"
       description="Houve uma falha ao buscar os dados. Tente novamente em instantes."
       semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
-  semSidebar
-/>,
+  notFoundComponent: () => (
+    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
+  ),
   component: NotificationsPage,
 });
 
@@ -97,7 +108,8 @@ function NotificationsPage() {
   });
 
   const resendMutation = useMutation({
-    mutationFn: (row: NotificationLogRow) => resend({ data: { appointmentId: row.appointmentId, kind: row.kind } }),
+    mutationFn: (row: NotificationLogRow) =>
+      resend({ data: { appointmentId: row.appointmentId, kind: row.kind } }),
     onSuccess: () => {
       toast.success("Reenvio disparado");
       queryClient.invalidateQueries({ queryKey: ["notifications-log"] });
@@ -131,30 +143,50 @@ function NotificationsPage() {
       <header>
         <h2 className="text-xl font-semibold">Notificações</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Confirmação de agendamento e lembretes automáticos por e-mail, SMS e WhatsApp.
+          O histórico do que foi avisado ao paciente e do que ele respondeu.
         </p>
       </header>
 
-      {/* Dois caminhos de lembrete ligados ao mesmo tempo = paciente recebendo
-          duas vezes. É invisível de dentro desta tela (a automação mora em
-          Atendimentos), e a pessoa que ligou uma não lembra da outra. */}
-      {temAutomacaoDeLembrete && (
-        <div className="surface-card mt-5 flex items-start gap-3 border-warning/30 bg-warning-soft p-4">
-          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-          <p className="text-sm text-foreground">
-            Existe uma <span className="font-medium">automação de lembrete ativa</span> em
-            Atendimentos. Os lembretes desta página saem além dela — se os dois estiverem
-            ligados, o paciente recebe a mesma consulta duas vezes. Deixe apenas um dos
-            caminhos ativo.
-          </p>
-        </div>
-      )}
+      {/* ── O aviso mudou de lado (27/09) ────────────────────────────────
+          Antes dizia "cuidado, os dois caminhos estão ligados". Agora só um
+          está: os envios desta página foram desligados porque não entregavam
+          nada — o e-mail era pulado em 25 de 27 tentativas (nenhum paciente com
+          consulta futura tem e-mail), o SMS falhava em 100% das 20 tentativas
+          (a conta Brevo não tem pacote de SMS) e o WhatsApp daqui nunca foi
+          configurado.
+
+          O aviso continua existindo porque o pior estado desta tela não é
+          estar desligada — é parecer ligada. Sem esta faixa, alguém leria as
+          quatro bolinhas de status acima como "está tudo funcionando". */}
+      <div className="surface-card mt-5 flex items-start gap-3 border-warning/30 bg-warning-soft p-4">
+        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+        <p className="text-sm leading-6 text-foreground">
+          <span className="font-medium">Os envios desta página estão desligados.</span> A
+          confirmação e os lembretes saem pelo WhatsApp da clínica, pelas automações em{" "}
+          <Link
+            to="/atendimentos/automacoes"
+            className="font-medium text-coral underline-offset-2 hover:underline"
+          >
+            Atendimentos → Automações
+          </Link>
+          . O que aparece abaixo continua valendo: é o registro do que saiu e das respostas que
+          chegaram.
+          {temAutomacaoDeLembrete
+            ? ""
+            : " Atenção: nenhuma automação de lembrete está ativa, então hoje o paciente não recebe lembrete nenhum."}
+        </p>
+      </div>
 
       {/* Status por canal */}
       <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <ChannelStatus icon={Mail} label="E-mail" ok={h.email} loading={health.isLoading} />
         <ChannelStatus icon={MessageSquareText} label="SMS" ok={h.sms} loading={health.isLoading} />
-        <ChannelStatus icon={MessageCircle} label="WhatsApp (envio)" ok={h.whatsapp} loading={health.isLoading} />
+        <ChannelStatus
+          icon={MessageCircle}
+          label="WhatsApp (envio)"
+          ok={h.whatsapp}
+          loading={health.isLoading}
+        />
         <ChannelStatus
           icon={MessageCircle}
           label="WhatsApp (respostas)"
@@ -232,7 +264,9 @@ function NotificationsPage() {
                 <p className="truncate text-sm font-medium">{row.patientName ?? "—"}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {KIND_LABEL[row.kind]} · {CHANNEL_LABEL[row.channel]}
-                  {row.date ? ` · ${formatDateBR(row.date)}${row.startTime ? ` ${row.startTime}` : ""}` : ""}
+                  {row.date
+                    ? ` · ${formatDateBR(row.date)}${row.startTime ? ` ${row.startTime}` : ""}`
+                    : ""}
                 </p>
                 {row.error && (
                   <p className="mt-0.5 truncate text-xs text-danger" title={row.error}>
@@ -308,7 +342,11 @@ function ChannelStatus({
       <span
         className={cn(
           "grid h-10 w-10 shrink-0 place-items-center rounded-2xl",
-          loading ? "bg-muted text-muted-foreground" : ok ? "bg-success-soft text-success" : "bg-muted text-muted-foreground",
+          loading
+            ? "bg-muted text-muted-foreground"
+            : ok
+              ? "bg-success-soft text-success"
+              : "bg-muted text-muted-foreground",
         )}
       >
         <Icon className="h-4 w-4" />
@@ -333,7 +371,13 @@ function StatusPill({ status }: { status: NotificationLogRow["status"] }) {
           ? { bg: "bg-muted", text: "text-muted-foreground", label: "Pulado" }
           : { bg: "bg-warning-soft", text: "text-warning", label: "Pendente" };
   return (
-    <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-2xs font-semibold", style.bg, style.text)}>
+    <span
+      className={cn(
+        "shrink-0 rounded-full px-2.5 py-1 text-2xs font-semibold",
+        style.bg,
+        style.text,
+      )}
+    >
       {style.label}
     </span>
   );
@@ -345,18 +389,24 @@ function ReplyActionPill({ action }: { action: string }) {
       ? { bg: "bg-success-soft", text: "text-success", label: "Confirmado" }
       : action === "declined"
         ? { bg: "bg-warning-soft", text: "text-warning", label: "Pediu cancelar — revisar" }
-        // Com automação ativa, quem decide é o fluxo — o webhook só entrega o
-        // texto. Sem este caso a linha caía no default e dizia "Não entendido",
-        // que é o oposto do que aconteceu.
-        : action === "automation"
-        ? { bg: "bg-info-soft", text: "text-info", label: "Tratado por automação" }
-        : action === "no_patient_found"
-          ? { bg: "bg-muted", text: "text-muted-foreground", label: "Paciente não identificado" }
-          : action === "no_appointment_found"
-            ? { bg: "bg-muted", text: "text-muted-foreground", label: "Sem agendamento futuro" }
-            : { bg: "bg-muted", text: "text-muted-foreground", label: "Não entendido" };
+        : // Com automação ativa, quem decide é o fluxo — o webhook só entrega o
+          // texto. Sem este caso a linha caía no default e dizia "Não entendido",
+          // que é o oposto do que aconteceu.
+          action === "automation"
+          ? { bg: "bg-info-soft", text: "text-info", label: "Tratado por automação" }
+          : action === "no_patient_found"
+            ? { bg: "bg-muted", text: "text-muted-foreground", label: "Paciente não identificado" }
+            : action === "no_appointment_found"
+              ? { bg: "bg-muted", text: "text-muted-foreground", label: "Sem agendamento futuro" }
+              : { bg: "bg-muted", text: "text-muted-foreground", label: "Não entendido" };
   return (
-    <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-2xs font-semibold", style.bg, style.text)}>
+    <span
+      className={cn(
+        "shrink-0 rounded-full px-2.5 py-1 text-2xs font-semibold",
+        style.bg,
+        style.text,
+      )}
+    >
       {style.label}
     </span>
   );

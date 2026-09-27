@@ -543,10 +543,26 @@ export async function criarAgendamento(
   // pode disparar "confirme sua consulta" de uma consulta de semana passada.
   // A regra mora aqui, e não na tela, porque quatro telas criam agendamento.
   const jaAconteceu = String(colunas.date) < clinicTodayStr();
-  if (!opcoes.skipConfirmation && !jaAconteceu) {
-    const { triggerAppointmentNotification } = await import("@/lib/agenda/notifications.server");
-    await triggerAppointmentNotification(inserted.id, "confirmation");
-  }
+
+  // ── O aviso de confirmação pelo Brevo saiu daqui (27/09) ──────────────
+  //
+  // Ele tentava e-mail, SMS e WhatsApp-do-Brevo a cada agendamento criado.
+  // Medido: o e-mail foi pulado em 15 das 16 tentativas ("Paciente sem e-mail
+  // cadastrado" — nenhum dos 23 pacientes com consulta futura tem e-mail), o
+  // SMS falhou nas 12 restantes porque a conta Brevo não tem pacote de SMS, e
+  // o WhatsApp do Brevo nunca foi configurado. Três tentativas por
+  // agendamento, zero mensagens entregues, e a tela de Notificações cheia de
+  // "falhou".
+  //
+  // Quem avisa o paciente agora é a automação "Aviso de Agendamento
+  // Confirmado", pelo WhatsApp da clínica, no mesmo evento
+  // `appointment.created` despachado logo abaixo — e essa entrega: 5 enviadas
+  // seguidas entre 23 e 26/09. Manter os dois faria o paciente receber a
+  // mesma confirmação duas vezes por dois caminhos.
+  //
+  // `send-appointment-notification` continua no projeto e continua chamável:
+  // religar é voltar esta chamada e reagendar o cron desagendado em
+  // `20260927120000_resposta_pelo_evolution.sql`.
   const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
   await dispatchMetaCapiEvent(ownerId, "appointment.created", {
     entityId: inserted.id,
@@ -554,13 +570,28 @@ export async function criarAgendamento(
     contactName: row.patient_name,
     amount: row.expected_revenue,
   });
-  // Mesma regra da confirmação, agora também para as automações: registrar um
-  // atendimento de ontem — para ter o histórico e mandar a conversão à Meta —
-  // não pode disparar "seu horário foi marcado" para quem já foi atendido.
-  // A Meta CAPI acima fica de fora da guarda de propósito: é justamente o
-  // motivo de o registro retroativo existir.
+  /**
+   * As automações, com as DUAS guardas.
+   *
+   * `jaAconteceu` — registrar um atendimento de ontem, para ter o histórico e
+   * mandar a conversão à Meta, não pode disparar "seu horário foi marcado"
+   * para quem já foi atendido. A Meta CAPI acima fica fora da guarda de
+   * propósito: é justamente o motivo de o registro retroativo existir.
+   *
+   * `skipConfirmation` — passou a valer aqui, e antes não valia. Ele existia
+   * só para travar o aviso do Brevo, e o Ganho do funil o passa exatamente
+   * por isso ("ganho é sempre retroativo", ver `deals.functions.ts`). Mas a
+   * automação NUNCA foi checada contra ele: um Ganho confirmado hoje criava um
+   * agendamento `completed` com a data de hoje — `jaAconteceu` compara com
+   * `<`, e hoje não é passado — e o paciente recebia "seu agendamento está
+   * confirmado ✅" de um atendimento que já tinha acontecido.
+   *
+   * Com o Brevo fora, o sinalizador tinha acabado de virar decoração. Agora
+   * ele faz o que o nome diz, no único caminho que ainda avisa alguém.
+   */
+  const naoAvisar = jaAconteceu || Boolean(opcoes.skipConfirmation);
   const { dispatchAutomationEvent } = await import("@/lib/atendimentos/automations.server");
-  if (!jaAconteceu)
+  if (!naoAvisar)
     await dispatchAutomationEvent(ownerId, "appointment.created", {
       entityId: inserted.id,
       patientId: row.patient_id,
