@@ -19,6 +19,7 @@ import {
 import { PainelDoFunil } from "@/components/agente-ia/PainelDoFunil";
 import { RegrasDeComportamento } from "@/components/agente-ia/RegrasDeComportamento";
 import { ChaveDaIa } from "@/components/agente-ia/ChaveDaIa";
+import { ManualDaLuna } from "@/components/agente-ia/ManualDaLuna";
 import { ComoResponde } from "@/components/agente-ia/ComoResponde";
 import { ComQuemFala } from "@/components/agente-ia/ComQuemFala";
 import { Ritmo } from "@/components/agente-ia/Ritmo";
@@ -187,7 +188,15 @@ function AgentePage() {
               não responde e as sugestões não aparecem no chat. */}
           <ChaveDaIa />
 
-          {/* ── 2. O aprendizado ────────────────────────────────────────────
+          {/* ── 2. O manual ─────────────────────────────────────────────────
+              Antes do aprendizado de propósito. Este texto é o que a clínica
+              escreveu e o que de fato manda na conversa; o aprendizado abaixo é
+              o que a IA extraiu lendo as conversas, e hoje serve de matéria para
+              melhorar o manual, não de instrução paralela. Na ordem inversa,
+              alguém editaria o aprendizado achando que muda o comportamento. */}
+          <ManualDaLuna />
+
+          {/* ── 3. O aprendizado ────────────────────────────────────────────
               Duas pilhas, e não um grid de quatro células: as seções têm
               alturas bem diferentes, e num grid comum a linha inteira cresce
               até a mais alta, deixando buraco embaixo da menor. */}

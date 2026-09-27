@@ -19,6 +19,7 @@ import { decidirSeResponde, registrarFalha, registrarSucesso } from "./filtros-d
 import { esperaDeDigitacao, normalizarRitmo, segmentar } from "./humanizacao.ts";
 import { manualEfetivo, montarInstrucao } from "./instrucao-do-agente.ts";
 import { agoraNaClinica, horariosParaOferecer } from "./agenda-da-clinica.ts";
+import { semTravessao } from "./sem-travessao.ts";
 
 export interface MensagemDeEntrada {
   conversationId: string;
@@ -202,7 +203,14 @@ export async function atender(
     msPorCaractere: Number(agente.delay_per_character ?? 0),
   });
 
-  const pedacos = segmentar(texto, ritmo);
+  // O travessão sai ANTES de segmentar. Depois seria pior: o corte olharia um
+  // comprimento que ainda vai mudar, e um pedaço poderia começar com a vírgula
+  // que o filtro acabou de criar.
+  //
+  // Vale para os dois modos, não só o de IA: a frase fixa também é escrita por
+  // uma pessoa, e uma pessoa que colou texto de algum lugar pode ter trazido
+  // travessão junto.
+  const pedacos = segmentar(semTravessao(texto), ritmo);
   for (const pedaco of pedacos) {
     await deps.enviar(pedaco, esperaDeDigitacao(pedaco, ritmo));
     await registrar(supabase, ownerId, sessao.id, { direction: "saida", content: pedaco });
@@ -279,6 +287,7 @@ async function responderComModelo(
       categoria: p.category ?? null,
       aPartirDe: p.price_from === true,
     })),
+    instrucaoBase: agente.instrucao_base ?? null,
     parcelamento: agente.parcelamento ?? null,
     pacienteModelo: {
       ate: agente.paciente_modelo_ate ?? null,

@@ -40,6 +40,10 @@ for (const [rotulo, pm] of [
 ] as const) {
   const t = secaoDePacienteModelo(pm, HOJE);
   contem(`harmonização sem preço ${rotulo}`, t, "NUNCA dá valor por aqui");
+  // Botox fica FORA da proibição: o NÓS Prevent está na tabela de preços porque
+  // a clínica o anuncia em público, e proibir aqui contradiria a tabela.
+  conferir(`botox não entra na proibição ${rotulo}`, t.includes("botox"), false);
+  contem(`a exceção da tabela é dita ${rotulo}`, t, "A única exceção é a lista de preços");
   contem(`nem faixa ${rotulo}`, t, "nem faixa");
   contem(`nem a partir de ${rotulo}`, t, 'nem "a partir');
   contem(`conduz para avaliação ${rotulo}`, t, "conduza para a avaliação");

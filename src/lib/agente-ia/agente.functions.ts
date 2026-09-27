@@ -296,6 +296,9 @@ export interface ConfigDeAtendimento {
    * pode escolher.
    */
   modelo: string;
+  /** O manual de condução escrito pela clínica. Vazio = a IA usa o método
+   *  gerado pelo aprendizado. */
+  instrucaoBase: string;
   regras: RegraDeComportamento[];
 }
 
@@ -338,6 +341,7 @@ export const getAtendimento = createServerFn({ method: "GET" })
       soParaConversaNova: agente.so_para_conversa_nova !== false,
       novoAteDias: Number(agente.novo_ate_dias ?? 7),
       modelo: String(agente.model ?? ""),
+      instrucaoBase: String(agente.instrucao_base ?? ""),
       regras: (regras ?? []).map((r: any) => ({
         id: String(r.id),
         tipo: r.kind,
@@ -368,6 +372,8 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
       novoAteDias?: number;
       /** O modelo da OpenAI. String vazia limpa a escolha. */
       modelo?: string;
+      /** O manual de condução. String vazia devolve o método gerado. */
+      instrucaoBase?: string;
     }) => {
       if (input.novoAteDias !== undefined) {
         // O mesmo intervalo do CHECK do banco. Recusar aqui dá uma frase que
@@ -419,6 +425,9 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
     // Mesma razão do `null` acima: "ninguém escolheu" é diferente de "escolheu
     // uma string vazia", e é a primeira coisa que o código pergunta.
     if (data.modelo !== undefined) campos.model = data.modelo.trim() || null;
+    // `null` e não string vazia, mesma razão da chave: a pergunta que o resto do
+    // código faz é se o manual EXISTE, não se ele está em branco.
+    if (data.instrucaoBase !== undefined) campos.instrucao_base = data.instrucaoBase.trim() || null;
 
     const { error } = await supabase
       .from("ai_agents")

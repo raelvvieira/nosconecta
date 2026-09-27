@@ -95,6 +95,19 @@ export interface ProcedimentoDoAgente {
 export interface EntradaDaInstrucao {
   clinica: string;
   manual: ManualDeVendas;
+  /**
+   * O manual de condução escrito pela clínica (o LUNA V1).
+   *
+   * Quando vem, SUBSTITUI o método gerado a partir do aprendizado — não soma.
+   * Somar daria duas fontes dizendo como abrir a conversa, como falar de preço e
+   * como conduzir para a avaliação, e a própria hierarquia de fontes do LUNA V1
+   * existe para impedir isso. Duas instruções em paralelo é o caso em que
+   * ninguém sabe qual valeu.
+   *
+   * O que o sistema continua anexando, porque é dado vivo e não texto: preços
+   * liberados, horários reais, paciente modelo e as regras invioláveis.
+   */
+  instrucaoBase?: string | null;
   procedimentos: ProcedimentoDoAgente[];
   /** Condição de parcelamento da clínica, em texto livre ("em até 10x no
    *  cartão"). Vazio = a IA não fala de parcelamento. */
@@ -288,11 +301,18 @@ export function secaoDePacienteModelo(pm: PacienteModelo | null | undefined, hoj
   const partes = ["## Harmonização facial e paciente modelo"];
 
   partes.push(
-    "Para quem procura harmonização facial, preenchimento, botox ou",
-    'bioestimulador: você NUNCA dá valor por aqui, nem faixa, nem "a partir',
-    'de", nem compara com outro procedimento. O valor depende do rosto da',
-    "pessoa e sai da avaliação com a Dra. Mariane. Explique o procedimento se",
-    "perguntarem, e conduza para a avaliação.",
+    "Para quem procura harmonização facial, preenchimento ou bioestimulador:",
+    'você NUNCA dá valor por aqui, nem faixa, nem "a partir de", nem compara',
+    "com outro procedimento. O valor depende do rosto da pessoa e sai da",
+    "avaliação com a Dra. Mariane. Explique o procedimento se perguntarem, e",
+    "conduza para a avaliação.",
+    "",
+    // Sem esta frase a seção contradiz a tabela de preços logo acima, que tem o
+    // NÓS Prevent liberado justamente porque a clínica o anuncia em público.
+    // Duas regras opostas na mesma instrução fazem o modelo escolher uma ao
+    // acaso, e nunca se saberia qual escolheu.
+    "A única exceção é a lista de preços acima: o que está nela, você pode",
+    "informar do jeito que está escrito lá. O que não está nela, não.",
   );
 
   const aberta = Boolean(pm?.ate && pm.ate >= hoje && pm?.texto?.trim());
@@ -436,51 +456,62 @@ function diaMesEmTexto(iso: string): string {
 export function montarInstrucao({
   clinica,
   manual,
+  instrucaoBase,
   procedimentos,
   parcelamento,
   pacienteModelo,
   hoje,
   horarios,
 }: EntradaDaInstrucao): string {
-  const partes = [
-    `Você atende pacientes por WhatsApp em nome de ${clinica}.`,
-    "",
-    "Você aprendeu a atender lendo as conversas reais desta clínica. Siga o",
-    "método abaixo — ele é o jeito desta clínica atender, não um roteiro",
-    "genérico de vendas.",
-    "",
-    "## Como falar",
-    presente(manual.tom),
-    "",
-    "## Como começar a conversa",
-    presente(manual.saudacao),
-    "",
-    "## As etapas da conversa",
-    "Antes de responder, veja em qual etapa esta conversa está e conduza para a",
-    "próxima. Não pule etapa.",
-    "",
-    listaDeEtapas(manual.etapas),
-    "",
-    "## O que descobrir antes de oferecer",
-    presente(manual.descoberta),
-    "",
-    "## Como tirar dúvida sobre procedimento",
-    presente(manual.duvidas_de_procedimento),
-    "",
-    "## Quando e como falar de preço",
-    presente(manual.apresentacao_preco),
-    "",
-    "## Como responder às dúvidas mais comuns",
-    listaDeObjecoes(manual.objecoes),
-    "",
-    "## Como marcar a consulta",
-    presente(manual.agendamento),
-    "",
-    "## Como conduzir para a decisão",
-    presente(manual.fechamento),
-  ];
+  const daClinica = String(instrucaoBase ?? "").trim();
 
-  const obs = String(manual.observacoes ?? "").trim();
+  const partes = daClinica
+    ? [
+        `Você atende pacientes por WhatsApp em nome de ${clinica}.`,
+        "",
+        "O método abaixo foi escrito pela própria clínica. Siga-o.",
+        "",
+        daClinica,
+      ]
+    : [
+        `Você atende pacientes por WhatsApp em nome de ${clinica}.`,
+        "",
+        "Você aprendeu a atender lendo as conversas reais desta clínica. Siga o",
+        "método abaixo — ele é o jeito desta clínica atender, não um roteiro",
+        "genérico de vendas.",
+        "",
+        "## Como falar",
+        presente(manual.tom),
+        "",
+        "## Como começar a conversa",
+        presente(manual.saudacao),
+        "",
+        "## As etapas da conversa",
+        "Antes de responder, veja em qual etapa esta conversa está e conduza para a",
+        "próxima. Não pule etapa.",
+        "",
+        listaDeEtapas(manual.etapas),
+        "",
+        "## O que descobrir antes de oferecer",
+        presente(manual.descoberta),
+        "",
+        "## Como tirar dúvida sobre procedimento",
+        presente(manual.duvidas_de_procedimento),
+        "",
+        "## Quando e como falar de preço",
+        presente(manual.apresentacao_preco),
+        "",
+        "## Como responder às dúvidas mais comuns",
+        listaDeObjecoes(manual.objecoes),
+        "",
+        "## Como marcar a consulta",
+        presente(manual.agendamento),
+        "",
+        "## Como conduzir para a decisão",
+        presente(manual.fechamento),
+      ];
+
+  const obs = daClinica ? "" : String(manual.observacoes ?? "").trim();
   if (obs) partes.push("", "## Outros pontos importantes", obs);
 
   partes.push("", tabelaDePrecos(procedimentos, parcelamento));
@@ -517,6 +548,10 @@ export function montarInstrucao({
     "6. Escreva como alguém daqui escreveria: mensagens curtas, em português do",
     "   Brasil, sem parecer robô e sem se identificar como inteligência",
     "   artificial a menos que perguntem diretamente.",
+    "",
+    "7. Nunca use travessão nas mensagens, mesmo que ESTA instrução use. Use",
+    "   vírgula, ponto ou quebra de linha. Travessão é uma das marcas que",
+    "   denunciam texto de máquina, e ninguém digita travessão no celular.",
   );
 
   return partes.join("\n");

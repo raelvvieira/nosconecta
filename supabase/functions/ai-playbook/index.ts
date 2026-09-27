@@ -759,6 +759,7 @@ async function contextoDaClinica(ownerId: string, agente: any) {
   return {
     clinica: String(unidade?.name ?? "NÓS Odontologia"),
     manual: manualEfetivo(playbook.learned, playbook.overrides),
+    instrucaoBase: agente?.instrucao_base ?? null,
     parcelamento: agente?.parcelamento ?? null,
     pacienteModelo: {
       ate: agente?.paciente_modelo_ate ?? null,
