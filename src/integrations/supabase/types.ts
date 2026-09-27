@@ -204,6 +204,7 @@ export type Database = {
           id: string
           learn_from_won: boolean
           mode: string
+          model: string | null
           name: string
           novo_ate_dias: number
           owner_id: string
@@ -227,6 +228,7 @@ export type Database = {
           id?: string
           learn_from_won?: boolean
           mode?: string
+          model?: string | null
           name?: string
           novo_ate_dias?: number
           owner_id: string
@@ -250,6 +252,7 @@ export type Database = {
           id?: string
           learn_from_won?: boolean
           mode?: string
+          model?: string | null
           name?: string
           novo_ate_dias?: number
           owner_id?: string
