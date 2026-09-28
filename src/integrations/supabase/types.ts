@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_agent_licoes: {
+        Row: {
+          appointment_id: string | null
+          confianca: string | null
+          contact_name: string | null
+          conversation_id: string | null
+          created_at: string
+          desfecho: string
+          humano_assumiu: boolean
+          id: string
+          mensagens: number | null
+          momento_decisivo: string | null
+          motivo: string | null
+          o_que_faltou: string | null
+          o_que_funcionou: string | null
+          owner_id: string
+          session_id: string
+          sugestao: string | null
+        }
+        Insert: {
+          appointment_id?: string | null
+          confianca?: string | null
+          contact_name?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          desfecho: string
+          humano_assumiu?: boolean
+          id?: string
+          mensagens?: number | null
+          momento_decisivo?: string | null
+          motivo?: string | null
+          o_que_faltou?: string | null
+          o_que_funcionou?: string | null
+          owner_id: string
+          session_id: string
+          sugestao?: string | null
+        }
+        Update: {
+          appointment_id?: string | null
+          confianca?: string | null
+          contact_name?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          desfecho?: string
+          humano_assumiu?: boolean
+          id?: string
+          mensagens?: number | null
+          momento_decisivo?: string | null
+          motivo?: string | null
+          o_que_faltou?: string | null
+          o_que_funcionou?: string | null
+          owner_id?: string
+          session_id?: string
+          sugestao?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_licoes_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_licoes_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_messages: {
         Row: {
           content: string | null
@@ -3211,6 +3283,16 @@ export type Database = {
     }
     Functions: {
       accept_invitation: { Args: { _token: string }; Returns: boolean }
+      agendamento_criado_apos: {
+        Args: { _desde: string; _owner: string; _variantes: string[] }
+        Returns: {
+          appointment_id: string
+          criado_em: string
+          data: string
+          hora: string
+          patient_name: string
+        }[]
+      }
       agendamento_por_telefone: {
         Args: { _hoje: string; _owner: string; _variantes: string[] }
         Returns: {
