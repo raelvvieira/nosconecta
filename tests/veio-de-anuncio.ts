@@ -15,7 +15,12 @@
 //
 //   **Guardar a miniatura.** `externalAdReply` traz a imagem como mil bytes
 //   numerados. Ela estourou uma leitura de depuração e não serve para nada aqui.
-import { anuncioDoEvento, secaoDoAnuncio } from "../supabase/functions/_shared/veio-de-anuncio.ts";
+import {
+  anuncioDoEvento,
+  anuncioGuardado,
+  jaProcurouAnuncio,
+  secaoDoAnuncio,
+} from "../supabase/functions/_shared/veio-de-anuncio.ts";
 import { montarInstrucao } from "../supabase/functions/_shared/instrucao-do-agente.ts";
 
 let ok = 0;
@@ -131,6 +136,33 @@ conferir("sem anúncio, sem seção", secaoDoAnuncio(null), "");
     true,
   );
   conferir("e não inventa citação", t.includes(">"), false);
+}
+
+// ── O anúncio guardado na sessão ────────────────────────────────────────
+//
+// Três estados, e confundir dois deles custou uma conversa de verdade: em 28/09
+// um anúncio entrou às 00:03:54 e o deploy que ensinou o webhook a ler o
+// marcador terminou um minuto depois. O marcador ficou no espelho, a sessão
+// ficou sem ele, e daí em diante toda mensagem daquela pessoa era barrada com
+// "não veio de anúncio" — porque o WhatsApp só marca a PRIMEIRA.
+//
+//   null          = ainda não procurei  → procure no espelho
+//   {}            = procurei, não é     → não procure de novo
+//   {clickId:...} = veio deste anúncio
+{
+  const real = anuncioDoEvento({ contextInfo: { externalAdReply: adReal } });
+  conferir("sessão com anúncio devolve o anúncio", anuncioGuardado(real)?.clickId, real?.clickId);
+  conferir("sessão vazia não é anúncio", anuncioGuardado({}), null);
+  conferir("sessão nula não é anúncio", anuncioGuardado(null), null);
+  // Sem `clickId` não há prova de clique — a mesma regra de `anuncioDoEvento`,
+  // porque senão um objeto meio preenchido liberaria a IA.
+  conferir("objeto sem clique não é anúncio", anuncioGuardado({ rede: "instagram" }), null);
+  conferir("clique em branco não vale", anuncioGuardado({ clickId: "   " }), null);
+
+  conferir("nulo = ainda não procurei", jaProcurouAnuncio(null), false);
+  conferir("indefinido = ainda não procurei", jaProcurouAnuncio(undefined), false);
+  conferir("vazio = já procurei", jaProcurouAnuncio({}), true);
+  conferir("com anúncio = já procurei", jaProcurouAnuncio(real), true);
 }
 
 // ── A seção chega mesmo na instrução montada ────────────────────────────

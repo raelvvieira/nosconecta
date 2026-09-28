@@ -90,6 +90,25 @@ export function anuncioDoEvento(payload: unknown): Anuncio | null {
 }
 
 /**
+ * Lê o anúncio que ficou GUARDADO na sessão.
+ *
+ * `null` na coluna quer dizer "ainda não procurei"; um objeto vazio quer dizer
+ * "procurei no espelho e esta conversa não veio de anúncio". A diferença existe
+ * para a busca no espelho rodar UMA vez por conversa em vez de a cada mensagem
+ * — e o vazio é o que registra que ela já rodou.
+ */
+export function anuncioGuardado(valor: unknown): Anuncio | null {
+  const a = (valor ?? null) as Record<string, unknown> | null;
+  if (!a || typeof a !== "object") return null;
+  return typeof a.clickId === "string" && a.clickId.trim() ? (a as unknown as Anuncio) : null;
+}
+
+/** Já se procurou o anúncio desta conversa no espelho? */
+export function jaProcurouAnuncio(valor: unknown): boolean {
+  return valor !== null && valor !== undefined;
+}
+
+/**
  * O que a instrução do agente diz sobre o anúncio.
  *
  * Vazio quando não veio de anúncio: uma seção dizendo "esta pessoa não veio de

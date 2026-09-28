@@ -21,7 +21,12 @@ import { manualEfetivo, montarInstrucao } from "./instrucao-do-agente.ts";
 import { agoraNaClinica, horariosParaOferecer } from "./agenda-da-clinica.ts";
 import { semTravessao } from "./sem-travessao.ts";
 import { aClinicaJaFalou, ehEcoDaPropriaIa, oQueEuMandei } from "./historico-da-clinica.ts";
-import type { Anuncio } from "./veio-de-anuncio.ts";
+import {
+  anuncioDoEvento,
+  anuncioGuardado,
+  jaProcurouAnuncio,
+  type Anuncio,
+} from "./veio-de-anuncio.ts";
 
 export interface MensagemDeEntrada {
   conversationId: string;
@@ -158,9 +163,29 @@ export async function atender(
   // sessão, e as próximas mensagens da mesma pessoa continuam sabendo de onde
   // ela veio. Sem isto a IA responderia a primeira mensagem e decidiria, na
   // segunda, que essa pessoa não veio de anúncio.
-  const anuncioDaSessao: Anuncio | null = (sessao.anuncio as Anuncio | null) ?? null;
-  const anuncio: Anuncio | null = entrada.anuncio ?? anuncioDaSessao;
-  if (entrada.anuncio && !anuncioDaSessao) {
+  const anuncioDaSessao = anuncioGuardado(sessao.anuncio);
+  let anuncio: Anuncio | null = entrada.anuncio ?? anuncioDaSessao;
+
+  // ── E quando o marcador chegou antes de o agente saber lê-lo ────────────
+  //
+  // Aconteceu de verdade em 28/09: a conversa de um anúncio entrou às 00:03:54
+  // e o deploy que ensinou o webhook a ler `ctwaClid` terminou um minuto
+  // depois. O marcador ficou gravado no espelho, mas não na sessão — e a partir
+  // daí TODA mensagem daquela pessoa era barrada com "não veio de anúncio",
+  // para sempre, porque o WhatsApp só marca a primeira.
+  //
+  // O mesmo vale para qualquer conversa de anúncio aberta antes desta função
+  // existir. Então, quando a sessão não sabe, procura-se no espelho — onde o
+  // payload cru está gravado — e o resultado fica guardado. Objeto vazio quer
+  // dizer "procurei e não era de anúncio": é o que impede a busca de repetir a
+  // cada mensagem.
+  if (!anuncio && !jaProcurouAnuncio(sessao.anuncio)) {
+    anuncio = await anuncioNoEspelho(supabase, ownerId, entrada.conversationId);
+    await supabase
+      .from("ai_agent_sessions")
+      .update({ anuncio: anuncio ?? {}, updated_at: agora.toISOString() })
+      .eq("id", sessao.id);
+  } else if (entrada.anuncio && !anuncioDaSessao) {
     await supabase
       .from("ai_agent_sessions")
       .update({ anuncio: entrada.anuncio, updated_at: agora.toISOString() })
@@ -388,6 +413,47 @@ async function responderComModelo(
     .join("\n");
 
   return deps.responderComIa(instrucao, historico, String(entrada.conteudo ?? ""));
+}
+
+/**
+ * Procura o marcador de anúncio nas primeiras mensagens da conversa, no espelho.
+ *
+ * Só as PRIMEIRAS, e só as recebidas: o WhatsApp anexa `ctwaClid` à mensagem de
+ * quem clicou, e nunca ao que a clínica manda. Três bastam com folga, e o limite
+ * importa porque `payload` guarda o evento inteiro, miniatura do anúncio
+ * inclusa.
+ *
+ * Quem decide o que é anúncio continua sendo `anuncioDoEvento` — a mesma função
+ * que o webhook usa. Duas leituras do mesmo marcador divergiriam no dia em que
+ * a Evolution mudasse de formato.
+ */
+async function anuncioNoEspelho(
+  supabase: any,
+  ownerId: string,
+  conversationId: string,
+): Promise<Anuncio | null> {
+  const { data, error } = await supabase
+    .from("wa_messages")
+    .select("payload")
+    .eq("owner_id", ownerId)
+    .eq("crm_conversation_id", conversationId)
+    .eq("from_me", false)
+    .order("sent_at", { ascending: true })
+    .limit(3);
+
+  // Erro de leitura devolve `null`, e `null` aqui vira "não veio de anúncio",
+  // que CALA a IA. É o lado seguro: falar com quem não veio de anúncio é o que
+  // esta versão inteira existe para impedir.
+  if (error) {
+    console.warn(`[atendimento] anúncio de ${conversationId}:`, error.message);
+    return null;
+  }
+
+  for (const linha of data ?? []) {
+    const achado = anuncioDoEvento((linha as { payload?: unknown }).payload);
+    if (achado) return achado;
+  }
+  return null;
 }
 
 async function garantirSessao(
