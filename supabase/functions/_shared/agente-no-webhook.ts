@@ -24,6 +24,7 @@ import { historicoDoEspelho } from "./historico-da-conversa.ts";
 import { responderPaciente } from "./modelo-de-atendimento.ts";
 import { enviarWhatsapp } from "./whatsapp-send.ts";
 import type { MensagemEspelhada } from "./evolution-mapear.ts";
+import { anuncioDoEvento } from "./veio-de-anuncio.ts";
 
 /** Espera de verdade antes de mandar o pedaço — é o tempo de digitação. */
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -46,13 +47,21 @@ export async function deixarOAgenteResponder(
   supabase: any,
   ownerId: string,
   m: MensagemEspelhada,
+  // O evento CRU da Evolution, ao lado da mensagem já traduzida.
+  //
+  // É o único lugar onde o marcador de anúncio existe: `MensagemEspelhada` é o
+  // que a tela precisa da mensagem, e `contextInfo.externalAdReply` não é isso.
+  // Ele já está sendo gravado no espelho (`wa_messages.payload`) pela linha
+  // acima desta no webhook — aqui ele só é LIDO, e nada além dos campos do
+  // anúncio sai deste parâmetro.
+  evento?: unknown,
 ): Promise<void> {
   try {
     // A chave da clínica, gravada na tela do agente. Vazia = cai no segredo do
     // ambiente, que é onde ela morava antes de a tela existir.
     const { data: agente } = await supabase
       .from("ai_agents")
-      .select("api_key, novo_ate_dias")
+      .select("api_key, novo_ate_dias, model")
       .eq("owner_id", ownerId)
       .maybeSingle();
     const chave: string | null = agente?.api_key ?? null;
@@ -63,6 +72,11 @@ export async function deixarOAgenteResponder(
       ehPacienteDoContato(supabase, ownerId, m.crmContactId),
       primeiraMensagemDaPessoa(supabase, ownerId, m.crmConversationId),
     ]);
+
+    // Uma leitura só: o anúncio serve para duas coisas (o filtro e a
+    // instrução) e ler duas vezes o mesmo evento abre espaço para as duas
+    // discordarem.
+    const anuncio = anuncioDoEvento(evento);
 
     const entrada: MensagemDeEntrada = {
       conversationId: m.crmConversationId,
@@ -82,6 +96,15 @@ export async function deixarOAgenteResponder(
       // "vazia" quer dizer "nova", então por sorte ainda daria certo, mas por
       // motivo errado. Não antecipar.
       conversaNova: ehConversaNova(primeiraEm, new Date(), Number(agente?.novo_ate_dias ?? 7)),
+      // De onde a pessoa veio, lido do evento cru. `null` quando não veio de
+      // anúncio — e `null`, aqui, é uma AFIRMAÇÃO: olhei e não tem marcador.
+      // É diferente de omitir, que é o que a simulação da tela faz e significa
+      // "não sei". O filtro trata os dois de forma oposta, de propósito.
+      anuncio,
+      // O fato para o filtro, calculado do mesmo anúncio. A partir da segunda
+      // mensagem o marcador não vem mais e este fato é `false`; quem sustenta a
+      // conversa daí em diante é o anúncio guardado na sessão, em `atender`.
+      veioDeAnuncio: anuncio !== null,
     };
 
     const resultado = await atender(

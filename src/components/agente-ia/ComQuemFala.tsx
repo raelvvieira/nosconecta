@@ -18,6 +18,18 @@ export function ComQuemFala() {
     >
       <div className="grid gap-4">
         <Chave
+          rotulo="Só quem veio de anúncio"
+          dica="O WhatsApp marca quem clicou em um anúncio. Quem chegou por outro caminho continua com a recepção."
+          ligada={config?.soDeAnuncio ?? true}
+          onMudar={(v) => void gravar({ soDeAnuncio: v })}
+        />
+        <Chave
+          rotulo="Só antes de alguém daqui responder"
+          dica="Se a recepção já falou na conversa, ela não entra no meio. As respostas dela mesma não contam."
+          ligada={config?.soSemHistorico ?? true}
+          onMudar={(v) => void gravar({ soSemHistorico: v })}
+        />
+        <Chave
           rotulo="Só quem ainda não é paciente"
           dica="Quem já tem ficha tem tratamento em andamento e combinado com a recepção."
           ligada={config?.soParaNaoPaciente ?? true}
@@ -38,6 +50,13 @@ export function ComQuemFala() {
             dica="Contado da primeira mensagem da pessoa, em qualquer conversa dela."
             onSalvar={(v) => void gravar({ novoAteDias: v })}
           />
+        )}
+
+        {config?.soDeAnuncio === false && (
+          <p className="rounded-xl bg-warning-soft px-3.5 py-2.5 text-sm">
+            Ela vai responder também quem chegou por indicação, pelo perfil ou por uma conversa
+            antiga, não só quem clicou em anúncio.
+          </p>
         )}
 
         {config?.soParaNaoPaciente === false && (

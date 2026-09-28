@@ -285,6 +285,10 @@ export interface ConfigDeAtendimento {
   soParaNaoPaciente: boolean;
   /** Só fala em conversa que nasceu há pouco. */
   soParaConversaNova: boolean;
+  /** Só fala com quem chegou clicando num anúncio. */
+  soDeAnuncio: boolean;
+  /** Só fala enquanto ninguém da clínica tiver falado nesta conversa. */
+  soSemHistorico: boolean;
   /** Por quantos dias uma conversa ainda conta como nova. */
   novoAteDias: number;
   /**
@@ -339,6 +343,8 @@ export const getAtendimento = createServerFn({ method: "GET" })
       // tinha agente — o oposto do `DEFAULT true` da migration.
       soParaNaoPaciente: agente.so_para_nao_paciente !== false,
       soParaConversaNova: agente.so_para_conversa_nova !== false,
+      soDeAnuncio: agente.so_de_anuncio !== false,
+      soSemHistorico: agente.so_sem_historico !== false,
       novoAteDias: Number(agente.novo_ate_dias ?? 7),
       modelo: String(agente.model ?? ""),
       instrucaoBase: String(agente.instrucao_base ?? ""),
@@ -369,6 +375,8 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
       chaveDaIa?: string;
       soParaNaoPaciente?: boolean;
       soParaConversaNova?: boolean;
+      soDeAnuncio?: boolean;
+      soSemHistorico?: boolean;
       novoAteDias?: number;
       /** O modelo da OpenAI. String vazia limpa a escolha. */
       modelo?: string;
@@ -417,6 +425,8 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
     if (data.soParaNaoPaciente !== undefined) campos.so_para_nao_paciente = data.soParaNaoPaciente;
     if (data.soParaConversaNova !== undefined)
       campos.so_para_conversa_nova = data.soParaConversaNova;
+    if (data.soDeAnuncio !== undefined) campos.so_de_anuncio = data.soDeAnuncio;
+    if (data.soSemHistorico !== undefined) campos.so_sem_historico = data.soSemHistorico;
     if (data.novoAteDias !== undefined) campos.novo_ate_dias = data.novoAteDias;
     if (data.msPorCaractere !== undefined) campos.delay_per_character = data.msPorCaractere;
     // `null` e não string vazia: a coluna vazia significaria "chave em branco"

@@ -26,6 +26,27 @@ export interface EstadoDoAgente {
   soParaNaoPaciente: boolean;
   /** Só fala em conversa que nasceu há pouco. Mesma razão de ser interruptor. */
   soParaConversaNova: boolean;
+  /**
+   * Só fala com quem chegou clicando num anúncio.
+   *
+   * O sinal é exato, não é palpite: o WhatsApp anexa `ctwaClid` à primeira
+   * mensagem de quem clicou em "Enviar mensagem" num anúncio (ver
+   * `veio-de-anuncio.ts`). São 27 conversas assim entre 19 e 27/09.
+   *
+   * É o filtro mais estreito de todos, e é assim que a clínica quis começar:
+   * quem vem de anúncio não conhece a clínica, então uma resposta imperfeita da
+   * IA custa menos do que custaria com um paciente antigo.
+   */
+  soDeAnuncio: boolean;
+  /**
+   * Só fala quando a clínica AINDA NÃO falou nesta conversa.
+   *
+   * Diferente de `soParaConversaNova`: uma conversa aberta há três dias com dez
+   * mensagens trocadas é "nova" pela janela de sete dias, mas já TEM histórico —
+   * e entrar no meio dela é a IA falando por cima de um atendimento que já
+   * estava acontecendo.
+   */
+  soSemHistorico: boolean;
 }
 
 export interface EstadoDaSessao {
@@ -50,6 +71,29 @@ export interface MensagemRecebida {
   ehPaciente: boolean;
   /** A conversa nasceu dentro da janela de "contato novo". */
   conversaNova: boolean;
+  /** A pessoa chegou clicando num anúncio. Fato, resolvido por quem lê o
+   *  payload do WhatsApp. */
+  veioDeAnuncio: boolean;
+  /** Ninguém da clínica falou nesta conversa ainda. */
+  semHistorico: boolean;
+  /**
+   * Esta mensagem é a resposta que a PRÓPRIA IA acabou de mandar, voltando pelo
+   * webhook.
+   *
+   * ── Por que este fato existe ──────────────────────────────────────────
+   *
+   * A Evolution devolve pelo mesmo webhook tudo que o número manda, inclusive o
+   * que a IA mandou: medido em 27/09, são 830 mensagens `fromMe` chegando por
+   * esse caminho. Sem distinguir, a resposta da IA voltava como "mensagem da
+   * própria clínica" — e é ESSE motivo que `atender` transforma em "humano
+   * assumiu a conversa". A IA respondia uma vez, marcava a conversa como
+   * assumida por uma pessoa e se calava para sempre. Pior que nunca ter
+   * respondido.
+   *
+   * Fato, e não dedução aqui dentro: quem sabe o que a IA mandou é quem tem o
+   * registro dela à mão.
+   */
+  ecoDaPropriaIa: boolean;
 }
 
 export type MotivoDeIgnorar =
@@ -59,13 +103,14 @@ export type MotivoDeIgnorar =
   | "mensagem de grupo"
   | "conversa de paciente"
   | "conversa antiga"
+  | "não veio de anúncio"
+  | "conversa já tem histórico"
+  | "eco da própria IA"
   | "mensagem da própria clínica"
   | "nota interna"
   | "mensagem sem texto";
 
-export type Decisao =
-  | { responde: true }
-  | { responde: false; motivo: MotivoDeIgnorar };
+export type Decisao = { responde: true } | { responde: false; motivo: MotivoDeIgnorar };
 
 /**
  * A ordem importa e não é arbitrária.
@@ -137,6 +182,39 @@ export function decidirSeResponde(
     return { responde: false, motivo: "conversa antiga" };
   }
 
+  // ── Os dois filtros mais estreitos ──────────────────────────────────
+  //
+  // Vêm por último entre os filtros de PÚBLICO, e nesta ordem, porque o motivo
+  // gravado tem de ser o mais forte. "Já é paciente" diz mais sobre quem a
+  // pessoa é do que "não veio de anúncio": a mesma pessoa pode voltar por um
+  // anúncio amanhã, mas continua sendo paciente.
+  //
+  // "Não veio de anúncio" antes de "já tem histórico" porque a origem é
+  // propriedade da conversa desde o primeiro segundo; o histórico aparece
+  // depois, quando alguém responde.
+  if (agente.soDeAnuncio && !mensagem.veioDeAnuncio) {
+    return { responde: false, motivo: "não veio de anúncio" };
+  }
+
+  // Aqui está a diferença que importa em relação a "conversa antiga": uma
+  // conversa de ontem com dez mensagens trocadas passa pela janela de sete dias
+  // e NÃO pode ser assumida pela IA. Entrar no meio dela é falar por cima de um
+  // atendimento que já estava em andamento.
+  if (agente.soSemHistorico && !mensagem.semHistorico) {
+    return { responde: false, motivo: "conversa já tem histórico" };
+  }
+
+  // ── A própria resposta, voltando ────────────────────────────────────
+  //
+  // Vem IMEDIATAMENTE antes de "mensagem da própria clínica" porque é um caso
+  // dela, mais específico, e a diferença entre os dois motivos é a diferença
+  // entre a IA seguir atendendo e a IA se calar para sempre: só o motivo de
+  // baixo vira `human_took_over_at` em `atender`. Trocar a ordem, ou juntar os
+  // dois num motivo só, é reintroduzir o defeito.
+  if (mensagem.daClinica && mensagem.ecoDaPropriaIa) {
+    return { responde: false, motivo: "eco da própria IA" };
+  }
+
   // Sem isto o agente responderia a própria resposta, em laço.
   if (mensagem.daClinica) return { responde: false, motivo: "mensagem da própria clínica" };
 
@@ -170,7 +248,10 @@ export function registrarFalha(
 ): EstadoDoDisjuntor {
   const falhas = atual.falhas + 1;
   if (falhas >= LIMITE_DE_FALHAS) {
-    return { falhas: 0, abertoAte: new Date(agora.getTime() + JANELA_DO_DISJUNTOR_MS).toISOString() };
+    return {
+      falhas: 0,
+      abertoAte: new Date(agora.getTime() + JANELA_DO_DISJUNTOR_MS).toISOString(),
+    };
   }
   return { falhas, abertoAte: atual.abertoAte };
 }

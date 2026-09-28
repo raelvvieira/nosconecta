@@ -98,7 +98,10 @@ async function gravarMensagem(ownerId: string, data: any) {
   // mensagem da própria clínica e conversa já assumida por uma pessoa saem
   // todos em `filtros-do-agente.ts`. Hoje ele está desligado, então isto é um
   // caminho pronto e parado.
-  await deixarOAgenteResponder(supabase, ownerId, m);
+  // O evento cru vai junto: é o único lugar onde o marcador de anúncio
+  // (`contextInfo.externalAdReply`) existe, e é por ele que a Luna sabe que
+  // esta pessoa clicou num anúncio — hoje o único público que ela atende.
+  await deixarOAgenteResponder(supabase, ownerId, m, data);
 
   return { gravado: m.crmMessageId, telefone: m.phone, grupo: m.ehGrupo, resposta };
 }

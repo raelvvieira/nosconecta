@@ -36,6 +36,10 @@ const LIGADO: EstadoDoAgente = {
   circuitoAbertoAte: null,
   soParaNaoPaciente: true,
   soParaConversaNova: true,
+  // Como a clínica ligou em 28/09: só quem clicou num anúncio e cuja conversa
+  // ainda não teve resposta de ninguém.
+  soDeAnuncio: true,
+  soSemHistorico: true,
 };
 const LIVRE: EstadoDaSessao = { humanoAssumiuEm: null };
 
@@ -50,6 +54,9 @@ function msg(p: Partial<MensagemRecebida> = {}): MensagemRecebida {
     // o que media antes.
     ehPaciente: p.ehPaciente ?? false,
     conversaNova: p.conversaNova ?? true,
+    veioDeAnuncio: p.veioDeAnuncio ?? true,
+    semHistorico: p.semHistorico ?? true,
+    ecoDaPropriaIa: p.ecoDaPropriaIa ?? false,
   };
 }
 const motivo = (
@@ -269,6 +276,142 @@ conferir(
     "conversa antiga",
   );
 }
+
+// ── VEIO DE ANÚNCIO ──────────────────────────────────────────────────────
+//
+// O filtro mais estreito, e o que a clínica escolheu para começar: quem vem de
+// anúncio não conhece a clínica, então uma resposta imperfeita custa menos do
+// que custaria com um paciente antigo.
+conferir(
+  "quem não veio de anúncio não é atendido",
+  motivo(LIGADO, LIVRE, msg({ veioDeAnuncio: false })),
+  "não veio de anúncio",
+);
+conferir(
+  "quem veio de anúncio é atendido",
+  motivo(LIGADO, LIVRE, msg({ veioDeAnuncio: true })),
+  null,
+);
+{
+  const semFiltroDeAnuncio: EstadoDoAgente = { ...LIGADO, soDeAnuncio: false };
+  conferir(
+    "desligado o filtro, quem não veio de anúncio passa",
+    motivo(semFiltroDeAnuncio, LIVRE, msg({ veioDeAnuncio: false })),
+    null,
+  );
+}
+
+// ── CONVERSA JÁ TEM HISTÓRICO ────────────────────────────────────────────
+//
+// Diferente de "conversa antiga", e é a diferença que importa: uma conversa de
+// ontem com dez mensagens trocadas passa pela janela de sete dias e NÃO pode ser
+// assumida pela IA. Entrar no meio dela é falar por cima de um atendimento que
+// já estava acontecendo.
+conferir(
+  "conversa com histórico não é assumida",
+  motivo(LIGADO, LIVRE, msg({ semHistorico: false })),
+  "conversa já tem histórico",
+);
+conferir(
+  "conversa nova E sem histórico é atendida",
+  motivo(LIGADO, LIVRE, msg({ conversaNova: true, semHistorico: true })),
+  null,
+);
+// O caso que prova que os dois filtros são coisas diferentes.
+conferir(
+  "nova pela janela mas já respondida fica de fora",
+  motivo(LIGADO, LIVRE, msg({ conversaNova: true, semHistorico: false })),
+  "conversa já tem histórico",
+);
+{
+  const semFiltroDeHistorico: EstadoDoAgente = { ...LIGADO, soSemHistorico: false };
+  conferir(
+    "desligado o filtro, conversa com histórico passa",
+    motivo(semFiltroDeHistorico, LIVRE, msg({ semHistorico: false })),
+    null,
+  );
+}
+
+// ── A ORDEM DOS MOTIVOS ──────────────────────────────────────────────────
+//
+// O motivo gravado precisa ser o MAIS FORTE, não o primeiro que por acaso foi
+// checado — é ele que alguém vai ler em `skipped_reason` para entender por que a
+// IA calou.
+conferir(
+  "grupo ganha de não veio de anúncio",
+  motivo(LIGADO, LIVRE, msg({ ehGrupo: true, veioDeAnuncio: false })),
+  "mensagem de grupo",
+);
+conferir(
+  "paciente ganha de não veio de anúncio",
+  motivo(LIGADO, LIVRE, msg({ ehPaciente: true, veioDeAnuncio: false })),
+  "conversa de paciente",
+);
+conferir(
+  "conversa antiga ganha de não veio de anúncio",
+  motivo(LIGADO, LIVRE, msg({ conversaNova: false, veioDeAnuncio: false })),
+  "conversa antiga",
+);
+conferir(
+  "não veio de anúncio ganha de já tem histórico",
+  motivo(LIGADO, LIVRE, msg({ veioDeAnuncio: false, semHistorico: false })),
+  "não veio de anúncio",
+);
+// E os dois novos continuam vindo ANTES de "mensagem da própria clínica" — é
+// esse motivo que `atender` transforma em `human_took_over_at`, e marcá-lo numa
+// conversa que a IA nunca poderia atender sujaria a sessão para sempre.
+conferir(
+  "não veio de anúncio ganha de mensagem da clínica",
+  motivo(LIGADO, LIVRE, msg({ veioDeAnuncio: false, daClinica: true })),
+  "não veio de anúncio",
+);
+conferir(
+  "já tem histórico ganha de mensagem da clínica",
+  motivo(LIGADO, LIVRE, msg({ semHistorico: false, daClinica: true })),
+  "conversa já tem histórico",
+);
+
+// ── A própria resposta voltando ──────────────────────────────────────────
+//
+// A Evolution devolve pelo webhook tudo que o número manda, inclusive o que a
+// IA mandou. Sem este motivo próprio, a resposta dela voltava como "mensagem da
+// própria clínica" — e é ESSE motivo que `atender` transforma em
+// `human_took_over_at`. A IA respondia uma vez e se calava para sempre.
+conferir(
+  "a resposta da própria IA voltando tem motivo próprio",
+  motivo(LIGADO, LIVRE, msg({ daClinica: true, ecoDaPropriaIa: true })),
+  "eco da própria IA",
+);
+conferir(
+  "mensagem de uma PESSOA da clínica continua sendo mensagem da clínica",
+  motivo(LIGADO, LIVRE, msg({ daClinica: true, ecoDaPropriaIa: false })),
+  "mensagem da própria clínica",
+);
+// `ecoDaPropriaIa` sozinho não cala nada: ele só qualifica uma mensagem que
+// SAIU da clínica. Se um dia o fato vier trocado numa mensagem de paciente, o
+// atendimento não pode parar por isso.
+conferir(
+  "eco marcado numa mensagem de paciente não impede a resposta",
+  motivo(LIGADO, LIVRE, msg({ daClinica: false, ecoDaPropriaIa: true })),
+  null,
+);
+// A ordem entre os dois é a diferença entre atender e calar para sempre.
+conferir(
+  "eco ganha de mensagem da própria clínica",
+  decidirSeResponde(LIGADO, LIVRE, msg({ daClinica: true, ecoDaPropriaIa: true }), AGORA),
+  { responde: false, motivo: "eco da própria IA" },
+);
+// E os filtros de público continuam ganhando do eco: se a conversa não era para
+// a IA, o motivo que interessa é esse.
+conferir(
+  "humano assumiu ganha do eco",
+  motivo(
+    { ...LIGADO },
+    { humanoAssumiuEm: "2026-09-27T10:00:00Z" },
+    msg({ daClinica: true, ecoDaPropriaIa: true }),
+  ),
+  "humano assumiu a conversa",
+);
 
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);

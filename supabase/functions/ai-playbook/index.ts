@@ -921,6 +921,16 @@ async function handleSimular(ownerId: string, texto: string) {
       // a tela de teste passaria a exercitar um agente diferente do que roda.
       ehPaciente: false,
       conversaNova: true,
+      // Mesma razão: quem testa está fingindo ser o contato do anúncio, que é
+      // hoje o único público da Luna. Sem isto a prévia responderia "não veio
+      // de anúncio" e a tela de teste seria inútil justamente para o caso que
+      // está em produção.
+      //
+      // O FATO vai explícito, mas sem `anuncio`: não há anúncio de verdade
+      // aqui, e inventar um texto de anúncio faria a prévia exercitar uma
+      // instrução que a produção nunca vai montar.
+      veioDeAnuncio: true,
+      semHistorico: true,
     },
   );
   // A tela precisa dizer "isto é uma prévia" quando o agente está desligado.

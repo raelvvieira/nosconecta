@@ -24,6 +24,8 @@
 // são as que estão valendo. Melhor uma ida ao servidor do que essa mentira.
 
 /** Uma etapa da conversa, como o aprendizado a reconheceu. */
+import { secaoDoAnuncio, type Anuncio } from "./veio-de-anuncio.ts";
+
 export interface EtapaDaConversa {
   nome?: string | null;
   /** O que o paciente diz ou faz que mostra que a conversa está AQUI. */
@@ -126,6 +128,15 @@ export interface EntradaDaInstrucao {
    * agente dizer frases diferentes.
    */
   horarios?: HorariosParaOferecer | null;
+  /**
+   * O anúncio que trouxe esta pessoa, quando ela veio de um.
+   *
+   * Muda o atendimento, não só o filtro: com o texto do anúncio em mãos a IA
+   * não precisa perguntar "qual procedimento você viu?" — perguntar o que a
+   * própria clínica acabou de anunciar é o tipo de detalhe que denuncia
+   * automação. Nulo (a maioria das conversas) não gera seção nenhuma.
+   */
+  anuncio?: Anuncio | null;
 }
 
 /** O que a agenda respondeu. Ver `escolherMomentos` em `vagas.ts`. */
@@ -462,6 +473,7 @@ export function montarInstrucao({
   pacienteModelo,
   hoje,
   horarios,
+  anuncio,
 }: EntradaDaInstrucao): string {
   const daClinica = String(instrucaoBase ?? "").trim();
 
@@ -513,6 +525,13 @@ export function montarInstrucao({
 
   const obs = daClinica ? "" : String(manual.observacoes ?? "").trim();
   if (obs) partes.push("", "## Outros pontos importantes", obs);
+
+  // De onde a pessoa veio vem antes dos preços e dos horários porque é o
+  // ASSUNTO da conversa: é o que diz sobre qual procedimento se está falando.
+  // Vazio quando ela não veio de anúncio, e aí não sobra linha em branco de
+  // sobra porque `partes` é juntado com quebra de linha simples.
+  const deOndeVeio = secaoDoAnuncio(anuncio);
+  if (deOndeVeio) partes.push("", deOndeVeio);
 
   partes.push("", tabelaDePrecos(procedimentos, parcelamento));
   partes.push("", secaoDeHorarios(horarios));

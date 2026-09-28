@@ -20,6 +20,8 @@ import { esperaDeDigitacao, normalizarRitmo, segmentar } from "./humanizacao.ts"
 import { manualEfetivo, montarInstrucao } from "./instrucao-do-agente.ts";
 import { agoraNaClinica, horariosParaOferecer } from "./agenda-da-clinica.ts";
 import { semTravessao } from "./sem-travessao.ts";
+import { aClinicaJaFalou, ehEcoDaPropriaIa, oQueEuMandei } from "./historico-da-clinica.ts";
+import type { Anuncio } from "./veio-de-anuncio.ts";
 
 export interface MensagemDeEntrada {
   conversationId: string;
@@ -44,6 +46,33 @@ export interface MensagemDeEntrada {
   /** A conversa nasceu dentro da janela de contato novo. Mesma regra de
    *  omissão do campo acima. */
   conversaNova?: boolean;
+  /**
+   * A pessoa chegou clicando num anúncio.
+   *
+   * FATO, separado do anúncio em si logo abaixo, e de propósito: a simulação da
+   * tela finge ser o contato do anúncio (é justamente quem a IA atende) sem ter
+   * um anúncio de verdade para mostrar. Juntar os dois obrigaria a simulação a
+   * inventar um texto de anúncio, e aí a prévia exercitaria uma instrução que a
+   * produção nunca vai montar.
+   */
+  veioDeAnuncio?: boolean;
+  /**
+   * QUAL anúncio, quando se sabe. Vai para a instrução, não para o filtro.
+   *
+   * O webhook lê isto da primeira mensagem da pessoa e `atender` guarda na
+   * sessão: o WhatsApp só marca a primeira. Reler o marcador a cada mensagem
+   * faria a IA decidir "não veio de anúncio" na segunda e abandonar a conversa
+   * depois de uma frase.
+   */
+  anuncio?: Anuncio | null;
+  /**
+   * Ninguém da clínica falou nesta conversa ainda.
+   *
+   * Opcional e permissivo por omissão, como os dois acima. As mensagens da
+   * própria IA NÃO contam como histórico — quem resolve isso é `atender`, com o
+   * `last_outbound_at` da sessão, porque o espelho não sabe quem escreveu.
+   */
+  semHistorico?: boolean;
 }
 
 /** Manda um pedaço da resposta. `esperaMs` é o tempo de digitação antes dele. */
@@ -119,6 +148,51 @@ export async function atender(
 
   const sessao = await garantirSessao(supabase, ownerId, agente.id, entrada);
 
+  const soDeAnuncio = agente.so_de_anuncio !== false;
+  const soSemHistorico = agente.so_sem_historico !== false;
+
+  // ── De qual anúncio esta pessoa veio ────────────────────────────────────
+  //
+  // O WhatsApp marca SÓ a primeira mensagem de quem clicou. Por isso o anúncio
+  // é propriedade da conversa: chega na primeira mensagem, fica guardado na
+  // sessão, e as próximas mensagens da mesma pessoa continuam sabendo de onde
+  // ela veio. Sem isto a IA responderia a primeira mensagem e decidiria, na
+  // segunda, que essa pessoa não veio de anúncio.
+  const anuncioDaSessao: Anuncio | null = (sessao.anuncio as Anuncio | null) ?? null;
+  const anuncio: Anuncio | null = entrada.anuncio ?? anuncioDaSessao;
+  if (entrada.anuncio && !anuncioDaSessao) {
+    await supabase
+      .from("ai_agent_sessions")
+      .update({ anuncio: entrada.anuncio, updated_at: agora.toISOString() })
+      .eq("id", sessao.id);
+  }
+
+  // ── "A clínica já falou aqui?" ──────────────────────────────────────────
+  //
+  // O espelho não sabe QUEM escreveu: a resposta da própria IA entra com
+  // `from_me = true` igual à da recepção. Então a pergunta se responde em duas
+  // partes — se a IA já falou nesta sessão (`last_outbound_at`), a conversa é
+  // dela e o `from_me` que existe é o dela.
+  //
+  // Sem esta segunda parte o critério inverteria na segunda mensagem da pessoa
+  // e a IA abandonaria a conversa depois de uma frase, que é o defeito que
+  // `conversa-nova.ts` já descreve por escrito.
+  let semHistorico = entrada.semHistorico !== false;
+  if (entrada.semHistorico === undefined && soSemHistorico) {
+    semHistorico =
+      !!sessao.last_outbound_at ||
+      !(await aClinicaJaFalou(supabase, ownerId, entrada.conversationId));
+  }
+
+  // ── É a minha própria resposta voltando? ────────────────────────────────
+  //
+  // Só se pergunta quando a mensagem saiu da clínica — para toda mensagem de
+  // paciente a resposta é não, e uma consulta por mensagem recebida seria
+  // gasto puro.
+  const ecoDaPropriaIa = entrada.daClinica
+    ? ehEcoDaPropriaIa(entrada.conteudo, await oQueEuMandei(supabase, sessao.id, agora))
+    : false;
+
   const decisao = decidirSeResponde(
     {
       // Ver `ignorarInterruptor` em `Dependencias`: só a simulação da tela
@@ -131,6 +205,8 @@ export async function atender(
       // contrário do que a migration promete com `DEFAULT true`.
       soParaNaoPaciente: agente.so_para_nao_paciente !== false,
       soParaConversaNova: agente.so_para_conversa_nova !== false,
+      soDeAnuncio,
+      soSemHistorico,
     },
     { humanoAssumiuEm: sessao.human_took_over_at ?? null },
     {
@@ -140,6 +216,13 @@ export async function atender(
       ehGrupo: !!entrada.ehGrupo,
       ehPaciente: !!entrada.ehPaciente,
       conversaNova: entrada.conversaNova !== false,
+      // O fato explícito quando quem chamou sabe, OU o anúncio guardado na
+      // sessão. As duas leituras concordam no webhook, que calcula o fato do
+      // mesmo anúncio; a segunda é o que sustenta a conversa a partir da
+      // segunda mensagem, quando o marcador não vem mais.
+      veioDeAnuncio: entrada.veioDeAnuncio !== false || anuncio !== null,
+      semHistorico,
+      ecoDaPropriaIa,
     },
     agora,
   );
@@ -175,7 +258,7 @@ export async function atender(
   try {
     texto =
       agente.mode === "ia"
-        ? await responderComModelo(deps, agente, entrada)
+        ? await responderComModelo(deps, agente, entrada, anuncio)
         : String(agente.echo_message ?? "").trim();
     if (!texto) return { respondeu: false, motivo: "resposta vazia", pedacos: [] };
   } catch (e) {
@@ -233,6 +316,7 @@ async function responderComModelo(
   deps: Dependencias,
   agente: any,
   entrada: MensagemDeEntrada,
+  anuncio: Anuncio | null,
 ): Promise<string> {
   const { supabase, ownerId } = deps;
 
@@ -277,6 +361,7 @@ async function responderComModelo(
   const horarios = await horariosParaOferecer(supabase, ownerId, agoraDoAtendimento(deps));
 
   const instrucao = montarInstrucao({
+    anuncio,
     horarios,
     clinica: unidade?.name ?? "NÓS Odontologia",
     manual: manualEfetivo(playbook?.learned, playbook?.overrides),
