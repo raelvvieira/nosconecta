@@ -256,19 +256,16 @@ export const alternarProcedimentoDoAgente = createServerFn({ method: "POST" })
 
 // ── Atendimento ────────────────────────────────────────────────────────────
 
-export interface RegraDeComportamento {
-  id: string;
-  tipo: "inatividade" | "transferencia" | "contato" | "pipeline";
-  ativa: boolean;
-  instrucao: string;
-  aposMinutos: number | null;
-  acao: "cutucar" | "encerrar" | null;
-  etapaId: string | null;
-}
+// ── Atendimento ───────────────────────────────────────────────────────────
+//
+// As "regras de comportamento" (passar para uma pessoa, cutucar quem ficou
+// quieto, atualizar cadastro, mover no funil) moravam aqui e saíram em 28/09:
+// gravavam linhas em `ai_agent_rules` que NENHUM código lia, e duas das quatro
+// são ações que o motor não tem. A tabela fica no banco, vazia — ela nunca
+// recebeu uma linha nesta clínica. Quando as ações existirem, o que volta é a
+// leitura delas em `instrucao-do-agente.ts`, não a tela.
 
 export interface ConfigDeAtendimento {
-  modo: "eco" | "ia";
-  mensagemEco: string;
   debounceSegundos: number;
   segmentar: boolean;
   limite: number;
@@ -303,7 +300,6 @@ export interface ConfigDeAtendimento {
   /** O manual de condução escrito pela clínica. Vazio = a IA usa o método
    *  gerado pelo aprendizado. */
   instrucaoBase: string;
-  regras: RegraDeComportamento[];
 }
 
 export const getAtendimento = createServerFn({ method: "GET" })
@@ -317,15 +313,7 @@ export const getAtendimento = createServerFn({ method: "GET" })
       .maybeSingle();
     if (!agente) throw new Error("O agente ainda não existe. Abra a página do agente uma vez.");
 
-    const { data: regras } = await supabase
-      .from("ai_agent_rules")
-      .select("*")
-      .eq("agent_id", agente.id)
-      .order("kind");
-
     return {
-      modo: agente.mode === "ia" ? "ia" : "eco",
-      mensagemEco: agente.echo_message ?? "",
       debounceSegundos: Number(agente.debounce_seconds ?? 5),
       segmentar: agente.segment_enabled !== false,
       limite: Number(agente.segment_limit ?? 300),
@@ -348,15 +336,6 @@ export const getAtendimento = createServerFn({ method: "GET" })
       novoAteDias: Number(agente.novo_ate_dias ?? 7),
       modelo: String(agente.model ?? ""),
       instrucaoBase: String(agente.instrucao_base ?? ""),
-      regras: (regras ?? []).map((r: any) => ({
-        id: String(r.id),
-        tipo: r.kind,
-        ativa: !!r.active,
-        instrucao: r.instruction ?? "",
-        aposMinutos: r.after_minutes ?? null,
-        acao: r.action ?? null,
-        etapaId: r.stage_id ?? null,
-      })),
     };
   });
 
@@ -364,8 +343,6 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator(
     (input: {
-      modo?: "eco" | "ia";
-      mensagemEco?: string;
       debounceSegundos?: number;
       segmentar?: boolean;
       limite?: number;
@@ -416,8 +393,6 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
     const campos: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (data.modo !== undefined) campos.mode = data.modo;
-    if (data.mensagemEco !== undefined) campos.echo_message = data.mensagemEco.trim();
     if (data.debounceSegundos !== undefined) campos.debounce_seconds = data.debounceSegundos;
     if (data.segmentar !== undefined) campos.segment_enabled = data.segmentar;
     if (data.limite !== undefined) campos.segment_limit = data.limite;
@@ -526,71 +501,6 @@ export const listarModelosDaIa = createServerFn({ method: "GET" })
         erro: e instanceof Error ? e.message : "Não deu para falar com a OpenAI.",
       };
     }
-  });
-
-export const salvarRegra = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
-  .inputValidator(
-    (input: {
-      id?: string;
-      tipo: "inatividade" | "transferencia" | "contato" | "pipeline";
-      ativa?: boolean;
-      instrucao?: string;
-      aposMinutos?: number | null;
-      acao?: "cutucar" | "encerrar" | null;
-      etapaId?: string | null;
-    }) => {
-      if (input.tipo === "inatividade" && input.id === undefined) {
-        if (!input.aposMinutos || !input.acao) {
-          throw new Error("Regra de inatividade precisa de minutos e do que fazer.");
-        }
-      }
-      return input;
-    },
-  )
-  .handler(async ({ data, context }) => {
-    const supabase: any = context.supabase;
-    const { data: agente } = await supabase
-      .from("ai_agents")
-      .select("id")
-      .eq("owner_id", context.ownerId)
-      .maybeSingle();
-    if (!agente) throw new Error("O agente ainda não existe.");
-
-    const linha: Record<string, unknown> = {
-      owner_id: context.ownerId,
-      agent_id: agente.id,
-      kind: data.tipo,
-      updated_at: new Date().toISOString(),
-    };
-    if (data.ativa !== undefined) linha.active = data.ativa;
-    if (data.instrucao !== undefined) linha.instruction = data.instrucao.trim();
-    if (data.aposMinutos !== undefined) linha.after_minutes = data.aposMinutos;
-    if (data.acao !== undefined) linha.action = data.acao;
-    if (data.etapaId !== undefined) linha.stage_id = data.etapaId;
-
-    if (data.id) {
-      const { error } = await supabase.from("ai_agent_rules").update(linha).eq("id", data.id);
-      if (error) throw new Error(error.message);
-    } else {
-      const { error } = await supabase.from("ai_agent_rules").insert(linha);
-      if (error) throw new Error(error.message);
-    }
-    return { ok: true };
-  });
-
-export const excluirRegra = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
-  .inputValidator((input: { id: string }) => input)
-  .handler(async ({ data, context }) => {
-    const supabase: any = context.supabase;
-    const { error } = await supabase
-      .from("ai_agent_rules")
-      .delete()
-      .eq("id", data.id)
-      .eq("owner_id", context.ownerId);
-    if (error) throw new Error(error.message);
-    return { ok: true };
   });
 
 /** Roda o atendimento com uma mensagem de mentira. Nada sai para paciente

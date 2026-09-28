@@ -71,41 +71,6 @@ export function Chave({
   );
 }
 
-/** Uma das duas maneiras de responder. */
-export function BotaoDeModo({
-  ativo,
-  titulo,
-  descricao,
-  onClick,
-}: {
-  ativo: boolean;
-  titulo: string;
-  descricao: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={ativo}
-      className={cn(
-        "press rounded-2xl border p-4 text-left transition",
-        ativo
-          ? "border-transparent bg-foreground text-white"
-          : "border-border bg-white hover:bg-muted",
-      )}
-    >
-      <span className="block text-sm font-semibold">{titulo}</span>
-      <span
-        className={cn("mt-0.5 block text-xs", ativo ? "text-white/70" : "text-muted-foreground")}
-      >
-        {descricao}
-      </span>
-    </button>
-  );
-}
-
-/** A casca branca de toda seção da página do agente. */
 export function Bloco({
   titulo,
   descricao,

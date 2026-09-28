@@ -118,6 +118,25 @@ conferir("são três", QUANTAS_SUGESTOES, 3);
 // nome, e levava junto TODA quebra de parágrafo.
 conferir("tem parágrafos", prompt().includes("\n\n"), true);
 
+// ── A recepção e a Luna seguem o MESMO manual ────────────────────────────
+//
+// Enquanto este card montava a instrução sem o manual escrito pela clínica, a
+// sugestão que a recepção lia vinha de um método diferente do que a Luna segue —
+// duas vozes na mesma caixa de entrada, e uma delas sem ninguém ter escrito.
+{
+  const p = prompt({ instrucaoBase: "Sempre confirme o nome antes de oferecer horário." });
+  conferir("o manual da clínica entra", p.includes("confirme o nome antes"), true);
+  conferir("e é apresentado como escrito por ela", p.includes("escrito por ela"), true);
+  // Substitui, não soma: é a mesma regra do atendimento. Dois métodos em
+  // paralelo é o caso em que ninguém sabe qual valeu.
+  conferir("e o aprendido sai de cena", p.includes("sem emoji demais"), false);
+}
+conferir(
+  "sem manual escrito, segue o aprendido",
+  prompt({ instrucaoBase: "   " }).includes("sem emoji demais"),
+  true,
+);
+
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);
   for (const f of falhas) console.error("  - " + f);

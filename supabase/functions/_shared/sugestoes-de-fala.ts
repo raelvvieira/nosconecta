@@ -30,6 +30,20 @@ export const QUANTAS_SUGESTOES = 3;
 export interface EntradaDeSugestao {
   clinica: string;
   manual: ManualDeVendas;
+  /**
+   * O manual escrito pela clínica (o LUNA V1), quando existe.
+   *
+   * ── Por que ele chega até aqui ────────────────────────────────────────
+   *
+   * Porque senão a recepção e a Luna seguem manuais DIFERENTES. A Luna atende
+   * pelo texto que a clínica escreveu; este card sugeria fala pelo método que a
+   * IA extraiu lendo conversas antigas. Duas vozes na mesma caixa de entrada,
+   * uma delas sem ninguém ter escrito.
+   *
+   * Quando vem, `montarInstrucao` usa este e ignora o aprendido — a mesma regra
+   * que vale no atendimento, de propósito: uma verdade só.
+   */
+  instrucaoBase?: string | null;
   procedimentos: ProcedimentoDoAgente[];
   historico: FalaDaConversa[];
   ehPaciente: boolean;
@@ -105,10 +119,17 @@ export function promptDeSugestao(e: EntradaDeSugestao): string {
     `Você está ajudando alguém da recepção de ${e.clinica} a responder uma`,
     "conversa de WhatsApp que está acontecendo agora.",
     "",
-    "Este é o método desta clínica, aprendido das conversas reais dela:",
+    String(e.instrucaoBase ?? "").trim()
+      ? "Este é o método desta clínica, escrito por ela:"
+      : "Este é o método desta clínica, aprendido das conversas reais dela:",
     "",
     "<<<",
-    montarInstrucao({ clinica: e.clinica, manual: e.manual, procedimentos: e.procedimentos }),
+    montarInstrucao({
+      clinica: e.clinica,
+      manual: e.manual,
+      procedimentos: e.procedimentos,
+      instrucaoBase: e.instrucaoBase ?? null,
+    }),
     ">>>",
     "",
     // A tabela já vem dentro de `montarInstrucao`, mas repetir aqui é de

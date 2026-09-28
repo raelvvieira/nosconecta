@@ -48,7 +48,21 @@ import { Bloco } from "./campos";
  * "Corrigido" importa: sem ela ninguém sabe mais o que é da IA e o que a
  * equipe escreveu.
  */
-export function OQueAprendeu() {
+export function OQueAprendeu({
+  aprender,
+  aprendendo,
+  aprendidoEm,
+  conversasLidas,
+}: {
+  /** Roda o ciclo de leitura das conversas. Mora na página porque é lá que a
+   *  mutação invalida também o painel do funil. */
+  aprender: () => void;
+  aprendendo: boolean;
+  aprendidoEm: string | null;
+  /** Quantas conversas sustentam este texto. Vem de fora para o bloco não
+   *  refazer a soma que a página já tem. */
+  conversasLidas: number;
+}) {
   const queryClient = useQueryClient();
   const buscarEstado = useServerFn(getEstadoDoAgente);
   const buscarInstrucao = useServerFn(getInstrucaoDoAgente);
@@ -93,12 +107,22 @@ export function OQueAprendeu() {
 
   return (
     <Bloco
-      titulo="O que ela aprendeu"
-      descricao="O jeito desta clínica atender, tirado das conversas reais."
+      titulo="Matéria-prima para o manual"
+      descricao={
+        conversasLidas > 0
+          ? `O jeito desta clínica atender, tirado de ${conversasLidas} conversa${conversasLidas === 1 ? "" : "s"} real${conversasLidas === 1 ? "" : "is"}. Não manda na conversa: serve para você melhorar o manual lá em cima.`
+          : "O jeito desta clínica atender, tirado das conversas reais. Não manda na conversa: serve para você melhorar o manual lá em cima."
+      }
       acao={
-        <Button variant="outline" size="sm" onClick={() => setVerInstrucao(true)}>
-          Ver instrução
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button variant="outline" size="sm" disabled={aprendendo} onClick={aprender}>
+            {aprendendo && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Aprender agora
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setVerInstrucao(true)}>
+            Ver instrução
+          </Button>
+        </div>
       }
     >
       {estadoQuery.isPending ? (
@@ -107,8 +131,8 @@ export function OQueAprendeu() {
         </div>
       ) : fontes === 0 ? (
         <p className="max-w-[64ch] text-sm leading-7 text-muted-foreground">
-          Ela ainda não leu nada. Use <strong>Aprender agora</strong>, ali em cima — ela vai ler as
-          conversas do WhatsApp que tiveram troca dos dois lados, começando pelas de quem virou
+          Ela ainda não leu nada. Use <strong>Aprender agora</strong>, aqui no canto — ela vai ler
+          as conversas do WhatsApp que tiveram troca dos dois lados, começando pelas de quem virou
           paciente, e escrever aqui o que encontrou.
         </p>
       ) : (
@@ -131,6 +155,12 @@ export function OQueAprendeu() {
             </Secao>
           ))}
         </div>
+      )}
+
+      {aprendidoEm && (
+        <p className="mt-5 text-xs text-muted-foreground">
+          Última leitura em {new Date(aprendidoEm).toLocaleDateString("pt-BR")}.
+        </p>
       )}
 
       <Dialog open={!!editando} onOpenChange={(o) => !o && setEditando(null)}>
