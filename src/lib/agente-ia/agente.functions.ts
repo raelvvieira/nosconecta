@@ -758,3 +758,99 @@ export const getSugestoesDaConversa = createServerFn({ method: "GET" })
       return vazio(e instanceof Error ? e.message : "não deu para sugerir agora");
     }
   });
+
+// ── O que ela aprendeu com o desfecho das conversas ────────────────────────
+
+export interface LicaoDaLuna {
+  id: string;
+  quando: string;
+  conversationId: string | null;
+  nome: string | null;
+  /** `true` = ela conduziu até a consulta marcada, sozinha. */
+  fechou: boolean;
+  /** Uma pessoa da clínica assumiu no meio. */
+  humanoAssumiu: boolean;
+  oQueFuncionou: string;
+  oQueFaltou: string;
+  motivo: string;
+  momentoDecisivo: string;
+  sugestao: string;
+  confianca: string;
+  mensagens: number;
+}
+
+export interface LicoesDaLuna {
+  /** Conversas em que ela fechou sozinha, e conversas em que não. */
+  fechou: number;
+  naoFechou: number;
+  /** Os motivos de não fechar, do mais comum para o menos. É a contagem que
+   *  muda o manual: "sete das dez pararam no preço" é uma frase acionável. */
+  motivos: { motivo: string; quantas: number }[];
+  licoes: LicaoDaLuna[];
+}
+
+/**
+ * As lições, para ler na tela.
+ *
+ * ── Por que as contagens vêm do servidor ────────────────────────────────
+ *
+ * Porque a lista é recortada (as últimas 30) e a contagem não pode ser. Somar no
+ * navegador daria "3 de 4 conversas pararam no preço" olhando só as últimas 30 —
+ * e é justamente a contagem que alguém vai usar para reescrever o manual.
+ */
+export const listarLicoesDaLuna = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .handler(async ({ context }): Promise<LicoesDaLuna> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a tabela nasceu depois do types.ts gerado pelo Lovable
+    const supabase: any = context.supabase;
+
+    const { data: contagem } = await supabase
+      .from("ai_agent_licoes")
+      .select("desfecho, motivo")
+      .eq("owner_id", context.ownerId)
+      .limit(2000);
+
+    const todas = (contagem ?? []) as { desfecho: string; motivo: string | null }[];
+    const porMotivo = new Map<string, number>();
+    for (const l of todas) {
+      if (l.desfecho === "agendou") continue;
+      const m = String(l.motivo ?? "").trim() || "não deu para saber";
+      // "não se aplica" é o motivo do desfecho positivo; numa conversa que não
+      // fechou ele não diz nada e só ocuparia a primeira linha da contagem.
+      if (m === "não se aplica") continue;
+      porMotivo.set(m, (porMotivo.get(m) ?? 0) + 1);
+    }
+
+    const { data: recentes } = await supabase
+      .from("ai_agent_licoes")
+      .select(
+        "id, created_at, conversation_id, contact_name, desfecho, humano_assumiu, o_que_funcionou, o_que_faltou, motivo, momento_decisivo, sugestao, confianca, mensagens",
+      )
+      .eq("owner_id", context.ownerId)
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    return {
+      fechou: todas.filter((l) => l.desfecho === "agendou").length,
+      naoFechou: todas.filter((l) => l.desfecho !== "agendou").length,
+      motivos: [...porMotivo.entries()]
+        .map(([motivo, quantas]) => ({ motivo, quantas }))
+        .sort((a, b) => b.quantas - a.quantas),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- linha da tabela nova
+      licoes: ((recentes ?? []) as any[]).map((l) => ({
+        id: String(l.id),
+        quando: String(l.created_at),
+        conversationId: l.conversation_id ?? null,
+        nome: l.contact_name ?? null,
+        fechou: l.desfecho === "agendou",
+        humanoAssumiu: !!l.humano_assumiu,
+        oQueFuncionou: String(l.o_que_funcionou ?? ""),
+        oQueFaltou: String(l.o_que_faltou ?? ""),
+        motivo: String(l.motivo ?? ""),
+        momentoDecisivo: String(l.momento_decisivo ?? ""),
+        sugestao: String(l.sugestao ?? ""),
+        confianca: String(l.confianca ?? ""),
+        mensagens: Number(l.mensagens ?? 0),
+      })),
+    };
+  });

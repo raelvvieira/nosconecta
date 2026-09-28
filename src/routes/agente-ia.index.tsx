@@ -25,6 +25,7 @@ import { ComQuemFala } from "@/components/agente-ia/ComQuemFala";
 import { Ritmo } from "@/components/agente-ia/Ritmo";
 import { Testar } from "@/components/agente-ia/Testar";
 import { Procedimentos } from "@/components/agente-ia/Procedimentos";
+import { LicoesDaLuna } from "@/components/agente-ia/LicoesDaLuna";
 import { OQueAprendeu } from "@/components/agente-ia/OQueAprendeu";
 import { Bloco } from "@/components/agente-ia/campos";
 import { cn } from "@/lib/utils";
@@ -379,6 +380,13 @@ function AgentePage() {
               Por último porque é o mais longo e o mais lido — acima dele fica
               tudo que se AJUSTA, aqui o que se LÊ. */}
           <OQueAprendeu />
+
+          {/* ── 5b. O que ela aprendeu com o RESULTADO ───────────────────
+              Depois do manual aprendido, e não junto: um vem de ler as
+              conversas da clínica, o outro de ver o que aconteceu com as
+              conversas dela. Misturar os dois faria parecer que o manual já
+              foi corrigido pelas lições — e ninguém corrigiu. */}
+          <LicoesDaLuna />
 
           {/* ── 6. O funil ─────────────────────────────────────────────── */}
           <PainelDoFunil painel={painelQuery.data} carregando={painelQuery.isPending} />
