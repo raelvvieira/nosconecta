@@ -144,6 +144,7 @@ export type Database = {
       ai_agent_sessions: {
         Row: {
           agent_id: string
+          anuncio: Json | null
           contact_id: string | null
           contact_name: string | null
           conversation_id: string
@@ -157,6 +158,7 @@ export type Database = {
         }
         Insert: {
           agent_id: string
+          anuncio?: Json | null
           contact_id?: string | null
           contact_name?: string | null
           conversation_id: string
@@ -170,6 +172,7 @@ export type Database = {
         }
         Update: {
           agent_id?: string
+          anuncio?: Json | null
           contact_id?: string | null
           contact_name?: string | null
           conversation_id?: string
@@ -215,8 +218,10 @@ export type Database = {
           segment_enabled: boolean
           segment_limit: number
           segment_min_size: number
+          so_de_anuncio: boolean
           so_para_conversa_nova: boolean
           so_para_nao_paciente: boolean
+          so_sem_historico: boolean
           updated_at: string
           winning_stage_ids: Json
         }
@@ -243,8 +248,10 @@ export type Database = {
           segment_enabled?: boolean
           segment_limit?: number
           segment_min_size?: number
+          so_de_anuncio?: boolean
           so_para_conversa_nova?: boolean
           so_para_nao_paciente?: boolean
+          so_sem_historico?: boolean
           updated_at?: string
           winning_stage_ids?: Json
         }
@@ -271,8 +278,10 @@ export type Database = {
           segment_enabled?: boolean
           segment_limit?: number
           segment_min_size?: number
+          so_de_anuncio?: boolean
           so_para_conversa_nova?: boolean
           so_para_nao_paciente?: boolean
+          so_sem_historico?: boolean
           updated_at?: string
           winning_stage_ids?: Json
         }
