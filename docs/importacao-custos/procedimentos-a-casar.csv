@@ -1,0 +1,19 @@
+procedimento_na_planilha;itens;custo_material_recalculado;sugestao_1;sugestao_2;sugestao_3;ESCOLHA_AQUI
+Clareamento no Consultório;8;55,24;Clareamento em consultório (limpeza + 2 sessões) · R$ 600 · 60min;Clareamento combinado (consultório + caseiro) · R$ 990 · 90min;Combo: clareamento de consultório + limpeza completa · R$ 399 · 90min;
+Clareamento Caseiro;8;44,15;Clareamento caseiro personalizado · R$ 790 · 60min;Placa de Clareamento · R$ 200 · 60min;Clareamento combinado (consultório + caseiro) · R$ 990 · 90min;
+Limpeza Dental (Profilaxia);9;7,50;Limpeza completa (profilaxia + polimento) · R$ 250 · 60min;Raspagem Supra-gengival (RAP) - Limpeza · R$ 90 · 60min;;
+Limpeza Profunda (Raspagem e Alisamento Radicular);9;7,50;Raspagem Sub-gengival (RASUB) · R$ 100 · 60min;Raspagem Supra-gengival (RAP) - Limpeza · R$ 90 · 60min;Sepultamento Radicular · R$ 195 · 60min;
+Polimento Dental;7;21,55;Limpeza completa (profilaxia + polimento) · R$ 250 · 60min;;;
+Restauração;12;45,77;Restauração Inlay · R$ 250 · 60min;Restauração Onlay · R$ 250 · 60min;Restauração Metálica Fundida · R$ 285 · 60min;
+Facetas;14;718,07;Faceta em Resina Fotopolimerizável · R$ 140 · 60min;Faceta em Cerômero · R$ 300 · 60min;Faceta em Cerâmica Pura · R$ 575 · 60min;
+Aparelho Metálico (instalação);13;720,10;Aparelho Ortodôntico Fixo Metálico · R$ 100 · 60min;Aparelho Ortodôntico Fixo metálico Parcial · R$ 100 · 60min;;
+Aparelho Estético (instalação);2;178,15;Aparelho Extra Bucal · R$ 325 · 60min;;;
+Manutenção;9;10,54;Manutenção de Aparelho Ortodôntico Fixo · R$ 120 · 60min;Manutenção de Aparelho Ortodôntico Removível · R$ 90 · 60min;;
+Remoção Aparelho + Limpeza;3;90,42;Remoção de Trabalho Protético · R$ 150 · 60min;;;
+Contenção Acetato;8;82,18;Contenção de Acetato · R$ 250 · 60min;;;
+Contenção Fixa;10;540,18;Contenção Fixa · R$ 150 · 60min;Grade Palatina Fixa · R$ 295 · 60min;;
+Extração de Dentes do Siso;9;36,80;Exodontia de Dentes Inclusos / Impactados · R$ 245 · 60min;Exodontia de Dentes Semi-inclusos / impactados · R$ 180 · 60min;Exodontia com Odonto-Secção · R$ 186 · 60min;
+Gengivoplastia;10;55,77;Gengivoplastia · R$ 180 · 60min;;;
+Colocação do Implante;13;1919,91;Instalação de implante cone morse · R$ 900 · 60min;Instalação de implante hexágono interno · R$ 850 · 60min;Guia Cirúrgico para Implante · R$ 650 · 60min;
+Toxina Botulínica;8;404,92;NÓS Prevent — botox 3 regiões · R$ 800 · 60min;(o catálogo ativo não tem 'Toxina botulínica' avulsa — conferir);;
+Preenchimento;9;241,90;Preenchimento labial · R$ 1000 · 60min;Preenchimento de mento · R$ 1000 · 60min;Preenchimento de malar · R$ 1000 · 60min;

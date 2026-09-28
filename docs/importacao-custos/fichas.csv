@@ -1,0 +1,162 @@
+procedimento;material_na_ficha;quantidade;unidade_no_texto;custo_unitario_na_planilha;total_na_planilha;total_recalculado;erro_de_conta;material_sugerido_do_catalogo;semelhanca;linha
+Clareamento no Consultório;Máscara com Elástico;1;;0,56;0,56;0,56;;Máscara com Elástico;1,00;2
+Clareamento no Consultório;Luva de Látex;2;;0,39;0,78;0,78;;Luva de Látex Branca Com Pó Standard;0,90;3
+Clareamento no Consultório;Sugador Descartável;1;;0,30;0,30;0,30;;Sugador Descartável;1,00;4
+Clareamento no Consultório;Babador;2;;0,25;0,50;0,50;;Babador Impermeável Descartável;0,83;5
+Clareamento no Consultório;Barreira Gengival;0,33;;15,66;5,00;5,17;SIM;Barreira Gengival Top Dam;0,99;6
+Clareamento no Consultório;Kit Clareador;1;;46,66;46,66;46,66;;Kit Clareador 10% Potenza Bianco;0,75;7
+Clareamento no Consultório;Papel Esterilização;1;;0,27;0,08;0,27;SIM;Papel Esterilização;1,00;8
+Clareamento no Consultório;Água Destilada;1;;1,00;1,00;1,00;;Água Destilada para Autoclave;0,99;9
+Clareamento Caseiro;Máscara com Elástico;2;;0,56;1,12;1,12;;Máscara com Elástico;1,00;11
+Clareamento Caseiro;Luva de Látex;4;;0,39;0,78;1,56;SIM;Luva de Látex Branca Com Pó Standard;0,90;12
+Clareamento Caseiro;Babador;1;;0,25;0,25;0,25;;Babador Impermeável Descartável;0,83;13
+Clareamento Caseiro;Alginato;50;g;0,07;3,50;3,50;;Alginato Avagel Tipo II;0,75;14
+Clareamento Caseiro;Gesso;100;g;0,01;1,00;1,00;;Gesso Pedra Tipo III Branco;0,70;15
+Clareamento Caseiro;Kit Clareador Caseiro;1;;32,95;32,95;32,95;;;;16
+Clareamento Caseiro;Sacola de Papel;1;;3,50;3,50;3,50;;Sacola de Papel Kraft com Alça M;0,90;17
+Clareamento Caseiro;Papel Esterilização;1;;0,27;0,27;0,27;;Papel Esterilização;1,00;18
+Limpeza Dental (Profilaxia);Máscara com Elástico;1;;0,56;0,56;0,56;;Máscara com Elástico;1,00;20
+Limpeza Dental (Profilaxia);Luva de Látex;2;;0,39;0,78;0,78;;Luva de Látex Branca Com Pó Standard;0,90;21
+Limpeza Dental (Profilaxia);Sugador Descartável;1;;0,30;0,30;0,30;;Sugador Descartável;1,00;22
+Limpeza Dental (Profilaxia);Babador;1;;0,25;0,25;0,25;;Babador Impermeável Descartável;0,83;23
+Limpeza Dental (Profilaxia);Água Destilada;1;;1,00;1,00;1,00;;Água Destilada para Autoclave;0,99;24
+Limpeza Dental (Profilaxia);Pasta Profilática;5;g;0,18;0,90;0,90;;Pasta Profilática Shine 90g;0,99;25
+Limpeza Dental (Profilaxia);Enxaguante Bucal;15;ml;0,03;0,45;0,45;;Enxaguante Bucal Periogard sem Álcool 2L;0,90;26
+Limpeza Dental (Profilaxia);Escova Robinson Nylon CA;1;;2,99;2,99;2,99;;Escova Robinson Nylon CA;1,00;27
+Limpeza Dental (Profilaxia);Papel Esterilização;1;;0,27;0,27;0,27;;Papel Esterilização;1,00;28
+Limpeza Profunda (Raspagem e Alisamento Radicular);Máscara com Elástico;1;;0,56;0,56;0,56;;Máscara com Elástico;1,00;30
+Limpeza Profunda (Raspagem e Alisamento Radicular);Luva de Látex;2;;0,39;0,78;0,78;;Luva de Látex Branca Com Pó Standard;0,90;31
+Limpeza Profunda (Raspagem e Alisamento Radicular);Sugador Descartável;1;;0,30;0,30;0,30;;Sugador Descartável;1,00;32
+Limpeza Profunda (Raspagem e Alisamento Radicular);Babador;1;;0,25;0,25;0,25;;Babador Impermeável Descartável;0,83;33
+Limpeza Profunda (Raspagem e Alisamento Radicular);Água Destilada;1;;1,00;1,00;1,00;;Água Destilada para Autoclave;0,99;34
+Limpeza Profunda (Raspagem e Alisamento Radicular);Pasta Profilática;5;g;0,18;0,90;0,90;;Pasta Profilática Shine 90g;0,99;35
+Limpeza Profunda (Raspagem e Alisamento Radicular);Enxaguante Bucal;15;ml;0,03;0,45;0,45;;Enxaguante Bucal Periogard sem Álcool 2L;0,90;36
+Limpeza Profunda (Raspagem e Alisamento Radicular);Escova Robinson Nylon CA;1;;2,99;2,99;2,99;;Escova Robinson Nylon CA;1,00;37
+Limpeza Profunda (Raspagem e Alisamento Radicular);Papel Esterilização;1;;0,27;0,27;0,27;;Papel Esterilização;1,00;38
+Polimento Dental;Máscara com Elástico;1;;0,56;0,56;0,56;;Máscara com Elástico;1,00;40
+Polimento Dental;Luva de Látex;2;;0,39;0,78;0,78;;Luva de Látex Branca Com Pó Standard;0,90;41
+Polimento Dental;Babador;1;;0,25;0,25;0,25;;Babador Impermeável Descartável;0,83;42
+Polimento Dental;Água Destilada;1;;1,00;1,00;1,00;;Água Destilada para Autoclave;0,99;43
+Polimento Dental;Papel Esterilização;1;;0,27;0,27;0,27;;Papel Esterilização;1,00;44
+Polimento Dental;Discos Soflex;3;;6,13;18,39;18,39;;;;45
+Polimento Dental;Sugador Descartável;1;;0,30;0,30;0,30;;Sugador Descartável;1,00;46
+Restauração;Máscara com Elástico;1;;0,56;0,56;0,56;;Máscara com Elástico;1,00;48
+Restauração;Luva de Látex;2;;0,39;0,78;0,78;;Luva de Látex Branca Com Pó Standard;0,90;49
+Restauração;Babador;1;;0,25;0,25;0,25;;Babador Impermeável Descartável;0,83;50
+Restauração;Água Destilada;1;;1,00;1,00;1,00;;Água Destilada para Autoclave;0,99;51
+Restauração;Papel Esterilização;1;;0,27;0,27;0,27;;Papel Esterilização;1,00;52
+Restauração;Adesivo Ambar;0,5;;18,00;9,00;9,00;;Adesivo Ambar;1,00;53
+Restauração;Ácido Fosfórico;1;;1,63;1,63;1,63;;Ácido Fosfórico 37% Condac 37;0,99;54
+Restauração;Resina;0,5;;41,75;20,88;20,88;;Resina Vittra APS Unique 4g;0,70;55
+Restauração;Disco Softflex;1;;6,13;6,13;6,13;;;;56
+Restauração;Ponta Diamantada;0,2;;20,90;4,18;4,18;;Ponta Diamantada Cônica;0,99;57
+Restauração;Fita Banda Matriz;10;;0,08;0,80;0,80;;Fita Banda Matriz de Poliéster - TDV;0,99;58
+Restauração;Sugador Descartável;1;;0,30;0,30;0,30;;Sugador Descartável;1,00;59
+Facetas;Máscara com Elástico;1;;0,56;0,56;0,56;;Máscara com Elástico;1,00;61
+Facetas;Luva de Látex;2;;0,39;0,78;0,78;;Luva de Látex Branca Com Pó Standard;0,90;62
+Facetas;Babador;1;;0,25;0,25;0,25;;Babador Impermeável Descartável;0,83;63
+Facetas;Água Destilada;1;;1,00;1,00;1,00;;Água Destilada para Autoclave;0,99;64
+Facetas;Papel Esterilização;1;;0,27;0,27;0,27;;Papel Esterilização;1,00;65
+Facetas;Adesivo Ambar;0,5;;18,00;9,00;9,00;;Adesivo Ambar;1,00;66
+Facetas;Ácido Fosfórico;0,5;;1,63;0,82;0,81;;Ácido Fosfórico 37% Condac 37;0,99;67
+Facetas;Resina;15;g;41,75;62,63;626,25;SIM;Resina Vittra APS Unique 4g;0,70;68
+Facetas;Discos Softflex;5;;6,13;30,65;30,65;;;;69
+Facetas;Ponta Diamantada;1;;20,90;20,90;20,90;;Ponta Diamantada Cônica;0,99;70
+Facetas;Broca 3191F;1;;25,19;25,19;25,19;;Broca 3191F;1,00;71
+Facetas;Matriz;0,5;;3,90;1,95;1,95;;Matriz de Poliéster;0,99;72
+Facetas;Matriz de Poliéster;2;;0,08;0,16;0,16;;Matriz de Poliéster;1,00;73
+Facetas;Sugador Descartável;1;;0,30;0,30;0,30;;Sugador Descartável;1,00;74
+Aparelho Metálico (instalação);Máscara com Elástico;1;;0,56;0,56;0,56;;Máscara com Elástico;1,00;76
+Aparelho Metálico (instalação);Luva de Látex;2;;0,39;0,78;0,78;;Luva de Látex Branca Com Pó Standard;0,90;77
+Aparelho Metálico (instalação);Babador;1;;0,25;0,25;0,25;;Babador Impermeável Descartável;0,83;78
+Aparelho Metálico (instalação);Água Destilada;1;;1,00;1,00;1,00;;Água Destilada para Autoclave;0,99;79
+Aparelho Metálico (instalação);Papel Esterilização;1;;0,27;0,27;0,27;;Papel Esterilização;1,00;80
+Aparelho Metálico (instalação);Sugador Descartável;1;;0,30;0,30;0,30;;Sugador Descartável;1,00;81
+Aparelho Metálico (instalação);Acído Fosfórico;;;6,66;0,66;;;Ácido Fosfórico 37% Condac 37;0,99;82
+Aparelho Metálico (instalação);Microbrush;1;;13,90;0,14;13,90;SIM;;;83
+Aparelho Metálico (instalação);Resina ortodôntica (Orthomundi);;;90,00;10,00;;;;;84
+Aparelho Metálico (instalação);Braquete metálico;20;;32,00;32,00;640,00;SIM;;;85
+Aparelho Metálico (instalação);Tubos;4;;12,00;12,00;48,00;SIM;;;86
+Aparelho Metálico (instalação);Fios de Niti;2;;2,14;2,14;4,28;SIM;;;87
+Aparelho Metálico (instalação);Elastic;1;;;0,10;;;Máscara com Elástico;0,50;88
+Aparelho Estético (instalação);Custos Instalação;;;;28,15;;;;;90
+Aparelho Estético (instalação);Braquetes estéticos;;;;150,00;;;;;91
+Manutenção;Máscara com Elástico;1;;0,56;0,56;0,56;;Máscara com Elástico;1,00;93
+Manutenção;Luva de Látex;2;;0,39;0,78;0,78;;Luva de Látex Branca Com Pó Standard;0,90;94
+Manutenção;Babador;1;;0,25;0,25;0,25;;Babador Impermeável Descartável;0,83;95
+Manutenção;Água Destilada;1;;1,00;1,00;1,00;;Água Destilada para Autoclave;0,99;96
+Manutenção;Papel Esterilização;1;;0,27;0,27;0,27;;Papel Esterilização;1,00;97
+Manutenção;Sugador Descartável;1;;0,30;0,30;0,30;;Sugador Descartável;1,00;98
+Manutenção;Fios de Niti;2;;2,14;2,14;4,28;SIM;;;99
+Manutenção;Elastic;1;;;0,10;;;Máscara com Elástico;0,50;100
+Manutenção;OUTROS;;;3,00;3,00;;;;;101
+Remoção Aparelho + Limpeza;Broca remoção resina (Orthomundi);1;;68,90;13,68;68,90;SIM;;;103
+Remoção Aparelho + Limpeza;Pedra Arkansas American Stones;1;;14,02;3,50;14,02;SIM;Pedra Arkansas American Stones Ultra-White Fina FG;0,99;104
+Remoção Aparelho + Limpeza;Custo limpeza;;;;7,50;;;;;105
+Contenção Acetato;Máscara com Elástico;1;;0,56;0,56;0,56;;Máscara com Elástico;1,00;107
+Contenção Acetato;Luva de Látex;2;;0,39;0,78;0,78;;Luva de Látex Branca Com Pó Standard;0,90;108
+Contenção Acetato;Babador;1;;0,25;0,25;0,25;;Babador Impermeável Descartável;0,83;109
+Contenção Acetato;Papel Esterilização;1;;0,27;0,27;0,27;;Papel Esterilização;1,00;110
+Contenção Acetato;Alginato;1;;30,39;3,00;30,39;SIM;Alginato Avagel Tipo II;0,75;111
+Contenção Acetato;Gesso;1;;8,75;0,87;8,75;SIM;Gesso Pedra Tipo III Branco;0,70;112
+Contenção Acetato;Placa Cristal 1mm;1;;39,73;3,97;39,73;SIM;Placa para Moldeira Cristal 1,0mm;0,33;113
+Contenção Acetato;Disco de Carborundum;;;145,00;1,45;;;;;114
+Contenção Fixa;Máscara com Elástico;1;;0,56;0,56;0,56;;Máscara com Elástico;1,00;116
+Contenção Fixa;Luva de Látex;2;;0,39;0,78;0,78;;Luva de Látex Branca Com Pó Standard;0,90;117
+Contenção Fixa;Babador;1;;0,25;0,25;0,25;;Babador Impermeável Descartável;0,83;118
+Contenção Fixa;Água Destilada;1;;1,00;1,00;1,00;;Água Destilada para Autoclave;0,99;119
+Contenção Fixa;Sugador Descartável;1;;0,30;0,30;0,30;;Sugador Descartável;1,00;120
+Contenção Fixa;Ácido Fosfórico;1;;6,66;0,66;6,66;SIM;Ácido Fosfórico 37% Condac 37;0,99;121
+Contenção Fixa;Adesivo Opti Bond;1;;198,73;13,24;198,73;SIM;Adesivo Ambar;0,25;122
+Contenção Fixa;Microbrush;1;;13,90;0,14;13,90;SIM;;;123
+Contenção Fixa;Resina Flow Tetric Ivoclar;1;;119,00;11,90;119,00;SIM;;;124
+Contenção Fixa;Contenção Corrente (Orthomundi);1;;199,00;9,95;199,00;SIM;;;125
+Extração de Dentes do Siso;Água Destilada;100;ml;0,30;0,30;30,00;SIM;Água Destilada para Autoclave;0,99;127
+Extração de Dentes do Siso;Enxaguante Bucal;15;ml;0,03;0,45;0,45;;Enxaguante Bucal Periogard sem Álcool 2L;0,90;128
+Extração de Dentes do Siso;Papel Esterilização;2;;0,27;0,54;0,54;;Papel Esterilização;1,00;129
+Extração de Dentes do Siso;Kit Estéril Cirúrgico;1;;;0,00;;;Kit Cirúrgico Implante Padrão Estéril;0,50;130
+Extração de Dentes do Siso;Sugador Cirúrgico;1;;;0,00;;;Sugador Cirúrgico Descartável;0,99;131
+Extração de Dentes do Siso;Fios de Sutura;2;;2,33;4,66;4,66;;Fio de Sutura de Nylon;0,25;132
+Extração de Dentes do Siso;Gaze;10;;0,05;0,50;0,50;;Compressa de Gaze C/ 500un;0,83;133
+Extração de Dentes do Siso;Lâmina de Bisturi;1;;0,40;0,40;0,40;;Lâmina de Bisturi Aço Carbono N°15C C/10 Estéril;0,75;134
+Extração de Dentes do Siso;Babador;1;;0,25;0,25;0,25;;Babador Impermeável Descartável;0,83;135
+Gengivoplastia;Água Destilada;100;ml;0,30;0,30;30,00;SIM;Água Destilada para Autoclave;0,99;137
+Gengivoplastia;Enxaguante Bucal;15;ml;0,03;0,45;0,45;;Enxaguante Bucal Periogard sem Álcool 2L;0,90;138
+Gengivoplastia;Papel Esterilização;2;;0,27;0,54;0,54;;Papel Esterilização;1,00;139
+Gengivoplastia;Kit Estéril Cirúrgico;1;;;0,00;;;Kit Cirúrgico Implante Padrão Estéril;0,50;140
+Gengivoplastia;Sugador Cirúrgico;1;;;0,00;;;Sugador Cirúrgico Descartável;0,99;141
+Gengivoplastia;Fios de Sutura;1;;2,33;2,33;2,33;;Fio de Sutura de Nylon;0,25;142
+Gengivoplastia;Gaze;10;;0,05;0,50;0,50;;Compressa de Gaze C/ 500un;0,83;143
+Gengivoplastia;Lâmina de Bisturi;2;;0,40;0,80;0,80;;Lâmina de Bisturi Aço Carbono N°15C C/10 Estéril;0,75;144
+Gengivoplastia;Ponta Diamantada;1;;20,90;20,90;20,90;;Ponta Diamantada Cônica;0,99;145
+Gengivoplastia;Babador;1;;0,25;0,25;0,25;;Babador Impermeável Descartável;0,83;146
+Colocação do Implante;Água Destilada;100;ml;0,30;0,30;30,00;SIM;Água Destilada para Autoclave;0,99;149
+Colocação do Implante;Enxaguante Bucal;15;ml;0,03;0,45;0,45;;Enxaguante Bucal Periogard sem Álcool 2L;0,90;150
+Colocação do Implante;Papel Esterilização;2;;0,27;0,54;0,54;;Papel Esterilização;1,00;151
+Colocação do Implante;Kit Estéril Cirúrgico;1;;34,90;34,90;34,90;;Kit Cirúrgico Implante Padrão Estéril;0,50;152
+Colocação do Implante;Sugador Cirúrgico;1;;0,30;0,30;0,30;;Sugador Cirúrgico Descartável;0,99;153
+Colocação do Implante;Fios de Sutura;4;;2,33;9,32;9,32;;Fio de Sutura de Nylon;0,25;154
+Colocação do Implante;Gaze;10;;0,05;0,50;0,50;;Compressa de Gaze C/ 500un;0,83;155
+Colocação do Implante;Lâmina de Bisturi;2;;0,40;0,80;0,80;;Lâmina de Bisturi Aço Carbono N°15C C/10 Estéril;0,75;156
+Colocação do Implante;Articaina;10;;4,82;40,82;48,20;SIM;;;157
+Colocação do Implante;Soro Fisiológico 0,9% Bolsa 250ml;1;;11,90;11,90;11,90;;Soro Fisiológico 0,9% Bolsa 250ml;1,00;158
+Colocação do Implante;Implante Neodent Grandmorse;4;;297,75;1191,00;1191,00;;;;159
+Colocação do Implante;Parafuso de Cobertura;4;;23,00;92,00;92,00;;;;160
+Colocação do Implante;Prótese Total Provisória;1;;500,00;500,00;500,00;;;;161
+Toxina Botulínica;Máscara com Elástico;1;;0,56;0,56;0,56;;Máscara com Elástico;1,00;168
+Toxina Botulínica;Luva de Látex;2;;0,39;0,78;0,78;;Luva de Látex Branca Com Pó Standard;0,90;169
+Toxina Botulínica;Gaze;5;;0,05;0,25;0,25;;Compressa de Gaze C/ 500un;0,83;170
+Toxina Botulínica;Seringa para Insulina;1;;2,56;2,56;2,56;;Seringa para Insulina;1,00;171
+Toxina Botulínica;Água para Injeção;1;;0,78;0,78;0,78;;Água para Injeção c/ 5 Frascos 10ml - Samtec;0,83;172
+Toxina Botulínica;Toxina Botulínica;50;;7,99;399,50;399,50;;Toxina Botulínica Nabota Tipo A 100U;0,83;173
+Toxina Botulínica;Lenços Umedecidos;3;;0,13;0,39;0,39;;Lenços Umedecidos Panvel Baby 45 Unidades;0,83;174
+Toxina Botulínica;Álcool;10;;0,01;0,10;0,10;;Alcool 70% 5L;0,83;175
+Preenchimento;Máscara com Elástico;1;;0,56;0,56;0,56;;Máscara com Elástico;1,00;177
+Preenchimento;Luva de Látex;2;;0,39;0,78;0,78;;Luva de Látex Branca Com Pó Standard;0,90;178
+Preenchimento;Gaze;5;;0,05;0,25;0,25;;Compressa de Gaze C/ 500un;0,83;179
+Preenchimento;Seringa para Insulina;1;;2,56;2,56;2,56;;Seringa para Insulina;1,00;180
+Preenchimento;Ácido Hialurônico;1;;209,99;209,99;209,99;;Ácido Hialurônico Preenchedor Lift;0,99;181
+Preenchimento;Microcânula com Agulha;1;;27,00;27,00;27,00;;Microcânula com Agulha - Rennova;0,99;182
+Preenchimento;Lenços Umedecidos;3;;0,13;0,39;0,39;;Lenços Umedecidos Panvel Baby 45 Unidades;0,83;183
+Preenchimento;Álcool;10;;0,01;0,10;0,10;;Alcool 70% 5L;0,83;184
+Preenchimento;Papel Esterilização;1;;0,27;0,27;0,27;;Papel Esterilização;1,00;185

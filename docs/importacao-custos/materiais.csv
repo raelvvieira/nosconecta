@@ -1,0 +1,92 @@
+nome;marca;unidades_por_embalagem;custo_da_embalagem;custo_por_unidade_calculado;custo_por_unidade_na_planilha;rendimento_implicito;conferir;revisado;aba;linha
+Máscara com Elástico;Fava 4MM;50;28,00;0,5600;0,56;;;sim;Mais Usados;2
+Luva de Látex Branca Com Pó Standard;Unigloves;100;38,90;0,3890;0,39;;;sim;Mais Usados;3
+Sugador Descartável;WA;40;11,90;0,2975;0,30;;;sim;Mais Usados;4
+Babador Impermeável Descartável;Biodinâmica;100;24,50;0,2450;0,24;;;sim;Mais Usados;5
+Barreira Gengival Top Dam;FGM;3;46,99;15,6633;15,66;;;sim;Mais Usados;6
+1 Kit Clareador Whiteness HP 35% com Top Dam 3 Pacientes;FGM;3;139,99;46,6633;46,66;;;sim;Mais Usados;7
+Papel Esterilização;Hospflex;100;27,00;0,2700;0,27;;;sim;Mais Usados;8
+1 kit Clareador Dental Caseiro Potenza Bianco H2O2 C/ 5 Seringas - PHS;PHS;2;65,90;32,9500;32,95;;;sim;Mais Usados;9
+Alginato Avagel Tipo II;Dentsply Sirona;410;34,50;0,0841;0,08;;;sim;Mais Usados;10
+Gesso Pedra Tipo III Branco;Asfer;1000;8,75;0,0088;0,01;;;sim;Mais Usados;11
+Água Destilada para Autoclave;Iodontosul;5000;15,90;0,0032;0,00;;;sim;Mais Usados;12
+Pasta Profilática Shine 90g;Mquira;90;15,90;0,1767;0,18;;;sim;Mais Usados;13
+Antisséptico Bucal Plax Soft Mint Refil 2L - Colgate;Colgate;2000;49,90;0,0249;0,02;;;sim;Mais Usados;14
+Disco de Lixa Sof-Lex Pop On c/30 Série Laranja - 3M;3M;30;184,00;6,1333;6,13;;;sim;Mais Usados;15
+Adesivo Ambar;FGM;4;71,99;17,9975;18,00;;;sim;Mais Usados;16
+Condicionador Ácido Fosfórico 37% Attack Ácido - Iodontosul;Iodontosul;3;4,90;1,6333;1,63;;;sim;Mais Usados;17
+Resina Vittra APS Unique 4g;FGM;4;166,99;41,7475;41,75;;;sim;Mais Usados;18
+Ponta Diamantada Esférica Média PM 07 Precision;American Burrs;1;20,90;20,9000;20,90;;;sim;Mais Usados;19
+Fita Banda Matriz de Poliéster - TDV;TDV;15;64,85;4,3233;4,32;;;sim;Mais Usados;20
+Broca 3191F;-;1;25,19;25,1900;25,19;;;sim;Mais Usados;21
+Barreira Gengival Top Dam - FGM;FGM;3;46,99;15,6633;15,66;;;sim;Mais Usados;22
+Fio de Sutura de Nylon;Technofio;24;55,90;2,3292;2,33;;;sim;Mais Usados;23
+Compressa de Gaze C/ 500un;Ultracotton Melhormed;500;24,90;0,0498;0,05;;;sim;Mais Usados;24
+Lâmina de Bisturi Aço Carbono N°15C C/10 Estéril;Wiltex;100;39,50;0,3950;0,40;;;sim;Mais Usados;25
+Enxaguante Bucal Periogard sem Álcool 2L;Colgate;2000;69,99;0,0350;0,03;;;sim;Mais Usados;26
+Antisséptico Bucal Plax Soft Mint Refil 2L;Colgate;2000;49,99;0,0250;0,02;;;sim;Mais Usados;27
+Seringa para Insulina 0,5ml 6mm x 0,25mm 31g;Uniqmed;10;25,59;2,5590;2,56;;;sim;Mais Usados;28
+Água para Injeção c/ 5 Frascos 10ml - Samtec;Samtec;5;3,90;0,7800;0,78;;;sim;Mais Usados;29
+Toxina Botulínica Nabota Tipo A 100U;Rennova;100;799,00;7,9900;7,99;;;sim;Mais Usados;30
+Lenços Umedecidos Panvel Baby 45 Unidades;Panvel;45;5,99;0,1331;0,13;;;sim;Mais Usados;31
+Alcool 70% 5L;Prolink;5000;49,90;0,0100;0,01;;;sim;Mais Usados;32
+Sacola de Papel Kraft com Alça M;Casa do Papel;1;3,50;3,5000;3,50;;;sim;Mais Usados;33
+Fita Banda Matriz Metálica;Microdont;50;3,90;0,0780;0,08;;;sim;Mais Usados;34
+Ácido Hialurônico Preenchedor Lift;Rennova;1;179,99;179,9900;179,99;;;sim;Mais Usados;35
+Microcânula com Agulha - Rennova;Rennova;1;27,00;27,0000;27,00;;;sim;Mais Usados;36
+Escova Robinson Nylon CA;Mirodont;1;2,99;2,9900;2,99;;;sim;Mais Usados;37
+Kit Cirúrgico Implante Padrão Estéril;Protdesc;1;34,90;34,9000;34,90;;;sim;Mais Usados;38
+Soro Fisiológico 0,9% 10ml c/5 Ampolas;Samtec;50;4,50;0,0900;0,90;5,00;SIM;sim;Mais Usados;39
+Soro Fisiológico 0,9% Bolsa 250ml;JP;1;11,90;11,9000;11,90;;;;Mais Usados;40
+Bráquete Cerâmico Ceramico Roth 022 c/20;Morelli;20;150,00;7,5000;7,50;;;sim;Completa;3
+Tubo Simples Conversível Para Cola Roth 022 C/10;Morelli;10;30,00;3,0000;3,00;;;sim;Completa;5
+Adesivo Optibond Universal;Kerr;1;200,00;200,0000;10,00;20,00;SIM;sim;Completa;7
+Resina Vitra APS Unique 4g;FGM;4;167,00;41,7500;8,35;20,00;SIM;sim;Completa;8
+Sugador Cirúrgico Descartável;Maquira 20 UNIDADES;20;46,90;2,3450;2,35;;;sim;Completa;10
+Luva Cirúrgica Estéril com Pó 6.5;Decaerpeak 6.5 - PP;1;2,99;2,9900;2,99;;;sim;Completa;11
+Pasta Profilática Pert-X;SSWhite;1;29,90;29,9000;2,00;14,95;SIM;sim;Completa;12
+Clareador Whiteness Perfect Seringa - FGM 10%;FGM;3;40,00;13,3333;13,33;;;sim;Completa;13
+Clareador Whiteness Perfect Seringa - FGM 16%;FGM;3;40,00;13,3333;13,33;;;sim;Completa;14
+Arco NiTi Termoativado Thermopluas Redondo C/10;Morelli;10;11,70;1,1700;1,07;10,93;SIM;sim;Completa;15
+Arco NiTi Termoativado Thermoplua Rtangular C/ 10;Morelli;10;20,20;2,0200;2,02;;;sim;Completa;16
+Arco Aço Redondo C/10 - Morelli;Morelli;10;8,10;0,8100;0,81;;;sim;Completa;17
+Arco Aço Retangular C/10 - Morelli;Morelli;10;9,40;0,9400;0,94;;;sim;Completa;18
+Arco NiTi Superelástico Curva Reversa Spee Redondo - Morelli 020 L;Morelli;1;26,10;26,1000;2,61;10,00;SIM;sim;Completa;19
+Pedra Arkansas American Stones Ultra-White Fine FG - American Burro TRONCO-CÔNICA;American Burro;1;14,02;14,0200;14,02;;;sim;Completa;20
+Rolo Dental Algodão c/100un;SOFT PLUS;1;3,90;3,9000;0,20;19,50;SIM;sim;Completa;21
+Papel Carbono Contacto Film;Angelus;1;15,90;15,9000;0,66;24,09;SIM;sim;Completa;22
+Tira de Lixa de Aço;Microdont;1;17,69;17,6900;0,73;24,23;SIM;sim;Completa;25
+Mini Kit Clareador Whiteness HP 35%;FGM;1;73,99;73,9900;24,66;3,00;SIM;sim;Completa;30
+Bráquete de Aço Roth Max 022 Com/Sem Gancho c/10;Morelli;10;16,00;1,6000;1,60;;;sim;Completa;31
+Contenção TwistForm 3x3;Morelli;10;30,00;3,0000;3,00;;;sim;Completa;32
+Ponta Diamantada Cônica;Fava 4MM;1;4,39;4,3900;4,39;;;sim;Completa;33
+Alginato Jeltrate Dustless Tipo II;Dentsply Sirona;1;74,00;74,0000;3,70;20,00;SIM;sim;Completa;38
+Placa para Moldeira Cristal 1,0mm;Bio-Art;5;39,73;7,9460;7,94;;;sim;Completa;40
+Placa para Moldeira Cristal 1,5mm;Bio-Art;1;49,00;49,0000;9,80;5,00;SIM;sim;Completa;41
+Clareador Dental Caseiro Potenza Bianco H2O2 C/ 5 Seringas - PHS 16%;PHS;1;65,90;65,9000;33,00;2,00;SIM;sim;Completa;42
+Caixa para Aparelho Ortodôntico;Maquira PRATA;10;24,90;2,4900;2,49;;;sim;Completa;43
+Placa para Moldeira de Clareamento Whiteness;FGM 1,0MM;5;24,82;4,9640;4,96;;;sim;Completa;45
+Bráquete Cerâmico Maia Light Roth 022;Eurodonto;1;154,56;154,5600;6,18;25,01;SIM;sim;Completa;46
+Elástico Intraoral Látex 1/8;Orthometric MÉDIO;1;8,40;8,4000;0,84;10,00;SIM;sim;Completa;47
+Ponta Diamantada Pêra FG;Microdont 3168EF;1;4,90;4,9000;;;;;Completa;48
+Ponta Diamantada Esférica FG;Microdont 1014;1;4,90;4,9000;;;;;Completa;49
+Ponta Diamantada Cônica Extremidade Chama FG;Microdont 2200F;1;4,90;4,9000;;;;;Completa;51
+Sugador Descartável Monoart;Euronda LILÁS;2;25,80;12,9000;;;;;Completa;54
+Sugador Plástico Descartável MaxClean;SSPplus COLORIDO;1;6,99;6,9900;;;;;Completa;55
+Seringa para Insulina;Uniqmed;1;21,90;21,9000;;;;;Completa;56
+Pedra Arkansas American Stones Ultra-White Fina FG;American Burrs TRONCO-CÔNICA;1;15,66;15,6600;;;;;Completa;57
+Seringa Hipodérmica Estéril Luer Lock Sem Agulha - SR 5ML;SR 5ML;3;1,17;0,3900;;;;;Completa;58
+Clareador Whiteness Simple - FGM 16%;FGM;1;129,91;129,9100;;;;;Completa;59
+Past-X Pasta Profilática com 2% de Fluoreto de Sódio;Iodontosul;1;17,90;17,9000;;;;;Completa;60
+Clareador Potenza Bianco 10%;PHS;1;16,80;16,8000;;;;;Completa;61
+Kit Clareador 10% Potenza Bianco;PHS;1;108,90;108,9000;;;;;Completa;62
+Elástico Corrente Médio 1,5m;Morelli VERDE MAR;1;10,50;10,5000;;;;;Completa;63
+Placas Soft Care 1,0mm c/10 Redonda;Bio Art;10;44,00;4,4000;4,40;;;;Completa;65
+Condicionador Ácido Fosfórico Attaque Gel 37%;Biodinâmica;9;9,50;1,0556;1,06;;;;Completa;70
+Luva Cirúrgica Estéril com Pó;Descarpack;1;2,99;2,9900;2,99;;;;Completa;71
+Seringa Descartável Luer Lock 20ml sem Agulha;Descarpack;1;1,00;1,0000;1,00;;;;Completa;75
+Matriz de Poliéster;TDV;50;26,90;0,5380;0,54;;;;Completa;79
+Anestésico Tópico Benzotop 20% - DFL;DFL;1;16,19;16,1900;16,19;;;;Completa;83
+Anestésico Alphacaine 2% 1:100.000 com Epinefrina - DFL;DFL;50;163,00;3,2600;3,26;;;;Completa;84
+Anestésico Articaine 4% com Epinefrina 1:100.000 - DFL;DFL;50;241,00;4,8200;4,82;;;;Completa;85
+Ácido Fosfórico 37% Condac 37;FGM;3;19,99;6,6633;6,66;;;sim;Completa;86
