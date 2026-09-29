@@ -21,6 +21,7 @@ import { manualEfetivo, montarInstrucao } from "./instrucao-do-agente.ts";
 import { agoraNaClinica, horariosParaOferecer } from "./agenda-da-clinica.ts";
 import { semTravessao } from "./sem-travessao.ts";
 import { aClinicaJaFalou, ehEcoDaPropriaIa, oQueEuMandei } from "./historico-da-clinica.ts";
+import { blocoSemResposta, jaDisseIssoAgora } from "./nao-repetir.ts";
 import {
   anuncioDoEvento,
   anuncioGuardado,
@@ -114,7 +115,7 @@ export interface Dependencias {
     conversationId: string,
   ) => Promise<{ deQuem: "clinica" | "paciente"; texto: string }[]>;
   /** Chama o modelo. Separado para a simulação poder rodar sem chave. */
-  responderComIa: (instrucao: string, historico: string, mensagem: string) => Promise<string>;
+  responderComIa: (instrucao: string, historico: string, mensagens: string[]) => Promise<string>;
   enviar: Enviar;
   agora?: Date;
   /**
@@ -150,6 +151,15 @@ export interface Dependencias {
    * resposta, e quem testa concluiria que a IA quebrou.
    */
   ignorarEspera?: boolean;
+  /**
+   * Não barrar resposta parecida com o que já saiu. **Só a simulação da tela
+   * passa isto.**
+   *
+   * Quem testa a mesma frase duas vezes seguidas na prévia receberia "resposta
+   * repetida" na segunda — que é o comportamento CERTO no WhatsApp e um defeito
+   * aparente na tela de teste.
+   */
+  ignorarRepeticao?: boolean;
 }
 
 export interface ResultadoDoAtendimento {
@@ -374,6 +384,32 @@ export async function atender(
     throw e;
   }
 
+  // ── Isto eu já mandei agora há pouco? ──────────────────────────────────
+  //
+  // A espera agrupa as bolhas e faz sobrar uma resposta só. Mas ela é uma
+  // corrida, e corrida empata: duas mensagens gravadas no MESMO segundo não
+  // são "mais nova" uma que a outra, e as duas respondem. Em 29/09 três
+  // execuções correram juntas e mandaram o mesmo endereço três vezes, com
+  // sete segundos entre elas.
+  //
+  // Esta leitura acontece DEPOIS do modelo, de propósito: é o último instante
+  // antes do envio, e é quando as respostas das irmãs já estão gravadas. A
+  // janela é curta (5 minutos) porque a pessoa pode perguntar a mesma coisa de
+  // novo mais tarde, e aí a resposta igual é a resposta certa.
+  const jaDitas = deps.ignorarRepeticao ? [] : await oQueEuMandei(supabase, sessao.id, agora, 5);
+  const repetida = jaDisseIssoAgora(
+    texto,
+    jaDitas.map((m) => m.texto),
+  );
+  if (repetida) {
+    await registrar(supabase, ownerId, sessao.id, {
+      direction: "ignorada",
+      content: texto,
+      skipped_reason: `resposta repetida (já mandei: ${repetida.slice(0, 120)})`,
+    });
+    return { respondeu: false, motivo: "resposta repetida", pedacos: [] };
+  }
+
   const ritmo = normalizarRitmo({
     debounceSegundos: agente.debounce_seconds,
     segmentar: agente.segment_enabled,
@@ -515,12 +551,26 @@ async function responderComModelo(
   });
 
   const anteriores = await deps.historico(entrada.conversationId);
-  const historico = anteriores
-    .slice(-JANELA_DE_CONTEXTO)
+
+  // ── O conjunto, e não a última bolha ────────────────────────────────────
+  //
+  // O espelho já tem esta mensagem gravada, então o rabo de falas do paciente
+  // no fim do histórico É o que está sem resposta — sem consulta nova e sem
+  // coluna nova. Ver `blocoSemResposta`.
+  //
+  // `entrada.conteudo` entra como reserva para o caso de o espelho não ter
+  // alcançado a mensagem ainda: melhor responder só a última bolha do que
+  // chamar o modelo sem dizer a que responder.
+  const { anteriores: contexto, semResposta } = blocoSemResposta(
+    anteriores.slice(-JANELA_DE_CONTEXTO),
+  );
+  const bloco = semResposta.length ? semResposta : [String(entrada.conteudo ?? "")];
+
+  const historico = contexto
     .map((m) => `${m.deQuem === "clinica" ? "VOCÊ" : "PACIENTE"}: ${m.texto}`)
     .join("\n");
 
-  return deps.responderComIa(instrucao, historico, String(entrada.conteudo ?? ""));
+  return deps.responderComIa(instrucao, historico, bloco);
 }
 
 /**
@@ -563,18 +613,38 @@ async function chegouMensagemMaisNova(
   const minha = entrada.recebidaEm ?? null;
   if (!minha) return false;
 
-  const { data, error } = await supabase
+  // ── O empate ────────────────────────────────────────────────────────────
+  //
+  // `sent_at` do WhatsApp tem resolução de SEGUNDO. Duas bolhas mandadas no
+  // mesmo segundo não são mais novas uma que a outra, nenhuma desiste, e as
+  // duas respondem — a mesma repetição que a espera existe para evitar.
+  //
+  // O desempate é o id da mensagem, que é único e comparável. Não é a ordem em
+  // que a pessoa escreveu, é uma ordem ARBITRÁRIA — e é o que basta: o que
+  // importa é que exatamente uma das duas se ache a última, não qual delas.
+  //
+  // Os valores vão entre aspas porque a vírgula é o separador de condições no
+  // PostgREST: um id que trouxesse vírgula partiria o filtro em dois e a busca
+  // passaria a perguntar outra coisa, em silêncio.
+  const meuId = String(entrada.messageId ?? "");
+  const desempate = meuId
+    ? `and(sent_at.eq."${minha}",crm_message_id.gt."${meuId.replace(/"/g, "")}")`
+    : null;
+
+  let busca = supabase
     .from("wa_messages")
     .select("crm_message_id")
     .eq("owner_id", ownerId)
     .eq("crm_conversation_id", entrada.conversationId)
     .eq("from_me", false)
-    .gt("sent_at", minha)
     // Mensagem com data no futuro (relógio torto na origem) calaria a IA para
     // sempre nesta conversa: toda mensagem seguinte pareceria mais velha que
-    // ela. O teto é o instante em que esta execução começou.
-    .lte("sent_at", agora.toISOString())
-    .limit(1);
+    // ela. O teto é o instante da CONFERÊNCIA, depois da espera.
+    .lte("sent_at", agora.toISOString());
+
+  busca = desempate ? busca.or(`sent_at.gt."${minha}",${desempate}`) : busca.gt("sent_at", minha);
+
+  const { data, error } = await busca.limit(1);
 
   // Erro de leitura NÃO pode virar "chegou mais nova": isso engoliria a
   // resposta em silêncio. Sem saber, responde-se — no pior caso a pessoa

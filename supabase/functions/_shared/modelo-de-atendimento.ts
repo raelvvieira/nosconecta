@@ -232,7 +232,7 @@ async function postar(
 const MAX_TOKENS_DA_RESPOSTA = 2000;
 
 /**
- * Responde uma mensagem do paciente.
+ * Responde o que o paciente mandou e ainda não foi respondido.
  *
  * A instrução vai em `system` — é ela que carrega o manual e as regras que não
  * podem ser quebradas. O histórico vai como conteúdo do usuário, não como
@@ -240,27 +240,68 @@ const MAX_TOKENS_DA_RESPOSTA = 2000;
  * margem a inverter quem disse o quê. Rótulo explícito ("VOCÊ" / "PACIENTE") é
  * mais difícil de errar.
  */
-export async function responderPaciente(
-  instrucao: string,
-  historico: string,
-  mensagem: string,
-  chaveDaClinica?: string | null,
-  modelo?: string | null,
-): Promise<string> {
-  const partes = [
+/**
+ * O pedido que vai ao modelo: a conversa, o que está sem resposta, e o que não
+ * fazer com isso.
+ *
+ * Separado de `responderPaciente` porque é a parte que decide o comportamento
+ * e a única que dá para conferir sem chamar modelo nenhum. O teste exerce esta
+ * função; a de baixo só leva o resultado até a API.
+ */
+export function pedidoDeResposta(historico: string, mensagens: string[]): string {
+  const bloco = (mensagens ?? []).map((m) => String(m ?? "").trim()).filter(Boolean);
+
+  // ── Por que o bloco, e não a última bolha ───────────────────────────────
+  //
+  // No WhatsApp a pessoa pensa em voz alta: "Oii tudo", "Boa tarde", "Nunca
+  // fiz", "Aonde fica consultório". São quatro eventos e um pensamento só.
+  // Pedir "responda à mensagem que acabou de chegar" fazia o modelo escolher
+  // uma delas e tratar as outras como pano de fundo — e como o pano de fundo
+  // continha a pergunta do endereço, toda execução respondia o endereço de
+  // novo. Em 29/09 saíram três respostas quase idênticas por causa disto.
+  //
+  // Uma bolha só continua caindo aqui: uma lista de um item é o caso comum, e
+  // não precisa de outro caminho no código.
+  const pedido =
+    bloco.length > 1
+      ? [
+          "O paciente mandou estas mensagens seguidas, e nenhuma foi respondida ainda:",
+          ...bloco.map((m) => `- ${m}`),
+          "",
+          `Leia as ${bloco.length} juntas: são um pensamento só, partido em várias`,
+          "bolhas. Escreva UMA resposta para o conjunto, na ordem que fizer sentido",
+          "para a pessoa. Não responda uma por uma.",
+        ].join("\n")
+      : `Mensagem que acabou de chegar do paciente:\n${bloco[0] ?? ""}`;
+
+  return [
     historico ? `Conversa até agora:\n${historico}` : "Esta é a primeira mensagem da conversa.",
     "",
-    `Mensagem que acabou de chegar do paciente:\n${mensagem}`,
+    pedido,
+    "",
+    // A conversa acima vem rotulada com VOCÊ, e é dela que sai esta conta: o
+    // que está marcado VOCÊ já chegou ao paciente e não precisa chegar de novo.
+    "Não repita informação que você já deu nesta conversa. Se o endereço, o",
+    "preço ou o horário já estão acima marcados com VOCÊ, a pessoa já leu:",
+    "siga de onde parou em vez de recomeçar.",
     "",
     "Responda como a clínica responderia. Só a mensagem, sem aspas e sem",
     "explicar o que você está fazendo.",
   ].join("\n");
+}
 
+export async function responderPaciente(
+  instrucao: string,
+  historico: string,
+  mensagens: string[],
+  chaveDaClinica?: string | null,
+  modelo?: string | null,
+): Promise<string> {
   return await chamarModelo({
     chave: chaveDaClinica,
     modelo,
     instrucao,
-    pergunta: partes,
+    pergunta: pedidoDeResposta(historico, mensagens),
     maxTokens: MAX_TOKENS_DA_RESPOSTA,
   });
 }

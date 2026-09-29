@@ -900,8 +900,8 @@ async function handleSimular(ownerId: string, texto: string) {
       supabase,
       ownerId,
       historico: async () => [],
-      responderComIa: (instrucao, historico, mensagem) =>
-        responderPaciente(instrucao, historico, mensagem, chave, agente?.model ?? null),
+      responderComIa: (instrucao, historico, mensagens) =>
+        responderPaciente(instrucao, historico, mensagens, chave, agente?.model ?? null),
       // Sem `dormir`: a simulação MOSTRA a espera calculada em vez de esperar.
       // Esperar de verdade aqui só faria a tela travar pelo mesmo tempo.
       enviar: async (pedaco, esperaMs) => {
@@ -916,6 +916,8 @@ async function handleSimular(ownerId: string, texto: string) {
       // testa mandou UMA mensagem e ficaria quinze segundos olhando para a
       // tela parada, concluindo que a IA quebrou.
       ignorarEspera: true,
+      // A prévia é testada com a mesma frase várias vezes de propósito.
+      ignorarRepeticao: true,
     },
     {
       conversationId: `simulacao-${ownerId}`,
