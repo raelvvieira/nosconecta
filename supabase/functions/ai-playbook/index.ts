@@ -25,6 +25,7 @@ import {
 } from "../_shared/corpus-de-aprendizado.ts";
 import { lerTudo } from "../_shared/ler-paginado.ts";
 import { chamarModelo, responderPaciente, temChave } from "../_shared/modelo-de-atendimento.ts";
+import { anotarConsumo } from "../_shared/consumo-da-ia.ts";
 import { historicoDoEspelho } from "../_shared/historico-da-conversa.ts";
 import { agoraNaClinica, horariosParaOferecer } from "../_shared/agenda-da-clinica.ts";
 import { ehPacienteDoContato } from "../_shared/quem-e-paciente.ts";
@@ -568,6 +569,7 @@ async function aprender(
     maxTokens: 16000,
     formato: FORMATO_DO_MANUAL,
     nomeDoFormato: "manual_de_vendas",
+    anotarUso: (uso) => void anotarConsumo(supabase, ownerId, "aprendizado", uso),
   });
 
   // Texto vazio é recusa do modelo (ver `textoDaResposta`). Não vira manual
@@ -849,6 +851,7 @@ async function handleSugerir(ownerId: string, conversationId: string) {
     maxTokens: 4000,
     formato: FORMATO_DAS_SUGESTOES,
     nomeDoFormato: "sugestoes_de_fala",
+    anotarUso: (uso) => void anotarConsumo(supabase, ownerId, "sugestao", uso),
   });
 
   // Recusa NUNCA vira card. O painel simplesmente não mostra sugestão, como
@@ -901,7 +904,18 @@ async function handleSimular(ownerId: string, texto: string) {
       ownerId,
       historico: async () => [],
       responderComIa: (instrucao, historico, mensagens) =>
-        responderPaciente(instrucao, historico, mensagens, chave, agente?.model ?? null),
+        responderPaciente(
+          instrucao,
+          historico,
+          mensagens,
+          chave,
+          agente?.model ?? null,
+          (uso) =>
+            // A prévia não envia nada, mas a OpenAI cobra por ela do mesmo
+            // jeito. Deixar de fora faria a soma da tela ficar abaixo da fatura,
+            // e a diferença não apareceria em lugar nenhum.
+            void anotarConsumo(supabase, ownerId, "teste", uso),
+        ),
       // Sem `dormir`: a simulação MOSTRA a espera calculada em vez de esperar.
       // Esperar de verdade aqui só faria a tela travar pelo mesmo tempo.
       enviar: async (pedaco, esperaMs) => {

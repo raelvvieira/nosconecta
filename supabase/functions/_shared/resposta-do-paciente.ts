@@ -33,6 +33,7 @@
 // não ser lida, nunca a consulta errada mudar de estado.
 import { variantesDoNumero } from "./phone-match.ts";
 import { chamarModelo } from "./modelo-de-atendimento.ts";
+import { anotarConsumo } from "./consumo-da-ia.ts";
 
 /**
  * Quanto tempo depois do lembrete uma mensagem ainda é "a resposta".
@@ -518,6 +519,7 @@ async function lerComIa(
       maxTokens: 300,
       formato: FORMATO_DA_LEITURA,
       nomeDoFormato: "leitura_da_resposta",
+      anotarUso: (uso) => void anotarConsumo(supabase, ownerId, "leitura", uso),
     });
     if (!resposta) return "indefinida";
 

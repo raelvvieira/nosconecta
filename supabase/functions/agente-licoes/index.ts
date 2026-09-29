@@ -22,6 +22,7 @@
 // instrução a partir da leitura que ela fez de si mesma, sem ninguém olhando.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { chamarModelo } from "../_shared/modelo-de-atendimento.ts";
+import { anotarConsumo } from "../_shared/consumo-da-ia.ts";
 import { historicoDoEspelho } from "../_shared/historico-da-conversa.ts";
 import { variantesDoNumero } from "../_shared/phone-match.ts";
 import { telefoneDoJid } from "../_shared/evolution-mapear.ts";
@@ -173,6 +174,7 @@ async function avaliarClinica(agente: {
         maxTokens: 2000,
         formato: FORMATO_DA_LICAO,
         nomeDoFormato: "licao_do_atendimento",
+        anotarUso: (uso) => void anotarConsumo(supabase, ownerId, "licao", uso, s.id),
       });
     } catch (e) {
       // Uma clínica com chave vencida não pode derrubar a rodada das outras.

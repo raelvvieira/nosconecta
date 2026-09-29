@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { CAMPOS_DO_MANUAL, type ManualDeVendas } from "./manual";
+import { precoDoModelo, somarPorMes, type PrecoDoModelo, type SomaDoMes } from "./consumo";
 
 export type { ManualDeVendas };
 
@@ -763,4 +764,170 @@ export const listarLicoesDaLuna = createServerFn({ method: "GET" })
         mensagens: Number(l.mensagens ?? 0),
       })),
     };
+  });
+
+// ── Quanto a IA custa ────────────────────────────────────────────────────
+
+export interface ConsumoDaIa {
+  meses: SomaDoMes[];
+  /** O modelo que está rodando hoje, para a tela pedir o preço DELE. */
+  modelo: string | null;
+  /** Já tem preço? Vem do catálogo ou do que a clínica digitou. */
+  precoConhecido: PrecoDoModelo | null;
+  /** O preço veio do que a clínica digitou (e não do catálogo). */
+  precoProprio: boolean;
+  dolar: number | null;
+  /** De que dia é a cotação. A tela mostra, para ninguém confiar num número
+   *  de duas semanas atrás sem saber. */
+  dolarDe: string | null;
+}
+
+/**
+ * A cotação do dólar de hoje.
+ *
+ * Buscada uma vez por dia e guardada. Se a busca falhar, devolve a última que
+ * deu certo — junto com a DATA dela, porque uma cotação velha apresentada como
+ * a de hoje é pior que nenhuma.
+ *
+ * A fonte é a AwesomeAPI, que republica o câmbio comercial. Não é a taxa que o
+ * cartão da clínica vai cobrar (essa tem IOF e spread por cima); é uma
+ * referência, e a tela diz isso.
+ */
+async function cotacaoDeHoje(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabela nova, fora do types.ts do Lovable
+  supabase: any,
+): Promise<{ valor: number | null; dia: string | null }> {
+  const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(
+    new Date(),
+  );
+
+  const { data: guardada } = await supabase
+    .from("cotacao_dolar")
+    .select("dia, valor")
+    .order("dia", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (guardada?.dia === hoje) return { valor: Number(guardada.valor), dia: hoje };
+
+  try {
+    const res = await fetch("https://economia.awesomeapi.com.br/json/last/USD-BRL", {
+      // Um card de custo não pode segurar a página inteira esperando câmbio.
+      signal: AbortSignal.timeout(6_000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = (await res.json()) as { USDBRL?: { bid?: string } };
+    const valor = Number(json?.USDBRL?.bid);
+    if (!Number.isFinite(valor) || valor <= 0) throw new Error("cotação sem valor");
+
+    // `upsert` porque duas abas abertas ao mesmo tempo buscam as duas.
+    await supabase.from("cotacao_dolar").upsert({ dia: hoje, valor }, { onConflict: "dia" });
+    return { valor, dia: hoje };
+  } catch (e) {
+    console.warn("[consumo] não deu para buscar o dólar:", e);
+    // A última que deu certo, com a data dela à mostra.
+    return guardada
+      ? { valor: Number(guardada.valor), dia: String(guardada.dia) }
+      : { valor: null, dia: null };
+  }
+}
+
+export const getConsumoDaIa = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .handler(async ({ context }): Promise<ConsumoDaIa> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- as três tabelas nasceram depois do types.ts gerado pelo Lovable
+    const supabase: any = context.supabase;
+
+    const [{ data: linhas }, { data: precosDaClinica }, { data: agente }, dolar] =
+      await Promise.all([
+        supabase
+          .from("ai_uso")
+          .select("quando, modelo, para, tokens_entrada, tokens_cache, tokens_saida, estimado")
+          .eq("owner_id", context.ownerId)
+          // Doze meses cobre a tela e tem teto: sem limite, uma clínica de
+          // três anos traria dezenas de milhares de linhas para somar seis
+          // números.
+          .gte("quando", new Date(Date.now() - 370 * 86_400_000).toISOString())
+          .order("quando", { ascending: false })
+          .limit(20_000),
+        supabase
+          .from("ai_precos_modelo")
+          .select("modelo, usd_entrada, usd_cache, usd_saida")
+          .eq("owner_id", context.ownerId),
+        supabase.from("ai_agents").select("model").eq("owner_id", context.ownerId).maybeSingle(),
+        cotacaoDeHoje(supabase),
+      ]);
+
+    const precos: Record<string, PrecoDoModelo> = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- linha da tabela nova
+    for (const p of (precosDaClinica ?? []) as any[]) {
+      precos[String(p.modelo)] = {
+        entrada: Number(p.usd_entrada),
+        cache: p.usd_cache === null || p.usd_cache === undefined ? null : Number(p.usd_cache),
+        saida: Number(p.usd_saida),
+      };
+    }
+
+    const modelo = agente?.model ?? null;
+    return {
+      meses: somarPorMes(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- linha da tabela nova
+        ((linhas ?? []) as any[]).map((l) => ({
+          quando: String(l.quando),
+          modelo: String(l.modelo ?? ""),
+          para: String(l.para ?? ""),
+          entrada: Number(l.tokens_entrada ?? 0),
+          cache: Number(l.tokens_cache ?? 0),
+          saida: Number(l.tokens_saida ?? 0),
+          estimado: !!l.estimado,
+        })),
+        precos,
+      ),
+      modelo,
+      precoConhecido: precoDoModelo(modelo, precos),
+      precoProprio:
+        !!modelo && Object.keys(precos).some((m) => m.toLowerCase() === modelo.toLowerCase()),
+      dolar: dolar.valor,
+      dolarDe: dolar.dia,
+    };
+  });
+
+/**
+ * Grava o preço do modelo, em dólares por milhão de tokens.
+ *
+ * Os limites existem para o dedo escorregado: quem digita 250 querendo 2,50
+ * veria a conta do mês multiplicada por cem e acreditaria. Cem dólares por
+ * milhão de tokens é muito acima de qualquer modelo que exista hoje.
+ */
+export const salvarPrecoDoModelo = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .validator((d: { modelo: string; entrada: number; cache: number | null; saida: number }) => d)
+  .handler(async ({ context, data }) => {
+    const modelo = String(data.modelo ?? "").trim();
+    if (!modelo) throw new Error("Informe o modelo.");
+
+    const confere = (v: number | null, nome: string) => {
+      if (v === null) return null;
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 0)
+        throw new Error(`O preço de ${nome} precisa ser um número.`);
+      if (n > 100) throw new Error(`R$ ${n} por milhão de tokens em ${nome} não parece certo.`);
+      return n;
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabela nova
+    const supabase: any = context.supabase;
+    const { error } = await supabase.from("ai_precos_modelo").upsert(
+      {
+        owner_id: context.ownerId,
+        modelo,
+        usd_entrada: confere(data.entrada, "entrada"),
+        usd_cache: confere(data.cache, "cache"),
+        usd_saida: confere(data.saida, "saída"),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "owner_id,modelo" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });

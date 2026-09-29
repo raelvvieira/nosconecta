@@ -21,6 +21,7 @@ import { Ritmo } from "@/components/agente-ia/Ritmo";
 import { Testar } from "@/components/agente-ia/Testar";
 import { Procedimentos } from "@/components/agente-ia/Procedimentos";
 import { LicoesDaLuna } from "@/components/agente-ia/LicoesDaLuna";
+import { ConsumoDaIa } from "@/components/agente-ia/ConsumoDaIa";
 import { OQueAprendeu } from "@/components/agente-ia/OQueAprendeu";
 
 export const Route = createFileRoute("/agente-ia/")({
@@ -205,6 +206,12 @@ function AgentePage() {
               conversas dela. Misturar os dois faria parecer que o manual já
               foi corrigido pelas lições — e ninguém corrigiu. */}
           <LicoesDaLuna />
+
+          {/* ── 5c. O que isso custa ──────────────────────────────────────
+              Depois das lições e antes do funil: é a última pergunta que se
+              faz sobre um agente que já se entendeu. Em cima da tela ele
+              roubaria a atenção de quem veio configurar o comportamento. */}
+          <ConsumoDaIa />
 
           {/* ── 6. O funil ─────────────────────────────────────────────── */}
           <PainelDoFunil painel={painelQuery.data} carregando={painelQuery.isPending} />

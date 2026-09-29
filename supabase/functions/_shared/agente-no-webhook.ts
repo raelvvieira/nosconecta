@@ -22,6 +22,7 @@ import { ehConversaNova, primeiraMensagemDaPessoa } from "./conversa-nova.ts";
 import { ehPacienteDoContato } from "./quem-e-paciente.ts";
 import { historicoDoEspelho } from "./historico-da-conversa.ts";
 import { responderPaciente } from "./modelo-de-atendimento.ts";
+import { anotarConsumo } from "./consumo-da-ia.ts";
 import { enviarWhatsapp } from "./whatsapp-send.ts";
 import type { MensagemEspelhada } from "./evolution-mapear.ts";
 import { anuncioDoEvento } from "./veio-de-anuncio.ts";
@@ -118,7 +119,17 @@ export async function deixarOAgenteResponder(
         ownerId,
         historico: (conversationId) => historicoDoEspelho(supabase, ownerId, conversationId),
         responderComIa: (instrucao, historico, mensagens) =>
-          responderPaciente(instrucao, historico, mensagens, chave, agente?.model ?? null),
+          responderPaciente(
+            instrucao,
+            historico,
+            mensagens,
+            chave,
+            agente?.model ?? null,
+            (uso) =>
+              // Sem `await`: a conta do mês não pode segurar a resposta do
+              // paciente. `anotarConsumo` nunca levanta — ver o comentário lá.
+              void anotarConsumo(supabase, ownerId, "resposta", uso),
+          ),
         enviar: async (pedaco, esperaMs) => {
           // A espera é o tempo de digitação. Acontece de verdade aqui — é o
           // que faz a resposta não chegar como um bloco instantâneo.

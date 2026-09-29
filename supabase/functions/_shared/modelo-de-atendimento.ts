@@ -21,6 +21,8 @@
 // modelo escolhido, o erro é explícito e acontece na tela de configuração,
 // onde alguém pode agir.
 
+import { usoDaResposta, type UsoDoModelo } from "./consumo-da-ia.ts";
+
 const ENDERECO = "https://api.openai.com/v1/chat/completions";
 
 /**
@@ -164,6 +166,18 @@ export interface PedidoAoModelo {
   formato?: FormatoPedido;
   /** Nome do esquema, exigido pela OpenAI. Só quando há `formato`. */
   nomeDoFormato?: string;
+  /**
+   * Chamado com o que a chamada gastou, quando ela dá certo.
+   *
+   * É um aviso, e não um retorno, por um motivo: este arquivo existe para o
+   * resto do sistema não precisar saber qual IA responde, e gravar no banco
+   * aqui dentro o amarraria ao Supabase. Quem chama já tem o dono e a sessão
+   * em mãos e passa `anotarConsumo` — ver `_shared/consumo-da-ia.ts`.
+   *
+   * Opcional porque a simulação da tela também passa por aqui, e uma prévia
+   * que ninguém enviou não devia entrar na conta do mês.
+   */
+  anotarUso?: (uso: UsoDoModelo) => void;
 }
 
 /**
@@ -205,6 +219,14 @@ export async function chamarModelo(p: PedidoAoModelo): Promise<string> {
   }
   if (json.erro) throw new Error(`A OpenAI recusou a chamada: ${json.erro}`);
 
+  // Depois do erro e antes do texto: chamada recusada não gasta token, e uma
+  // resposta cujo texto não dá para ler gastou do mesmo jeito — a medição não
+  // pode depender de o conteúdo ter vindo no formato esperado.
+  if (p.anotarUso) {
+    const uso = usoDaResposta(json.corpo, modelo);
+    if (uso) p.anotarUso(uso);
+  }
+
   return textoDaResposta(json.corpo);
 }
 
@@ -231,15 +253,6 @@ async function postar(
  *  WhatsApp, e um paredão de texto é o que a segmentação existe para evitar. */
 const MAX_TOKENS_DA_RESPOSTA = 2000;
 
-/**
- * Responde o que o paciente mandou e ainda não foi respondido.
- *
- * A instrução vai em `system` — é ela que carrega o manual e as regras que não
- * podem ser quebradas. O histórico vai como conteúdo do usuário, não como
- * turnos alternados de verdade: remontar turnos a partir do espelho daria
- * margem a inverter quem disse o quê. Rótulo explícito ("VOCÊ" / "PACIENTE") é
- * mais difícil de errar.
- */
 /**
  * O pedido que vai ao modelo: a conversa, o que está sem resposta, e o que não
  * fazer com isso.
@@ -290,12 +303,22 @@ export function pedidoDeResposta(historico: string, mensagens: string[]): string
   ].join("\n");
 }
 
+/**
+ * Responde o que o paciente mandou e ainda não foi respondido.
+ *
+ * A instrução vai em `system` — é ela que carrega o manual e as regras que não
+ * podem ser quebradas. O histórico vai como conteúdo do usuário, não como
+ * turnos alternados de verdade: remontar turnos a partir do espelho daria
+ * margem a inverter quem disse o quê. Rótulo explícito ("VOCÊ" / "PACIENTE") é
+ * mais difícil de errar.
+ */
 export async function responderPaciente(
   instrucao: string,
   historico: string,
   mensagens: string[],
   chaveDaClinica?: string | null,
   modelo?: string | null,
+  anotarUso?: (uso: UsoDoModelo) => void,
 ): Promise<string> {
   return await chamarModelo({
     chave: chaveDaClinica,
@@ -303,5 +326,6 @@ export async function responderPaciente(
     instrucao,
     pergunta: pedidoDeResposta(historico, mensagens),
     maxTokens: MAX_TOKENS_DA_RESPOSTA,
+    anotarUso,
   });
 }
