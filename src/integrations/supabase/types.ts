@@ -403,6 +403,33 @@ export type Database = {
           },
         ]
       }
+      ai_precos_modelo: {
+        Row: {
+          modelo: string
+          owner_id: string
+          updated_at: string
+          usd_cache: number | null
+          usd_entrada: number
+          usd_saida: number
+        }
+        Insert: {
+          modelo: string
+          owner_id: string
+          updated_at?: string
+          usd_cache?: number | null
+          usd_entrada: number
+          usd_saida: number
+        }
+        Update: {
+          modelo?: string
+          owner_id?: string
+          updated_at?: string
+          usd_cache?: number | null
+          usd_entrada?: number
+          usd_saida?: number
+        }
+        Relationships: []
+      }
       ai_sales_playbooks: {
         Row: {
           created_at: string
@@ -435,6 +462,56 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      ai_uso: {
+        Row: {
+          created_at: string
+          estimado: boolean
+          id: string
+          modelo: string
+          owner_id: string
+          para: string
+          quando: string
+          session_id: string | null
+          tokens_cache: number
+          tokens_entrada: number
+          tokens_saida: number
+        }
+        Insert: {
+          created_at?: string
+          estimado?: boolean
+          id?: string
+          modelo: string
+          owner_id: string
+          para: string
+          quando?: string
+          session_id?: string | null
+          tokens_cache?: number
+          tokens_entrada?: number
+          tokens_saida?: number
+        }
+        Update: {
+          created_at?: string
+          estimado?: boolean
+          id?: string
+          modelo?: string
+          owner_id?: string
+          para?: string
+          quando?: string
+          session_id?: string | null
+          tokens_cache?: number
+          tokens_entrada?: number
+          tokens_saida?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_uso_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       appointment_notification_replies: {
         Row: {
@@ -1380,6 +1457,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      cotacao_dolar: {
+        Row: {
+          buscado_em: string
+          dia: string
+          valor: number
+        }
+        Insert: {
+          buscado_em?: string
+          dia: string
+          valor: number
+        }
+        Update: {
+          buscado_em?: string
+          dia?: string
+          valor?: number
+        }
+        Relationships: []
       }
       credit_cards: {
         Row: {
