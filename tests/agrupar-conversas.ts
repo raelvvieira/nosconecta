@@ -28,6 +28,9 @@ function conversa(p: Partial<ConversationRow> & { id: string }): ConversationRow
     lastMessagePreview: p.lastMessagePreview ?? null,
     lastMessageAt: p.lastMessageAt ?? null,
     unreadCount: p.unreadCount ?? 0,
+    // O padrão é o contato ter falado por último — é o caso que a caixa de
+    // entrada existe para resolver.
+    lastMessageFromMe: p.lastMessageFromMe ?? false,
     status: p.status ?? "open",
   };
 }
@@ -180,6 +183,36 @@ function conversa(p: Partial<ConversationRow> & { id: string }): ConversationRow
 }
 
 conferir("lista vazia", agruparPorContato([]), []);
+
+// ── Quem está esperando resposta ─────────────────────────────────────────
+//
+// Sai da conversa MAIS RECENTE do grupo, não de qualquer uma: com duas
+// conversas do mesmo número, o que vale é quem falou por último na última.
+{
+  const g = agruparPorContato([
+    conversa({ id: "90", phone: "5548999990000", lastMessageFromMe: false }),
+    conversa({ id: "91", phone: "5548999990000", lastMessageFromMe: true }),
+  ]);
+  conferir("o contato falou por último na principal", g[0].esperandoResposta, true);
+}
+{
+  const g = agruparPorContato([
+    conversa({ id: "92", phone: "5548999991111", lastMessageFromMe: true }),
+    conversa({ id: "93", phone: "5548999991111", lastMessageFromMe: false }),
+  ]);
+  // A principal é a primeira da lista, que já vem ordenada por recência: a
+  // clínica respondeu por último, então ninguém está esperando.
+  conferir("respondida na mais recente não espera", g[0].esperandoResposta, false);
+}
+// Independente da bolinha: é isso que impede a pessoa de sumir do filtro só
+// porque alguém abriu, leu e não respondeu.
+{
+  const g = agruparPorContato([
+    conversa({ id: "94", phone: "5548999992222", lastMessageFromMe: false, unreadCount: 0 }),
+  ]);
+  conferir("lida e não respondida continua esperando", g[0].esperandoResposta, true);
+  conferir("e sem bolinha", g[0].naoLidas, 0);
+}
 
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);

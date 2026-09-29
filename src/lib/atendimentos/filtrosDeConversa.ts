@@ -41,7 +41,7 @@ export const ROTULO_DA_ORDENACAO: Record<Ordenacao, string> = {
 
 export interface Filtros {
   busca: string;
-  /** Só quem tem mensagem não lida. */
+  /** Só quem está esperando resposta: o contato falou por último. */
   semResposta: boolean;
   status: "todas" | "abertas" | "encerradas";
   /** Vazio = não filtra. Mais de uma = qualquer uma serve (OU). */
@@ -129,7 +129,11 @@ export function filtrarGrupos(
       if (!acha) return false;
     }
 
-    if (f.semResposta && g.naoLidas === 0) return false;
+    // "Sem resposta" é sobre RESPONDER, não sobre ler. Até 29/09 ele era
+    // "tem bolinha" — o que funcionava só porque a bolinha nunca zerava. Com
+    // ela zerando na leitura, esse critério faria a pessoa sumir do filtro
+    // justamente porque alguém abriu, leu e não respondeu.
+    if (f.semResposta && !g.esperandoResposta) return false;
 
     // ── Status ─────────────────────────────────────────────────────────
     // Sobre o GRUPO, não sobre a principal: uma pessoa com uma conversa

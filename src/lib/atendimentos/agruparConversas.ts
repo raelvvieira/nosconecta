@@ -14,6 +14,18 @@ export interface GrupoDeConversa {
   outras: ConversationRow[];
   /** Soma de todas as conversas do grupo — esconder uma esconderia o aviso. */
   naoLidas: number;
+  /**
+   * O contato falou por último e ninguém respondeu.
+   *
+   * Vem da conversa MAIS RECENTE do grupo (a principal), e não de qualquer
+   * uma: com duas conversas do mesmo número, o que importa é quem falou por
+   * último na última. Somar "alguma sem resposta" traria de volta gente que já
+   * foi respondida numa conversa reaberta depois.
+   *
+   * Independente de leitura, de propósito: abrir e ler não é responder, e o
+   * filtro que some quando você olha esconde justamente quem se esquece.
+   */
+  esperandoResposta: boolean;
 }
 
 /**
@@ -70,7 +82,13 @@ export function agruparPorContato(conversas: ConversationRow[]): GrupoDeConversa
       }
       continue;
     }
-    grupos.set(chave, { chave, principal: c, outras: [], naoLidas: c.unreadCount });
+    grupos.set(chave, {
+      chave,
+      principal: c,
+      outras: [],
+      naoLidas: c.unreadCount,
+      esperandoResposta: c.lastMessageFromMe === false,
+    });
   }
 
   return [...grupos.values()];

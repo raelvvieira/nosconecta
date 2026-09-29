@@ -25,7 +25,24 @@ export interface ConversationRow {
   avatarUrl: string | null;
   lastMessagePreview: string | null;
   lastMessageAt: string | null;
+  /**
+   * Mensagens recebidas depois da última vez que alguém daqui abriu a conversa.
+   *
+   * Era o contador congelado do CRM antigo até 29/09: nunca subia, nunca
+   * zerava, e aparecia ao lado da hora de hoje porque a lista soma as conversas
+   * da mesma pessoa. Agora é mantido pelo banco, no mesmo gatilho que atualiza
+   * a prévia, e zera quando a conversa é aberta.
+   */
   unreadCount: number;
+  /**
+   * A última mensagem saiu daqui?
+   *
+   * `false` = o contato falou por último e ninguém respondeu. É isto que
+   * sustenta o filtro "Sem resposta" — e ele não pode depender de leitura, ou
+   * a pessoa some do filtro justamente porque alguém abriu, leu e não
+   * respondeu.
+   */
+  lastMessageFromMe: boolean;
   /**
    * Situação da conversa no CRM.
    *
@@ -187,7 +204,7 @@ async function conversasDoEspelho(
   const { data: conversas, error } = await supabase
     .from("wa_conversations")
     .select(
-      "origem, crm_conversation_id, crm_contact_id, status, unread_count, last_message_at, last_message_preview",
+      "origem, crm_conversation_id, crm_contact_id, status, unread_count, last_message_at, last_message_preview, last_message_from_me",
     )
     .eq("owner_id", ownerId)
     .order("last_message_at", { ascending: false, nullsFirst: false })
@@ -260,6 +277,7 @@ async function conversasDoEspelho(
       lastMessagePreview: row.last_message_preview ?? null,
       lastMessageAt: row.last_message_at ?? null,
       unreadCount: Number(row.unread_count ?? 0),
+      lastMessageFromMe: row.last_message_from_me === true,
       status: row.status,
     };
   });
@@ -275,6 +293,7 @@ interface LinhaDeConversa {
   unread_count: number | null;
   last_message_at: string | null;
   last_message_preview: string | null;
+  last_message_from_me: boolean | null;
 }
 
 /** Só o que a lista pede de `wa_contacts`. */
@@ -642,4 +661,45 @@ export const cancelScheduledMessage = createServerFn({ method: "POST" })
       .eq("status", "pending");
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+/**
+ * Zera as não lidas de uma conversa — e das irmãs do mesmo número.
+ *
+ * ── Por que as irmãs junto ──────────────────────────────────────────────
+ *
+ * Quem abre uma conversa na tela abre a PESSOA. Um número costuma ter uma
+ * linha herdada do CRM e outra da conexão própria, e a thread mostra as duas
+ * juntas — é a mesma união que `getMessages` faz. Zerar só a linha clicada
+ * deixaria a bolinha acesa com a mensagem que a pessoa acabou de ler.
+ *
+ * ── Por que não levanta erro ────────────────────────────────────────────
+ *
+ * Isto roda ao ABRIR a conversa, sem ninguém pedir. Uma falha aqui não pode
+ * virar tela de erro por cima de uma conversa que carregou bem: o pior caso
+ * aceitável é a bolinha continuar acesa.
+ */
+export const marcarConversaComoLida = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { conversationId: string }) => input)
+  .handler(async ({ data, context }) => {
+    const id = String(data.conversationId ?? "").trim();
+    if (!id) return { ok: false, marcadas: 0 };
+
+    try {
+      const irmas = await conversasDoMesmoNumero(context.supabase, context.ownerId, id);
+      const ids = [...new Set([id, ...irmas.map((c) => c.id)])].filter(Boolean);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a RPC nasceu depois do types.ts gerado pelo Lovable
+      const supabase: any = context.supabase;
+      const { data: marcadas, error } = await supabase.rpc("wa_marcar_lidas", {
+        _owner: context.ownerId,
+        _conversas: ids,
+      });
+      if (error) throw new Error(error.message);
+      return { ok: true, marcadas: Number(marcadas ?? 0) };
+    } catch (e) {
+      console.error("[marcarConversaComoLida]", e instanceof Error ? e.message : e);
+      return { ok: false, marcadas: 0 };
+    }
   });

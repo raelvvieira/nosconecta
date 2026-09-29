@@ -53,6 +53,7 @@ import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBad
 import {
   getConversations,
   getMessages,
+  marcarConversaComoLida,
   sendWhatsappMessage,
   type ConversationRow,
 } from "@/lib/atendimentos/atendimentos.functions";
@@ -129,6 +130,7 @@ function ChatPage() {
 
   const fetchConversations = useServerFn(getConversations);
   const fetchMessages = useServerFn(getMessages);
+  const marcarLida = useServerFn(marcarConversaComoLida);
   const doSendMessage = useServerFn(sendWhatsappMessage);
   const fetchConexaoPropria = useServerFn(getConexaoPropria);
 
@@ -397,6 +399,33 @@ function ChatPage() {
   // (que se repete a cada 5–20 s). Sem isso, cada conversa aberta viraria uma
   // chamada ao modelo por minuto.
   const chaveDasMensagens = messages.length ? messages[messages.length - 1].id : null;
+
+  // ── Abrir a conversa é ler a conversa ──────────────────────────────────
+  //
+  // Como no WhatsApp: a bolinha some quando você abre, e volta quando chega
+  // mensagem nova. Até 29/09 ela nunca sumia porque nunca era escrita — o
+  // número vinha congelado do CRM antigo.
+  //
+  // Depende de `chaveDasMensagens`, e não só do id da conversa: com a thread
+  // aberta na tela, a mensagem que chega tem de nascer lida. Como a chave é o
+  // id da ÚLTIMA mensagem, isto roda quando a conversa anda, e não a cada
+  // busca da thread (que se repete a cada 5 a 20 segundos).
+  //
+  // Falha não vira aviso na tela: o pior caso aceitável é a bolinha continuar
+  // acesa. Quem abriu a conversa está lendo a conversa, não a bolinha.
+  useEffect(() => {
+    if (!conversationId) return;
+    let cancelado = false;
+    void marcarLida({ data: { conversationId } })
+      .then((r) => {
+        if (cancelado || !r?.marcadas) return;
+        queryClient.invalidateQueries({ queryKey: ["atendimentos-conversations"] });
+      })
+      .catch(() => {});
+    return () => {
+      cancelado = true;
+    };
+  }, [conversationId, chaveDasMensagens, marcarLida, queryClient]);
 
   // ── O painel do contato ────────────────────────────────────────────────
   //
