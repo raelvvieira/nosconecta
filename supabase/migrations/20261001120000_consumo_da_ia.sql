@@ -61,6 +61,20 @@ CREATE POLICY ai_uso_acesso ON public.ai_uso
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_uso TO authenticated;
 
+-- E `service_role`, porque quem GRAVA aqui são as Edge Functions (wa-webhook,
+-- ai-playbook, agente-licoes), que usam a chave de serviço.
+--
+-- Medido em 30/09: este projeto ainda concede privilégio padrão no schema
+-- public ao `service_role` — `cotacao_dolar`, logo abaixo, aparece gravável
+-- por ele sem nenhum GRANT escrito. Então esta linha é redundante HOJE.
+--
+-- Ela fica mesmo assim. O privilégio padrão é configuração do projeto, some
+-- numa mudança do Supabase que ninguém aqui controla, e o dia em que sumir a
+-- gravação do consumo passa a falhar com "permission denied" — em silêncio,
+-- porque `anotarConsumo` nunca levanta. O contador simplesmente pararia de
+-- subir, e ninguém repara num número que não cresce.
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_uso TO service_role;
+
 -- ── O preço, digitado por quem lê a fatura ───────────────────────────────
 --
 -- Os modelos públicos têm preço no código (`PRECOS_DE_CATALOGO`), porque são
