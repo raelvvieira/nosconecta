@@ -2876,11 +2876,13 @@ export type Database = {
           id: string
           inbox_id: string | null
           last_message_at: string | null
+          last_message_from_me: boolean
           last_message_preview: string | null
           messages_synced_at: string | null
           origem: string
           owner_id: string
           payload: Json | null
+          read_at: string | null
           status: string
           synced_at: string
           unread_at_sync: number | null
@@ -2894,11 +2896,13 @@ export type Database = {
           id?: string
           inbox_id?: string | null
           last_message_at?: string | null
+          last_message_from_me?: boolean
           last_message_preview?: string | null
           messages_synced_at?: string | null
           origem?: string
           owner_id: string
           payload?: Json | null
+          read_at?: string | null
           status?: string
           synced_at?: string
           unread_at_sync?: number | null
@@ -2912,11 +2916,13 @@ export type Database = {
           id?: string
           inbox_id?: string | null
           last_message_at?: string | null
+          last_message_from_me?: boolean
           last_message_preview?: string | null
           messages_synced_at?: string | null
           origem?: string
           owner_id?: string
           payload?: Json | null
+          read_at?: string | null
           status?: string
           synced_at?: string
           unread_at_sync?: number | null
@@ -3389,6 +3395,10 @@ export type Database = {
       primary_clinic_owner: { Args: never; Returns: string }
       telefone_br_normalizado: { Args: { _raw: string }; Returns: string }
       wa_e164_br: { Args: { raw: string }; Returns: string }
+      wa_marcar_lidas: {
+        Args: { _conversas: string[]; _owner: string }
+        Returns: number
+      }
       wa_recalc_conversa: {
         Args: { p_conversa: string; p_owner: string }
         Returns: undefined
