@@ -71,6 +71,15 @@ export interface MensagemDeEntrada {
    */
   anuncio?: Anuncio | null;
   /**
+   * Quando a mensagem foi enviada, como o WhatsApp informou.
+   *
+   * Serve para a espera que agrupa as bolhas: depois de esperar, pergunta-se se
+   * chegou mensagem MAIS NOVA que esta. Sem a hora da própria mensagem não há
+   * como comparar, e a conversa em que a pessoa manda "oi" e a pergunta em
+   * seguida vira duas respostas — foi o que aconteceu em 28/09.
+   */
+  recebidaEm?: string | null;
+  /**
    * Ninguém da clínica falou nesta conversa ainda.
    *
    * Opcional e permissivo por omissão, como os dois acima. As mensagens da
@@ -119,6 +128,14 @@ export interface Dependencias {
    * modelo estiver falhando, a simulação precisa mostrar isso e não esconder.
    */
   ignorarInterruptor?: boolean;
+  /**
+   * Pular a espera que agrupa as bolhas. **Só a simulação da tela passa isto.**
+   *
+   * A espera existe para o WhatsApp, onde a pessoa manda três mensagens
+   * seguidas. Na tela de teste ela só faria o botão ficar quinze segundos sem
+   * resposta, e quem testa concluiria que a IA quebrou.
+   */
+  ignorarEspera?: boolean;
 }
 
 export interface ResultadoDoAtendimento {
@@ -252,14 +269,44 @@ export async function atender(
     agora,
   );
 
-  // A mensagem entra no registro ANTES da decisão, e a decisão vira uma linha
-  // com o motivo. É isso que transforma "a IA não respondeu" de mistério em
-  // linha lida.
+  // ── A espera que agrupa as bolhas ───────────────────────────────────────
+  //
+  // No WhatsApp a pessoa manda "oi", depois "tudo bem?", depois a pergunta. São
+  // três eventos, e sem espera são três respostas. Em 28/09 a Sabrina mandou
+  // "Olá" às 18:31:59 e "Qual valor?" quatro segundos depois, e recebeu DUAS
+  // respostas quase iguais, com três segundos entre elas.
+  //
+  // O campo "esperar antes de responder" já existia na tela, valia 5 segundos,
+  // e nada no código o lia: era gravado, normalizado e ignorado.
+  //
+  // Como funciona: espera, e então pergunta se chegou mensagem MAIS NOVA que
+  // esta na mesma conversa. Se chegou, esta desiste — a mais nova está fazendo
+  // a mesma espera e vai responder com a conversa inteira na mão. Sobra
+  // exatamente uma resposta, a da última bolha, e é ela que tem o contexto
+  // completo.
+  let motivoDaEspera: string | null = null;
+  if (decisao.responde && !deps.ignorarEspera) {
+    const segundos = Math.max(0, Number(agente.debounce_seconds ?? 0));
+    if (segundos > 0) {
+      await new Promise((r) => setTimeout(r, segundos * 1000));
+      if (await chegouMensagemMaisNova(supabase, ownerId, entrada, agora)) {
+        motivoDaEspera = "mensagem mais nova chegou";
+      }
+    }
+  }
+
+  const responde = decisao.responde && !motivoDaEspera;
+  const motivo = motivoDaEspera ?? (decisao.responde ? null : decisao.motivo);
+
+  // A mensagem entra no registro com o motivo de não ter sido respondida. É
+  // isso que transforma "a IA não respondeu" de mistério em linha lida.
   await registrar(supabase, ownerId, sessao.id, {
-    direction: decisao.responde ? "entrada" : "ignorada",
+    direction: responde ? "entrada" : "ignorada",
     content: entrada.conteudo,
-    skipped_reason: decisao.responde ? null : decisao.motivo,
+    skipped_reason: motivo,
   });
+
+  if (motivoDaEspera) return { respondeu: false, motivo: motivoDaEspera, pedacos: [] };
 
   if (!decisao.responde) {
     // Mensagem da própria clínica que NÃO é da IA = uma pessoa assumiu. É o
@@ -368,13 +415,20 @@ async function responderComModelo(
     procedimentos = data ?? [];
   }
 
-  const { data: unidade } = await supabase
+  // As unidades ATIVAS com endereço, e não só o nome da principal: é daqui que
+  // sai a resposta para "onde vocês ficam?", que a Luna não sabia dar.
+  const { data: unidades } = await supabase
     .from("clinic_units")
-    .select("name")
+    .select("name, address, is_default")
     .eq("owner_id", ownerId)
-    .order("is_default", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq("active", true)
+    .order("is_default", { ascending: false });
+  const listaDeUnidades = (unidades ?? []).map((u: any) => ({
+    nome: String(u.name ?? "").trim(),
+    endereco: u.address ?? null,
+    principal: u.is_default === true,
+  }));
+  const unidade = listaDeUnidades[0] ?? null;
 
   // Os horários de verdade, ao lado das outras leituras de contexto. É o que
   // torna a regra dos dois horários possível — antes disto o agente não tinha
@@ -388,7 +442,8 @@ async function responderComModelo(
   const instrucao = montarInstrucao({
     anuncio,
     horarios,
-    clinica: unidade?.name ?? "NÓS Odontologia",
+    clinica: unidade?.nome || "NÓS Odontologia",
+    unidades: listaDeUnidades,
     manual: manualEfetivo(playbook?.learned, playbook?.overrides),
     procedimentos: procedimentos.map((p) => ({
       nome: p.name,
@@ -413,6 +468,48 @@ async function responderComModelo(
     .join("\n");
 
   return deps.responderComIa(instrucao, historico, String(entrada.conteudo ?? ""));
+}
+
+/**
+ * Chegou mensagem mais nova desta pessoa enquanto a espera corria?
+ *
+ * Compara pela hora da PRÓPRIA mensagem (`recebidaEm`), e não pelo relógio de
+ * quem processa: os dois eventos podem ser processados fora de ordem, e o que
+ * decide quem responde tem de ser a ordem em que a pessoa escreveu.
+ *
+ * Sem `recebidaEm` — o caso da simulação da tela — a resposta é "não chegou".
+ * Devolver `true` ali calaria a prévia sem explicação.
+ */
+async function chegouMensagemMaisNova(
+  supabase: any,
+  ownerId: string,
+  entrada: MensagemDeEntrada,
+  agora: Date,
+): Promise<boolean> {
+  const minha = entrada.recebidaEm ?? null;
+  if (!minha) return false;
+
+  const { data, error } = await supabase
+    .from("wa_messages")
+    .select("crm_message_id")
+    .eq("owner_id", ownerId)
+    .eq("crm_conversation_id", entrada.conversationId)
+    .eq("from_me", false)
+    .gt("sent_at", minha)
+    // Mensagem com data no futuro (relógio torto na origem) calaria a IA para
+    // sempre nesta conversa: toda mensagem seguinte pareceria mais velha que
+    // ela. O teto é o instante em que esta execução começou.
+    .lte("sent_at", agora.toISOString())
+    .limit(1);
+
+  // Erro de leitura NÃO pode virar "chegou mais nova": isso engoliria a
+  // resposta em silêncio. Sem saber, responde-se — no pior caso a pessoa
+  // recebe duas respostas, que é o defeito antigo e não um novo.
+  if (error) {
+    console.warn(`[atendimento] espera não conferida em ${entrada.conversationId}:`, error.message);
+    return false;
+  }
+  return (data ?? []).length > 0;
 }
 
 /**

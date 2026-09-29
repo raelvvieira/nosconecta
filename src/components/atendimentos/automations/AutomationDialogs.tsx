@@ -36,10 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AUTOMATION_EVENTS,
-  type AutomationEvent,
-} from "@/lib/atendimentos/automation-events";
+import { AUTOMATION_EVENTS, type AutomationEvent } from "@/lib/atendimentos/automation-events";
 import { varsDoGatilho } from "@/lib/atendimentos/automation-vars";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -156,9 +153,7 @@ export function EditarCondicaoDialog({
 
   useEffect(() => {
     if (!open) return;
-    setValor(
-      conditions.stageId ?? conditions.status ?? conditions.dealStatus ?? SEM_FILTRO,
-    );
+    setValor(conditions.stageId ?? conditions.status ?? conditions.dealStatus ?? SEM_FILTRO);
   }, [open, conditions]);
 
   const opcoes =
@@ -657,9 +652,9 @@ export function AdicionarAcaoDialog({
               />
             </div>
             <p className="flex items-start gap-2 rounded-xl bg-info-soft px-3 py-2 text-2xs leading-4 text-info">
-              <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-              A notificação vai para todos os aparelhos da clínica — não dá para endereçar uma
-              pessoa só. Quem não quiser receber desliga em Configurações › Notificações.
+              <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />A notificação
+              vai para todos os aparelhos da clínica — não dá para endereçar uma pessoa só. Quem não
+              quiser receber desliga em Configurações › Notificações.
             </p>
             <div className="flex gap-2">
               <Button
@@ -700,8 +695,8 @@ export function AdicionarAcaoDialog({
                 </SelectContent>
               </Select>
               <p className="mt-1.5 text-2xs text-muted-foreground">
-                Vale para o agendamento do evento. A mudança não dispara outras automações —
-                senão um fluxo que ouve mudança de status e muda o status se alimentaria sozinho.
+                Vale para o agendamento do evento. A mudança não dispara outras automações — senão
+                um fluxo que ouve mudança de status e muda o status se alimentaria sozinho.
               </p>
             </div>
             <div className="flex gap-2">
@@ -739,8 +734,8 @@ export function AdicionarAcaoDialog({
                 className="mt-1.5"
               />
               <p className="mt-1.5 text-2xs text-muted-foreground">
-                Recebe um POST com o evento, a automação e os dados do contato. Precisa ser
-                https:// e um endereço público.
+                Recebe um POST com o evento, a automação e os dados do contato. Precisa ser https://
+                e um endereço público.
               </p>
             </div>
             <div className="flex gap-2">
@@ -788,8 +783,8 @@ export function AdicionarAcaoDialog({
                 </Select>
               </div>
               <p className="mt-1.5 text-2xs text-muted-foreground">
-                De 1 minuto a 30 dias. As ações seguintes só rodam depois da espera — então
-                adicione ao menos uma ação abaixo desta.
+                De 1 minuto a 30 dias. As ações seguintes só rodam depois da espera — então adicione
+                ao menos uma ação abaixo desta.
               </p>
             </div>
             <div className="flex gap-2">
@@ -962,7 +957,13 @@ export function EditarJanelaDialog({
             onClick={() => {
               onSalvar(
                 ativa
-                  ? { enabled: true, days: [...dias].sort((a, b) => a - b), start: inicio, end: fim, outside: foraDaJanela }
+                  ? {
+                      enabled: true,
+                      days: [...dias].sort((a, b) => a - b),
+                      start: inicio,
+                      end: fim,
+                      outside: foraDaJanela,
+                    }
                   : {},
               );
               onOpenChange(false);
@@ -1041,7 +1042,9 @@ export function EscolherCardDialog({
               }}
               className="flex w-full items-start gap-3 rounded-2xl border border-transparent px-3 py-2.5 text-left transition-colors hover:border-border hover:bg-surface-subtle"
             >
-              <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl ${o.cor}`}>
+              <span
+                className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl ${o.cor}`}
+              >
                 {o.icone}
               </span>
               <span className="min-w-0">
@@ -1138,25 +1141,32 @@ export function EditarCondicaoNoDialog({
                 <SelectItem value="status">Situação do agendamento</SelectItem>
                 <SelectItem value="stageId">Etapa do funil</SelectItem>
                 <SelectItem value="dealStatus">Situação da negociação</SelectItem>
-                {ofereceUnidade && (
-                  <SelectItem value="unitId">Unidade do agendamento</SelectItem>
-                )}
-                {ofereceContagem && (
-                  <SelectItem value="daysUntil">Faltam quantos dias</SelectItem>
+                {ofereceUnidade && <SelectItem value="unitId">Unidade do agendamento</SelectItem>}
+                {ofereceContagem && <SelectItem value="daysUntil">Faltam quantos dias</SelectItem>}
+                {ofereceResposta && (
+                  <SelectItem value="replyIntent">O que o paciente quis dizer</SelectItem>
                 )}
                 {ofereceResposta && (
-                  <SelectItem value="replyText">Resposta do paciente</SelectItem>
+                  <SelectItem value="replyText">Resposta do paciente (texto exato)</SelectItem>
                 )}
                 {/* Sem gatilho que a ofereça ou não: toda pessoa pode ser
                     etiquetada, venha de agendamento, funil ou conversa. */}
                 <SelectItem value="tag">Tag do contato</SelectItem>
               </SelectContent>
             </Select>
+            {field === "replyIntent" && (
+              <p className="mt-1.5 text-2xs text-muted-foreground">
+                O sistema lê a mensagem e diz se a pessoa confirmou, pediu para remarcar, ou se não
+                deu para saber. Entende "confirmo", "tô indo", "pode deixar", "não vou poder" e o
+                polegar — e, no que a lista não resolve, pergunta à IA. Prefira este a comparar o
+                texto: foi perguntar <em>contém "sim"</em> que deixou "confirmo" de fora.
+              </p>
+            )}
             {field === "replyText" && (
               <p className="mt-1.5 text-2xs text-muted-foreground">
-                Ignora acento e maiúscula: "Não", "nao" e "NÃO" caem no mesmo ramo. "Contém"
-                procura a palavra inteira — pega "sim, confirmo" e "confirmo sim", mas não
-                confunde "assim" com "sim".
+                Ignora acento e maiúscula: "Não", "nao" e "NÃO" caem no mesmo ramo. "Contém" procura
+                a palavra inteira — pega "sim, confirmo" e "confirmo sim", mas não confunde "assim"
+                com "sim".
               </p>
             )}
             {field === "daysUntil" && (
@@ -1166,21 +1176,21 @@ export function EditarCondicaoNoDialog({
             )}
             {field === "unitId" && (
               <p className="mt-1.5 text-2xs text-muted-foreground">
-                O ramo "não" recebe todas as outras unidades — inclusive as que você abrir
-                depois. Use-o para a mensagem mais genérica.
+                O ramo "não" recebe todas as outras unidades — inclusive as que você abrir depois.
+                Use-o para a mensagem mais genérica.
               </p>
             )}
             {field === "amount" && (
               <p className="mt-1.5 text-2xs text-muted-foreground">
-                Cadastro de paciente e mudança de etapa não carregam valor — nesses casos a
-                condição cai sempre no "não".
+                Cadastro de paciente e mudança de etapa não carregam valor — nesses casos a condição
+                cai sempre no "não".
               </p>
             )}
             {field === "tag" && (
               <p className="mt-1.5 text-2xs text-muted-foreground">
                 Compara a tag em si, não o nome — renomear em Configurações não muda o que esta
-                automação faz. Pessoa sem tag nenhuma cai no "não" para "tem", e no "sim" para
-                "não tem".
+                automação faz. Pessoa sem tag nenhuma cai no "não" para "tem", e no "sim" para "não
+                tem".
               </p>
             )}
           </div>
@@ -1246,6 +1256,25 @@ export function EditarCondicaoNoDialog({
                       {o.label}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Três valores conhecidos: lista, não campo livre. Digitar
+              "confirmado" aqui montaria uma condição que nunca bate, e o fluxo
+              pareceria certo na tela. */}
+          {field === "replyIntent" && (
+            <div>
+              <Label>O paciente</Label>
+              <Select value={valor} onValueChange={setValor}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Escolha o que ele quis dizer" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="confirma">Confirmou que vem</SelectItem>
+                  <SelectItem value="remarca">Quer remarcar ou não vai poder</SelectItem>
+                  <SelectItem value="indefinida">Respondeu outra coisa</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1370,8 +1399,8 @@ export function EditarRandomizadorDialog({
             className="mt-1.5"
           />
           <p className="mt-1.5 text-2xs text-muted-foreground">
-            {a}% seguem pelo A, {100 - a}% pelo B. Se um dos caminhos não estiver ligado, quem
-            cair nele simplesmente para.
+            {a}% seguem pelo A, {100 - a}% pelo B. Se um dos caminhos não estiver ligado, quem cair
+            nele simplesmente para.
           </p>
         </div>
         <div className="flex gap-2 pt-1">

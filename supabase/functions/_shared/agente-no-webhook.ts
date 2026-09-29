@@ -100,6 +100,8 @@ export async function deixarOAgenteResponder(
       // anúncio — e `null`, aqui, é uma AFIRMAÇÃO: olhei e não tem marcador.
       // É diferente de omitir, que é o que a simulação da tela faz e significa
       // "não sei". O filtro trata os dois de forma oposta, de propósito.
+      // A hora da própria mensagem, para a espera saber quem é a mais nova.
+      recebidaEm: m.sentAt,
       anuncio,
       // O fato para o filtro, calculado do mesmo anúncio. A partir da segunda
       // mensagem o marcador não vem mais e este fato é `false`; quem sustenta a

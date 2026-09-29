@@ -63,10 +63,15 @@ export function segmentar(texto: string, ritmo: Ritmo): string[] {
       corte = m.index! + 1;
     }
 
-    // 2. Último espaço. Nunca no meio da palavra.
+    // 2. Último espaço que não deixe palavra pendurada. Nunca no meio da
+    //    palavra, e nunca logo depois de "R$" ou de uma preposição — ver
+    //    `NAO_FECHAM_MENSAGEM`.
     if (corte <= 0) {
-      const espaco = janela.lastIndexOf(" ");
-      corte = espaco > 0 ? espaco : limite;
+      let espaco = janela.lastIndexOf(" ");
+      while (espaco > 0 && !fechaBem(janela.slice(0, espaco))) {
+        espaco = janela.lastIndexOf(" ", espaco - 1);
+      }
+      corte = espaco > 0 ? espaco : Math.max(janela.lastIndexOf(" "), limite);
     }
 
     pedacos.push(resto.slice(0, corte).trim());
@@ -101,20 +106,83 @@ export function segmentar(texto: string, ritmo: Ritmo): string[] {
  * cabem. Prefere o espaço mais próximo do meio: é o que faz as duas mensagens
  * parecerem duas frases, e não uma frase e um resto.
  */
+/**
+ * Palavras e símbolos que não podem FECHAR uma mensagem.
+ *
+ * ── O defeito que isto conserta ────────────────────────────────────────
+ *
+ * Medido numa conversa real de 28/09: a Luna mandou "…o de consultório com
+ * limpeza e 2 sessões é R$ 600, e o combinado fica R$" e, na mensagem seguinte,
+ * "990.". O corte caiu no espaço mais próximo do meio do texto, e o espaço mais
+ * próximo do meio era logo depois do cifrão.
+ *
+ * Ninguém digita assim. E o estrago é maior que o estranhamento: por um
+ * segundo, o preço que a pessoa lê é "R$", e depois um número solto.
+ *
+ * A lista é curta de propósito — cifrão, preposições e conectivos, o que
+ * costuma vir ANTES da informação que importa.
+ */
+const NAO_FECHAM_MENSAGEM = new Set([
+  "r$",
+  "rs",
+  "as",
+  "às",
+  "ao",
+  "aos",
+  "a",
+  "o",
+  "de",
+  "do",
+  "da",
+  "dos",
+  "das",
+  "em",
+  "no",
+  "na",
+  "nos",
+  "nas",
+  "por",
+  "para",
+  "pra",
+  "com",
+  "sem",
+  "e",
+  "ou",
+  "que",
+  "é",
+  "até",
+]);
+
+/** A última palavra de um pedaço pode encerrar uma mensagem? */
+function fechaBem(pedaco: string): boolean {
+  const ultima = pedaco
+    .trim()
+    .split(/\s+/)
+    .pop()
+    ?.replace(/[^\p{L}\p{N}$]/gu, "")
+    .toLowerCase();
+  if (!ultima) return false;
+  return !NAO_FECHAM_MENSAGEM.has(ultima);
+}
+
 function dividirAoMeio(texto: string, limite: number): string[] {
   const meio = Math.floor(texto.length / 2);
-  const antes = texto.lastIndexOf(" ", meio);
-  const depois = texto.indexOf(" ", meio);
 
-  // O candidato mais perto do meio que ainda deixe os DOIS lados dentro do
-  // limite. Sem essa checagem, um texto muito desequilibrado voltaria a
-  // estourar de um dos lados.
-  const candidatos = [antes, depois]
-    .filter((i) => i > 0 && i < texto.length)
+  // Todos os espaços viáveis, do mais perto do meio para o mais longe. Antes
+  // só se olhava um de cada lado do meio; quando esses dois deixavam palavra
+  // pendurada, não havia terceira chance.
+  const espacos: number[] = [];
+  for (let i = 0; i < texto.length; i++) if (texto[i] === " ") espacos.push(i);
+
+  const viaveis = espacos
+    .filter((i) => i > 0 && i < texto.length - 1)
     .filter((i) => i <= limite && texto.length - i - 1 <= limite)
     .sort((a, b) => Math.abs(a - meio) - Math.abs(b - meio));
 
-  const corte = candidatos[0];
+  // Primeiro o corte que não deixa palavra pendurada. Só se nenhum servir é
+  // que se aceita o mais próximo do meio: mensagem partida no lugar estranho é
+  // ruim, mensagem partida FORA do limite não chega.
+  const corte = viaveis.find((i) => fechaBem(texto.slice(0, i))) ?? viaveis[0];
   if (corte === undefined) return [texto.slice(0, limite).trim(), texto.slice(limite).trim()];
   return [texto.slice(0, corte).trim(), texto.slice(corte + 1).trim()];
 }

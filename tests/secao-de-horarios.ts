@@ -72,9 +72,21 @@ const doisHorarios: HorariosParaOferecer = {
   // A unidade é o que faz a cidade sair certa sem a IA adivinhar.
   contem("a unidade vem junto", t, "na NÓS Porto Alegre");
   contem("diz a faixa", t, "nos próximos 2 dias");
-  contem("manda oferecer DOIS", t, "Ofereça DOIS destes");
-  contem("proíbe mandar a agenda inteira", t, "Não");
-  contem("e proíbe perguntar quando a pessoa pode", t, "não pergunte primeiro quando a pessoa pode");
+  contem("manda oferecer os dois de uma vez", t, "os dois de uma vez, numa frase");
+  contem("proíbe mandar a agenda inteira", t, "Não mande a agenda inteira");
+  contem("e proíbe devolver a pergunta", t, "quando você");
+  // ── O que a clínica reclamou em 29/09 ──────────────────────────────────
+  //
+  // A instrução ANTIGA dizia "não pergunte primeiro quando a pessoa pode" e
+  // mandava oferecer de uma vez — sem dizer QUANDO. O resultado foi a Luna
+  // respondendo preço, duração e dois horários na primeira mensagem, antes de
+  // a pessoa dizer o que queria.
+  contem(
+    "diz que horário não vem na primeira resposta",
+    t,
+    "só depois de a pessoa dizer o que quer",
+  );
+  contem("e aponta para a regra do ritmo", t, "regra nº 8");
   // A reserva existe para responder "nenhum desses serve".
   contem("a reserva aparece", t, "nenhum dos dois serve");
   contem("com o horário de reserva", t, "sexta-feira, 02/10, às 16:00");

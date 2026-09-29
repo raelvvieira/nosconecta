@@ -137,6 +137,77 @@ export interface EntradaDaInstrucao {
    * automação. Nulo (a maioria das conversas) não gera seção nenhuma.
    */
   anuncio?: Anuncio | null;
+  /** As unidades ativas, com endereço. Ver `secaoDeUnidades`. */
+  unidades?: UnidadeDaClinica[] | null;
+}
+
+export interface UnidadeDaClinica {
+  nome: string;
+  endereco: string | null;
+  principal: boolean;
+}
+
+/**
+ * Onde a clínica fica.
+ *
+ * ── Por que esta seção nasceu ─────────────────────────────────────────
+ *
+ * Em 29/09 uma pessoa perguntou o endereço e a Luna respondeu "vou confirmar o
+ * endereço certinho com a equipe e já te passam por aqui" — e a Dra. Mariane
+ * teve de entrar na conversa e colar o endereço à mão.
+ *
+ * Ela não errou: a regra nº 2 manda nunca inventar endereço, e o endereço
+ * nunca chegava até aqui. Estava no cadastro das unidades o tempo todo; a
+ * instrução recebia só o NOME da unidade.
+ *
+ * Endereço é o que separa "quero marcar" de "onde eu vou". Não dar é perder a
+ * pessoa na última pergunta.
+ */
+export function secaoDeUnidades(unidades: UnidadeDaClinica[] | null | undefined): string {
+  const lista = (unidades ?? []).filter((u) => String(u.nome ?? "").trim());
+  if (!lista.length) return "";
+
+  const comEndereco = lista.filter((u) => String(u.endereco ?? "").trim());
+  if (!comEndereco.length) {
+    return [
+      "## Onde a clínica fica",
+      "O endereço não está cadastrado no sistema. Se perguntarem, diga que vai",
+      "confirmar e passe a conversa para uma pessoa. Não invente rua nem bairro.",
+    ].join("\n");
+  }
+
+  const partes = [
+    "## Onde a clínica fica",
+    "Estes são os endereços, e são os únicos que você pode dar:",
+    "",
+    ...comEndereco.map((u) => `- ${u.nome.trim()}: ${String(u.endereco).trim()}`),
+  ];
+
+  // Sem esta linha ela escolheria sozinha entre duas cidades. O horário que as
+  // duas combinaram diz a unidade; enquanto não houver horário, vale a
+  // principal.
+  if (comEndereco.length > 1) {
+    const principal = comEndereco.find((u) => u.principal) ?? comEndereco[0];
+    partes.push(
+      "",
+      "Responda com o endereço da unidade do horário que vocês combinaram. Se",
+      `ainda não houver horário combinado, a unidade é a ${principal.nome.trim()}.`,
+    );
+  }
+
+  const semEndereco = lista.filter((u) => !String(u.endereco ?? "").trim());
+  if (semEndereco.length) {
+    partes.push(
+      "",
+      `Não tem endereço cadastrado: ${semEndereco.map((u) => u.nome.trim()).join(", ")}.`,
+      "Se a pessoa perguntar por essa unidade, diga que vai confirmar e passe a",
+      "conversa para uma pessoa.",
+    );
+  }
+
+  partes.push("", "Só diga o endereço quando perguntarem. Ele não entra na primeira mensagem.");
+
+  return partes.join("\n");
 }
 
 /** O que a agenda respondeu. Ver `escolherMomentos` em `vagas.ts`. */
@@ -393,12 +464,17 @@ export function secaoDeHorarios(h: HorariosParaOferecer | null | undefined): str
     );
   } else {
     partes.push(
-      `Ofereça DOIS destes, e só destes — são reais e estão livres (${h.faixa}):`,
+      `Estes existem de verdade e estão livres (${h.faixa}) — e são os únicos:`,
       "",
       ...h.paraOferecer.map(linha),
       "",
-      "Ofereça os dois de uma vez, numa frase, e pergunte qual fica melhor. Não",
-      "mande a agenda inteira e não pergunte primeiro quando a pessoa pode.",
+      "QUANDO oferecer: só depois de a pessoa dizer o que quer e de você ter",
+      "entendido o caso dela (ver a regra nº 8). Horário na primeira resposta",
+      "atropela quem ainda está decidindo, e é o erro mais comum.",
+      "",
+      "COMO oferecer, na hora certa: os dois de uma vez, numa frase, e pergunte",
+      "qual fica melhor. Não mande a agenda inteira e não pergunte 'quando você",
+      "pode' — quem pergunta isso devolve o trabalho para a pessoa.",
     );
     if (h.reserva.length) {
       partes.push(
@@ -474,6 +550,7 @@ export function montarInstrucao({
   hoje,
   horarios,
   anuncio,
+  unidades,
 }: EntradaDaInstrucao): string {
   const daClinica = String(instrucaoBase ?? "").trim();
 
@@ -533,6 +610,11 @@ export function montarInstrucao({
   const deOndeVeio = secaoDoAnuncio(anuncio);
   if (deOndeVeio) partes.push("", deOndeVeio);
 
+  // Depois dos horários é tarde: a pessoa pergunta o endereço logo depois de
+  // ouvir o horário, e a seção que responde isso tem de estar junto.
+  const ondeFica = secaoDeUnidades(unidades);
+  if (ondeFica) partes.push("", ondeFica);
+
   partes.push("", tabelaDePrecos(procedimentos, parcelamento));
   partes.push("", secaoDeHorarios(horarios));
   // Depois dos preços e dos horários de propósito: é a seção que RESTRINGE os
@@ -571,6 +653,27 @@ export function montarInstrucao({
     "7. Nunca use travessão nas mensagens, mesmo que ESTA instrução use. Use",
     "   vírgula, ponto ou quebra de linha. Travessão é uma das marcas que",
     "   denunciam texto de máquina, e ninguém digita travessão no celular.",
+    "",
+    "8. UMA COISA POR MENSAGEM, e nesta ordem. Antes de falar de preço, você",
+    "   precisa saber DUAS coisas sobre a pessoa:",
+    "     a) o que ela quer (qual procedimento, ou qual a queixa dela);",
+    "     b) mais um dado do caso: se já fez isso antes, há quanto tempo não vai",
+    "        ao dentista, se tem alguma urgência, ou o que a fez procurar agora.",
+    "   Pergunte uma de cada vez, e espere a resposta. Duas perguntas na mesma",
+    "   mensagem viram uma só respondida.",
+    "",
+    "   Só depois disso o preço. E só ofereça horário quando ela demonstrar que",
+    "   quer marcar. Preço e horário NUNCA na mesma mensagem.",
+    "",
+    "   O que não fazer, porque foi o que aconteceu de verdade: responder 'Oii,",
+    "   aqui é a Luna 😊 O combo fica R$ 399, em até 10x, tenho hoje às 17h ou",
+    "   17h30, qual fica melhor?' na PRIMEIRA mensagem. Está tudo certo e está",
+    "   tudo errado: a pessoa mal disse o que queria e já recebeu preço, prazo e",
+    "   duas datas. Isso é um folheto, não uma conversa.",
+    "",
+    "   Se a pessoa perguntar o preço direto, responda o preço — não a faça",
+    "   esperar. Mas continue: uma pergunta sua depois do valor, e nada de",
+    "   horário ainda.",
   );
 
   return partes.join("\n");

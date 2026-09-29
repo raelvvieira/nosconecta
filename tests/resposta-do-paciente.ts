@@ -58,6 +58,68 @@ conferir("o número 2 remarca", classificarResposta("2"), "remarca");
 conferir("assim não é sim", classificarResposta("Assim que puder eu te falo"), "indefinida");
 conferir("simplesmente não é sim", classificarResposta("simplesmente esqueci"), "indefinida");
 conferir("nao dentro de palavra", classificarResposta("naotenhocerteza"), "indefinida");
+// ── As respostas REAIS que chegaram em 29/09 ─────────────────────────────
+//
+// Das duas que chegaram naquele dia, nenhuma era "sim". A regra da clínica
+// perguntava `contém "sim"` e as duas caíram em "não entendida" — uma consulta
+// confirmada ficou pendente na agenda.
+conferir("confirmo é confirmação", classificarResposta("confirmo"), "confirma");
+conferir(
+  "a mensagem inteira da vida real",
+  classificarResposta(
+    "Olá, bom dia!\nTudo bem?\n\nPresença confirmada 😊\nPronto para ficar com os dentes branquinhos 😁",
+  ),
+  "confirma",
+);
+
+// ── Como as pessoas de fato respondem ────────────────────────────────────
+for (const t of [
+  "ok",
+  "blz",
+  "beleza",
+  "Confirmado!",
+  "Tudo certo 😊",
+  "pode confirmar",
+  "estarei lá",
+  "tô indo",
+  "eu vou sim",
+  "pode deixar",
+  "👍",
+  "isso",
+  "perfeito",
+])
+  conferir(`"${t}" confirma`, classificarResposta(t), "confirma");
+
+for (const t of [
+  "não vou poder",
+  "nao posso ir",
+  "não consigo nesse dia",
+  "preciso remarcar",
+  "gostaria de remarcar",
+  "tem como remarcar?",
+  "vou precisar desmarcar",
+  "tem outro dia?",
+  "prefiro outro horário",
+  "podemos mudar a data?",
+])
+  conferir(`"${t}" remarca`, classificarResposta(t), "remarca");
+
+// ── O que NÃO pode virar decisão ─────────────────────────────────────────
+//
+// Emoji só decide quando é de polegar. Letra solta nunca: foi o defeito que os
+// testes pegaram — o "s" de "sim" casava dentro de "preciso remarcar".
+conferir(
+  "letra dentro de palavra não confirma",
+  classificarResposta("preciso remarcar"),
+  "remarca",
+);
+conferir("pergunta não é resposta", classificarResposta("quanto custa?"), "indefinida");
+conferir("assunto outro não é resposta", classificarResposta("bom dia, tudo bem?"), "indefinida");
+conferir("emoji qualquer não decide", classificarResposta("😅"), "indefinida");
+// "Pode" ficou fora da lista de propósito.
+conferir("pode sozinho não confirma", classificarResposta("pode?"), "indefinida");
+conferir("pode remarcar é remarcar", classificarResposta("pode remarcar?"), "remarca");
+
 // As duas juntas: adivinhar custa mais que perguntar.
 conferir("sim e não juntos", classificarResposta("sim, mas não nesse horário"), "indefinida");
 conferir("texto vazio", classificarResposta(""), "indefinida");

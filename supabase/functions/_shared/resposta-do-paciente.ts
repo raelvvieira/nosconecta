@@ -32,6 +32,7 @@
 // gravou a mensagem quando isto roda; o pior resultado aceitável é a resposta
 // não ser lida, nunca a consulta errada mudar de estado.
 import { variantesDoNumero } from "./phone-match.ts";
+import { chamarModelo } from "./modelo-de-atendimento.ts";
 
 /**
  * Quanto tempo depois do lembrete uma mensagem ainda é "a resposta".
@@ -53,8 +54,118 @@ export const LEMBRETES_QUE_PEDEM_RESPOSTA = [
 
 export type Classificacao = "confirma" | "remarca" | "indefinida";
 
-const CONFIRMA = ["sim", "s", "confirmo", "confirmar", "confirmado", "ok", "okay", "beleza", "1"];
-const REMARCA = ["nao", "n", "cancelar", "cancela", "cancelo", "remarcar", "desmarcar", "2"];
+/**
+ * As palavras soltas que já decidem.
+ *
+ * ── Por que a lista cresceu ──────────────────────────────────────────────
+ *
+ * O lembrete pede "responda SIM ou NÃO", e as pessoas respondem como pessoas.
+ * Em 29/09, das duas respostas que chegaram, NENHUMA era "sim": uma foi
+ * "confirmo" e a outra "Olá, bom dia! Tudo bem? Presença confirmada 😊".
+ *
+ * Cada palavra aqui é uma que, sozinha, não deixa dúvida. "Pode" ficou DE
+ * FORA de propósito: "pode remarcar?" é o contrário de confirmar.
+ */
+const CONFIRMA = [
+  "sim",
+  "s",
+  "confirmo",
+  "confirmado",
+  "confirmada",
+  "confirmar",
+  "confirmando",
+  "confirmamos",
+  "ok",
+  "okay",
+  "okey",
+  "blz",
+  "beleza",
+  "isso",
+  "certo",
+  "claro",
+  "combinado",
+  "positivo",
+  "perfeito",
+  "estarei",
+  "1",
+];
+
+/**
+ * Emoji que confirma sozinho.
+ *
+ * Lista SEPARADA das palavras, e a razão é um defeito que os testes antigos
+ * pegaram na hora: emoji não sobrevive ao corte por pontuação, então precisa de
+ * busca por pedaço de texto — e busca por pedaço aplicada às PALAVRAS faz o "s"
+ * de "sim" casar dentro de "preci-s-o remarcar". A resposta "preciso remarcar"
+ * virava "confirma e remarca ao mesmo tempo", ou seja, indefinida.
+ */
+const EMOJI_CONFIRMA = ["👍", "👌", "✅", "🙌", "🙏"];
+
+const REMARCA = [
+  "nao",
+  "n",
+  "cancelar",
+  "cancela",
+  "cancelo",
+  "cancelado",
+  "remarcar",
+  "remarca",
+  "remarcando",
+  "desmarcar",
+  "desmarca",
+  "desmarcando",
+  "adiar",
+  "2",
+];
+
+/**
+ * As expressões, para o que uma palavra sozinha não resolve.
+ *
+ * "Não vou poder" tem "nao" e já cairia certo; "tô indo" e "pode deixar" não
+ * têm palavra nenhuma das listas acima. São frases inteiras porque o sentido
+ * está na frase: "pode" sozinho não diz nada, "pode confirmar" diz tudo.
+ */
+const FRASES_CONFIRMA = [
+  "pode confirmar",
+  "pode deixar",
+  "presenca confirmada",
+  "presença confirmada",
+  "estarei la",
+  "estarei ai",
+  "estarei presente",
+  "vou estar",
+  "to indo",
+  "tou indo",
+  "estou indo",
+  "eu vou",
+  "vou sim",
+  "tudo certo",
+  "ta certo",
+  "esta certo",
+  "confirmo presenca",
+  "sem problema",
+];
+
+const FRASES_REMARCA = [
+  "nao vou poder",
+  "nao posso",
+  "nao consigo",
+  "nao vai dar",
+  "nao da",
+  "nao dara",
+  "preciso remarcar",
+  "quero remarcar",
+  "gostaria de remarcar",
+  "tem como remarcar",
+  "vou precisar remarcar",
+  "preciso desmarcar",
+  "outro dia",
+  "outro horario",
+  "outra data",
+  "mudar o horario",
+  "mudar a data",
+  "transferir a consulta",
+];
 
 function semAcento(valor: string): string {
   return valor.normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -72,15 +183,63 @@ function semAcento(valor: string): string {
  * o caso em que adivinhar custa mais do que perguntar.
  */
 export function classificarResposta(texto: string): Classificacao {
-  const palavras = semAcento(String(texto ?? ""))
-    .toLowerCase()
-    .split(/[\s,.!?;:]+/)
-    .filter(Boolean);
-  const confirma = palavras.some((p) => CONFIRMA.includes(p));
-  const remarca = palavras.some((p) => REMARCA.includes(p));
+  const cru = String(texto ?? "");
+  const normalizado = semAcento(cru).toLowerCase();
+  const palavras = normalizado.split(/[\s,.!?;:]+/).filter(Boolean);
+
+  const confirma =
+    palavras.some((p) => CONFIRMA.includes(p)) ||
+    // Muita gente responde só com o polegar. Emoji é procurado no texto cru
+    // porque o corte por pontuação não o preserva em toda plataforma.
+    EMOJI_CONFIRMA.some((e) => cru.includes(e)) ||
+    FRASES_CONFIRMA.some((f) => normalizado.includes(semAcento(f).toLowerCase()));
+  const remarca =
+    palavras.some((p) => REMARCA.includes(p)) ||
+    FRASES_REMARCA.some((f) => normalizado.includes(semAcento(f).toLowerCase()));
+
   if (confirma && !remarca) return "confirma";
   if (remarca && !confirma) return "remarca";
   return "indefinida";
+}
+
+/** O formato exigido quando a IA desempata. Três valores, e nada mais. */
+export const FORMATO_DA_LEITURA = {
+  type: "json_schema" as const,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["intencao", "porque"],
+    properties: {
+      intencao: { type: "string", enum: ["confirma", "remarca", "indefinida"] },
+      /** Uma frase, para quem ler o aviso entender de onde veio a conclusão. */
+      porque: { type: "string" },
+    },
+  },
+};
+
+/** O prompt do desempate. Puro: mesma entrada, mesmo texto. */
+export function promptDaLeitura(resposta: string): string {
+  return [
+    "Uma clínica odontológica mandou este lembrete para um paciente:",
+    "",
+    '> "Sua consulta é amanhã. Você confirma sua presença? Responda SIM para',
+    '> confirmar ou NÃO se precisar remarcar."',
+    "",
+    "O paciente respondeu:",
+    "",
+    `> ${resposta.replace(/\n/g, "\n> ")}`,
+    "",
+    "O que ele quis dizer?",
+    "",
+    '- "confirma" = vai comparecer.',
+    '- "remarca" = não vai poder, quer outro dia ou horário, ou quer cancelar.',
+    '- "indefinida" = qualquer outra coisa, inclusive pergunta, assunto',
+    "  diferente, ou resposta que dá para ler dos dois jeitos.",
+    "",
+    'Na dúvida, responda "indefinida". Aqui, errar move a consulta de uma',
+    "pessoa de verdade na agenda; não saber só faz alguém da equipe ler a",
+    "mensagem e decidir.",
+  ].join("\n");
 }
 
 /** O que a mensagem que chegou tem de ter para valer a pena olhar. */
@@ -179,6 +338,17 @@ export async function tratarRespostaDoPaciente(
   }
   if (!lembretes?.length) return { tratada: false, motivo: "nenhum lembrete recente" };
 
+  // ── A leitura da resposta ─────────────────────────────────────────────
+  //
+  // Primeiro a lista de palavras e frases: é instantânea, não custa nada e
+  // resolve a imensa maioria. O que sobra vai para a IA — e só o que sobra,
+  // porque uma chamada de modelo por resposta seria gasto e lentidão para
+  // decidir um "sim".
+  let decisao = classificarResposta(texto);
+  if (decisao === "indefinida") {
+    decisao = await lerComIa(supabase, ownerId, texto);
+  }
+
   // ── Quem decide ───────────────────────────────────────────────────────
   // Com regra ativa, o fluxo da clínica decide — é o que permite escrever as
   // próprias palavras ("blz", "tô indo") em vez de depender da lista fixa
@@ -201,6 +371,9 @@ export async function tratarRespostaDoPaciente(
       contactName: ap.patient_name ?? null,
       status: ap.status ?? null,
       replyText: texto,
+      // A leitura já feita. Sem isto o fluxo da clínica teria de adivinhar
+      // vocabulário de conversa dentro de um campo de texto da tela.
+      replyIntent: decisao,
       appointment: {
         date: ap.data ?? null,
         startTime: ap.hora ?? null,
@@ -221,7 +394,6 @@ export async function tratarRespostaDoPaciente(
   }
 
   // Sem regra: o comportamento embutido, igual ao que o caminho do Brevo fazia.
-  const decisao = classificarResposta(texto);
   let acao = "unmatched";
   if (decisao === "confirma") {
     const { error } = await supabase
@@ -317,6 +489,47 @@ async function avisar(
  * Falha engolida de propósito, igual aos outros pontos de dispatch do app:
  * automação quebrada não pode impedir o registro da resposta.
  */
+/**
+ * O desempate pela IA, para a resposta que a lista não resolveu.
+ *
+ * Fecha em "indefinida" em TODO caminho de erro: sem chave, sem modelo, chamada
+ * que falhou, resposta ilegível, valor fora dos três esperados. Indefinida não
+ * mexe na agenda — manda alguém da equipe ler a mensagem. É o único lado
+ * seguro: aqui, errar move a consulta de uma pessoa de verdade.
+ */
+async function lerComIa(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  ownerId: string,
+  texto: string,
+): Promise<Classificacao> {
+  try {
+    const { data: agente } = await supabase
+      .from("ai_agents")
+      .select("api_key, model")
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    if (!agente?.model) return "indefinida";
+
+    const resposta = await chamarModelo({
+      chave: agente.api_key ?? null,
+      modelo: agente.model,
+      pergunta: promptDaLeitura(texto),
+      maxTokens: 300,
+      formato: FORMATO_DA_LEITURA,
+      nomeDoFormato: "leitura_da_resposta",
+    });
+    if (!resposta) return "indefinida";
+
+    const lido = JSON.parse(resposta) as { intencao?: string };
+    const intencao = String(lido?.intencao ?? "");
+    return intencao === "confirma" || intencao === "remarca" ? intencao : "indefinida";
+  } catch (e) {
+    console.warn("[resposta-do-paciente] IA não leu:", e instanceof Error ? e.message : e);
+    return "indefinida";
+  }
+}
+
 async function despacharParaAutomacao(
   ownerId: string,
   context: Record<string, unknown>,

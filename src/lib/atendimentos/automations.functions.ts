@@ -77,6 +77,16 @@ export type ConditionField =
   | "daysUntil"
   /** O texto que o paciente respondeu — só no gatilho de resposta. */
   | "replyText"
+  /**
+   * O que o paciente QUIS DIZER: confirma, remarca ou indefinida.
+   *
+   * Preferir este a `replyText` no gatilho de resposta. O sistema compara a
+   * mensagem com uma lista grande de palavras e frases e, no que sobra,
+   * pergunta à IA — vocabulário de conversa não cabe num campo de texto.
+   * Perguntar `contém "sim"` deixou "confirmo" e "Presença confirmada" de fora,
+   * e uma consulta confirmada ficou pendente na agenda.
+   */
+  | "replyIntent"
   /** Tem (ou não tem) a tag escolhida. Vale em qualquer gatilho: toda pessoa
    *  pode ser etiquetada, venha de agendamento, funil ou conversa. */
   | "tag";
@@ -88,6 +98,8 @@ export const OPERADORES_DO_CAMPO: Record<ConditionField, ConditionOperator[]> = 
   amount: ["gt", "lt", "eq"],
   daysUntil: ["eq", "gt", "lt"],
   replyText: ["contains", "eq", "not_contains"],
+  // Três valores conhecidos: só faz sentido comparar por igualdade.
+  replyIntent: ["eq"],
   // "é igual a" lê como "tem a tag"; "não contém", como "não tem". Os rótulos
   // são traduzidos no diálogo — reaproveitar os operadores existentes evita um
   // par novo que só serviria a este campo.
@@ -228,7 +240,11 @@ export function sintetizarNodes(row: {
   return nodes;
 }
 
-export function sintetizarEdges(row: { nodes?: unknown; edges?: unknown; actions?: unknown }): AutomationEdge[] {
+export function sintetizarEdges(row: {
+  nodes?: unknown;
+  edges?: unknown;
+  actions?: unknown;
+}): AutomationEdge[] {
   const gravado = grafoGravado(row);
   if (gravado) return gravado.edges;
   const acoes: AutomationAction[] = Array.isArray(row.actions) ? row.actions : [];
@@ -345,7 +361,11 @@ export const saveAutomation = createServerFn({ method: "POST" })
       estado.set(id, 2);
       return false;
     };
-    for (const n of nodes) if (temCiclo(n.id)) throw new Error("O fluxo tem um ciclo — um caminho que volta pra trás. Desfaça a ligação de volta.");
+    for (const n of nodes)
+      if (temCiclo(n.id))
+        throw new Error(
+          "O fluxo tem um ciclo — um caminho que volta pra trás. Desfaça a ligação de volta.",
+        );
 
     // Validação por card, portada da lista de ações.
     for (const n of nodes) {
@@ -369,7 +389,10 @@ export const saveAutomation = createServerFn({ method: "POST" })
               "é ele que conta os dias até a consulta.",
           );
         }
-        if (n.data.field === "replyText" && !GATILHOS_COM_RESPOSTA.includes(input.triggerEvent)) {
+        if (
+          (n.data.field === "replyText" || n.data.field === "replyIntent") &&
+          !GATILHOS_COM_RESPOSTA.includes(input.triggerEvent)
+        ) {
           throw new Error(
             'A condição de resposta só funciona no gatilho "Paciente respondeu no WhatsApp" — ' +
               "nos outros não há texto nenhum para comparar.",
@@ -441,21 +464,25 @@ export const saveAutomation = createServerFn({ method: "POST" })
         // Esperar sem nada depois não faz nada — melhor recusar do que salvar
         // uma automação que parece fazer algo e não faz.
         if (!edges.some((e) => e.source === n.id)) {
-          throw new Error('"Aguardar tempo" não pode terminar o fluxo — ligue o que vem depois da espera.');
+          throw new Error(
+            '"Aguardar tempo" não pode terminar o fluxo — ligue o que vem depois da espera.',
+          );
         }
       }
     }
 
     const janela = input.scheduleWindow;
     if (janela?.enabled) {
-      if (!janela.days?.length) throw new Error("Escolha ao menos um dia da semana na janela de horário.");
+      if (!janela.days?.length)
+        throw new Error("Escolha ao menos um dia da semana na janela de horário.");
       const min = (v?: string) => {
         const m = /^(\d{1,2}):(\d{2})$/.exec(v ?? "");
         return m ? Number(m[1]) * 60 + Number(m[2]) : null;
       };
       const ini = min(janela.start);
       const fim = min(janela.end);
-      if (ini === null || fim === null) throw new Error("Informe início e fim da janela de horário.");
+      if (ini === null || fim === null)
+        throw new Error("Informe início e fim da janela de horário.");
       // Janela que vira o dia (ex.: 22:00-06:00) não é suportada — o
       // avaliador no servidor compara minutos no mesmo dia.
       if (ini >= fim) throw new Error("O fim da janela precisa ser depois do início.");
@@ -594,7 +621,8 @@ export const getAutomationEngineStatus = createServerFn({ method: "GET" })
       versaoEsperada: VERSAO_ESPERADA,
       detalhe: null,
     };
-    if (!url || !serviceKey) return { ...base, detalhe: "Credenciais do Supabase ausentes no servidor." };
+    if (!url || !serviceKey)
+      return { ...base, detalhe: "Credenciais do Supabase ausentes no servidor." };
 
     let res: Response;
     try {
@@ -663,7 +691,9 @@ export function avisosDoFluxo(
       const sim = temSaida(n.id, "sim");
       const nao = temSaida(n.id, "nao");
       if (!sim && !nao) {
-        avisos.push("Uma condição não leva a lugar nenhum: nem o ramo Sim nem o Não estão ligados.");
+        avisos.push(
+          "Uma condição não leva a lugar nenhum: nem o ramo Sim nem o Não estão ligados.",
+        );
       } else if (!sim || !nao) {
         avisos.push(
           `Na condição, o ramo "${sim ? "Não" : "Sim"}" não está ligado a nenhum card — quando ela cair para esse lado, o fluxo para sem fazer nada.`,

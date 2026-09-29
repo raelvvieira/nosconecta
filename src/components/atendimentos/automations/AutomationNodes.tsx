@@ -75,7 +75,10 @@ function PontoDeSaida({
         id={id}
         type="source"
         position={Position.Right}
-        className={cn("!relative !left-0 !top-0 !h-3.5 !w-3.5 !translate-x-0 !translate-y-0 !border-2 !border-white", cor)}
+        className={cn(
+          "!relative !left-0 !top-0 !h-3.5 !w-3.5 !translate-x-0 !translate-y-0 !border-2 !border-white",
+          cor,
+        )}
       />
     </div>
   );
@@ -106,7 +109,9 @@ function NodeShell({
   }[tone];
   return (
     <div className="w-[280px] rounded-2xl border border-border bg-white shadow-soft">
-      {hasTarget && <Handle type="target" position={Position.Left} className="!h-2 !w-2 !bg-coral" />}
+      {hasTarget && (
+        <Handle type="target" position={Position.Left} className="!h-2 !w-2 !bg-coral" />
+      )}
       <div className="flex items-center gap-2 border-b border-border px-3.5 py-2.5">
         <span className={cn("grid h-6 w-6 place-items-center rounded-lg", toneClass)}>{icon}</span>
         <p className="flex-1 text-2xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
@@ -342,6 +347,14 @@ function condicaoTexto(
       return `Faltam ${n} dias para a consulta`;
     }
     return `${campo} ${CONDITION_OPERATOR_LABEL[data.operator ?? "eq"]} ${data.value ?? ""}`;
+  }
+  if (data.field === "replyIntent") {
+    const comoFala: Record<string, string> = {
+      confirma: "O paciente confirmou",
+      remarca: "O paciente quer remarcar",
+      indefinida: "Não deu para saber",
+    };
+    return comoFala[String(data.value ?? "")] ?? `Resposta: ${data.value ?? ""}`;
   }
   if (data.field === "replyText") {
     return `Resposta ${CONDITION_OPERATOR_LABEL[data.operator ?? "contains"]} "${data.value ?? ""}"`;

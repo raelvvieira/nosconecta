@@ -60,6 +60,18 @@ interface DispatchContext {
   daysUntil?: number | null;
   /** O que o paciente escreveu. Só em whatsapp.reply_received. */
   replyText?: string | null;
+  /**
+   * O que ele quis dizer: "confirma", "remarca" ou "indefinida".
+   *
+   * Vem PRONTO de quem despachou (`resposta-do-paciente.ts`), que compara com
+   * uma lista grande de palavras e frases e, no que sobra, pergunta à IA.
+   *
+   * Existe porque o fluxo da clínica perguntava `contém "sim"` e `contém
+   * "nao"`: em 29/09 chegaram "confirmo" e "Presença confirmada 😊" e as duas
+   * caíram fora dos dois ramos. Uma consulta confirmada ficou pendente.
+   * Vocabulário de conversa não cabe num campo de texto da tela.
+   */
+  replyIntent?: string | null;
   /** Ids das tags desta pessoa, carregados UMA vez antes de percorrer o grafo.
    *
    *  Preenchido pelo motor, não por quem despacha o evento. Fica no contexto
@@ -117,7 +129,8 @@ interface GrafoNode {
       | "dealStatus"
       | "unitId"
       | "daysUntil"
-      | "replyText";
+      | "replyText"
+      | "replyIntent";
     operator?: "gt" | "lt" | "eq" | "contains" | "not_contains";
     value?: string;
     weights?: Record<string, number>;
@@ -219,7 +232,16 @@ function avaliarCondicao(node: GrafoNode, ctx: DispatchContext): boolean {
     if (operator === "lt") return Number(ctx.daysUntil) < alvo;
     return Number(ctx.daysUntil) === alvo;
   }
-  // O que o paciente respondeu.
+  // O que o paciente QUIS DIZER, já lido por quem despachou. Comparação exata
+  // entre três valores conhecidos, então `eq` é o único operador que faz
+  // sentido aqui — e é o padrão quando vier outro.
+  if (field === "replyIntent") {
+    const intencao = comparavel(ctx.replyIntent);
+    const alvo = comparavel(value);
+    if (!alvo || !intencao) return false;
+    return intencao === alvo;
+  }
+  // O que o paciente respondeu, letra por letra.
   if (field === "replyText") {
     const texto = comparavel(ctx.replyText);
     const alvo = comparavel(value);
@@ -263,7 +285,9 @@ function avaliarCondicao(node: GrafoNode, ctx: DispatchContext): boolean {
  *  sortear um handle solto viraria um "não fez nada" aleatório. */
 function sortearSaida(node: GrafoNode, saidas: GrafoEdge[]): GrafoEdge | null {
   if (!saidas.length) return null;
-  const pesos = saidas.map((e) => Math.max(0, Number(node.data.weights?.[e.sourceHandle ?? "a"] ?? 1)));
+  const pesos = saidas.map((e) =>
+    Math.max(0, Number(node.data.weights?.[e.sourceHandle ?? "a"] ?? 1)),
+  );
   const total = pesos.reduce((a, b) => a + b, 0);
   if (total <= 0) return saidas[0];
   let sorte = Math.random() * total;
@@ -638,7 +662,11 @@ async function executarAcao(
 
   if (action.type === "move_pipeline_stage") {
     if (!ctx.itemId) {
-      await logRun({ ...base, status: "skipped_no_contact", error: "Evento sem card de funil pra mover." });
+      await logRun({
+        ...base,
+        status: "skipped_no_contact",
+        error: "Evento sem card de funil pra mover.",
+      });
       return;
     }
     try {
@@ -691,20 +719,26 @@ async function executarAcao(
 
   if (action.type === "send_push") {
     try {
-      await pushToOwner(supabase, ownerId, "automation", {
-        // Diferente do WhatsApp: estes textos são internos, então variável
-        // sem valor sai como vazio em vez de cancelar o aviso à equipe.
-        title: (await interpolar(action.pushTitle, ownerId, ctx)).texto,
-        body: (await interpolar(action.pushBody, ownerId, ctx)).texto,
-        // Quando o evento tem agendamento, o clique leva para a agenda: é lá
-        // que a pessoa resolve. Sem agendamento, sobra a própria automação.
-        url: ctx.appointmentId ? "/agenda" : "/atendimentos/automacoes",
-      }, {
-        // Amarra o aviso ao agendamento — é o que faz a etiqueta "pediu
-        // remarcar" aparecer no bloco certo do calendário.
-        appointmentId: ctx.appointmentId ?? null,
-        patientId: ctx.patientId ?? null,
-      });
+      await pushToOwner(
+        supabase,
+        ownerId,
+        "automation",
+        {
+          // Diferente do WhatsApp: estes textos são internos, então variável
+          // sem valor sai como vazio em vez de cancelar o aviso à equipe.
+          title: (await interpolar(action.pushTitle, ownerId, ctx)).texto,
+          body: (await interpolar(action.pushBody, ownerId, ctx)).texto,
+          // Quando o evento tem agendamento, o clique leva para a agenda: é lá
+          // que a pessoa resolve. Sem agendamento, sobra a própria automação.
+          url: ctx.appointmentId ? "/agenda" : "/atendimentos/automacoes",
+        },
+        {
+          // Amarra o aviso ao agendamento — é o que faz a etiqueta "pediu
+          // remarcar" aparecer no bloco certo do calendário.
+          appointmentId: ctx.appointmentId ?? null,
+          patientId: ctx.patientId ?? null,
+        },
+      );
       await logRun({ ...base, status: "sent" });
     } catch (e) {
       await logRun({ ...base, status: "failed", error: String(e).slice(0, 500) });
@@ -714,7 +748,11 @@ async function executarAcao(
 
   if (action.type === "webhook") {
     if (!webhookPermitido(action.webhookUrl)) {
-      await logRun({ ...base, status: "failed", error: "URL de webhook inválida ou não permitida." });
+      await logRun({
+        ...base,
+        status: "failed",
+        error: "URL de webhook inválida ou não permitida.",
+      });
       return;
     }
     try {
@@ -954,7 +992,9 @@ async function handleDispatch(
     throw new Error(error.message);
   }
 
-  const matching = (regras ?? []).filter((r: any) => matchesConditions(r.trigger_conditions ?? {}, ctx));
+  const matching = (regras ?? []).filter((r: any) =>
+    matchesConditions(r.trigger_conditions ?? {}, ctx),
+  );
   if (!matching.length) {
     // Só registra quando EXISTE regra ativa pra este gatilho e o filtro barrou.
     // Clínica sem automação nenhuma não pode ganhar uma linha a cada
@@ -1078,7 +1118,9 @@ async function handleTick() {
         ? p.graph_snapshot
         : grafoDaRegra({ actions: p.remaining_actions });
       const inicial: string =
-        p.resume_node_id ?? grafo.edges.find((e: GrafoEdge) => e.source === "trigger")?.target ?? "";
+        p.resume_node_id ??
+        grafo.edges.find((e: GrafoEdge) => e.source === "trigger")?.target ??
+        "";
       if (!inicial) continue;
 
       const janela: ScheduleWindow | null = regraViva?.schedule_window ?? null;
@@ -1124,11 +1166,15 @@ Deno.serve(async (req) => {
     // `tick` vem do cron e varre todos os donos — não tem ownerId.
     if (action === "tick") {
       const result = await handleTick();
-      return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify(result), {
+        headers: { "content-type": "application/json" },
+      });
     }
 
     if (!ownerId || !action) {
-      return new Response(JSON.stringify({ error: "ownerId e action são obrigatórios" }), { status: 400 });
+      return new Response(JSON.stringify({ error: "ownerId e action são obrigatórios" }), {
+        status: 400,
+      });
     }
 
     let result: unknown;
@@ -1142,10 +1188,14 @@ Deno.serve(async (req) => {
         );
         break;
       default:
-        return new Response(JSON.stringify({ error: `action desconhecida: ${action}` }), { status: 400 });
+        return new Response(JSON.stringify({ error: `action desconhecida: ${action}` }), {
+          status: 400,
+        });
     }
 
-    return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify(result), {
+      headers: { "content-type": "application/json" },
+    });
   } catch (e) {
     console.error("[atendimento-automations]", e);
     return new Response(JSON.stringify({ error: String(e) }), { status: 500 });

@@ -98,10 +98,26 @@ async function gravarMensagem(ownerId: string, data: any) {
   // mensagem da própria clínica e conversa já assumida por uma pessoa saem
   // todos em `filtros-do-agente.ts`. Hoje ele está desligado, então isto é um
   // caminho pronto e parado.
+  // ── O agente sai do caminho da resposta ao webhook ────────────────────
+  //
+  // Ele demora de propósito: espera para agrupar as bolhas da pessoa, chama um
+  // modelo, e ainda simula digitação entre os pedaços. Isso passa de vinte
+  // segundos — e a Evolution, do outro lado, está esperando o 200 para dar o
+  // evento por entregue. Webhook que demora demais é webhook reenviado, e
+  // reenvio aqui significa a mesma mensagem gravada duas vezes.
+  //
+  // `EdgeRuntime.waitUntil` mantém a execução viva depois da resposta HTTP.
+  // Onde ele não existir, espera-se como antes: melhor devolver devagar do que
+  // não responder ao paciente.
+  //
   // O evento cru vai junto: é o único lugar onde o marcador de anúncio
   // (`contextInfo.externalAdReply`) existe, e é por ele que a Luna sabe que
   // esta pessoa clicou num anúncio — hoje o único público que ela atende.
-  await deixarOAgenteResponder(supabase, ownerId, m, data);
+  const doAgente = deixarOAgenteResponder(supabase, ownerId, m, data);
+  // deno-lint-ignore no-explicit-any
+  const runtime = (globalThis as any).EdgeRuntime;
+  if (runtime?.waitUntil) runtime.waitUntil(doAgente);
+  else await doAgente;
 
   return { gravado: m.crmMessageId, telefone: m.phone, grupo: m.ehGrupo, resposta };
 }

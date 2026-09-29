@@ -745,19 +745,26 @@ async function contextoDaClinica(ownerId: string, agente: any) {
     procedimentos = data ?? [];
   }
 
-  const { data: unidade } = await supabase
+  const { data: unidades } = await supabase
     .from("clinic_units")
-    .select("name")
+    .select("name, address, is_default")
     .eq("owner_id", ownerId)
-    // A unidade padrão, não "a primeira que vier": o nome entra na primeira
-    // frase que o paciente lê, e sair errado é o tipo de detalhe que denuncia
-    // automação.
-    .order("is_default", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq("active", true)
+    // A unidade padrão primeiro, e não "a primeira que vier": o nome dela entra
+    // na primeira frase que o paciente lê, e sair errado é o tipo de detalhe
+    // que denuncia automação.
+    .order("is_default", { ascending: false });
+
+  // deno-lint-ignore no-explicit-any
+  const listaDeUnidades = ((unidades ?? []) as any[]).map((u) => ({
+    nome: String(u.name ?? "").trim(),
+    endereco: u.address ?? null,
+    principal: u.is_default === true,
+  }));
 
   return {
-    clinica: String(unidade?.name ?? "NÓS Odontologia"),
+    clinica: listaDeUnidades[0]?.nome || "NÓS Odontologia",
+    unidades: listaDeUnidades,
     manual: manualEfetivo(playbook.learned, playbook.overrides),
     instrucaoBase: agente?.instrucao_base ?? null,
     parcelamento: agente?.parcelamento ?? null,
@@ -905,6 +912,10 @@ async function handleSimular(ownerId: string, texto: string) {
       // agente em cima das conversas reais, que é justamente o risco que esta
       // tela existe para evitar.
       ignorarInterruptor: true,
+      // A espera que agrupa as bolhas do WhatsApp não faz sentido aqui: quem
+      // testa mandou UMA mensagem e ficaria quinze segundos olhando para a
+      // tela parada, concluindo que a IA quebrou.
+      ignorarEspera: true,
     },
     {
       conversationId: `simulacao-${ownerId}`,
