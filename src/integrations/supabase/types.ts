@@ -95,6 +95,7 @@ export type Database = {
           owner_id: string
           session_id: string
           skipped_reason: string | null
+          wa_message_id: string | null
         }
         Insert: {
           content?: string | null
@@ -104,6 +105,7 @@ export type Database = {
           owner_id: string
           session_id: string
           skipped_reason?: string | null
+          wa_message_id?: string | null
         }
         Update: {
           content?: string | null
@@ -113,6 +115,7 @@ export type Database = {
           owner_id?: string
           session_id?: string
           skipped_reason?: string | null
+          wa_message_id?: string | null
         }
         Relationships: [
           {
