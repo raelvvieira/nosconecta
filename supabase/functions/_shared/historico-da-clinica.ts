@@ -42,12 +42,39 @@ function normalizado(texto: string | null): string {
  * devolve o texto como o recebeu e uma diferença de um espaço faria a IA achar
  * que uma pessoa assumiu a conversa.
  */
-export function ehEcoDaPropriaIa(texto: string | null, enviados: string[]): boolean {
+export interface MensagemQueEuMandei {
+  /** O id que o WhatsApp deu. Nulo para o que foi enviado antes de a coluna
+   *  existir, ou quando a Evolution não devolveu id. */
+  waMessageId: string | null;
+  texto: string;
+}
+
+export function ehEcoDaPropriaIa(
+  texto: string | null,
+  enviados: MensagemQueEuMandei[],
+  messageId?: string | null,
+): boolean {
+  // ── Primeiro o id: é prova, não indício ────────────────────────────────
+  //
+  // A Evolution devolve o id no instante do envio, e a IA o guarda. Se a
+  // mensagem que voltou tem um id que eu mandei, fui eu — ponto final, sem
+  // depender de texto, de quem repetiu frase de quem, nem de a Evolution
+  // continuar não devolvendo eco das mensagens da própria API.
+  const id = String(messageId ?? "").trim();
+  if (id && enviados.some((e) => e.waMessageId === id)) return true;
+
+  // ── Depois o texto, como rede ──────────────────────────────────────────
+  //
+  // Vale para o que a IA mandou antes de a coluna do id existir, e para o dia
+  // em que a Evolution devolver um envio sem id. Erra se a recepção repetir
+  // exatamente uma frase da IA nos últimos dez minutos — e esse erro é o lado
+  // seguro: a IA continua achando que a conversa é dela, em vez de se calar
+  // para sempre por causa de um id ausente.
   const alvo = normalizado(texto);
   // Mensagem sem texto (foto, áudio) nunca é eco: a IA manda texto. E sem isto
   // qualquer mensagem vazia casaria com um envio vazio.
   if (!alvo) return false;
-  return enviados.some((e) => normalizado(e) === alvo);
+  return enviados.some((e) => normalizado(e.texto) === alvo);
 }
 
 /**
@@ -64,11 +91,11 @@ export async function oQueEuMandei(
   sessionId: string,
   agora: Date,
   janelaMinutos = 10,
-): Promise<string[]> {
+): Promise<MensagemQueEuMandei[]> {
   const desde = new Date(agora.getTime() - janelaMinutos * 60_000).toISOString();
   const { data, error } = await supabase
     .from("ai_agent_messages")
-    .select("content")
+    .select("content, wa_message_id")
     .eq("session_id", sessionId)
     .eq("direction", "saida")
     .gte("created_at", desde)
@@ -85,8 +112,11 @@ export async function oQueEuMandei(
     return [];
   }
   return (data ?? [])
-    .map((m: { content?: string | null }) => String(m.content ?? ""))
-    .filter((t: string) => t.trim().length > 0);
+    .map((m: { content?: string | null; wa_message_id?: string | null }) => ({
+      waMessageId: m.wa_message_id ?? null,
+      texto: String(m.content ?? ""),
+    }))
+    .filter((m: MensagemQueEuMandei) => m.texto.trim().length > 0 || m.waMessageId);
 }
 
 /**

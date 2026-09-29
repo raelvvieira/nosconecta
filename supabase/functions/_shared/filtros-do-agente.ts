@@ -141,10 +141,10 @@ export function decidirSeResponde(
 
   // ── Grupo ───────────────────────────────────────────────────────────
   //
-  // Vem ANTES de "mensagem da própria clínica" de propósito: se ficasse
-  // depois, a primeira mensagem de alguém da equipe num grupo seria lida como
-  // "uma pessoa assumiu a conversa" e gravaria `human_took_over_at` num grupo
-  // — sujando a sessão de uma conversa que nunca deveria ter existido.
+  // Continua ANTES de "mensagem da própria clínica", e agora é o ÚNICO filtro
+  // que fica na frente dela: a mensagem de alguém da equipe num grupo seria
+  // lida como "uma pessoa assumiu a conversa" e gravaria `human_took_over_at`
+  // num grupo — sujando a sessão de uma conversa que nunca deveria existir.
   //
   // São 12 grupos na base, todos internos: "#NÓS Floripa - Gestão", "Grupo de
   // Estudos Dr. Mauro K". Nenhum de paciente. Um agente solto ali responderia
@@ -155,6 +155,37 @@ export function decidirSeResponde(
   // grupo. A conexão própria entrega.
   if (mensagem.ehGrupo) return { responde: false, motivo: "mensagem de grupo" };
 
+  // ── QUEM falou vem antes de COM QUEM se fala ────────────────────────
+  //
+  // Estes três subiram para cá em 29/09, e o motivo está numa conversa real.
+  //
+  // Às 18:40 a Dra. Mariane digitou "Oii", "Boa tarde", "Tudo bem?". As três
+  // saíram do log como **"conversa já tem histórico"** — um filtro de público,
+  // que rodava antes. E só "mensagem da própria clínica" vira
+  // `human_took_over_at` em `atender`. Resultado: a IA não soube que uma pessoa
+  // tinha entrado, respondeu por cima dela às 18:40:17 e seguiu respondendo por
+  // cinco minutos, até a Dra. escrever de novo e pedir desculpas ao paciente.
+  //
+  // A ordem antiga tinha uma razão — não sujar com `human_took_over_at` a
+  // sessão de uma conversa que a IA nunca atenderia. Mas essa sujeira é
+  // inofensiva (a marca diz uma verdade: uma pessoa está ali), e o preço de
+  // evitá-la era a IA falar por cima da dentista. Grupo continua na frente
+  // porque lá a marca seria falsa, não apenas inútil.
+  //
+  // ── A própria resposta, voltando ────────────────────────────────────
+  //
+  // O eco vem IMEDIATAMENTE antes de "mensagem da própria clínica" porque é um
+  // caso dela, mais específico, e a diferença entre os dois motivos é a
+  // diferença entre a IA seguir atendendo e a IA se calar para sempre.
+  if (mensagem.daClinica && mensagem.ecoDaPropriaIa) {
+    return { responde: false, motivo: "eco da própria IA" };
+  }
+
+  // Sem isto o agente responderia a própria resposta, em laço.
+  if (mensagem.daClinica) return { responde: false, motivo: "mensagem da própria clínica" };
+
+  if (mensagem.privada) return { responde: false, motivo: "nota interna" };
+
   // ── Quem a IA pode atender ──────────────────────────────────────────
   //
   // Ela responde por nós só o contato que chegou agora e ainda não é
@@ -162,15 +193,9 @@ export function decidirSeResponde(
   // combinado com a recepção; lead de três meses atrás não é contato novo, é
   // lead esquecido, e quem fala com ele é gente.
   //
-  // Estes dois vêm DEPOIS de grupo porque grupo nunca é paciente e "conversa
-  // nova" não quer dizer nada num grupo: o motivo mais afiado se perderia.
-  //
-  // E vêm ANTES de "mensagem da própria clínica", que é o ponto que importa:
-  // é esse motivo que `atender` transforma em `human_took_over_at`. Se
-  // ficassem depois, cada mensagem que a recepção manda numa conversa de
-  // paciente marcaria "humano assumiu" numa conversa que a IA nunca poderia
-  // atender — a mesma sujeira de sessão que o filtro de grupo acima existe
-  // para impedir.
+  // Estes vêm DEPOIS de quem falou: uma mensagem da equipe tem de ser
+  // reconhecida como da equipe mesmo numa conversa que a IA não atenderia —
+  // ver o bloco acima, e a conversa de 29/09 que trouxe essa mudança.
   //
   // Paciente antes de antiga porque é propriedade da pessoa e não muda; a
   // idade muda quando alguém mexe na janela.
@@ -184,7 +209,7 @@ export function decidirSeResponde(
 
   // ── Os dois filtros mais estreitos ──────────────────────────────────
   //
-  // Vêm por último entre os filtros de PÚBLICO, e nesta ordem, porque o motivo
+  // Vêm por último, e nesta ordem, porque o motivo
   // gravado tem de ser o mais forte. "Já é paciente" diz mais sobre quem a
   // pessoa é do que "não veio de anúncio": a mesma pessoa pode voltar por um
   // anúncio amanhã, mas continua sendo paciente.
@@ -203,22 +228,6 @@ export function decidirSeResponde(
   if (agente.soSemHistorico && !mensagem.semHistorico) {
     return { responde: false, motivo: "conversa já tem histórico" };
   }
-
-  // ── A própria resposta, voltando ────────────────────────────────────
-  //
-  // Vem IMEDIATAMENTE antes de "mensagem da própria clínica" porque é um caso
-  // dela, mais específico, e a diferença entre os dois motivos é a diferença
-  // entre a IA seguir atendendo e a IA se calar para sempre: só o motivo de
-  // baixo vira `human_took_over_at` em `atender`. Trocar a ordem, ou juntar os
-  // dois num motivo só, é reintroduzir o defeito.
-  if (mensagem.daClinica && mensagem.ecoDaPropriaIa) {
-    return { responde: false, motivo: "eco da própria IA" };
-  }
-
-  // Sem isto o agente responderia a própria resposta, em laço.
-  if (mensagem.daClinica) return { responde: false, motivo: "mensagem da própria clínica" };
-
-  if (mensagem.privada) return { responde: false, motivo: "nota interna" };
 
   // Foto sem legenda, áudio, figurinha: não há texto para responder. Um agente
   // que responde "não entendi" a cada figurinha é pior que um que fica quieto.

@@ -236,16 +236,21 @@ conferir(
 
 // ── O caso que justifica a POSIÇÃO na ordem ──────────────────────────────
 //
-// "mensagem da própria clínica" é o motivo que `atender` transforma em
-// `human_took_over_at`. Numa conversa de paciente a IA nunca vai responder de
-// qualquer jeito — então marcar takeover ali é sujeira de sessão numa conversa
-// que nunca foi dela. Por isso paciente e antiga vêm ANTES.
+// Em 29/09, às 18:40, a Dra. Mariane digitou "Oii", "Boa tarde", "Tudo bem?"
+// numa conversa de anúncio. As três saíram do log como "conversa já tem
+// histórico" — um filtro de PÚBLICO, que rodava antes de "mensagem da própria
+// clínica". E só esse último vira `human_took_over_at` em `atender`.
 //
-// Se alguém mover estas duas checagens para baixo, é esta linha que quebra.
+// Resultado: a IA não soube que uma pessoa tinha entrado, respondeu por cima
+// dela às 18:40:17, e seguiu respondendo por cinco minutos — até a Dra.
+// escrever de novo e pedir desculpas ao paciente.
+//
+// Por isso "quem falou" subiu para antes de "com quem se fala". Estas quatro
+// linhas são o que impede alguém de desfazer isso sem perceber.
 conferir(
-  "recepção falando com paciente NÃO vira takeover",
+  "recepção falando com paciente TAMBÉM vira takeover",
   motivo(LIGADO, LIVRE, msg({ ehPaciente: true, daClinica: true })),
-  "conversa de paciente",
+  "mensagem da própria clínica",
 );
 conferir(
   "mas com contato novo, a mensagem da clínica ainda é takeover",
@@ -360,15 +365,29 @@ conferir(
 // E os dois novos continuam vindo ANTES de "mensagem da própria clínica" — é
 // esse motivo que `atender` transforma em `human_took_over_at`, e marcá-lo numa
 // conversa que a IA nunca poderia atender sujaria a sessão para sempre.
+// A mensagem de uma pessoa da clínica é reconhecida como tal em QUALQUER
+// conversa — inclusive nas que a IA nunca atenderia. É a lição de 18:40:10.
 conferir(
-  "não veio de anúncio ganha de mensagem da clínica",
+  "mensagem da clínica ganha de não veio de anúncio",
   motivo(LIGADO, LIVRE, msg({ veioDeAnuncio: false, daClinica: true })),
-  "não veio de anúncio",
+  "mensagem da própria clínica",
 );
 conferir(
-  "já tem histórico ganha de mensagem da clínica",
+  "mensagem da clínica ganha de já tem histórico",
   motivo(LIGADO, LIVRE, msg({ semHistorico: false, daClinica: true })),
-  "conversa já tem histórico",
+  "mensagem da própria clínica",
+);
+conferir(
+  "e ganha de conversa antiga",
+  motivo(LIGADO, LIVRE, msg({ conversaNova: false, daClinica: true })),
+  "mensagem da própria clínica",
+);
+// Menos em grupo: lá a marca seria falsa, não apenas inútil — não existe
+// "recepcionista assumindo" o grupo de gestão da clínica.
+conferir(
+  "mas em grupo continua sendo grupo",
+  motivo(LIGADO, LIVRE, msg({ ehGrupo: true, daClinica: true })),
+  "mensagem de grupo",
 );
 
 // ── A própria resposta voltando ──────────────────────────────────────────

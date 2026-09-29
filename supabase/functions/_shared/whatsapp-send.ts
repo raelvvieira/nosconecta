@@ -40,7 +40,7 @@ export async function enviarWhatsapp(
   alvo: AlvoDeEnvio,
   message: string,
   midia?: MidiaDeEnvio | null,
-): Promise<{ via: string; midiaIgnorada?: string }> {
+): Promise<EnvioFeito> {
   // ── Por onde sai ────────────────────────────────────────────────────
   //
   // Um número de WhatsApp só existe numa sessão por vez: no instante em que o
@@ -57,6 +57,24 @@ export async function enviarWhatsapp(
   const { instancia, motivo } = await conexaoParaEnviar(supabase, ownerId);
   if (!instancia) throw new Error(explicarSemConexao(motivo));
   return await enviarPelaEvolution(supabase, ownerId, instancia, alvo, message, midia);
+}
+
+/** O que o envio devolve a quem chamou. */
+export interface EnvioFeito {
+  via: string;
+  midiaIgnorada?: string;
+  /**
+   * O id que o WhatsApp deu para esta mensagem.
+   *
+   * É a prova de autoria: quando uma mensagem `from_me` volta pelo webhook, a
+   * pergunta "fui eu ou foi alguém da equipe?" vira comparação de id. Sem ele
+   * só resta comparar o TEXTO, que erra quando a recepção repete uma frase da
+   * IA — e errar aqui é a IA achar que uma pessoa assumiu a conversa, ou o
+   * contrário, falar por cima de quem assumiu.
+   *
+   * Nulo quando a Evolution não devolveu id. Aí vale a comparação por texto.
+   */
+  messageId?: string | null;
 }
 
 // ── O caminho da Evolution ────────────────────────────────────────────────
@@ -81,7 +99,7 @@ export async function enviarPelaEvolution(
   alvo: AlvoDeEnvio,
   message: string,
   midia?: MidiaDeEnvio | null,
-): Promise<{ via: string; midiaIgnorada?: string }> {
+): Promise<EnvioFeito> {
   const destino = await destinoDoAlvo(supabase, ownerId, alvo);
   if (!destino) {
     throw new Error(
@@ -100,16 +118,17 @@ export async function enviarPelaEvolution(
         ),
       ),
     });
-    await espelharEnviada(supabase, ownerId, resposta);
-    return { via: "evolution_midia" };
+    return {
+      via: "evolution_midia",
+      messageId: await espelharEnviada(supabase, ownerId, resposta),
+    };
   }
 
   const resposta = await evolutionFetch(rota("sendText", instancia), {
     method: "POST",
     body: JSON.stringify(corpoDeTexto(destino, message)),
   });
-  await espelharEnviada(supabase, ownerId, resposta);
-  return { via: "evolution" };
+  return { via: "evolution", messageId: await espelharEnviada(supabase, ownerId, resposta) };
 }
 
 /**
@@ -126,16 +145,28 @@ export async function enviarPelaEvolution(
  * dizer "não enviou" faria alguém mandar de novo. Fica no log e some da tela
  * até o espelho ser recopiado.
  */
-async function espelharEnviada(supabase: any, ownerId: string, resposta: unknown) {
+async function espelharEnviada(
+  supabase: any,
+  ownerId: string,
+  resposta: unknown,
+): Promise<string | null> {
   try {
     const m = mensagemEnviada(resposta);
     if (!m) {
       console.warn("[whatsapp-send] resposta da Evolution sem id; nada a espelhar");
-      return;
+      return null;
     }
     await gravarMensagemEspelhada(supabase, ownerId, m, resposta);
+    return m.crmMessageId;
   } catch (e) {
     console.error("[whatsapp-send] enviada mas não espelhada:", e);
+    // O id é lido ANTES de gravar, então uma falha de gravação não precisa
+    // custar a prova de autoria.
+    try {
+      return mensagemEnviada(resposta)?.crmMessageId ?? null;
+    } catch {
+      return null;
+    }
   }
 }
 

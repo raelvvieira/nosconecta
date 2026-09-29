@@ -80,6 +80,14 @@ export interface MensagemDeEntrada {
    */
   recebidaEm?: string | null;
   /**
+   * O id que o WhatsApp deu a esta mensagem.
+   *
+   * É por ele que se sabe se uma mensagem `from_me` é a própria resposta da IA
+   * voltando ou alguém da equipe digitando — comparação exata, contra o id que
+   * a IA guardou quando enviou. Ver `ehEcoDaPropriaIa`.
+   */
+  messageId?: string | null;
+  /**
    * Ninguém da clínica falou nesta conversa ainda.
    *
    * Opcional e permissivo por omissão, como os dois acima. As mensagens da
@@ -89,8 +97,14 @@ export interface MensagemDeEntrada {
   semHistorico?: boolean;
 }
 
-/** Manda um pedaço da resposta. `esperaMs` é o tempo de digitação antes dele. */
-export type Enviar = (pedaco: string, esperaMs: number) => Promise<void>;
+/**
+ * Manda um pedaço da resposta. `esperaMs` é o tempo de digitação antes dele.
+ *
+ * Devolve o id que o WhatsApp deu à mensagem, quando há. É esse id que permite
+ * reconhecer a própria mensagem quando ela volta pelo webhook, em vez de
+ * comparar o texto e errar quando a recepção repete uma frase da IA.
+ */
+export type Enviar = (pedaco: string, esperaMs: number) => Promise<string | null | void>;
 
 export interface Dependencias {
   supabase: any;
@@ -232,7 +246,11 @@ export async function atender(
   // paciente a resposta é não, e uma consulta por mensagem recebida seria
   // gasto puro.
   const ecoDaPropriaIa = entrada.daClinica
-    ? ehEcoDaPropriaIa(entrada.conteudo, await oQueEuMandei(supabase, sessao.id, agora))
+    ? ehEcoDaPropriaIa(
+        entrada.conteudo,
+        await oQueEuMandei(supabase, sessao.id, agora),
+        entrada.messageId ?? null,
+      )
     : false;
 
   const decisao = decidirSeResponde(
@@ -289,7 +307,13 @@ export async function atender(
     const segundos = Math.max(0, Number(agente.debounce_seconds ?? 0));
     if (segundos > 0) {
       await new Promise((r) => setTimeout(r, segundos * 1000));
-      if (await chegouMensagemMaisNova(supabase, ownerId, entrada, agora)) {
+      // O teto é o instante da CONFERÊNCIA, não o da chegada. Passar `agora`
+      // aqui foi o defeito de 29/09: a espera dura 15 segundos, então tudo que
+      // chega DURANTE ela tem `sent_at` maior que a chegada — e ficava fora da
+      // busca. Justamente o que a espera existe para pegar. Em 48 horas o
+      // motivo abaixo apareceu uma vez só, e uma pessoa recebeu três respostas
+      // seguidas para a mesma pergunta.
+      if (await chegouMensagemMaisNova(supabase, ownerId, entrada, new Date())) {
         motivoDaEspera = "mensagem mais nova chegou";
       }
     }
@@ -366,9 +390,38 @@ export async function atender(
   // uma pessoa, e uma pessoa que colou texto de algum lugar pode ter trazido
   // travessão junto.
   const pedacos = segmentar(semTravessao(texto), ritmo);
+  const enviados: string[] = [];
   for (const pedaco of pedacos) {
-    await deps.enviar(pedaco, esperaDeDigitacao(pedaco, ritmo));
-    await registrar(supabase, ownerId, sessao.id, { direction: "saida", content: pedaco });
+    // ── Alguém assumiu enquanto eu escrevia? ────────────────────────────
+    //
+    // A decisão de responder já passou faz tempo: houve a espera, a chamada do
+    // modelo e o tempo de digitação de cada pedaço. Em 29/09 foram 7 segundos
+    // entre a Dra. Mariane digitar e a IA mandar a resposta que já estava
+    // pronta — e ela seguiu por mais cinco minutos.
+    //
+    // Uma leitura por pedaço, numa tabela de 50 linhas. É barata e é a
+    // diferença entre calar no meio e a dentista ter de escrever "desculpa
+    // nossa ia" para o paciente.
+    if (await humanoAssumiuAgora(supabase, sessao.id)) {
+      await registrar(supabase, ownerId, sessao.id, {
+        direction: "ignorada",
+        content: pedaco,
+        skipped_reason: "humano assumiu enquanto eu escrevia",
+      });
+      return {
+        respondeu: enviados.length > 0,
+        motivo: "humano assumiu a conversa",
+        pedacos: enviados,
+      };
+    }
+
+    const idEnviado = await deps.enviar(pedaco, esperaDeDigitacao(pedaco, ritmo));
+    enviados.push(pedaco);
+    await registrar(supabase, ownerId, sessao.id, {
+      direction: "saida",
+      content: pedaco,
+      wa_message_id: typeof idEnviado === "string" ? idEnviado : null,
+    });
   }
 
   const zerado = registrarSucesso();
@@ -381,7 +434,7 @@ export async function atender(
     .update({ last_outbound_at: agora.toISOString(), updated_at: agora.toISOString() })
     .eq("id", sessao.id);
 
-  return { respondeu: true, pedacos };
+  return { respondeu: true, pedacos: enviados };
 }
 
 async function responderComModelo(
@@ -468,6 +521,27 @@ async function responderComModelo(
     .join("\n");
 
   return deps.responderComIa(instrucao, historico, String(entrada.conteudo ?? ""));
+}
+
+/**
+ * Alguém da clínica assumiu esta conversa neste exato momento?
+ *
+ * Erro de leitura devolve `false` — a IA continua. Calar por causa de uma falha
+ * de rede deixaria o paciente sem resposta sem que ninguém soubesse; falar
+ * quando alguém já assumiu é constrangedor, mas visível, e a mensagem seguinte
+ * já encontra a marca.
+ */
+async function humanoAssumiuAgora(supabase: any, sessionId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("ai_agent_sessions")
+    .select("human_took_over_at")
+    .eq("id", sessionId)
+    .maybeSingle();
+  if (error) {
+    console.warn("[atendimento] não deu para reler a sessão:", error.message);
+    return false;
+  }
+  return !!data?.human_took_over_at;
 }
 
 /**
@@ -599,7 +673,12 @@ async function registrar(
   supabase: any,
   ownerId: string,
   sessionId: string,
-  linha: { direction: string; content: string | null; skipped_reason?: string | null },
+  linha: {
+    direction: string;
+    content: string | null;
+    skipped_reason?: string | null;
+    wa_message_id?: string | null;
+  },
 ) {
   // A auditoria falhar não pode impedir a resposta de sair: o paciente esperando
   // importa mais que a linha de log.

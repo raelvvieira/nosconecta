@@ -102,6 +102,9 @@ export async function deixarOAgenteResponder(
       // "não sei". O filtro trata os dois de forma oposta, de propósito.
       // A hora da própria mensagem, para a espera saber quem é a mais nova.
       recebidaEm: m.sentAt,
+      // E o id, que é a prova de quem escreveu quando a mensagem sai do próprio
+      // número: id que a IA guardou = eco dela; qualquer outro = uma pessoa.
+      messageId: m.crmMessageId,
       anuncio,
       // O fato para o filtro, calculado do mesmo anúncio. A partir da segunda
       // mensagem o marcador não vem mais e este fato é `false`; quem sustenta a
