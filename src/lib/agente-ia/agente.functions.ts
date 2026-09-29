@@ -785,13 +785,25 @@ export interface ConsumoDaIa {
 /**
  * A cotação do dólar de hoje.
  *
- * Buscada uma vez por dia e guardada. Se a busca falhar, devolve a última que
- * deu certo — junto com a DATA dela, porque uma cotação velha apresentada como
- * a de hoje é pior que nenhuma.
+ * ── Por que duas fontes, e nesta ordem ────────────────────────────────
  *
- * A fonte é a AwesomeAPI, que republica o câmbio comercial. Não é a taxa que o
- * cartão da clínica vai cobrar (essa tem IOF e spread por cima); é uma
- * referência, e a tela diz isso.
+ * **PTAX do Banco Central** primeiro: é a taxa oficial, é a que um contador
+ * aceita, e a API é aberta e sem chave. Ela só publica em dia útil, então o
+ * pedido pede os últimos sete dias e fica com a mais nova — é isso que faz
+ * segunda-feira de feriado não virar "sem cotação".
+ *
+ * **open.er-api.com** como reserva, para o dia em que o Olinda estiver fora
+ * do ar. A primeira escolha foi a AwesomeAPI e ela saiu daqui: o plano
+ * gratuito limita por IP, e medindo em 30/09 ela já respondia 429 do servidor
+ * deste sistema. Uma fonte que falha justamente quando o serviço cresce não
+ * serve de primeira nem de segunda.
+ *
+ * Falhando as duas, devolve a última cotação guardada — junto com a DATA
+ * dela, porque uma cotação velha apresentada como a de hoje é pior que
+ * nenhuma.
+ *
+ * Nada disto é a taxa que o cartão da clínica vai cobrar: essa tem IOF e
+ * spread por cima. É referência, e a tela diz de que dia é.
  */
 async function cotacaoDeHoje(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabela nova, fora do types.ts do Lovable
@@ -810,25 +822,73 @@ async function cotacaoDeHoje(
 
   if (guardada?.dia === hoje) return { valor: Number(guardada.valor), dia: hoje };
 
-  try {
-    const res = await fetch("https://economia.awesomeapi.com.br/json/last/USD-BRL", {
-      // Um card de custo não pode segurar a página inteira esperando câmbio.
-      signal: AbortSignal.timeout(6_000),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = (await res.json()) as { USDBRL?: { bid?: string } };
-    const valor = Number(json?.USDBRL?.bid);
-    if (!Number.isFinite(valor) || valor <= 0) throw new Error("cotação sem valor");
-
+  const valor = (await doBancoCentral()) ?? (await daReserva());
+  if (valor !== null) {
     // `upsert` porque duas abas abertas ao mesmo tempo buscam as duas.
     await supabase.from("cotacao_dolar").upsert({ dia: hoje, valor }, { onConflict: "dia" });
     return { valor, dia: hoje };
+  }
+
+  // A última que deu certo, com a data dela à mostra.
+  return guardada
+    ? { valor: Number(guardada.valor), dia: String(guardada.dia) }
+    : { valor: null, dia: null };
+}
+
+/** Um número de câmbio só é aceito se for número e for plausível. A faixa é
+ *  larga de propósito — não é previsão, é rede contra a API devolver `0`,
+ *  `null` ou uma página de erro que o `Number()` transformaria em lixo. */
+function cambioPlausivel(v: unknown): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0.5 && n < 100 ? n : null;
+}
+
+/** Um card de custo não pode segurar a página inteira esperando câmbio. */
+const ESPERA_DO_CAMBIO = 6_000;
+
+async function doBancoCentral(): Promise<number | null> {
+  try {
+    // O Olinda quer as datas em MM-DD-YYYY, entre aspas simples, e devolve em
+    // ordem crescente — daí o `orderby desc` para a primeira ser a mais nova.
+    const comoOOlindaQuer = (d: Date) => {
+      const p = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Sao_Paulo",
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric",
+      }).formatToParts(d);
+      const pegar = (t: string) => p.find((x) => x.type === t)?.value ?? "";
+      return `${pegar("month")}-${pegar("day")}-${pegar("year")}`;
+    };
+    const agora = new Date();
+    const url =
+      "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/" +
+      "CotacaoDolarPeriodo(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)" +
+      `?@dataInicial='${comoOOlindaQuer(new Date(agora.getTime() - 7 * 86_400_000))}'` +
+      `&@dataFinalCotacao='${comoOOlindaQuer(agora)}'` +
+      "&$top=1&$orderby=dataHoraCotacao%20desc&$format=json&$select=cotacaoVenda";
+
+    const res = await fetch(url, { signal: AbortSignal.timeout(ESPERA_DO_CAMBIO) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = (await res.json()) as { value?: { cotacaoVenda?: number }[] };
+    return cambioPlausivel(json?.value?.[0]?.cotacaoVenda);
   } catch (e) {
-    console.warn("[consumo] não deu para buscar o dólar:", e);
-    // A última que deu certo, com a data dela à mostra.
-    return guardada
-      ? { valor: Number(guardada.valor), dia: String(guardada.dia) }
-      : { valor: null, dia: null };
+    console.warn("[consumo] PTAX indisponível:", e);
+    return null;
+  }
+}
+
+async function daReserva(): Promise<number | null> {
+  try {
+    const res = await fetch("https://open.er-api.com/v6/latest/USD", {
+      signal: AbortSignal.timeout(ESPERA_DO_CAMBIO),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = (await res.json()) as { rates?: { BRL?: number } };
+    return cambioPlausivel(json?.rates?.BRL);
+  } catch (e) {
+    console.warn("[consumo] reserva de câmbio indisponível:", e);
+    return null;
   }
 }
 
