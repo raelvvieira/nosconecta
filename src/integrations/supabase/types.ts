@@ -224,11 +224,13 @@ export type Database = {
           contact_name: string | null
           conversation_id: string
           created_at: string
+          followups_enviados: number
           human_took_over_at: string | null
           id: string
           last_inbound_at: string | null
           last_outbound_at: string | null
           owner_id: string
+          ultimo_followup_em: string | null
           updated_at: string
         }
         Insert: {
@@ -238,11 +240,13 @@ export type Database = {
           contact_name?: string | null
           conversation_id: string
           created_at?: string
+          followups_enviados?: number
           human_took_over_at?: string | null
           id?: string
           last_inbound_at?: string | null
           last_outbound_at?: string | null
           owner_id: string
+          ultimo_followup_em?: string | null
           updated_at?: string
         }
         Update: {
@@ -252,11 +256,13 @@ export type Database = {
           contact_name?: string | null
           conversation_id?: string
           created_at?: string
+          followups_enviados?: number
           human_took_over_at?: string | null
           id?: string
           last_inbound_at?: string | null
           last_outbound_at?: string | null
           owner_id?: string
+          ultimo_followup_em?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -279,6 +285,10 @@ export type Database = {
           echo_message: string
           enabled: boolean
           failure_count: number
+          followup_horas_1: number
+          followup_horas_2: number
+          followup_ligado: boolean
+          followup_ligado_desde: string | null
           id: string
           instrucao_base: string | null
           learn_from_won: boolean
@@ -309,6 +319,10 @@ export type Database = {
           echo_message?: string
           enabled?: boolean
           failure_count?: number
+          followup_horas_1?: number
+          followup_horas_2?: number
+          followup_ligado?: boolean
+          followup_ligado_desde?: string | null
           id?: string
           instrucao_base?: string | null
           learn_from_won?: boolean
@@ -339,6 +353,10 @@ export type Database = {
           echo_message?: string
           enabled?: boolean
           failure_count?: number
+          followup_horas_1?: number
+          followup_horas_2?: number
+          followup_ligado?: boolean
+          followup_ligado_desde?: string | null
           id?: string
           instrucao_base?: string | null
           learn_from_won?: boolean
