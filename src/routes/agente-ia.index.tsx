@@ -18,6 +18,7 @@ import { ChaveDaIa } from "@/components/agente-ia/ChaveDaIa";
 import { ManualDaLuna } from "@/components/agente-ia/ManualDaLuna";
 import { ComQuemFala } from "@/components/agente-ia/ComQuemFala";
 import { Ritmo } from "@/components/agente-ia/Ritmo";
+import { VoltarEmQuemSumiu } from "@/components/agente-ia/VoltarEmQuemSumiu";
 import { Testar } from "@/components/agente-ia/Testar";
 import { Procedimentos } from "@/components/agente-ia/Procedimentos";
 import { LicoesDaLuna } from "@/components/agente-ia/LicoesDaLuna";
@@ -177,6 +178,10 @@ function AgentePage() {
             <div className="grid gap-4">
               <ComQuemFala />
               <Ritmo />
+              {/* Depois do ritmo de propósito: é a única coisa da tela que faz
+                  a Luna escrever sem ninguém ter escrito para ela, e quem
+                  chega aqui já entendeu com quem ela fala e como. */}
+              <VoltarEmQuemSumiu />
             </div>
             <div className="grid gap-4">
               <Testar />

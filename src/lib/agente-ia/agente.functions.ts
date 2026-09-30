@@ -289,6 +289,16 @@ export interface ConfigDeAtendimento {
   soSemHistorico: boolean;
   /** Por quantos dias uma conversa ainda conta como nova. */
   novoAteDias: number;
+  /** A Luna volta em quem sumiu? */
+  followupLigado: boolean;
+  /** Horas de silêncio antes do primeiro toque. */
+  followupHoras1: number;
+  /** Horas depois do PRIMEIRO toque para o segundo. Conta do toque, não do
+   *  silêncio — senão os dois sairiam quase juntos. */
+  followupHoras2: number;
+  /** Quando a clínica ligou o follow-up. A tela mostra porque é o que explica
+   *  a conversa antiga NÃO receber toque: ligar não acorda o passado. */
+  followupLigadoDesde: string | null;
   /**
    * O modelo da OpenAI que atende. Vazio = nada roda.
    *
@@ -335,6 +345,10 @@ export const getAtendimento = createServerFn({ method: "GET" })
       soDeAnuncio: agente.so_de_anuncio !== false,
       soSemHistorico: agente.so_sem_historico !== false,
       novoAteDias: Number(agente.novo_ate_dias ?? 7),
+      followupLigado: agente.followup_ligado === true,
+      followupHoras1: Number(agente.followup_horas_1 ?? 20),
+      followupHoras2: Number(agente.followup_horas_2 ?? 72),
+      followupLigadoDesde: agente.followup_ligado_desde ?? null,
       modelo: String(agente.model ?? ""),
       instrucaoBase: String(agente.instrucao_base ?? ""),
     };
@@ -356,6 +370,9 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
       soDeAnuncio?: boolean;
       soSemHistorico?: boolean;
       novoAteDias?: number;
+      followupLigado?: boolean;
+      followupHoras1?: number;
+      followupHoras2?: number;
       /** O modelo da OpenAI. String vazia limpa a escolha. */
       modelo?: string;
       /** O manual de condução. String vazia devolve o método gerado. */
@@ -371,6 +388,20 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
           input.novoAteDias > 90
         ) {
           throw new Error("A janela de contato novo vai de 1 a 90 dias.");
+        }
+      }
+      // As horas do follow-up. O piso de 1 hora existe porque zero faria a
+      // Luna voltar na mesma rodada em que respondeu; o teto de 30 dias porque
+      // acima disso a conversa já sai pela validade e o número seria só uma
+      // configuração que não faz nada.
+      for (const [campo, rotulo] of [
+        ["followupHoras1", "o primeiro toque"],
+        ["followupHoras2", "o segundo toque"],
+      ] as const) {
+        const v = input[campo];
+        if (v === undefined) continue;
+        if (!Number.isInteger(v) || v < 1 || v > 720) {
+          throw new Error(`As horas para ${rotulo} vão de 1 a 720 (30 dias).`);
         }
       }
       if (input.chaveDaIa !== undefined) {
@@ -404,6 +435,22 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
     if (data.soDeAnuncio !== undefined) campos.so_de_anuncio = data.soDeAnuncio;
     if (data.soSemHistorico !== undefined) campos.so_sem_historico = data.soSemHistorico;
     if (data.novoAteDias !== undefined) campos.novo_ate_dias = data.novoAteDias;
+    if (data.followupHoras1 !== undefined) campos.followup_horas_1 = data.followupHoras1;
+    if (data.followupHoras2 !== undefined) campos.followup_horas_2 = data.followupHoras2;
+    if (data.followupLigado !== undefined) {
+      campos.followup_ligado = data.followupLigado;
+      // ── A data que impede o acidente ────────────────────────────────────
+      //
+      // Ligar marca a HORA de ligar, e o cron só volta em conversa que ficou
+      // parada depois disso. Sem esta linha, ligar a chave mandaria mensagem
+      // para as 262 conversas de clareamento paradas de uma vez — muitas de
+      // dois meses atrás. Isso não é follow-up, é disparo, e disparo que a
+      // pessoa não espera vira bloqueio.
+      //
+      // Desligar LIMPA a data, para ligar de novo amanhã não trazer de volta
+      // o que ficou parado no meio.
+      campos.followup_ligado_desde = data.followupLigado ? new Date().toISOString() : null;
+    }
     if (data.msPorCaractere !== undefined) campos.delay_per_character = data.msPorCaractere;
     // `null` e não string vazia: a coluna vazia significaria "chave em branco"
     // para quem lesse, e a pergunta que o resto do código faz é se ela EXISTE.

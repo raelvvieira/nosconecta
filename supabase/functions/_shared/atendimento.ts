@@ -473,26 +473,50 @@ export async function atender(
   return { respondeu: true, pedacos: enviados };
 }
 
-async function responderComModelo(
-  deps: Dependencias,
+/**
+ * A instrução completa da Luna: manual, procedimentos escolhidos, unidades com
+ * endereço, tabela de preços, horários e as regras invioláveis.
+ *
+ * ── Por que isto é exportado ────────────────────────────────────────────
+ *
+ * Porque o follow-up (`agente-followup`) precisa da MESMA instrução. Quando eu
+ * escrevi aquela função, copiei estas consultas para lá e errei duas: leu
+ * `ai_agent_playbooks`, que não existe, e pegou TODOS os procedimentos ativos
+ * em vez dos escolhidos em `ai_agent_procedures`.
+ *
+ * O segundo erro é o grave, e é invisível: a Luna do follow-up citaria preço de
+ * procedimento que a clínica tirou da lista de propósito. Uma mensagem com
+ * preço errado, mandada sozinha, de madrugada do ponto de vista de quem
+ * escreveu o código — e ninguém descobre até um paciente cobrar.
+ *
+ * Duas montagens da mesma instrução divergem sempre. Esta é a única.
+ */
+export async function instrucaoDaLuna(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  ownerId: string,
+  // deno-lint-ignore no-explicit-any
   agente: any,
-  entrada: MensagemDeEntrada,
   anuncio: Anuncio | null,
+  agora: Date,
 ): Promise<string> {
-  const { supabase, ownerId } = deps;
-
   const { data: playbook } = await supabase
     .from("ai_sales_playbooks")
     .select("learned, overrides")
     .eq("owner_id", ownerId)
     .maybeSingle();
 
+  // Só os procedimentos ESCOLHIDOS. A lista tem 282 ativos e a clínica decide
+  // quais a Luna pode citar; mandar todos seria ela oferecer o que ninguém
+  // autorizou.
   const { data: escolhidos } = await supabase
     .from("ai_agent_procedures")
     .select("procedure_id")
     .eq("agent_id", agente.id);
+  // deno-lint-ignore no-explicit-any
   const ids = (escolhidos ?? []).map((e: any) => e.procedure_id);
 
+  // deno-lint-ignore no-explicit-any
   let procedimentos: any[] = [];
   if (ids.length) {
     const { data } = await supabase
@@ -512,6 +536,7 @@ async function responderComModelo(
     .eq("owner_id", ownerId)
     .eq("active", true)
     .order("is_default", { ascending: false });
+  // deno-lint-ignore no-explicit-any
   const listaDeUnidades = (unidades ?? []).map((u: any) => ({
     nome: String(u.name ?? "").trim(),
     endereco: u.address ?? null,
@@ -526,9 +551,9 @@ async function responderComModelo(
   // Devolve `null` quando a agenda não pôde ser lida, e `null` na instrução
   // significa "não consultei", nunca "não há vaga". A diferença importa: um
   // banco instável não pode virar "estamos sem horário" para quem quer marcar.
-  const horarios = await horariosParaOferecer(supabase, ownerId, agoraDoAtendimento(deps));
+  const horarios = await horariosParaOferecer(supabase, ownerId, agora);
 
-  const instrucao = montarInstrucao({
+  return montarInstrucao({
     anuncio,
     horarios,
     clinica: unidade?.nome || "NÓS Odontologia",
@@ -547,8 +572,25 @@ async function responderComModelo(
       ate: agente.paciente_modelo_ate ?? null,
       texto: agente.paciente_modelo_texto ?? null,
     },
-    hoje: agoraNaClinica(agoraDoAtendimento(deps)).date,
+    hoje: agoraNaClinica(agora).date,
   });
+}
+
+async function responderComModelo(
+  deps: Dependencias,
+  // deno-lint-ignore no-explicit-any
+  agente: any,
+  entrada: MensagemDeEntrada,
+  anuncio: Anuncio | null,
+): Promise<string> {
+  const { supabase, ownerId } = deps;
+  const instrucao = await instrucaoDaLuna(
+    supabase,
+    ownerId,
+    agente,
+    anuncio,
+    agoraDoAtendimento(deps),
+  );
 
   const anteriores = await deps.historico(entrada.conversationId);
 

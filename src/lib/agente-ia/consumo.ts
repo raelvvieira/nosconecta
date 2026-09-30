@@ -115,6 +115,7 @@ export const NOME_DO_USO: Record<string, string> = {
   licao: "Lições de atendimento",
   leitura: "Ler confirmação do paciente",
   teste: "Testes na tela",
+  followup: "Voltar em quem sumiu",
 };
 
 export function nomeDoUso(para: string): string {
