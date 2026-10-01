@@ -35,9 +35,19 @@ function conferir(nome: string, obtido: unknown, esperado: unknown) {
     falhas.push(`${nome} — esperado ${JSON.stringify(esperado)}, veio ${JSON.stringify(obtido)}`);
 }
 
-// ── O caso do Bioestimulador ─────────────────────────────────────────────
-conferir("realizado zero cai para o previsto", valorDaConversao(0, 1500), 1500);
-conferir("e o defeito antigo daria zero", 0 ?? 1500, 0); // o `??` que estava no código
+// ── O caso do Bioestimulador, e o erro que eu cometi consertando ─────────
+//
+// Realizado 0,00, previsto 1.500,00. Eu "consertei" fazendo zero cair para o
+// previsto — e isso REPORTARIA R$ 1.500 que não entraram. A tela de confirmar
+// atendimento aceita zero de propósito ("atendimento de cortesia existe"), e
+// aquele atendimento não gerou lançamento financeiro nenhum.
+//
+// Zero é valor. O defeito nunca foi o número: era MANDAR a compra de R$ 0,00.
+conferir("zero confirmado continua sendo zero", valorDaConversao(0, 1500), 0);
+conferir("e zero não vira compra", valeComoCompra("Purchase", valorDaConversao(0, 1500)), false);
+// Esta é a linha que garante que ninguém vai "simplificar" com um if de
+// verdade: zero é falso em JavaScript.
+conferir("zero não é tratado como ausente", valorDaConversao(0, 999) === 0, true);
 
 // ── O caminho normal ─────────────────────────────────────────────────────
 conferir("realizado preenchido manda", valorDaConversao(990, 600), 990);
@@ -45,10 +55,11 @@ conferir("realizado nulo cai para o previsto", valorDaConversao(null, 749), 749)
 conferir("os dois iguais", valorDaConversao(450, 450), 450);
 // O banco devolve numeric como string.
 conferir("string do banco vira número", valorDaConversao("1500.00", null), 1500);
-conferir("string zerada do banco também cai", valorDaConversao("0.00", "1500.00"), 1500);
+conferir("string zerada do banco é zero, não o previsto", valorDaConversao("0.00", "1500.00"), 0);
 
 // ── Sem valor ────────────────────────────────────────────────────────────
-conferir("os dois zerados dão nulo, não zero", valorDaConversao(0, 0), null);
+conferir("os dois zerados dão zero", valorDaConversao(0, 0), 0);
+conferir("e zero não vira compra", valeComoCompra("Purchase", 0), false);
 conferir("os dois nulos dão nulo", valorDaConversao(null, null), null);
 conferir("indefinido não quebra", valorDaConversao(undefined, undefined), null);
 conferir("string vazia não vira zero", valorDaConversao("", ""), null);
@@ -56,6 +67,7 @@ conferir("texto que não é número dá nulo", valorDaConversao("abc", null), nu
 
 // ── Negativo ─────────────────────────────────────────────────────────────
 conferir("estorno no realizado cai para o previsto", valorDaConversao(-200, 500), 500);
+conferir("sem realizado, vale o previsto", valorDaConversao(null, 600), 600);
 conferir("negativo nos dois dá nulo", valorDaConversao(-200, -500), null);
 
 // ── Vale como compra? ────────────────────────────────────────────────────
@@ -84,6 +96,8 @@ conferir("nome vazio passa", valeComoCompra("", null), true);
 {
   const casos: [number | string | null, number | string | null][] = [
     [0, 1500],
+    [0, 0],
+    ["0.00", "1500.00"],
     [990, 600],
     [null, 749],
     ["0.00", "1500.00"],
