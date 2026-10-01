@@ -2119,6 +2119,7 @@ export type Database = {
           last_success_at: string | null
           offline_event_set_id: string | null
           owner_id: string
+          page_id: string | null
           pixel_id: string | null
           test_event_code: string | null
           updated_at: string
@@ -2133,6 +2134,7 @@ export type Database = {
           last_success_at?: string | null
           offline_event_set_id?: string | null
           owner_id: string
+          page_id?: string | null
           pixel_id?: string | null
           test_event_code?: string | null
           updated_at?: string
@@ -2147,6 +2149,7 @@ export type Database = {
           last_success_at?: string | null
           offline_event_set_id?: string | null
           owner_id?: string
+          page_id?: string | null
           pixel_id?: string | null
           test_event_code?: string | null
           updated_at?: string
