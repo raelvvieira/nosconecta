@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { tipoDoAviso, type TipoDeAviso } from "./tipo-do-aviso";
 
 // A caixa de avisos da clínica — o que alimenta o sino, a etiqueta na agenda e
 // a linha do bloco "Atenção" na Início.
@@ -87,22 +88,49 @@ export const listarAvisos = createServerFn({ method: "GET" })
  *  Devolve só os ids, e não os avisos: a agenda já carregou os agendamentos e
  *  só precisa saber quais marcar. Cruzar no cliente evita refazer a consulta
  *  da agenda, que é a mais pesada da tela. */
+export interface AvisoDoAgendamento {
+  appointmentId: string;
+  tipo: TipoDeAviso;
+}
+
+/**
+ * Os agendamentos com aviso em aberto, e O QUE cada aviso é.
+ *
+ * O `tipo` vem junto desde 01/10. Antes daqui só saía a lista de ids, e a
+ * agenda escrevia "pediu remarcar" em cima de qualquer um deles — errando 23
+ * de 24 vezes, porque quase todo aviso é "resposta não entendida". A tela não
+ * tinha como saber: o dado parava aqui. Ver `tipo-do-aviso.ts`.
+ */
 export const avisosPorAgendamento = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
-  .handler(async ({ context }): Promise<string[]> => {
+  .handler(async ({ context }): Promise<AvisoDoAgendamento[]> => {
     const supabase: any = context.supabase;
     const { data, error } = await supabase
       .from("clinic_notifications")
-      .select("appointment_id")
+      .select("appointment_id, title, created_at")
       .eq("owner_id", context.ownerId)
       .is("read_at", null)
-      .not("appointment_id", "is", null);
+      .not("appointment_id", "is", null)
+      // Do mais novo para o mais velho: quando a mesma consulta tem vários
+      // avisos, o que vale é o último — a pessoa respondeu de novo.
+      .order("created_at", { ascending: false });
     if (error) {
       if (ausente(error)) return [];
       throw new Error(error.message);
     }
-    const ids = (data ?? []).map((r: any) => String(r.appointment_id)) as string[];
-    return [...new Set(ids)];
+
+    const porAgendamento = new Map<string, TipoDeAviso>();
+    for (const r of (data ?? []) as any[]) {
+      const id = String(r.appointment_id);
+      const tipo = tipoDoAviso(r.title);
+      const jaTem = porAgendamento.get(id);
+      // "remarcar" ganha de "resposta" mesmo sendo mais antigo: entre "tem
+      // coisa para ler" e "quer desmarcar", o segundo é o que muda a agenda.
+      if (!jaTem || (jaTem === "resposta" && tipo === "remarcar")) {
+        porAgendamento.set(id, tipo);
+      }
+    }
+    return [...porAgendamento].map(([appointmentId, tipo]) => ({ appointmentId, tipo }));
   });
 
 export const marcarLido = createServerFn({ method: "POST" })

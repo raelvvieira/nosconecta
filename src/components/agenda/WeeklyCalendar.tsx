@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAvisosPorAgendamento } from "@/lib/notifications/use-avisos";
+import { ROTULO_DO_AVISO, TOM_DO_AVISO } from "@/lib/notifications/tipo-do-aviso";
 import type { Appointment, BlockedTime, ViewMode, AgendaFilters } from "./types";
 import {
   HOURS,
@@ -17,8 +18,18 @@ import { useCalendarDrag, type AlvoArraste, type ItemArrastavel } from "./useCal
 
 const DAYS_PT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MONTHS_PT = [
-  "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
-  "Jul", "Ago", "Set", "Out", "Nov", "Dez",
+  "Jan",
+  "Fev",
+  "Mar",
+  "Abr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Ago",
+  "Set",
+  "Out",
+  "Nov",
+  "Dez",
 ];
 
 function getWeekDays(weekStart: Date): Date[] {
@@ -64,7 +75,11 @@ interface Props {
   onFiltersChange: (f: AgendaFilters) => void;
 }
 
-function MonthView({ appointments, selectedDate, onDateChange }: {
+function MonthView({
+  appointments,
+  selectedDate,
+  onDateChange,
+}: {
   appointments: Appointment[];
   selectedDate: Date;
   onDateChange: (d: Date) => void;
@@ -87,14 +102,18 @@ function MonthView({ appointments, selectedDate, onDateChange }: {
     <div className="p-4">
       <div className="grid grid-cols-7 mb-2">
         {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((d) => (
-          <div key={d} className="text-center text-2xs font-semibold text-muted-foreground py-2">{d}</div>
+          <div key={d} className="text-center text-2xs font-semibold text-muted-foreground py-2">
+            {d}
+          </div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1">
         {cells.map((day, i) => {
           if (!day) return <div key={i} />;
           const count = countForDay(day);
-          const isToday = toDateStr(new Date()) === `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+          const isToday =
+            toDateStr(new Date()) ===
+            `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const isSelected = selectedDate.getDate() === day && selectedDate.getMonth() === month;
           return (
             <button
@@ -105,10 +124,16 @@ function MonthView({ appointments, selectedDate, onDateChange }: {
             >
               <span
                 className="text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full"
-                style={isSelected ? {
-                  background: "var(--gradient-primary)",
-                  color: "var(--primary-foreground)",
-                } : isToday ? { border: "2px solid var(--pink)", color: "var(--pink)" } : { color: "var(--foreground)" }}
+                style={
+                  isSelected
+                    ? {
+                        background: "var(--gradient-primary)",
+                        color: "var(--primary-foreground)",
+                      }
+                    : isToday
+                      ? { border: "2px solid var(--pink)", color: "var(--pink)" }
+                      : { color: "var(--foreground)" }
+                }
               >
                 {day}
               </span>
@@ -210,11 +235,13 @@ export function WeeklyCalendar({
                 onClick={() => setView(v.id)}
                 className={cn(
                   "px-3 py-1.5 text-sm font-medium rounded-lg transition-colors",
-                  view === v.id
-                    ? "text-pink"
-                    : "text-muted-foreground hover:text-foreground",
+                  view === v.id ? "text-pink" : "text-muted-foreground hover:text-foreground",
                 )}
-                style={view === v.id ? { background: "color-mix(in oklab, var(--pink) 12%, transparent)" } : {}}
+                style={
+                  view === v.id
+                    ? { background: "color-mix(in oklab, var(--pink) 12%, transparent)" }
+                    : {}
+                }
               >
                 {v.label}
               </button>
@@ -229,7 +256,11 @@ export function WeeklyCalendar({
               onChange={(e) => onFiltersChange({ ...filters, professionalId: e.target.value })}
             >
               <option value="">Todos os profissionais</option>
-              {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {professionals.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
             </select>
             <select
               className="text-xs border border-border rounded-xl px-3 py-1.5 text-muted-foreground bg-white focus:outline-none"
@@ -237,7 +268,11 @@ export function WeeklyCalendar({
               onChange={(e) => onFiltersChange({ ...filters, roomId: e.target.value })}
             >
               <option value="">Todas as salas</option>
-              {rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              {rooms.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -246,7 +281,8 @@ export function WeeklyCalendar({
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigateWeek(-1)} aria-label="Semana anterior"
+            onClick={() => navigateWeek(-1)}
+            aria-label="Semana anterior"
             className="h-8 w-8 grid place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface transition-colors"
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={2} />
@@ -260,7 +296,8 @@ export function WeeklyCalendar({
           </button>
           <button
             type="button"
-            onClick={() => navigateWeek(1)} aria-label="Próxima semana"
+            onClick={() => navigateWeek(1)}
+            aria-label="Próxima semana"
             className="h-8 w-8 grid place-items-center rounded-xl border border-border text-muted-foreground hover:bg-surface transition-colors"
           >
             <ChevronRight className="h-4 w-4" strokeWidth={2} />
@@ -270,7 +307,14 @@ export function WeeklyCalendar({
 
       {/* Month view */}
       {view === "month" && (
-        <MonthView appointments={filtered} selectedDate={selectedDate} onDateChange={(d) => { onDateChange(d); setView("day"); }} />
+        <MonthView
+          appointments={filtered}
+          selectedDate={selectedDate}
+          onDateChange={(d) => {
+            onDateChange(d);
+            setView("day");
+          }}
+        />
       )}
 
       {/* Week/Day/Professionals/Rooms grid */}
@@ -296,7 +340,10 @@ export function WeeklyCalendar({
                     className="mt-1 h-8 w-8 flex items-center justify-center rounded-full text-sm font-semibold"
                     style={
                       isToday || isSelected
-                        ? { background: "var(--gradient-primary)", color: "var(--primary-foreground)" }
+                        ? {
+                            background: "var(--gradient-primary)",
+                            color: "var(--primary-foreground)",
+                          }
                         : { color: "var(--foreground)" }
                     }
                   >
@@ -357,7 +404,9 @@ export function WeeklyCalendar({
                             right: 0,
                             height: HOUR_HEIGHT,
                             borderTop: "1px solid var(--border)",
-                            background: isToday ? "color-mix(in oklab, var(--pink) 1.5%, transparent)" : undefined,
+                            background: isToday
+                              ? "color-mix(in oklab, var(--pink) 1.5%, transparent)"
+                              : undefined,
                           }}
                         />
                       ))}
@@ -375,7 +424,15 @@ export function WeeklyCalendar({
                             alignItems: "center",
                           }}
                         >
-                          <div style={{ width: 7, height: 7, borderRadius: 9999, background: "var(--pink)", marginLeft: -3.5 }} />
+                          <div
+                            style={{
+                              width: 7,
+                              height: 7,
+                              borderRadius: 9999,
+                              background: "var(--pink)",
+                              marginLeft: -3.5,
+                            }}
+                          />
                           <div style={{ flex: 1, height: 2, background: "var(--pink)" }} />
                         </div>
                       )}
@@ -413,7 +470,8 @@ export function WeeklyCalendar({
                             height: Math.max(apptHeight(b.startTime, b.endTime), 28),
                             touchAction: onMove ? "none" : undefined,
                             cursor: onMove ? "grab" : undefined,
-                            background: "repeating-linear-gradient(135deg,color-mix(in oklab, var(--foreground-subtle) 8%, transparent),color-mix(in oklab, var(--foreground-subtle) 8%, transparent) 8px,color-mix(in oklab, var(--foreground-subtle) 14%, transparent) 8px,color-mix(in oklab, var(--foreground-subtle) 14%, transparent) 16px)",
+                            background:
+                              "repeating-linear-gradient(135deg,color-mix(in oklab, var(--foreground-subtle) 8%, transparent),color-mix(in oklab, var(--foreground-subtle) 8%, transparent) 8px,color-mix(in oklab, var(--foreground-subtle) 14%, transparent) 8px,color-mix(in oklab, var(--foreground-subtle) 14%, transparent) 16px)",
                             border: "1px solid var(--divider)",
                             borderRadius: "var(--radius-chip)",
                             padding: "4px 8px",
@@ -421,7 +479,9 @@ export function WeeklyCalendar({
                             alignItems: "center",
                           }}
                         >
-                          <span className="text-3xs text-muted-foreground font-medium truncate">{b.reason}</span>
+                          <span className="text-3xs text-muted-foreground font-medium truncate">
+                            {b.reason}
+                          </span>
                         </button>
                       ))}
 
@@ -474,7 +534,8 @@ export function WeeklyCalendar({
                                     {/* Durante o arraste, o rótulo mostra o
                                         horário de destino — é a confirmação de
                                         onde o bloco vai cair. */}
-                                    {arrasteConsulta.arrastando?.id === appt.id && arrasteConsulta.alvo
+                                    {arrasteConsulta.arrastando?.id === appt.id &&
+                                    arrasteConsulta.alvo
                                       ? `${arrasteConsulta.alvo.startTime} – ${arrasteConsulta.alvo.endTime}`
                                       : `${appt.startTime} – ${appt.endTime}`}
                                   </span>
@@ -487,21 +548,35 @@ export function WeeklyCalendar({
                                     </span>
                                   )}
                                   {/* Aviso da equipe em aberto para esta
-                                      consulta — na prática, "o paciente pediu
-                                      remarcar". Fica aqui, e não só no sino,
+                                      consulta. Fica aqui, e não só no sino,
                                       porque é olhando o dia que a pessoa
-                                      decide o que fazer com o horário. */}
+                                      decide o que fazer com o horário.
+
+                                      A etiqueta diz o que o aviso É. Até
+                                      01/10 ela escrevia "pediu remarcar" em
+                                      cima de qualquer um — e errava 23 de 24
+                                      vezes, porque quase todo aviso é
+                                      "resposta não entendida". */}
                                   {comAviso.has(appt.id) && (
-                                    <span className="shrink-0 rounded-full bg-warning-soft px-1.5 text-3xs font-semibold text-warning">
-                                      pediu remarcar
+                                    <span
+                                      className={cn(
+                                        "shrink-0 rounded-full px-1.5 text-3xs font-semibold",
+                                        TOM_DO_AVISO[comAviso.get(appt.id)!],
+                                      )}
+                                    >
+                                      {ROTULO_DO_AVISO[comAviso.get(appt.id)!]}
                                     </span>
                                   )}
                                 </span>
                                 <span className="text-2xs font-semibold text-foreground truncate">
                                   {appt.patientName}
                                 </span>
-                                <span className="text-3xs text-muted-foreground truncate">{appt.procedureName}</span>
-                                <span className="text-3xs text-muted-foreground truncate">{appt.professionalName}</span>
+                                <span className="text-3xs text-muted-foreground truncate">
+                                  {appt.procedureName}
+                                </span>
+                                <span className="text-3xs text-muted-foreground truncate">
+                                  {appt.professionalName}
+                                </span>
                               </div>
                               <div
                                 className="shrink-0 mt-0.5"

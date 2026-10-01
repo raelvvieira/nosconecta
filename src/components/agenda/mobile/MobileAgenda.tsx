@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAvisosPorAgendamento } from "@/lib/notifications/use-avisos";
+import { ROTULO_DO_AVISO, TOM_DO_AVISO, type TipoDeAviso } from "@/lib/notifications/tipo-do-aviso";
 import {
   useRegisterMobileFab,
   useRegisterIlhaHandlers,
@@ -254,7 +255,10 @@ function AppointmentCard({
   /** Aviso da equipe em aberto para esta consulta — na prática, "pediu
    *  remarcar". Vem por prop e não por hook porque este card é desenhado
    *  dentro de um laço; consultar por card seria uma consulta por linha. */
-  comAviso: boolean;
+  /** O tipo do aviso em aberto, ou `null` quando não há. Ver
+   *  `tipo-do-aviso.ts`: era um booleano, e por isso a etiqueta escrevia
+   *  "pediu remarcar" em cima de qualquer aviso. */
+  comAviso: TipoDeAviso | null;
 }) {
   const s = statusStyle(appt.status);
   return (
@@ -288,8 +292,13 @@ function AppointmentCard({
             </span>
           )}
           {comAviso && (
-            <span className="shrink-0 rounded-full bg-warning-soft px-1.5 py-0.5 text-3xs font-semibold text-warning">
-              pediu remarcar
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-1.5 py-0.5 text-3xs font-semibold",
+                TOM_DO_AVISO[comAviso],
+              )}
+            >
+              {ROTULO_DO_AVISO[comAviso]}
             </span>
           )}
         </p>
@@ -608,7 +617,7 @@ export function MobileAgenda({
                     {item.kind === "appt" ? (
                       <AppointmentCard
                         appt={item.data}
-                        comAviso={comAviso.has(item.data.id)}
+                        comAviso={comAviso.get(item.data.id) ?? null}
                         onClick={() => setDetailAppt(item.data)}
                       />
                     ) : (
@@ -637,7 +646,7 @@ export function MobileAgenda({
                     <AppointmentCard
                       key={a.id}
                       appt={a}
-                      comAviso={comAviso.has(a.id)}
+                      comAviso={comAviso.get(a.id) ?? null}
                       onClick={() => setDetailAppt(a)}
                     />
                   ))}
