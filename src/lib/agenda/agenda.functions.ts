@@ -10,6 +10,7 @@ import {
 } from "./procedimentos";
 import { clinicTodayStr, localDateStr } from "@/lib/date";
 import { decidirRecebimento } from "@/lib/finance/recebimento-do-atendimento";
+import { valorDaConversao } from "@/lib/integrations/valor-da-conversao";
 import type {
   Appointment,
   AppointmentNotification,
@@ -568,7 +569,9 @@ export async function criarAgendamento(
     entityId: inserted.id,
     patientId: row.patient_id,
     contactName: row.patient_name,
-    amount: row.expected_revenue,
+    // Só o previsto existe neste momento — o atendimento ainda não aconteceu.
+    // Passa pela mesma função para zero virar "sem valor" em vez de R$ 0,00.
+    amount: valorDaConversao(null, row.expected_revenue),
   });
   /**
    * As automações, com as DUAS guardas.
@@ -715,12 +718,15 @@ async function onStatusTransition(
   if (statusAnterior === row.status) return [];
 
   const { dispatchMetaCapiEvent } = await import("@/lib/integrations/meta-capi.server");
+  // `valorDaConversao` e não `??`: zero NÃO é nulo, e dois agendamentos de
+  // R$ 1.500 saíram para a Meta valendo R$ 0,00 por causa disso. Ver o
+  // comentário longo em `valor-da-conversao.ts`.
   await dispatchMetaCapiEvent(ownerId, "appointment.status_changed", {
     entityId: `${id}:${row.status}`,
     status: row.status,
     patientId: row.patient_id,
     contactName: row.patient_name,
-    amount: row.actual_revenue ?? row.expected_revenue ?? null,
+    amount: valorDaConversao(row.actual_revenue, row.expected_revenue),
   });
   // Marcar como concluído um atendimento de ontem é rotina (a recepção esquece
   // no dia e lança depois), e a automação de pós-atendimento DEVE disparar

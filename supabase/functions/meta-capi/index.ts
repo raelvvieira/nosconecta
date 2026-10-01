@@ -29,6 +29,14 @@ interface Credentials {
   enabled: boolean;
 }
 
+import {
+  camposDeMensageria,
+  cliqueQueVale,
+  validoComoClickId,
+} from "../_shared/conversao-de-anuncio.ts";
+import { variantesDoNumero } from "../_shared/phone-match.ts";
+import { valeComoCompra } from "../_shared/valor-da-conversao.ts";
+
 interface DispatchContext {
   /** Id estável do registro que converteu — compõe o event_id de dedup. */
   entityId?: string | null;
@@ -122,8 +130,15 @@ const normDob = (s: string): string | null => {
 };
 
 const GENDER_MAP: Record<string, "m" | "f"> = {
-  m: "m", male: "m", masculino: "m", homem: "m", h: "m",
-  f: "f", female: "f", feminino: "f", mulher: "f",
+  m: "m",
+  male: "m",
+  masculino: "m",
+  homem: "m",
+  h: "m",
+  f: "f",
+  female: "f",
+  feminino: "f",
+  mulher: "f",
 };
 const normGender = (s: string): string | null =>
   GENDER_MAP[stripDiacritics(s.trim().toLowerCase()).replace(/[^a-z]/g, "")] ?? null;
@@ -212,12 +227,18 @@ function resolveTarget(creds: Credentials) {
 }
 
 function hasCredentials(creds: Credentials | null): creds is Credentials {
-  return Boolean(creds?.access_token && (creds.offline_event_set_id?.trim() || creds.pixel_id?.trim()));
+  return Boolean(
+    creds?.access_token && (creds.offline_event_set_id?.trim() || creds.pixel_id?.trim()),
+  );
 }
 
 // Envia e devolve o resultado sem lançar: o chamador decide o que fazer, e
 // nenhuma falha da Meta pode derrubar a operação de negócio.
-async function postEvent(creds: Credentials, event: Record<string, unknown>) {
+async function postEvent(
+  creds: Credentials,
+  event: Record<string, unknown>,
+  opcoes: { mensageria?: boolean } = {},
+) {
   const version = creds.api_version || DEFAULT_API_VERSION;
   const target = resolveTarget(creds);
   const payload: Record<string, unknown> = {
@@ -226,7 +247,12 @@ async function postEvent(creds: Credentials, event: Record<string, unknown>) {
   };
   // upload_tag só existe no modo offline; serve para auditar o lote no
   // Gerenciador de Eventos.
-  if (target.mode === "offline_dataset") payload.upload_tag = UPLOAD_TAG;
+  //
+  // Conversão de mensageria NÃO leva upload_tag: ela não é um lote de
+  // conversões offline importado à mão, é um acontecimento com hora e origem
+  // declaradas. Mandar a etiqueta junto mistura os dois conceitos no
+  // Gerenciador de Eventos.
+  if (target.mode === "offline_dataset" && !opcoes.mensageria) payload.upload_tag = UPLOAD_TAG;
   if (creds.test_event_code?.trim()) payload.test_event_code = creds.test_event_code.trim();
 
   try {
@@ -264,7 +290,11 @@ async function markResult(ownerId: string, ok: boolean, error: string | null) {
     .from("meta_capi_credentials")
     .update(
       ok
-        ? { last_success_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() }
+        ? {
+            last_success_at: new Date().toISOString(),
+            last_error: null,
+            updated_at: new Date().toISOString(),
+          }
         : { last_error: error, updated_at: new Date().toISOString() },
     )
     .eq("owner_id", ownerId);
@@ -337,7 +367,9 @@ async function handleSaveSettings(
 async function handleTestConnection(ownerId: string) {
   const creds = await loadCredentials(ownerId);
   if (!hasCredentials(creds)) {
-    throw new Error("Cadastre o token e o Pixel ID (ou o conjunto de eventos offline) antes de testar.");
+    throw new Error(
+      "Cadastre o token e o Pixel ID (ou o conjunto de eventos offline) antes de testar.",
+    );
   }
 
   const target = resolveTarget(creds);
@@ -372,8 +404,7 @@ async function handleTestConnection(ownerId: string) {
   return { ok: true, testMode: Boolean(creds.test_event_code?.trim()), mode: target.mode };
 }
 
-const COLUNAS_DA_PESSOA =
-  "id, name, email, phone, birth_date, gender, city, state, zip_code";
+const COLUNAS_DA_PESSOA = "id, name, email, phone, birth_date, gender, city, state, zip_code";
 
 /**
  * Esta função e a migration que criou `first_name`/`last_name` sobem em passos
@@ -411,8 +442,11 @@ async function lerPaciente(
       ? `${COLUNAS_DA_PESSOA}, first_name, last_name`
       : COLUNAS_DA_PESSOA;
     const { data, error } = await supabase
-      .from("patients").select(colunas)
-      .eq(coluna, valor).eq("owner_id", ownerId).maybeSingle();
+      .from("patients")
+      .select(colunas)
+      .eq(coluna, valor)
+      .eq("owner_id", ownerId)
+      .maybeSingle();
     if (!error) return data ?? null;
     if (!temNomeSeparado || !ehColunaAusente(error)) {
       console.error("[meta-capi] falha ao ler paciente:", error.message);
@@ -450,6 +484,57 @@ async function resolvePerson(ownerId: string, ctx: DispatchContext): Promise<Raw
     if (row) return toRaw(row);
   }
   return { name: ctx.contactName ?? null };
+}
+
+/**
+ * O clique de anúncio desta pessoa, se houver.
+ *
+ * Procura a conversa dela em `ai_agent_sessions` pelo telefone e pega o
+ * `clickId` guardado quando ela chegou pelo anúncio. É o mesmo marcador que
+ * `veio-de-anuncio.ts` grava no webhook.
+ *
+ * **Nunca levanta.** Uma falha de leitura aqui não pode derrubar o envio da
+ * conversão: sem clique o evento sai como sempre saiu, que é o comportamento
+ * de antes desta função existir.
+ *
+ * O telefone entra por VARIANTES (com e sem o nono dígito, com e sem o 55)
+ * porque o cadastro guarda `5548998502477` e a conversa é
+ * `554898502477@s.whatsapp.net`. Comparar cru não casaria nenhuma das duas.
+ */
+async function cliqueDoAnuncio(
+  ownerId: string,
+  telefone: string | null | undefined,
+  agora: Date,
+): Promise<string | null> {
+  const variantes = variantesDoNumero(telefone);
+  if (!variantes.length) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from("ai_agent_sessions")
+      .select("conversation_id, anuncio, created_at")
+      .eq("owner_id", ownerId)
+      .not("anuncio", "is", null)
+      .or(variantes.map((v) => `conversation_id.like.%${v}%`).join(","))
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (error) {
+      console.warn("[meta-capi] não deu para ler o clique do anúncio:", error.message);
+      return null;
+    }
+
+    return cliqueQueVale(
+      // deno-lint-ignore no-explicit-any
+      (data ?? []).map((linha: any) => ({
+        clickId: linha.anuncio?.clickId ?? null,
+        quando: String(linha.created_at),
+      })),
+      agora,
+    );
+  } catch (e) {
+    console.warn("[meta-capi] falha ao procurar o clique do anúncio:", e);
+    return null;
+  }
 }
 
 function matchesConditions(conditions: Record<string, unknown>, ctx: DispatchContext) {
@@ -491,6 +576,21 @@ async function handleDispatch(ownerId: string, systemEvent: string, ctx: Dispatc
 
   const person = await resolvePerson(ownerId, ctx);
   const { userData, dropped } = await buildUserData(person);
+
+  // ── O que liga a venda ao anúncio ───────────────────────────────────────
+  //
+  // O telefone diz QUEM comprou; o clique diz QUAL ANÚNCIO trouxe a pessoa.
+  // São perguntas diferentes, e até 01/10 só a primeira era respondida: a
+  // correspondência do conjunto era 4,8 com telefone em 100%, e mesmo assim
+  // nenhuma campanha da conta tinha uma única compra atribuída.
+  //
+  // O `ctwa_clid` NÃO é hasheado — é um identificador da própria Meta, não
+  // dado pessoal. Por isso entra depois de `buildUserData`, que hasheia tudo
+  // que passa por ela.
+  const agoraDoEvento = new Date();
+  const clique = await cliqueDoAnuncio(ownerId, person.phone, agoraDoEvento);
+  if (validoComoClickId(clique)) userData.ctwa_clid = String(clique);
+  const mensageria = camposDeMensageria(clique);
   const target = resolveTarget(creds);
   const eventTime = Math.floor(Date.now() / 1000);
 
@@ -546,18 +646,45 @@ async function handleDispatch(ownerId: string, systemEvent: string, ctx: Dispatc
       const eventId = ctx.reenvio
         ? `${trigger.meta_event_name}:${ctx.entityId ?? eventTime}:reenvio`
         : `${trigger.meta_event_name}:${ctx.entityId ?? eventTime}`;
+      // Compra de R$ 0,00 não é compra. Mandar assim mesmo polui justamente a
+      // coluna que a clínica usa para comparar campanhas: sobe a contagem de
+      // compras sem subir um centavo de faturamento, então o custo por compra
+      // fica barato e o ROAS afunda. Fica registrado, para não sumir calado.
+      if (!valeComoCompra(trigger.meta_event_name, value)) {
+        await logEvent({
+          owner_id: ownerId,
+          trigger_id: trigger.id,
+          system_event: systemEvent,
+          meta_event_name: trigger.meta_event_name,
+          event_id: eventId,
+          status: "skipped",
+          payload: null,
+          response: null,
+          dropped_keys: dropped,
+          error:
+            "Compra sem valor — não enviada. O atendimento foi concluído sem valor " +
+            "preenchido, e uma compra de R$ 0,00 estragaria o custo por compra e o " +
+            "ROAS da campanha. Preencha o valor e reenvie pela tela.",
+        });
+        return { ok: false, error: null, skipped: true };
+      }
+
       const event: Record<string, unknown> = {
         event_name: trigger.meta_event_name,
         event_time: eventTime,
         event_id: eventId,
-        action_source: target.actionSource,
+        // `business_messaging` só quando existe o clique de verdade: marcar sem
+        // ele seria afirmar à Meta uma origem que ninguém pode provar, e o
+        // evento sairia da contagem normal sem entrar em contagem nenhuma.
+        action_source: mensageria?.action_source ?? target.actionSource,
         user_data: userData,
       };
+      if (mensageria) event.messaging_channel = mensageria.messaging_channel;
       if (value !== null) {
         event.custom_data = { value, currency: trigger.currency || "BRL" };
       }
 
-      const result = await postEvent(creds, event);
+      const result = await postEvent(creds, event, { mensageria: !!mensageria });
       await logEvent({
         owner_id: ownerId,
         trigger_id: trigger.id,
@@ -570,18 +697,28 @@ async function handleDispatch(ownerId: string, systemEvent: string, ctx: Dispatc
         dropped_keys: dropped,
         error: result.error,
       });
-      return { ok: result.ok, error: result.error };
+      return { ok: result.ok, error: result.error, skipped: false };
     }),
   );
 
   const sent = results.filter((r) => r.ok).length;
-  await markResult(
-    ownerId,
-    sent > 0,
-    sent > 0 ? null : (results.find((r) => r.error)?.error ?? "Nenhum evento entregue."),
-  );
+  // Pulado de propósito NÃO é falha. Sem esta distinção, uma compra sem valor
+  // deixaria a tela da integração vermelha dizendo "nenhum evento entregue" —
+  // e quem olhasse iria procurar um defeito de conexão que não existe.
+  const pulados = results.filter((r) => r.skipped).length;
+  const falhou = results.some((r) => !r.ok && !r.skipped);
 
-  return { ok: true, sent, total: matching.length, dropped };
+  if (sent > 0 || !falhou) {
+    await markResult(ownerId, sent > 0, null);
+  } else {
+    await markResult(
+      ownerId,
+      false,
+      results.find((r) => r.error)?.error ?? "Nenhum evento entregue.",
+    );
+  }
+
+  return { ok: true, sent, pulados, total: matching.length, dropped };
 }
 
 async function handleListEvents(ownerId: string, limit: number) {
