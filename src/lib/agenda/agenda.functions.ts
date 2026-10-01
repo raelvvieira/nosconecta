@@ -320,6 +320,32 @@ const SELECT_TRANSICAO_SEM_VALOR = COLUNAS_TRANSICAO.filter((c) => c !== "actual
  * porque `actual_revenue` é anulável, diferente de `expected_revenue`, que é
  * NOT NULL DEFAULT 0 e por isso não consegue diferenciar as duas coisas.
  */
+/**
+ * Concluir um atendimento exige o valor cobrado, e ele tem de ser maior que
+ * zero.
+ *
+ * ── Por que zero deixou de passar ──────────────────────────────────────
+ *
+ * Zero era aceito de propósito, para o atendimento de cortesia. Decisão da
+ * clínica em 01/10, depois de ver o efeito na prática: o valor é o que faz a
+ * venda contar no ROAS e no custo por compra da campanha, e **um zero esquecido
+ * é indistinguível de uma cortesia de verdade.** Em toda a base havia uma única
+ * conclusão com zero — contra o risco diário de a recepção confirmar sem
+ * preencher e a venda sumir do painel da Meta.
+ *
+ * Entre perder uma cortesia por mês e perder vendas em silêncio, a clínica
+ * escolheu exigir o valor.
+ *
+ * ── Por que a checagem mora no SERVIDOR ────────────────────────────────
+ *
+ * A tela também trava o botão, mas tela é conveniência: ela some num
+ * `curl`, num app desatualizado e no dia em que alguém criar um caminho novo
+ * para concluir. Esta função é por onde os DOIS pontos de entrada passam
+ * (`saveAppointment` e `updateAppointmentStatus`), e é ela que garante.
+ *
+ * `completed` também foi tirado do seletor de status do formulário, pelo mesmo
+ * motivo — ver o comentário em `AppointmentDrawer`.
+ */
 function assertValorAoConcluir(
   status: AppointmentStatus | undefined,
   actualRevenue: number | null | undefined,
@@ -329,6 +355,11 @@ function assertValorAoConcluir(
     throw new Error("Informe o valor cobrado para confirmar o atendimento.");
   }
   if (actualRevenue < 0) throw new Error("O valor cobrado não pode ser negativo.");
+  if (actualRevenue === 0) {
+    throw new Error(
+      "O valor cobrado precisa ser maior que zero. É ele que faz a venda contar no retorno dos anúncios.",
+    );
+  }
 }
 
 const appointmentInput = (input: {

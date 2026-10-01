@@ -16,8 +16,20 @@ import { addMonths } from "@/lib/date";
  * cobrado é o que a pessoa pagou — e é o cobrado que faz sentido como valor de
  * conversão.
  *
- * O valor não é opcional de propósito. Zero é aceito (atendimento de cortesia
- * existe); o que não passa é deixar em branco.
+ * ── O valor é obrigatório, e maior que zero ───────────────────────────
+ *
+ * Zero era aceito, para o atendimento de cortesia. Deixou de ser em 01/10, por
+ * decisão da clínica: o valor é o que faz a venda contar no ROAS e no custo por
+ * compra da campanha, e **um zero esquecido é indistinguível de uma cortesia de
+ * verdade.** Em toda a base havia uma única conclusão com zero, contra o risco
+ * diário de alguém confirmar sem preencher e a venda sumir do painel da Meta.
+ *
+ * O botão fica desabilitado até o valor ser válido — e não só recusa no clique.
+ * Botão que parece clicável e reclama depois ensina a tentar de novo; botão
+ * apagado com a razão embaixo ensina o que falta.
+ *
+ * A trava de verdade é no servidor (`assertValorAoConcluir`): esta tela some
+ * num app desatualizado, e a regra não pode sumir com ela.
  */
 /** Prazos oferecidos para o retorno, em meses. `null` = data escolhida à mão. */
 const PRAZOS: { label: string; meses: number | null }[] = [
@@ -105,6 +117,10 @@ export function ConfirmCompletion({
     }
     if (n < 0) {
       setErro("O valor cobrado não pode ser negativo.");
+      return;
+    }
+    if (n === 0) {
+      setErro("O valor precisa ser maior que zero para o atendimento ser confirmado.");
       return;
     }
     setErro(null);
@@ -207,9 +223,11 @@ export function ConfirmCompletion({
     );
   }
 
-  // Só para o rótulo do interruptor; a validação de verdade é em `confirmar`.
+  // Para o rótulo do interruptor E para habilitar o botão. A validação com as
+  // mensagens continua em `confirmar`, e a do servidor é a que garante.
   const lido = parseBRLInput(valor);
   const valorDigitado = Number.isNaN(lido) ? null : lido;
+  const podeConfirmar = valorDigitado !== null && valorDigitado > 0;
 
   return (
     <div className="space-y-2 rounded-xl border border-coral/30 bg-coral-soft px-3 py-3">
@@ -231,8 +249,15 @@ export function ConfirmCompletion({
       />
       {erro ? (
         <p className="text-2xs text-danger">{erro}</p>
-      ) : (
+      ) : podeConfirmar ? (
         <p className="text-2xs text-muted-foreground">Previsto era {formatBRL(expectedRevenue)}</p>
+      ) : (
+        // A razão embaixo do campo, e não só no clique: é o que explica o botão
+        // apagado sem obrigar a pessoa a tentar para descobrir.
+        <p className="text-2xs text-muted-foreground">
+          Previsto era {formatBRL(expectedRevenue)}. Informe quanto foi pago — é esse valor que faz
+          a venda contar nos anúncios.
+        </p>
       )}
 
       {/* Rótulo com o valor dentro: "gerar cobrança" é abstrato, "gerar
@@ -285,7 +310,7 @@ export function ConfirmCompletion({
           type="button"
           variant="premium"
           className="h-10 flex-1 rounded-xl"
-          disabled={isPending}
+          disabled={isPending || !podeConfirmar}
           onClick={confirmar}
         >
           {isPending ? "Confirmando..." : "Confirmar e enviar"}
