@@ -1,0 +1,7 @@
+# Os modelos ficam no repositório; o que VOCÊ preencher, não.
+#
+# Extrato e fatura são dados financeiros da clínica — não entram no histórico
+# do código, que é lido, copiado e clonado. Renomeie seus arquivos preenchidos
+# com o sufixo `-preenchido` e eles ficam só na sua máquina.
+*-preenchido.csv
+*-preenchido.xlsx

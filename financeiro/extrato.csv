@@ -1,0 +1,5 @@
+data,tipo,valor,conta,descricao,fornecedor,categoria,forma
+30/06/2026,saida,"1.489,75",Banco Inter,Aluguel da sala,Pirâmides Imobiliária,Aluguel,boleto
+15/07/2026,saida,"27,51",Banco Inter,Conta de energia,CELESC,Energia,debito
+05/08/2026,saida,"2.500,00",Nubank Rael,Salário recepção agosto,,Salários e Pró-labore,pix
+10/08/2026,entrada,"450,00",Mercado Pago,Limpeza + clareamento,Paciente particular,,pix
