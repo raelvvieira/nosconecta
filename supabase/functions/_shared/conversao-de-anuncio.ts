@@ -40,17 +40,47 @@ export interface ConversaoPorMensagem {
 /**
  * Os campos que transformam o evento numa conversão de mensageria.
  *
- * Devolve `null` quando não há clique, e aí o evento continua saindo como
- * sempre saiu. Isto é deliberado: `business_messaging` sem `ctwa_clid` é uma
- * afirmação falsa sobre a origem — diria à Meta que a conversão veio de uma
- * conversa iniciada por anúncio quando ninguém sabe se veio.
+ * Precisa das DUAS coisas, e a segunda custou um reenvio para descobrir.
+ *
+ * ── O que a Meta respondeu ─────────────────────────────────────────────
+ *
+ * 01/10, reenvio da venda do Juliano já com o clique e com
+ * `business_messaging`:
+ *
+ *   "Seu evento Purchase com a fonte da ação business_messaging do canal
+ *    whatsapp não tem page_id nem whatsapp_business_account_id. Um desses
+ *    parâmetros é necessário em user_data." (código 100, subcode 2804116)
+ *
+ * **Um DESSES** — e é a boa notícia da mensagem: `page_id` é a Página do
+ * Facebook, que qualquer anunciante tem. A conta de WhatsApp Business da API
+ * oficial NÃO é obrigatória, e era exatamente a dúvida que travava este
+ * conserto.
+ *
+ * ── Por que `null` quando falta qualquer um dos dois ───────────────────
+ *
+ * Sem clique, `business_messaging` seria afirmação falsa sobre a origem.
+ *
+ * Sem a Página, a Meta RECUSA o evento inteiro — e recusar é pior que mandar
+ * sem a marcação, porque aí a conversão SOME em vez de sair cega.
+ *
+ * Então, faltando um dos dois, o evento volta a sair como saía antes. É a
+ * garantia de que esquecer de preencher a Página não derruba as conversões que
+ * já funcionavam.
  */
 export function camposDeMensageria(
   clickId: string | null | undefined,
+  pageId: string | null | undefined,
 ): ConversaoPorMensagem | null {
-  return validoComoClickId(clickId)
-    ? { action_source: "business_messaging", messaging_channel: "whatsapp" }
-    : null;
+  if (!validoComoClickId(clickId)) return null;
+  if (!validoComoPageId(pageId)) return null;
+  return { action_source: "business_messaging", messaging_channel: "whatsapp" };
+}
+
+/** O id da Página é numérico. Checagem frouxa, só para não marcar mensageria
+ *  por causa de um campo preenchido com texto colado errado — quem valida o
+ *  resto é a Meta, e ela diz o que está errado. */
+export function validoComoPageId(valor: string | null | undefined): boolean {
+  return /^\d{5,}$/.test(String(valor ?? "").trim());
 }
 
 /**

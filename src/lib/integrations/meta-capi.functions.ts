@@ -22,6 +22,8 @@ export interface MetaCapiSettings {
   /** Destino em uso — o conjunto offline ganha do pixel quando existe. */
   mode: "offline_dataset" | "pixel_events";
   testEventCode: string;
+  /** Id da Página do Facebook dos anúncios. */
+  pageId: string;
   apiVersion: string;
   enabled: boolean;
   hasToken: boolean;
@@ -104,10 +106,19 @@ export const saveMetaCapiSettings = createServerFn({ method: "POST" })
       testEventCode?: string;
       apiVersion?: string;
       enabled: boolean;
+      pageId?: string;
     }) => {
       if (input.enabled && !input.pixelId?.trim() && !input.offlineEventSetId?.trim()) {
         throw new Error(
           "Informe o Pixel ID ou o conjunto de eventos offline para ativar a integração.",
+        );
+      }
+      // Só dígitos: a Meta recusa o evento inteiro quando a Página vem torta, e
+      // a recusa aconteceria lá na frente, numa venda, sem ninguém olhando.
+      const pagina = input.pageId?.trim();
+      if (pagina && !/^\d{5,}$/.test(pagina)) {
+        throw new Error(
+          "O id da Página é só números (ex.: 107444382072130). Copie de Meta Business › Configurações › Páginas.",
         );
       }
       return input;

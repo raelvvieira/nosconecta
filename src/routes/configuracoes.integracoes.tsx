@@ -132,6 +132,7 @@ function IntegrationsPage() {
   const [offlineEventSetId, setOfflineEventSetId] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [testEventCode, setTestEventCode] = useState("");
+  const [pageId, setPageId] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<MetaCapiTrigger | null>(null);
@@ -145,6 +146,7 @@ function IntegrationsPage() {
     setPixelId(settings.data.pixelId);
     setOfflineEventSetId(settings.data.offlineEventSetId);
     setTestEventCode(settings.data.testEventCode);
+    setPageId(settings.data.pageId);
     setEnabled(settings.data.enabled);
   }, [settings.data]);
 
@@ -154,7 +156,7 @@ function IntegrationsPage() {
 
   const saveMutation = useMutation({
     mutationFn: () =>
-      save({ data: { pixelId, offlineEventSetId, accessToken, testEventCode, enabled } }),
+      save({ data: { pixelId, offlineEventSetId, accessToken, testEventCode, pageId, enabled } }),
     onSuccess: () => {
       toast.success("Integração salva");
       setAccessToken("");
@@ -322,6 +324,24 @@ function IntegrationsPage() {
               {settings.data?.hasToken
                 ? "Já existe um token salvo. Deixe em branco para mantê-lo."
                 : "Gere em Gerenciador de Eventos › Configurações › Conversions API."}
+            </p>
+          </div>
+          <div>
+            {/* Antes do Test Event Code de propósito: este campo não é de
+                teste, é o que faz a venda dizer de qual anúncio ela veio.
+                Sem ele a Meta RECUSA toda conversão de conversa — e a recusa
+                acontece lá na frente, numa venda, sem ninguém olhando. */}
+            <Label htmlFor="page-id">Página do Facebook dos anúncios</Label>
+            <Input
+              id="page-id"
+              value={pageId}
+              onChange={(event) => setPageId(event.target.value)}
+              placeholder="107444382072130"
+              className="mt-1.5 bg-white"
+            />
+            <p className="mt-1.5 text-2xs text-muted-foreground">
+              É o que liga a venda ao anúncio de WhatsApp. Sem ele a Meta recebe a conversão mas não
+              sabe qual campanha trouxe a pessoa. Copie em Meta Business › Configurações › Páginas.
             </p>
           </div>
           <div>

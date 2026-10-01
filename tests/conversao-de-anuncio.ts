@@ -23,6 +23,7 @@ import {
   camposDeMensageria,
   cliqueQueVale,
   validoComoClickId,
+  validoComoPageId,
 } from "../supabase/functions/_shared/conversao-de-anuncio.ts";
 
 let ok = 0;
@@ -38,14 +39,37 @@ const CLIQUE = "Afg" + "r".repeat(135);
 const OUTRO = "Afg" + "z".repeat(135);
 
 // ── Os campos de mensageria ──────────────────────────────────────────────
-conferir("com clique, vira conversão de conversa", camposDeMensageria(CLIQUE), {
+//
+// Precisa dos DOIS, e a segunda parte custou um reenvio recusado para
+// descobrir. A Meta respondeu, em 01/10:
+//
+//   "não tem page_id nem whatsapp_business_account_id. Um desses parâmetros é
+//    necessário em user_data." (100 / 2804116)
+const PAGINA = "107444382072130";
+
+conferir("com clique e página, vira conversão de conversa", camposDeMensageria(CLIQUE, PAGINA), {
   action_source: "business_messaging",
   messaging_channel: "whatsapp",
 });
-conferir("sem clique, nada muda", camposDeMensageria(null), null);
-conferir("string vazia não marca", camposDeMensageria(""), null);
-conferir("só espaço não marca", camposDeMensageria("   "), null);
-conferir("valor curto demais não marca", camposDeMensageria("abc123"), null);
+
+// O caso que a Meta recusou: clique sem página. Melhor sair como saía antes do
+// que sair e ser recusado — recusado a conversão SOME, cega ela ao menos conta
+// no conjunto de dados.
+conferir("clique sem página não marca", camposDeMensageria(CLIQUE, null), null);
+conferir("página sem clique não marca", camposDeMensageria(null, PAGINA), null);
+conferir("nenhum dos dois não marca", camposDeMensageria(null, null), null);
+conferir("string vazia não marca", camposDeMensageria("", PAGINA), null);
+conferir("só espaço não marca", camposDeMensageria("   ", PAGINA), null);
+conferir("clique curto demais não marca", camposDeMensageria("abc123", PAGINA), null);
+conferir("página vazia não marca", camposDeMensageria(CLIQUE, ""), null);
+
+// ── O id da Página ───────────────────────────────────────────────────────
+conferir("o id real passa", validoComoPageId(PAGINA), true);
+conferir("com espaço em volta passa", validoComoPageId("  107444382072130  "), true);
+conferir("nulo não passa", validoComoPageId(null), false);
+conferir("nome da página não passa", validoComoPageId("Dra. Mariane Botti"), false);
+conferir("número curto demais não passa", validoComoPageId("123"), false);
+conferir("com letra no meio não passa", validoComoPageId("10744a382072130"), false);
 
 // ── O que parece um clique ───────────────────────────────────────────────
 conferir("o formato real passa", validoComoClickId(CLIQUE), true);

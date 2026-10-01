@@ -27,12 +27,16 @@ interface Credentials {
   test_event_code: string | null;
   api_version: string | null;
   enabled: boolean;
+  /** A Página do Facebook dos anúncios. Exigida pela Meta em todo evento de
+   *  `business_messaging` — ver `camposDeMensageria`. */
+  page_id: string | null;
 }
 
 import {
   camposDeMensageria,
   cliqueQueVale,
   validoComoClickId,
+  validoComoPageId,
 } from "../_shared/conversao-de-anuncio.ts";
 import { variantesDoNumero } from "../_shared/phone-match.ts";
 import { valeComoCompra } from "../_shared/valor-da-conversao.ts";
@@ -208,7 +212,9 @@ async function buildUserData(raw: RawPerson) {
 async function loadCredentials(ownerId: string): Promise<Credentials | null> {
   const { data, error } = await supabase
     .from("meta_capi_credentials")
-    .select("pixel_id, offline_event_set_id, access_token, test_event_code, api_version, enabled")
+    .select(
+      "pixel_id, offline_event_set_id, access_token, test_event_code, api_version, enabled, page_id",
+    )
     .eq("owner_id", ownerId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -319,6 +325,7 @@ async function handleGetSettings(ownerId: string) {
       offlineEventSetId: offline,
       mode: offline ? "offline_dataset" : "pixel_events",
       testEventCode: data?.test_event_code ?? "",
+      pageId: data?.page_id ?? "",
       apiVersion: data?.api_version ?? DEFAULT_API_VERSION,
       enabled: data?.enabled ?? false,
       hasToken: Boolean(token),
@@ -339,6 +346,7 @@ async function handleSaveSettings(
     testEventCode?: string;
     apiVersion?: string;
     enabled?: boolean;
+    pageId?: string;
   },
 ) {
   const row: Record<string, unknown> = {
@@ -346,6 +354,7 @@ async function handleSaveSettings(
     pixel_id: input.pixelId?.trim() || null,
     offline_event_set_id: input.offlineEventSetId?.trim() || null,
     test_event_code: input.testEventCode?.trim() || null,
+    page_id: input.pageId?.trim() || null,
     api_version: input.apiVersion?.trim() || DEFAULT_API_VERSION,
     enabled: Boolean(input.enabled),
     updated_at: new Date().toISOString(),
@@ -589,8 +598,19 @@ async function handleDispatch(ownerId: string, systemEvent: string, ctx: Dispatc
   // que passa por ela.
   const agoraDoEvento = new Date();
   const clique = await cliqueDoAnuncio(ownerId, person.phone, agoraDoEvento);
-  if (validoComoClickId(clique)) userData.ctwa_clid = String(clique);
-  const mensageria = camposDeMensageria(clique);
+  const mensageria = camposDeMensageria(clique, creds.page_id);
+
+  // Os dois juntos, ou nenhum. A Meta recusa o evento inteiro quando a fonte é
+  // `business_messaging` e falta a Página — mandar o clique sem a marcação não
+  // atribui nada, e mandar a marcação sem a Página perde a conversão.
+  //
+  // Nenhum dos dois é hasheado: `ctwa_clid` é identificador da própria Meta e
+  // `page_id` é público. Por isso entram DEPOIS de `buildUserData`, que
+  // hasheia tudo que passa por ela.
+  if (mensageria) {
+    userData.ctwa_clid = String(clique);
+    userData.page_id = String(creds.page_id).trim();
+  }
   const target = resolveTarget(creds);
   const eventTime = Math.floor(Date.now() / 1000);
 
