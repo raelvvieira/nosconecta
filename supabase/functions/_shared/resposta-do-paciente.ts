@@ -219,12 +219,91 @@ export const FORMATO_DA_LEITURA = {
 };
 
 /** O prompt do desempate. Puro: mesma entrada, mesmo texto. */
-export function promptDaLeitura(resposta: string): string {
+/**
+ * O que a clínica perguntou, para a resposta poder ser lida.
+ *
+ * ── Por que isto existe ────────────────────────────────────────────────
+ *
+ * O prompt antigo trazia um lembrete INVENTADO, sempre o mesmo, e a resposta
+ * do paciente solta embaixo. Em 01/10 o Daniel Costa respondeu "Tudo bem, pode
+ * ser" e a IA devolveu "indefinida" — corretamente, porque lida no vácuo essa
+ * frase responde "sim" tanto quanto responde "tanto faz".
+ *
+ * Com a pergunta de verdade junto, a mesma frase deixa de ser ambígua.
+ */
+export interface ContextoDaPergunta {
+  /** A última mensagem que a clínica mandou antes da resposta, como ela saiu.
+   *  Nula quando o espelho não tem — e aí o prompt volta ao texto genérico. */
+  perguntaDaClinica: string | null;
+  /** A consulta de que se fala, por extenso. */
+  quando: string | null;
+  procedimento: string | null;
+}
+
+/** Quanto da mensagem da clínica entra no prompt. Lembrete costuma caber;
+ *  o teto existe para um modelo de mensagem gigante não virar o prompt
+ *  inteiro e empurrar a resposta do paciente para o fim, onde ela pesa menos. */
+const MAX_DA_PERGUNTA = 600;
+
+/**
+ * "2026-10-01" e "15:00" viram "quinta-feira, 1 de outubro, às 15:00".
+ *
+ * `T12:00:00` e não `T00:00:00`: `new Date("2026-10-01")` é meia-noite UTC,
+ * que no Brasil é 21h do dia 30 — a consulta de quinta viraria quarta no
+ * prompt. Meio-dia sobrevive a qualquer fuso.
+ *
+ * Nulo quando não há data: a frase some do prompt em vez de virar "Invalid
+ * Date", que o modelo leria como informação.
+ */
+export function consultaPorExtenso(data: string | null, hora: string | null): string | null {
+  if (!data) return null;
+  const d = new Date(`${data}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  const dia = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "UTC",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(d);
+  const h = String(hora ?? "").slice(0, 5);
+  return h ? `${dia}, às ${h}` : dia;
+}
+
+/**
+ * O pedido que vai ao modelo.
+ *
+ * Com `contexto`, ele recebe a pergunta DE VERDADE que a clínica mandou. Sem,
+ * cai no texto genérico de antes — que continua existindo porque o espelho
+ * pode não ter a mensagem (clínica que mandou o lembrete por outro canal, ou
+ * conversa que começou antes do espelho).
+ */
+export function promptDaLeitura(resposta: string, contexto?: ContextoDaPergunta): string {
+  const pergunta = String(contexto?.perguntaDaClinica ?? "").trim();
+
+  const cabecalho = pergunta
+    ? [
+        "Uma clínica odontológica mandou esta mensagem para um paciente:",
+        "",
+        `> ${pergunta.slice(0, MAX_DA_PERGUNTA).replace(/\n/g, "\n> ")}`,
+      ]
+    : [
+        "Uma clínica odontológica mandou este lembrete para um paciente:",
+        "",
+        '> "Sua consulta é amanhã. Você confirma sua presença? Responda SIM para',
+        '> confirmar ou NÃO se precisar remarcar."',
+      ];
+
+  // A consulta entra DEPOIS da pergunta e antes da resposta: é o que permite
+  // ao modelo entender "pode ser" como "pode ser esse horário".
+  const sobreAConsulta: string[] = [];
+  if (contexto?.quando || contexto?.procedimento) {
+    const partes = [contexto.procedimento, contexto.quando].filter(Boolean).join(" — ");
+    sobreAConsulta.push("", `A consulta de que se fala: ${partes}.`);
+  }
+
   return [
-    "Uma clínica odontológica mandou este lembrete para um paciente:",
-    "",
-    '> "Sua consulta é amanhã. Você confirma sua presença? Responda SIM para',
-    '> confirmar ou NÃO se precisar remarcar."',
+    ...cabecalho,
+    ...sobreAConsulta,
     "",
     "O paciente respondeu:",
     "",
@@ -236,6 +315,10 @@ export function promptDaLeitura(resposta: string): string {
     '- "remarca" = não vai poder, quer outro dia ou horário, ou quer cancelar.',
     '- "indefinida" = qualquer outra coisa, inclusive pergunta, assunto',
     "  diferente, ou resposta que dá para ler dos dois jeitos.",
+    "",
+    'Leia a resposta COMO RESPOSTA À MENSAGEM ACIMA. Um "pode ser" ou "tudo',
+    'bem" solto não quer dizer nada; respondendo a um pedido de confirmação,',
+    "quer dizer que ele confirma.",
     "",
     'Na dúvida, responda "indefinida". Aqui, errar move a consulta de uma',
     "pessoa de verdade na agenda; não saber só faz alguém da equipe ler a",
@@ -249,6 +332,11 @@ export interface MensagemParaTratar {
   ehGrupo: boolean;
   body: string | null;
   phone: string | null;
+  /** A conversa no espelho, para achar a pergunta que a clínica fez. Opcional
+   *  porque nem todo chamador tem; sem ela a leitura cai no texto genérico.
+   *  O nome é o mesmo que `mensagemDoEvento` já devolve, então o webhook não
+   *  precisou mudar nada. */
+  crmConversationId?: string | null;
 }
 
 export interface ResultadoDaResposta {
@@ -347,7 +435,25 @@ export async function tratarRespostaDoPaciente(
   // decidir um "sim".
   let decisao = classificarResposta(texto);
   if (decisao === "indefinida") {
-    decisao = await lerComIa(supabase, ownerId, texto);
+    // ── A pergunta, junto da resposta ───────────────────────────────────
+    //
+    // Só quando a lista de palavras não resolveu, porque é o único caso em que
+    // a IA roda — e a leitura do espelho é uma consulta a mais que não faz
+    // sentido pagar nas respostas que já saíram por "sim".
+    //
+    // Em 01/10 o Daniel respondeu "Tudo bem, pode ser" e a IA devolveu
+    // "indefinida", corretamente: lida no vácuo, essa frase responde "sim"
+    // tanto quanto responde "tanto faz". Faltava a pergunta.
+    decisao = await lerComIa(supabase, ownerId, texto, {
+      perguntaDaClinica: await ultimaPerguntaDaClinica(
+        supabase,
+        ownerId,
+        m.crmConversationId ?? null,
+        agora,
+      ),
+      quando: consultaPorExtenso(ap.data ?? null, ap.hora ?? null),
+      procedimento: ap.procedure_name ?? null,
+    });
   }
 
   // ── Quem decide ───────────────────────────────────────────────────────
@@ -433,6 +539,53 @@ export async function tratarRespostaDoPaciente(
   return { tratada: true, acao, appointmentId: ap.appointment_id };
 }
 
+/**
+ * A última coisa que a clínica escreveu nesta conversa antes da resposta.
+ *
+ * É o que transforma "pode ser" de ambíguo em confirmação. Vem do espelho, e
+ * não de `appointment_notifications`, porque lá só fica o TIPO do lembrete
+ * ("24h antes") — o texto que a pessoa leu não é guardado em lugar nenhum
+ * além do espelho.
+ *
+ * **Nunca levanta e nunca bloqueia.** Sem a pergunta, `promptDaLeitura` volta
+ * ao texto genérico, que é como funcionava antes. Uma falha de leitura aqui
+ * não pode impedir a resposta do paciente de ser classificada.
+ */
+async function ultimaPerguntaDaClinica(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  ownerId: string,
+  conversationId: string | null,
+  agora: Date,
+): Promise<string | null> {
+  if (!conversationId) return null;
+  try {
+    const { data, error } = await supabase
+      .from("wa_messages")
+      .select("body")
+      .eq("owner_id", ownerId)
+      .eq("crm_conversation_id", conversationId)
+      .eq("from_me", true)
+      .eq("is_private", false)
+      .not("body", "is", null)
+      // Teto no instante da resposta: sem ele, uma mensagem que a recepção
+      // mandou DEPOIS entraria como "a pergunta", e o modelo leria a resposta
+      // contra algo que o paciente ainda não tinha visto.
+      .lte("sent_at", agora.toISOString())
+      .order("sent_at", { ascending: false })
+      .limit(1);
+    if (error) {
+      console.warn("[resposta-do-paciente] pergunta não lida:", error.message);
+      return null;
+    }
+    const texto = String((data ?? [])[0]?.body ?? "").trim();
+    return texto || null;
+  } catch (e) {
+    console.warn("[resposta-do-paciente] pergunta não lida:", e);
+    return null;
+  }
+}
+
 async function registrarResposta(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -503,6 +656,7 @@ async function lerComIa(
   supabase: any,
   ownerId: string,
   texto: string,
+  contexto: ContextoDaPergunta | undefined,
 ): Promise<Classificacao> {
   try {
     const { data: agente } = await supabase
@@ -515,7 +669,7 @@ async function lerComIa(
     const resposta = await chamarModelo({
       chave: agente.api_key ?? null,
       modelo: agente.model,
-      pergunta: promptDaLeitura(texto),
+      pergunta: promptDaLeitura(texto, contexto),
       maxTokens: 300,
       formato: FORMATO_DA_LEITURA,
       nomeDoFormato: "leitura_da_resposta",

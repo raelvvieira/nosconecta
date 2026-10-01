@@ -22,6 +22,8 @@ import {
   JANELA_DE_RESPOSTA_EM_HORAS,
   classificarResposta,
   tratarRespostaDoPaciente,
+  consultaPorExtenso,
+  promptDaLeitura,
 } from "../supabase/functions/_shared/resposta-do-paciente.ts";
 import { variantesDoNumero } from "../supabase/functions/_shared/phone-match.ts";
 
@@ -286,6 +288,105 @@ conferir(
 }
 
 conferir("a janela é maior que um dia", JANELA_DE_RESPOSTA_EM_HORAS > 24, true);
+
+// ── A pergunta junto da resposta ─────────────────────────────────────────
+//
+// 01/10: o Daniel Costa respondeu "Tudo bem, pode ser" a um pedido de
+// confirmação, e a IA devolveu "indefinida". Estava certa: lida no vácuo, essa
+// frase responde "sim" tanto quanto responde "tanto faz". O que faltava era a
+// pergunta.
+//
+// Os modos de errar:
+//
+//   **Mandar a resposta sozinha.** Era o defeito: o prompt trazia um lembrete
+//   INVENTADO, sempre o mesmo, e a frase do paciente solta embaixo.
+//
+//   **Ler a mensagem errada como pergunta.** Se a recepção escrever DEPOIS da
+//   resposta, essa mensagem não pode virar "o que foi perguntado".
+//
+//   **Quebrar quando não há pergunta.** Sem o espelho, tem de voltar ao texto
+//   genérico, não sumir.
+{
+  const PERGUNTA = "Oi Daniel! Passando para confirmar sua consulta. Você confirma presença?";
+
+  const comContexto = promptDaLeitura("Tudo bem, pode ser", {
+    perguntaDaClinica: PERGUNTA,
+    quando: "quinta-feira, 1 de outubro, às 15:00",
+    procedimento: "Combo: clareamento de consultório + limpeza completa",
+  });
+
+  conferir("a pergunta de verdade entra no prompt", comContexto.includes(PERGUNTA), true);
+  conferir("o lembrete inventado sai", comContexto.includes("Sua consulta é amanhã"), false);
+  conferir("a resposta continua lá", comContexto.includes("Tudo bem, pode ser"), true);
+  conferir(
+    "a consulta aparece",
+    comContexto.includes("quinta-feira, 1 de outubro, às 15:00"),
+    true,
+  );
+  conferir("o procedimento aparece", comContexto.includes("clareamento de consultório"), true);
+  conferir(
+    "e o modelo é mandado ler uma contra a outra",
+    comContexto.includes("COMO RESPOSTA À MENSAGEM ACIMA"),
+    true,
+  );
+  conferir("com o caso do Daniel escrito na instrução", comContexto.includes("pode ser"), true);
+
+  // A pergunta vem ANTES da resposta: ordem importa para o modelo ler uma
+  // contra a outra, e inverter faria a frase do paciente chegar sem referência.
+  conferir(
+    "a pergunta vem antes da resposta",
+    comContexto.indexOf(PERGUNTA) < comContexto.indexOf("Tudo bem, pode ser"),
+    true,
+  );
+}
+
+{
+  // Sem espelho: volta ao texto de antes, em vez de ficar sem pergunta nenhuma.
+  const semContexto = promptDaLeitura("Tudo bem, pode ser");
+  conferir("sem contexto, o genérico volta", semContexto.includes("Sua consulta é amanhã"), true);
+  conferir("e a resposta continua lá", semContexto.includes("Tudo bem, pode ser"), true);
+
+  const contextoVazio = promptDaLeitura("ok", {
+    perguntaDaClinica: null,
+    quando: null,
+    procedimento: null,
+  });
+  conferir(
+    "contexto todo nulo também cai no genérico",
+    contextoVazio.includes("Sua consulta é amanhã"),
+    true,
+  );
+  conferir(
+    "e não inventa linha de consulta",
+    contextoVazio.includes("A consulta de que se fala"),
+    false,
+  );
+}
+
+{
+  // Mensagem gigante da clínica não pode empurrar a resposta para o fim.
+  const enorme = "a".repeat(5000);
+  const p = promptDaLeitura("ok", { perguntaDaClinica: enorme, quando: null, procedimento: null });
+  conferir("a pergunta é cortada", p.includes("a".repeat(5000)), false);
+  conferir("e a resposta sobrevive", p.includes("> ok"), true);
+}
+
+// ── A consulta por extenso ───────────────────────────────────────────────
+//
+// `new Date("2026-10-01")` é meia-noite UTC, que no Brasil é 21h do dia 30 —
+// sem cuidado, a consulta de quinta vira quarta dentro do prompt.
+conferir(
+  "a data não volta um dia",
+  consultaPorExtenso("2026-10-01", "15:00:00"),
+  "quinta-feira, 1 de outubro, às 15:00",
+);
+conferir(
+  "sem hora, só o dia",
+  consultaPorExtenso("2026-10-01", null),
+  "quinta-feira, 1 de outubro",
+);
+conferir("sem data, nada", consultaPorExtenso(null, "15:00"), null);
+conferir("data torta não vira Invalid Date", consultaPorExtenso("ontem", "15:00"), null);
 
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);
