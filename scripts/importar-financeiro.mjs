@@ -820,65 +820,130 @@ for (const f of faturasPagas) {
   vencimentoDaFatura.set(`${f.cartao}|${mes}`, f.data);
 }
 
-const jaFaturadas = new Set();
 for (const t of transacoesDeCartao) {
-  const mes = t.cartao === "Inter" ? mesDaFatura(t.fatura) : t.fatura;
-  jaFaturadas.add(`${t.cartao}|${normalizar(t.estabelecimento)}|${t.data}|${t.parcela}`);
-  t.mesDaFatura = mes;
+  t.mesDaFatura = t.cartao === "Inter" ? mesDaFatura(t.fatura) : t.fatura;
 }
 
+/**
+ * Uma COMPRA, e não uma linha de fatura: as parcelas da mesma compra aparecem
+ * em faturas diferentes e precisam ser vistas juntas.
+ */
+const grupos = new Map();
 for (const t of transacoesDeCartao) {
-  const info = classificarEstabelecimento(t.estabelecimento);
+  const chave = `${t.cartao}|${normalizar(t.estabelecimento)}|${t.data}|${t.totalParcelas}`;
+  const g = grupos.get(chave) ?? new Map(); // parcela → linhas com esse número
+  const lista = g.get(t.parcela) ?? [];
+  lista.push(t);
+  g.set(t.parcela, lista);
+  grupos.set(chave, g);
+}
+
+/**
+ * O mesmo número de parcela aparecendo DUAS vezes no grupo não é leitura
+ * repetida: são duas compras distintas na mesma loja, no mesmo dia, no mesmo
+ * número de vezes. Aconteceu duas vezes aqui — "IG*CredAluga" de R$ 196,00 e
+ * de R$ 180,00 em 13/04, e duas compras no Mercado Livre em 20/08, uma de
+ * R$ 11,23 e outra de R$ 104,75. Guardar uma por número de parcela fazia a
+ * segunda desaparecer, e a conferência da fatura acusava a falta.
+ *
+ * Então a i-ésima ocorrência de cada número de parcela pertence à i-ésima
+ * compra do grupo.
+ */
+const compras = [];
+for (const [chave, g] of grupos) {
+  const [cartao] = chave.split("|");
+  const quantasCompras = Math.max(...[...g.values()].map((l) => l.length));
+  for (let i = 0; i < quantasCompras; i++) {
+    const linhas = new Map();
+    let vencimentoConhecido = null;
+    for (const [parcela, lista] of g) {
+      const linha = lista[i];
+      if (!linha) continue;
+      linhas.set(parcela, linha);
+      if (linha.vencimento && !vencimentoConhecido) vencimentoConhecido = linha.vencimento;
+    }
+    if (!linhas.size) continue;
+    const alguma = [...linhas.values()][0];
+    compras.push({
+      cartao,
+      estabelecimento: alguma.estabelecimento,
+      data: alguma.data,
+      totalParcelas: alguma.totalParcelas,
+      vencimentoConhecido,
+      linhas,
+    });
+  }
+}
+
+for (const c of compras) {
+  const info = classificarEstabelecimento(c.estabelecimento);
+  const umaLinha = [...c.linhas.values()][0];
   if (!info.categoria) {
     decidir.push({
-      data: t.data,
-      descricao: `${t.cartao} · ${t.estabelecimento}`,
-      valor: -t.valor * t.totalParcelas,
-      nome: t.estabelecimento,
+      data: c.data,
+      descricao: `${c.cartao} · ${c.estabelecimento}`,
+      valor: -umaLinha.valor * c.totalParcelas,
+      nome: c.estabelecimento,
       motivo: "estabelecimento de cartão que não sei categorizar",
     });
     continue;
   }
 
-  // Só a parcela 1 gera a compra inteira; as demais linhas da fatura são a
-  // mesma compra aparecendo de novo e já estão cobertas.
-  const ehPrimeira = t.parcela === 1;
-  const parcelasAGerar = ehPrimeira
-    ? Array.from({ length: t.totalParcelas }, (_, i) => i + 1)
-    : jaFaturadas.has(`${t.cartao}|${normalizar(t.estabelecimento)}|${t.data}|1`)
-      ? [] // a parcela 1 está no arquivo, ela cuida de todas
-      : [t.parcela]; // só a do meio veio (fatura antiga faltando)
+  const conhecidas = [...c.linhas.keys()].sort((a, b) => a - b);
 
-  for (const p of parcelasAGerar) {
-    const mesDestaParcela = t.mesDaFatura
-      ? somarMeses(`${t.mesDaFatura}-01`, p - t.parcela).slice(0, 7)
+  for (let p = 1; p <= c.totalParcelas; p++) {
+    const propria = c.linhas.get(p);
+
+    // Quando a parcela ESTÁ na fatura, é ela que manda — valor e mês. Estimar
+    // a partir da parcela 1 parecia inofensivo e não era: a Mercado Livre
+    // cobrou as três parcelas de uma compra na MESMA fatura de setembro, e a
+    // estimativa as espalhou por setembro, outubro e novembro; a IR Tintas
+    // tem parcela 1 de R$ 362,97 e parcela 2 de R$ 362,89. Nos dois casos a
+    // conferência da fatura deixava de fechar, por R$ 44,33 e por R$ 0,08.
+    // Só o que NÃO veio em fatura nenhuma é que se estima.
+    const referencia =
+      propria ??
+      c.linhas.get(
+        conhecidas.reduce((melhor, k) => (Math.abs(k - p) < Math.abs(melhor - p) ? k : melhor)),
+      );
+    const passos = propria
+      ? 0
+      : p - [...c.linhas.keys()].find((k) => c.linhas.get(k) === referencia);
+
+    const mesDestaParcela = referencia.mesDaFatura
+      ? somarMeses(`${referencia.mesDaFatura}-01`, passos).slice(0, 7)
       : null;
     const pagoNaFatura = mesDestaParcela
-      ? (vencimentoDaFatura.get(`${t.cartao}|${mesDestaParcela}`) ?? null)
+      ? (vencimentoDaFatura.get(`${c.cartao}|${mesDestaParcela}`) ?? null)
       : null;
-    const vencimentoEstimado =
+    const vencimento =
       pagoNaFatura ??
-      (t.vencimento
-        ? somarMeses(t.vencimento, p - t.parcela)
+      (c.vencimentoConhecido
+        ? somarMeses(c.vencimentoConhecido, passos)
         : mesDestaParcela
           ? `${mesDestaParcela}-15`
-          : t.data);
+          : c.data);
 
     propostas.push({
-      fonte: `cartão ${t.cartao}`,
-      data: t.data,
+      fonte: `cartão ${c.cartao}`,
+      data: c.data,
       descricao:
-        t.totalParcelas > 1 ? `${info.descricao} (${p}/${t.totalParcelas})` : info.descricao,
+        c.totalParcelas > 1 ? `${info.descricao} (${p}/${c.totalParcelas})` : info.descricao,
       fornecedor: info.fornecedor,
       categoria: info.categoria,
-      valor: t.valor,
-      vencimento: vencimentoEstimado,
+      valor: referencia.valor,
+      vencimento,
       pagoEm: pagoNaFatura,
       status: pagoNaFatura ? "paid" : "pending",
       parcela: p,
-      totalParcelas: t.totalParcelas,
+      totalParcelas: c.totalParcelas,
       confirmado: info.confirmado,
-      origem: `${t.estabelecimento} · compra ${t.data} · fatura ${t.fatura || mesDestaParcela || "—"}`,
+      estimada: !propria,
+      origem:
+        `${c.estabelecimento} · compra ${c.data} · ` +
+        (propria
+          ? `fatura ${propria.fatura || mesDestaParcela || "—"}`
+          : `parcela ainda não faturada, estimada a partir da ${[...c.linhas.keys()].find((k) => c.linhas.get(k) === referencia)}ª`),
     });
   }
 }
@@ -994,6 +1059,56 @@ const semLastro = existentes.filter(
 );
 
 for (const d of diferencasDeValor) decidir.push(d);
+
+// ── Conferência de CAIXA: o dia em que o dinheiro sai ───────────────────────
+
+/**
+ * A conferência das faturas prova que as fontes estão completas. Esta prova
+ * outra coisa, e é a que responde "mas a saída de caixa não é o dia do
+ * pagamento da fatura?": sim, e é esse o dia que cada parcela carrega.
+ *
+ * Cada parcela tem DUAS datas. O vencimento é quando ela cai (a data da
+ * fatura), e o pagamento é o dia em que a fatura foi de fato quitada. Numa
+ * leitura por data de pagamento, as treze parcelas da fatura de setembro saem
+ * todas em 21/09 e somam exatamente os R$ 5.827,80 que o banco debitou. É por
+ * isso que lançar TAMBÉM o pagamento da fatura dobraria o dia.
+ *
+ * Entram na soma as parcelas novas e as que já estão no sistema e os ajustes
+ * mandam marcar como pagas — senão a cadeira do Olsen, que já está lançada,
+ * ficaria de fora e toda fatura pareceria menor do que foi.
+ */
+const caixaPorDia = new Map();
+for (const p of novas) {
+  if (!p.pagoEm || !p.fonte.startsWith("cartão")) continue;
+  caixaPorDia.set(p.pagoEm, (caixaPorDia.get(p.pagoEm) ?? 0) + p.valor);
+}
+for (const d of duplicados) {
+  const { proposta, existente } = d;
+  if (!proposta.pagoEm || !proposta.fonte.startsWith("cartão")) continue;
+  caixaPorDia.set(proposta.pagoEm, (caixaPorDia.get(proposta.pagoEm) ?? 0) + existente.valor);
+}
+
+const conferenciaDeCaixa = faturasPagas
+  .map((f) => {
+    const lancado = caixaPorDia.get(f.data) ?? 0;
+    // O crédito dado dentro da fatura abate o que o banco debitou, mas não é
+    // despesa a menos: por isso ele entra aqui e não nas parcelas.
+    const credito = creditosDaFatura.get(`${f.cartao}|${f.data.slice(0, 7)}`) ?? 0;
+    return {
+      data: f.data,
+      cartao: f.cartao,
+      pagoNoExtrato: f.valor,
+      lancado,
+      credito,
+      diferenca: lancado - credito - f.valor,
+      temDetalhe: lancado > 0,
+    };
+  })
+  .sort((a, b) => a.data.localeCompare(b.data));
+
+/** Parcela com data de pagamento que não é dia de fatura nenhuma: é defeito
+ *  deste script, não do financeiro da clínica. */
+const diasOrfaos = [...caixaPorDia.keys()].filter((d) => !faturasPagas.some((f) => f.data === d));
 
 // ── Os arquivos ─────────────────────────────────────────────────────────────
 
@@ -1175,6 +1290,41 @@ if (conferenciaDeFaturas.length) {
   }
 }
 
+if (conferenciaDeCaixa.some((c) => c.temDetalhe)) {
+  r.push("## Conferência de caixa: o dia em que o dinheiro sai");
+  r.push("");
+  r.push(
+    "Cada parcela de cartão carrega DUAS datas: o vencimento, que é o dia da fatura, e o",
+    "pagamento, que é o dia em que a fatura foi quitada de verdade. Numa leitura de fluxo",
+    "de caixa — por data de pagamento — as parcelas de uma mesma fatura saem todas no",
+    "mesmo dia e têm de somar exatamente o que o banco debitou. É por isso que lançar",
+    "também o pagamento da fatura dobraria aquele dia.",
+  );
+  r.push("");
+  r.push(
+    "| Dia | Cartão | Debitado pelo banco | Soma das parcelas desse dia | Crédito na fatura | |",
+  );
+  r.push("|---|---|---:|---:|---:|---|");
+  for (const c of conferenciaDeCaixa) {
+    const estado = !c.temDetalhe
+      ? "fatura sem detalhe"
+      : Math.abs(c.diferenca) < 0.011
+        ? "bate"
+        : `**diferença de ${brl(c.diferenca)}**`;
+    r.push(
+      `| ${c.data} | ${c.cartao} | ${money(c.pagoNoExtrato)} | ${c.temDetalhe ? money(c.lancado) : "—"} | ${c.credito ? money(-c.credito) : "—"} | ${estado} |`,
+    );
+  }
+  r.push("");
+  if (diasOrfaos.length) {
+    r.push(
+      `⚠️ ${diasOrfaos.length} dia(s) com parcela marcada como paga sem fatura correspondente ` +
+        `(${diasOrfaos.join(", ")}). Isso é defeito da leitura, não do financeiro.`,
+    );
+    r.push("");
+  }
+}
+
 if (ajustes.length) {
   r.push("## Correções no que já está lançado");
   r.push("");
@@ -1344,6 +1494,13 @@ for (const c of conferenciaDeFaturas) {
   const ok = Math.abs(c.diferenca) < 0.011;
   console.log(
     `  fatura ${c.cartao} ${c.mes}: ${ok ? "bate" : `DIFERENÇA de ${brl(c.diferenca)}`} (${money(c.pagoNoExtrato)})`,
+  );
+}
+for (const c of conferenciaDeCaixa) {
+  if (!c.temDetalhe) continue;
+  const ok = Math.abs(c.diferenca) < 0.011;
+  console.log(
+    `  caixa  ${c.data}: ${ok ? "bate" : `DIFERENÇA de ${brl(c.diferenca)}`} (${money(c.pagoNoExtrato)})`,
   );
 }
 for (const a of avisos) console.log(`\n⚠️  ${a}`);
