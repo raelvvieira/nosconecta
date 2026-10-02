@@ -5,3 +5,7 @@
 # com o sufixo `-preenchido` e eles ficam só na sua máquina.
 *-preenchido.csv
 *-preenchido.xlsx
+
+# A saída de `scripts/importar-financeiro.mjs`. Fica aqui para você abrir, e
+# não no repositório: tem nome de terceiro e valor de conta pessoal dentro.
+importacao/
