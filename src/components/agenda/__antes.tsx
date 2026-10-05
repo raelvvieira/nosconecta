@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { formatBRL, parseBRLInput } from "@/lib/finance/format";
 import { addMonths } from "@/lib/date";
-import { podeConcluir, ehCortesia } from "@/lib/agenda/valor-ao-concluir";
 
 /**
  * Confirmar que o atendimento aconteceu — sempre com o valor cobrado junto.
@@ -17,27 +16,13 @@ import { podeConcluir, ehCortesia } from "@/lib/agenda/valor-ao-concluir";
  * cobrado é o que a pessoa pagou — e é o cobrado que faz sentido como valor de
  * conversão.
  *
- * ── O valor é obrigatório. Zero é um valor ────────────────────────────
+ * ── O valor é obrigatório, e maior que zero ───────────────────────────
  *
- * O que o botão apagado recusa é o campo EM BRANCO, que significa "ninguém
- * disse quanto foi". Zero digitado é uma resposta: não entrou receita.
- *
- * Entre 01/10 e 05/10 o zero também foi recusado, com o argumento de que um
- * zero esquecido é indistinguível de uma cortesia de verdade. O argumento é
- * bom e o conserto estava errado — porque não existia o terceiro estado. Quem
- * atendeu de cortesia precisava do botão aceso e digitou **R$ 1,00**. Foram
- * quatro em setembro (Erick, Sérgio Menezes, Patricia Raimundo, Nicolle), e o
- * resultado é pior do que o zero que se queria evitar: R$ 4,00 de receita
- * inventada, espalhada em quatro atendimentos, num lugar onde ninguém procura.
- *
- * Recusar o zero não impede o descuido — empurra o descuido para um número que
- * parece intencional.
- *
- * E zero não contamina nada a jusante: não vira recebimento
- * (`createAppointmentReceivable` sai em `amount > 0`) nem vira compra na Meta
- * (`valeComoCompra` recusa Purchase de valor zero). Por isso a frase embaixo do
- * campo diz, em voz alta, que zero é aceito — sem ela, quem tem cortesia
- * desconfia e digita R$ 1,00 de novo.
+ * Zero era aceito, para o atendimento de cortesia. Deixou de ser em 01/10, por
+ * decisão da clínica: o valor é o que faz a venda contar no ROAS e no custo por
+ * compra da campanha, e **um zero esquecido é indistinguível de uma cortesia de
+ * verdade.** Em toda a base havia uma única conclusão com zero, contra o risco
+ * diário de alguém confirmar sem preencher e a venda sumir do painel da Meta.
  *
  * O botão fica desabilitado até o valor ser válido — e não só recusa no clique.
  * Botão que parece clicável e reclama depois ensina a tentar de novo; botão
@@ -242,10 +227,7 @@ export function ConfirmCompletion({
   // mensagens continua em `confirmar`, e a do servidor é a que garante.
   const lido = parseBRLInput(valor);
   const valorDigitado = Number.isNaN(lido) ? null : lido;
-  // A MESMA função do servidor (`valor-ao-concluir.ts`). Reimplementar "o que
-  // vale" aqui é como as duas pontas divergem: a tela aceita, o servidor
-  // recusa, e a pessoa vê um erro depois de um botão que estava aceso.
-  const podeConfirmar = podeConcluir(valorDigitado);
+  const podeConfirmar = valorDigitado !== null && valorDigitado > 0;
 
   return (
     <div className="space-y-2 rounded-xl border border-coral/30 bg-coral-soft px-3 py-3">
@@ -267,20 +249,14 @@ export function ConfirmCompletion({
       />
       {erro ? (
         <p className="text-2xs text-danger">{erro}</p>
-      ) : ehCortesia(valorDigitado) ? (
-        // Zero é uma resposta válida, e dizer isso em voz alta importa: sem a
-        // frase, quem atendeu de cortesia desconfia do zero e digita R$ 1,00.
-        <p className="text-2xs text-muted-foreground">
-          Sem receita neste atendimento. Não vai gerar recebimento.
-        </p>
       ) : podeConfirmar ? (
         <p className="text-2xs text-muted-foreground">Previsto era {formatBRL(expectedRevenue)}</p>
       ) : (
         // A razão embaixo do campo, e não só no clique: é o que explica o botão
         // apagado sem obrigar a pessoa a tentar para descobrir.
         <p className="text-2xs text-muted-foreground">
-          Previsto era {formatBRL(expectedRevenue)}. Informe quanto foi pago — digite 0 se não
-          entrou receita.
+          Previsto era {formatBRL(expectedRevenue)}. Informe quanto foi pago — é esse valor que faz
+          a venda contar nos anúncios.
         </p>
       )}
 
@@ -288,9 +264,7 @@ export function ConfirmCompletion({
           recebimento de R$ 320,00" é a coisa que vai aparecer no financeiro. */}
       <label className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5">
         <span className="text-sm text-foreground-secondary">
-          {ehCortesia(valorDigitado)
-            ? "Gerar recebimento (nada a receber)"
-            : `Gerar recebimento${valorDigitado !== null ? ` de ${formatBRL(valorDigitado)}` : ""}`}
+          Gerar recebimento{valorDigitado !== null && ` de ${formatBRL(valorDigitado)}`}
         </span>
         <Switch checked={gerarCobranca} onCheckedChange={setGerarCobranca} />
       </label>

@@ -10,6 +10,7 @@ import {
 } from "./procedimentos";
 import { clinicTodayStr, localDateStr } from "@/lib/date";
 import { decidirRecebimento } from "@/lib/finance/recebimento-do-atendimento";
+import { recusaDoValor } from "./valor-ao-concluir";
 import { valorDaConversao } from "@/lib/integrations/valor-da-conversao";
 import type {
   Appointment,
@@ -346,20 +347,18 @@ const SELECT_TRANSICAO_SEM_VALOR = COLUNAS_TRANSICAO.filter((c) => c !== "actual
  * `completed` também foi tirado do seletor de status do formulário, pelo mesmo
  * motivo — ver o comentário em `AppointmentDrawer`.
  */
+/**
+ * A regra vive em `valor-ao-concluir.ts`, módulo puro e testado. Aqui ela só
+ * vira exceção — a tela usa a MESMA função para acender o botão, e nenhum dos
+ * dois reimplementa o critério.
+ */
 function assertValorAoConcluir(
   status: AppointmentStatus | undefined,
   actualRevenue: number | null | undefined,
 ): void {
   if (status !== "completed") return;
-  if (actualRevenue === null || actualRevenue === undefined || Number.isNaN(actualRevenue)) {
-    throw new Error("Informe o valor cobrado para confirmar o atendimento.");
-  }
-  if (actualRevenue < 0) throw new Error("O valor cobrado não pode ser negativo.");
-  if (actualRevenue === 0) {
-    throw new Error(
-      "O valor cobrado precisa ser maior que zero. É ele que faz a venda contar no retorno dos anúncios.",
-    );
-  }
+  const recusa = recusaDoValor(actualRevenue);
+  if (recusa) throw new Error(recusa.mensagem);
 }
 
 const appointmentInput = (input: {
