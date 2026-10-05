@@ -142,6 +142,42 @@ categorias e as contas se separam sem motivo.
 por hora de cadeira, senão todo procedimento fica mais caro por causa de
 marketing e a precificação sai torta.
 
+## Nada simulado entra
+
+Imposto, DAS, pró-labore e reserva de caixa **não são lançados**. Eles são
+cálculo para decidir, não fato. O sistema só tem o que saiu ou entrou de verdade
+num extrato, numa fatura ou numa consulta confirmada na agenda.
+
+Isso é escolha, e tem um preço: o custo por hora que o sistema mostra é menor
+que o real, porque falta o imposto. Vale a pena porque o contrário é pior —
+número estimado dentro do financeiro vira número tratado como verdade três meses
+depois, quando ninguém lembra que era estimativa.
+
+## Gasto pessoal que já foi decidido
+
+Cinco itens entraram como do consultório e não eram. Ficaram com status
+`cancelled`, não apagados: assim a chave de origem continua no banco e o índice
+único impede que a próxima importação os traga de volta. `cancelled` fica fora
+de todo indicador.
+
+| | |
+|---|---:|
+| Bem a Jeito (bar) | 128,00 |
+| Mundialmix (mercado) | 59,80 |
+| Roote (software) | 79,90 |
+| Claro (telefone) | 57,90 |
+| Seguro do cartão Inter, 5 parcelas | 29,50 |
+
+Os nomes estão em `REGRAS_DO_EXTRATO` e `FORA_DO_CARTAO`, dentro do importador.
+Estar na postura `pessoal` não bastava: conta pessoal também paga coisa da
+clínica, e quem for revisar linha por linha precisa ver que estas já foram
+decididas.
+
+**Uma consequência que vale entender:** a fatura do cartão Inter no sistema passa
+a valer menos que o débito no banco, exatamente os R$ 5,90 do seguro por mês.
+Isso está certo — a fatura é do cartão do Rael, e o sistema guarda a parte do
+consultório.
+
 ## O que ainda falta
 
 - **As faturas de março e abril do Inter.** Foram pagas (R$ 2.420,72 no total) e

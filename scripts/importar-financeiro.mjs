@@ -257,6 +257,21 @@ const REGRAS_DO_EXTRATO = [
   [/RAEL DO VALE VIEIRA|RAEL VIEIRA/i, "FORA", "aporte próprio / transferência sua", null],
   [/MARIANE DOMINGUES BOTTI/i, "FORA", "aporte da sócia", null],
 
+  // ── Pessoal, conferido com o dono em 05/10 ───────────────────────────────
+  //
+  // Estes eu havia classificado como do consultório e estava errado. Bar e
+  // mercado entraram como "Alimentação" da clínica porque saíram da conta do
+  // Inter e eu tratava aquela conta como se fosse da empresa; o seguro é do
+  // cartão do Rael, e a linha de telefone e o software são dele também.
+  //
+  // Ficam nomeados — e não só cobertos pela postura `pessoal` — porque conta
+  // pessoal também paga coisa da clínica, e aí a postura não basta: alguém vai
+  // olhar linha por linha e precisa ver que estas já foram decididas.
+  [/BEM A JEITO/i, "FORA", "pessoal (bar/restaurante)", null],
+  [/MUNDIALMIX/i, "FORA", "pessoal (mercado)", null],
+  [/^CLARO$|CLARO S\.?A/i, "FORA", "linha pessoal", null],
+  [/ROOTE TECNOLOGIA/i, "FORA", "software pessoal", null],
+
   // Confirmados por você em 02/10: não são do consultório. Ficam nomeados aqui
   // para que o próximo extrato os classifique sozinho, sem perguntar de novo.
   [/IZAIAS DE MOURA CORTES/i, "FORA", "outro negócio do dono", null],
@@ -293,7 +308,6 @@ const REGRAS_DO_EXTRATO = [
   [/SUJINHO/i, "NOS", "Limpeza", "Sujinho"],
   [/RMS TELECOM/i, "NOS", "Internet e Telefone", "RMS Telecom"],
   [/GUARDIAN/i, "NOS", "Custo de Operação", null],
-  [/BEM A JEITO|MUNDIALMIX/i, "NOS", "Alimentação", null],
 ];
 
 /**
@@ -431,7 +445,11 @@ const ESTABELECIMENTOS = [
   [/DUNAMOBI/i, "Móveis", "DunaMobi", "Cadeiras da sala", true],
 
   // Suposições pelo nome — confirmar antes de gravar
-  [/SEGURO CARTAO/i, "Taxas de Operação", "Banco Inter", "Seguro do cartão", false],
+  // O seguro é do CARTÃO do Rael, não do consultório. Continua aparecendo na
+  // soma da fatura lá no banco — a fatura é dele —, mas não entra como custo da
+  // clínica. `categoria: null` manda a linha para "a decidir" em vez de entrar
+  // calada; e como ela já está nomeada em `FORA_DO_CARTAO`, nem chega lá.
+  [/SEGURO CARTAO/i, null, "Banco Inter", "Seguro do cartão (pessoal)", false],
   [
     /CredAluga|CREDALUGA/i,
     "Taxas de Operação",
@@ -454,6 +472,22 @@ const ESTABELECIMENTOS = [
   [/OutletdosEspel/i, "Móveis", "Outlet dos Espelhos (Shopee)", "Espelhos da sala", false],
   [/Webcontinental/i, "Equipamentos", "Webcontinental (Shopee)", "Equipamento da sala", false],
 ];
+
+/**
+ * Estabelecimentos de cartão que NÃO são do consultório, conferidos com o dono.
+ *
+ * Separado de `ESTABELECIMENTOS` de propósito: lá o que não casa vira "a
+ * decidir" e volta a perguntar todo mês. O que já foi decidido como pessoal
+ * precisa de um lugar onde fique decidido.
+ */
+const FORA_DO_CARTAO = [[/SEGURO CARTAO/i, "seguro do cartão do Rael, não do consultório"]];
+
+function foraDoCartao(estab) {
+  for (const [padrao, motivo] of FORA_DO_CARTAO) {
+    if (padrao.test(estab)) return motivo;
+  }
+  return null;
+}
 
 function classificarEstabelecimento(estab) {
   for (const [padrao, categoria, fornecedor, descricao, confirmado] of ESTABELECIMENTOS) {
@@ -1089,8 +1123,21 @@ for (const [chave, g] of grupos) {
 }
 
 for (const c of compras) {
-  const info = classificarEstabelecimento(c.estabelecimento);
   const umaLinha = [...c.linhas.values()][0];
+
+  const motivoDeFora = foraDoCartao(c.estabelecimento);
+  if (motivoDeFora) {
+    fora.push({
+      data: c.data,
+      descricao: `${c.cartao} · ${c.estabelecimento}`,
+      valor: -umaLinha.valor * c.totalParcelas,
+      nome: c.estabelecimento,
+      motivo: motivoDeFora,
+    });
+    continue;
+  }
+
+  const info = classificarEstabelecimento(c.estabelecimento);
   if (!info.categoria) {
     decidir.push({
       data: c.data,
