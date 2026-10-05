@@ -810,6 +810,10 @@ async function onStatusTransition(
         patientId: row.patient_id,
         professionalId: row.professional_id ?? null,
         paidOn,
+        // A procedência da receita, e a trava contra cobrar duas vezes o mesmo
+        // atendimento. A guarda de transição acima já evita o caso comum; esta
+        // pega o caso de o status ir, voltar e ir de novo.
+        appointmentId: id,
       });
     } catch (e) {
       console.error("[agenda] recebimento do atendimento concluído", e);
