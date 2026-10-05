@@ -54,6 +54,7 @@
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { inflateRawSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { basename, join } from "node:path";
 
 // ── Argumentos ──────────────────────────────────────────────────────────────
@@ -68,6 +69,9 @@ const caminhoExtrato = arg("extrato");
 const caminhoInter = arg("fatura-inter");
 const caminhoMp = arg("fatura-mp");
 const caminhoExistentes = arg("existentes");
+const caminhoCartoes = arg("cartoes");
+const caminhoContexto = arg("contexto");
+const caminhoSql = arg("sql");
 const dirSaida = arg("saida", "financeiro/importacao");
 
 if (!caminhoExtrato && !caminhoInter && !caminhoMp) {
@@ -79,6 +83,8 @@ for (const [rotulo, caminho] of [
   ["--fatura-inter", caminhoInter],
   ["--fatura-mp", caminhoMp],
   ["--existentes", caminhoExistentes],
+  ["--cartoes", caminhoCartoes],
+  ["--contexto", caminhoContexto],
 ]) {
   if (caminho && !existsSync(caminho)) {
     console.error(`Não achei o arquivo de ${rotulo}: ${caminho}`);
@@ -146,6 +152,19 @@ function somarMeses(data, quantos) {
   const mes = (total % 12) + 1;
   const ultimoDia = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
   return iso(ano, mes, Math.min(d, ultimoDia));
+}
+
+/**
+ * Um UUID estável a partir de um texto (UUID v5-ish, sem a cerimônia do
+ * namespace). Serve para `purchase_group_id`: o grupo precisa ser o mesmo em
+ * toda geração, senão a migration muda de conteúdo sem mudar de significado.
+ */
+function uuidDeterministico(texto) {
+  const h = createHash("sha1").update(texto).digest("hex");
+  // Versão 5 e variante RFC 4122, para o valor ser um UUID válido de verdade.
+  const v = (parseInt(h[12], 16) & 0x0) | 0x5;
+  const r = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${v}${h.slice(13, 16)}-${r}${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
 const normalizar = (s) =>
@@ -808,16 +827,70 @@ if (mp.vencimento && mp.creditos) {
 }
 
 /**
- * Cada linha da fatura é UMA parcela já faturada. As parcelas seguintes de uma
- * compra em N vezes ainda não apareceram em fatura nenhuma — e são compromisso
- * real, que o planejamento precisa ver. Então a compra (parcela 1 de N) gera N
- * contas a pagar: as que já vieram em fatura ficam com o vencimento daquela
- * fatura, e as futuras ganham vencimento estimado, somando mês a mês.
+ * O cadastro dos cartões, para o ciclo de fatura sair da configuração real e
+ * não de chute. Sem `--cartoes`, o script continua gerando o relatório e para
+ * antes do SQL — porque sem o dia de fechamento não se sabe em qual fatura uma
+ * parcela cai.
  */
-const vencimentoDaFatura = new Map(); // "Inter|2026-09" → "2026-09-21"
-for (const f of faturasPagas) {
-  const mes = f.data.slice(0, 7);
-  vencimentoDaFatura.set(`${f.cartao}|${mes}`, f.data);
+const cartoes = new Map();
+if (caminhoCartoes) {
+  for (const r of lerCsv(caminhoCartoes)) {
+    cartoes.set(r.apelido, {
+      id: r.id,
+      nome: r.nome,
+      diaDeFechamento: Number(r.fechamento),
+      diaDeVencimento: Number(r.vencimento),
+      accountId: r.account_id,
+      unitId: r.unit_id,
+    });
+  }
+}
+
+const contexto = {};
+if (caminhoContexto) {
+  for (const r of lerCsv(caminhoContexto)) contexto[r.chave] = r.valor;
+}
+
+/** Dia aparado ao último do mês: dia 31 em fevereiro não existe. */
+function diaNoMes(mesIso, dia) {
+  const [ano, mes] = mesIso.split("-").map(Number);
+  const ultimo = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+  return iso(ano, mes, Math.min(dia, ultimo));
+}
+
+/**
+ * Fechamento e vencimento da fatura de um mês. O mês é o do RÓTULO da fatura
+ * ("Setembro/2026"), que é também o mês do vencimento.
+ *
+ * Quando o dia de vencimento é menor ou igual ao de fechamento, o vencimento
+ * cai no mês seguinte ao fechamento — fecha dia 25 e vence dia 5 é o caso
+ * comum, e tratá-los como o mesmo mês poria o pagamento ANTES do fechamento.
+ */
+function cicloDaFatura(mesIso, cartao) {
+  const vencimento = diaNoMes(mesIso, cartao.diaDeVencimento);
+  const mesDoFechamento =
+    cartao.diaDeVencimento <= cartao.diaDeFechamento
+      ? somarMeses(`${mesIso}-01`, -1).slice(0, 7)
+      : mesIso;
+  return { fechamento: diaNoMes(mesDoFechamento, cartao.diaDeFechamento), vencimento };
+}
+
+/**
+ * Em que dia a fatura de um mês foi de fato quitada.
+ *
+ * Casar pelo MÊS do pagamento funcionou nestes seis meses e é frágil: fatura
+ * que vence dia 30 e é paga no dia 2 do mês seguinte cairia na fatura errada.
+ * Então o casamento é pela PROXIMIDADE ao vencimento, com teto de 20 dias.
+ */
+function pagamentoDaFatura(cartao, vencimento) {
+  let melhor = null;
+  for (const f of faturasPagas) {
+    if (f.cartao !== cartao) continue;
+    const dias = Math.abs((Date.parse(f.data) - Date.parse(vencimento)) / 86400000);
+    if (dias > 20) continue;
+    if (!melhor || dias < melhor.dias) melhor = { data: f.data, dias };
+  }
+  return melhor?.data ?? null;
 }
 
 for (const t of transacoesDeCartao) {
@@ -869,6 +942,11 @@ for (const [chave, g] of grupos) {
       estabelecimento: alguma.estabelecimento,
       data: alguma.data,
       totalParcelas: alguma.totalParcelas,
+      ordem: i,
+      // Id DETERMINÍSTICO, derivado da chave da compra: rodar o script duas
+      // vezes gera o mesmo id, e a migration continua sendo o mesmo arquivo.
+      // Com `randomUUID` cada geração produziria um diff inteiro.
+      grupo: uuidDeterministico(`${chave}|${i}`),
       vencimentoConhecido,
       linhas,
     });
@@ -913,10 +991,22 @@ for (const c of compras) {
     const mesDestaParcela = referencia.mesDaFatura
       ? somarMeses(`${referencia.mesDaFatura}-01`, passos).slice(0, 7)
       : null;
-    const pagoNaFatura = mesDestaParcela
-      ? (vencimentoDaFatura.get(`${c.cartao}|${mesDestaParcela}`) ?? null)
-      : null;
+
+    // O ciclo sai da configuração do cartão quando ela foi informada. É o que
+    // faz a parcela cair na MESMA fatura que o sistema calcularia sozinho —
+    // sem isso, a importação criaria faturas paralelas às do app.
+    const config = cartoes.get(c.cartao);
+    const ciclo = config && mesDestaParcela ? cicloDaFatura(mesDestaParcela, config) : null;
+
+    const pagoNaFatura = ciclo
+      ? pagamentoDaFatura(c.cartao, ciclo.vencimento)
+      : mesDestaParcela
+        ? (faturasPagas.find((f) => f.cartao === c.cartao && f.data.slice(0, 7) === mesDestaParcela)
+            ?.data ?? null)
+        : null;
+
     const vencimento =
+      ciclo?.vencimento ??
       pagoNaFatura ??
       (c.vencimentoConhecido
         ? somarMeses(c.vencimentoConhecido, passos)
@@ -939,6 +1029,12 @@ for (const c of compras) {
       totalParcelas: c.totalParcelas,
       confirmado: info.confirmado,
       estimada: !propria,
+      cartao: c.cartao,
+      mesDaFatura: mesDestaParcela,
+      fechamentoDaFatura: ciclo?.fechamento ?? null,
+      vencimentoDaFatura: ciclo?.vencimento ?? null,
+      grupoDaCompra: c.grupo,
+      chave: `${c.cartao}|${normalizar(c.estabelecimento)}|${c.data}|${c.totalParcelas}|${c.ordem}|${p}`,
       origem:
         `${c.estabelecimento} · compra ${c.data} · ` +
         (propria
@@ -1478,6 +1574,456 @@ r.push("");
 
 writeFileSync(join(dirSaida, "RELATORIO.md"), r.join("\n"));
 
+// ── A migration de dados ────────────────────────────────────────────────────
+
+/**
+ * Gera o SQL que coloca tudo isto no sistema, no modelo que o sistema já tem.
+ *
+ * ── Por que compra de cartão NÃO é lançada como paga ──────────────────────
+ *
+ * `financial_transactions` tem três naturezas de linha, e a diferença está em
+ * duas colunas (ver o comentário de `src/lib/finance/invoices.functions.ts`):
+ *
+ *   1. saída de caixa comum — as duas colunas nulas
+ *   2. compra no cartão     — `card_invoice_id` preenchido → NÃO é caixa
+ *   3. a fatura             — `settles_card_invoice_id` preenchido → É caixa
+ *
+ * E `soCaixa` (`src/lib/finance/schema-cartao.ts`) tira as compras de cartão de
+ * todo indicador de caixa. Então a parcela fica `pending` para sempre e quem
+ * recebe a data de pagamento é a FATURA — uma linha, uma vez por mês, somando
+ * todas as compras. Marcar a parcela como paga faria o mês contar duas vezes:
+ * a parcela e a fatura que a contém.
+ *
+ * É a mesma coisa que a conferência de caixa deste relatório mostra, dita na
+ * forma do banco.
+ *
+ * ── Por que a ordem dos blocos não é estética ─────────────────────────────
+ *
+ * O gatilho `card_purchase_freeze` recusa compra nova numa fatura cuja linha de
+ * pagamento já está `paid`. Marcar as faturas antes de inserir as parcelas
+ * aborta a migration inteira. As faturas são quitadas no ÚLTIMO bloco.
+ *
+ * ── Idempotência ──────────────────────────────────────────────────────────
+ *
+ * O Lovable recombina migrations, então uma segunda passada não pode duplicar
+ * nada. Cada linha nova carrega `source_type` e `source_id` com a chave da
+ * origem (o movimento do extrato, ou a parcela da fatura), e todo INSERT é
+ * guardado por `WHERE NOT EXISTS` nessa chave. Os UPDATE são guardados pela
+ * condição que eles mesmos destroem.
+ */
+
+const FONTE_EXTRATO = "importacao-extrato";
+const FONTE_FATURA = "importacao-fatura";
+
+function escaparSql(v) {
+  if (v === null || v === undefined) return "null";
+  if (typeof v === "number") return String(v);
+  return `'${String(v).replace(/'/g, "''")}'`;
+}
+
+/** O id da categoria pelo NOME, resolvido no banco e não aqui: o uuid de
+ *  categoria é diferente em cada instalação, e nome é o que uma pessoa confere. */
+function categoriaPorNome(nome, owner) {
+  if (!nome) return "null";
+  return `(select id from public.financial_categories where owner_id = ${escaparSql(owner)} and name = ${escaparSql(nome)} limit 1)`;
+}
+
+function meioDePagamento(origem) {
+  if (/^Pix enviado/i.test(origem ?? "")) return "pix";
+  if (/Pagamento de Titulo|Pagamento efetuado/i.test(origem ?? "")) return "boleto";
+  return null;
+}
+
+function gerarSql() {
+  const owner = contexto.owner_id;
+  const unidade = contexto.unit_id;
+  const contaDoExtrato = contexto.conta_do_extrato ?? null;
+
+  const faltando = [];
+  if (!owner) faltando.push("owner_id");
+  if (!unidade) faltando.push("unit_id");
+  if (!cartoes.size) faltando.push("--cartoes");
+  if (faltando.length) {
+    avisos.push(`SQL não gerado: falta ${faltando.join(", ")}.`);
+    return null;
+  }
+
+  const L = [];
+  const contagem = {
+    faturas: 0,
+    parcelasNovas: 0,
+    parcelasAnexadas: 0,
+    despesasDoExtrato: 0,
+    faturasSemDetalhe: 0,
+    correcoes: 0,
+    faturasQuitadas: 0,
+  };
+
+  L.push("-- Lançamentos do financeiro: extrato e faturas de cartão de maio a outubro de 2026.");
+  L.push("--");
+  L.push("-- Gerado por `scripts/importar-financeiro.mjs --sql`. Idempotente: cada linha nova");
+  L.push("-- carrega `source_type`/`source_id` com a chave da origem, e todo INSERT é guardado");
+  L.push("-- por `WHERE NOT EXISTS` nessa chave.");
+  L.push("--");
+  L.push("-- A ORDEM DOS BLOCOS É OBRIGATÓRIA: o gatilho `card_purchase_freeze` recusa compra");
+  L.push("-- nova em fatura cuja linha de pagamento já esteja `paid`. As faturas são quitadas");
+  L.push("-- no último bloco, depois de todas as parcelas entrarem.");
+  L.push("");
+
+  // ── 1. As faturas ────────────────────────────────────────────────────────
+  const parcelasDeCartao = [...novas, ...duplicados.map((d) => d.proposta)].filter(
+    (p) => p.fechamentoDaFatura && cartoes.has(p.cartao),
+  );
+
+  const faturas = new Map(); // "Inter|2026-05-13" → {cartao, fechamento, vencimento}
+  for (const p of parcelasDeCartao) {
+    const k = `${p.cartao}|${p.fechamentoDaFatura}`;
+    if (!faturas.has(k)) {
+      faturas.set(k, {
+        cartao: p.cartao,
+        fechamento: p.fechamentoDaFatura,
+        vencimento: p.vencimentoDaFatura,
+      });
+    }
+  }
+
+  if (faturas.size) {
+    L.push("-- ── 1. As faturas de cada ciclo ────────────────────────────────────────────");
+    L.push("--");
+    L.push("-- O índice único (card_id, closing_date) é o que faz esta inserção poder rodar");
+    L.push("-- de novo sem duplicar — é o mesmo que resolve a corrida de duas compras");
+    L.push("-- simultâneas no app.");
+    L.push("");
+    L.push(
+      "insert into public.card_invoices (owner_id, unit_id, card_id, closing_date, due_date) values",
+    );
+    const linhas = [...faturas.values()]
+      .sort((a, b) => a.fechamento.localeCompare(b.fechamento))
+      .map((f) => {
+        const c = cartoes.get(f.cartao);
+        return `  (${escaparSql(owner)}, ${escaparSql(c.unitId)}, ${escaparSql(c.id)}, ${escaparSql(f.fechamento)}, ${escaparSql(f.vencimento)})`;
+      });
+    L.push(linhas.join(",\n"));
+    L.push("on conflict (card_id, closing_date) do nothing;");
+    L.push("");
+    contagem.faturas = faturas.size;
+
+    // ── 2. A linha de pagamento de cada fatura ────────────────────────────
+    L.push("-- ── 2. A linha de pagamento de cada fatura ────────────────────────────────");
+    L.push("--");
+    L.push("-- Nasce com valor zero: `card_invoice_recalc`, disparado pela primeira compra,");
+    L.push("-- a preenche. Sem esta linha o gatilho não teria alvo e a fatura não apareceria");
+    L.push("-- em Pagamentos.");
+    L.push("");
+    const MESES_CURTOS = [
+      "jan",
+      "fev",
+      "mar",
+      "abr",
+      "mai",
+      "jun",
+      "jul",
+      "ago",
+      "set",
+      "out",
+      "nov",
+      "dez",
+    ];
+    for (const f of [...faturas.values()].sort((a, b) =>
+      a.fechamento.localeCompare(b.fechamento),
+    )) {
+      const c = cartoes.get(f.cartao);
+      const [ano, mes] = f.vencimento.split("-").map(Number);
+      const rotulo = `Fatura ${c.nome} · ${MESES_CURTOS[mes - 1]}/${ano}`;
+      L.push(
+        `insert into public.financial_transactions (owner_id, unit_id, type, status, description, amount, due_date, account_id, payment_method, settles_card_invoice_id, credit_card_id)`,
+      );
+      L.push(
+        `select ${escaparSql(owner)}, ${escaparSql(c.unitId)}, 'payable', 'pending', ${escaparSql(rotulo)}, 0, ${escaparSql(f.vencimento)}, ${escaparSql(c.accountId)}, 'fatura', i.id, i.card_id`,
+      );
+      L.push(
+        `  from public.card_invoices i where i.card_id = ${escaparSql(c.id)} and i.closing_date = ${escaparSql(f.fechamento)}`,
+      );
+      L.push(
+        `   and not exists (select 1 from public.financial_transactions f where f.settles_card_invoice_id = i.id);`,
+      );
+    }
+    L.push("");
+  }
+
+  // ── 3. As parcelas novas ─────────────────────────────────────────────────
+  const parcelasNovas = novas.filter((p) => p.fechamentoDaFatura && cartoes.has(p.cartao));
+  if (parcelasNovas.length) {
+    L.push("-- ── 3. As compras no cartão, uma linha por parcela ────────────────────────");
+    L.push("--");
+    L.push("-- `status` fica `pending` de propósito, mesmo nas parcelas de fatura já paga:");
+    L.push("-- compra no cartão não é saída de caixa (`soCaixa` a exclui de todo indicador");
+    L.push("-- de caixa). Quem sai do caixa é a fatura, no bloco 9.");
+    L.push("--");
+    L.push("-- O valor é o da parcela COMO ESTÁ NA FATURA, e não o total dividido por N: a");
+    L.push("-- IR Tintas cobra R$ 362,97 na primeira e R$ 362,89 na segunda, e dividir");
+    L.push("-- deixaria a fatura sem fechar ao centavo.");
+    L.push("");
+    for (const p of parcelasNovas.sort(
+      (a, b) => a.vencimento.localeCompare(b.vencimento) || a.descricao.localeCompare(b.descricao),
+    )) {
+      const c = cartoes.get(p.cartao);
+      L.push(
+        "insert into public.financial_transactions (owner_id, unit_id, type, status, description, amount," +
+          " due_date, purchase_date, card_invoice_id, credit_card_id, purchase_group_id," +
+          " installment_number, installment_total, category_id, supplier_name, account_id," +
+          " payment_method, source_type, source_id)",
+      );
+      L.push(
+        `select ${escaparSql(owner)}, ${escaparSql(c.unitId)}, 'payable', 'pending', ${escaparSql(p.descricao)}, ${p.valor.toFixed(2)},` +
+          ` ${escaparSql(p.vencimento)}, ${escaparSql(p.data)}, i.id, ${escaparSql(c.id)}, ${escaparSql(p.grupoDaCompra)},` +
+          ` ${p.totalParcelas > 1 ? p.parcela : "null"}, ${p.totalParcelas > 1 ? p.totalParcelas : "null"},` +
+          ` ${categoriaPorNome(p.categoria, owner)}, ${escaparSql(p.fornecedor)}, ${escaparSql(c.accountId)},` +
+          ` 'credito', ${escaparSql(FONTE_FATURA)}, ${escaparSql(p.chave)}`,
+      );
+      L.push(
+        `  from public.card_invoices i where i.card_id = ${escaparSql(c.id)} and i.closing_date = ${escaparSql(p.fechamentoDaFatura)}`,
+      );
+      L.push(
+        `   and not exists (select 1 from public.financial_transactions f where f.source_type = ${escaparSql(FONTE_FATURA)} and f.source_id = ${escaparSql(p.chave)});`,
+      );
+      contagem.parcelasNovas++;
+    }
+    L.push("");
+  }
+
+  // ── 4. As parcelas que já existiam como conta solta ──────────────────────
+  const anexar = duplicados.filter(
+    (d) => d.proposta.fechamentoDaFatura && cartoes.has(d.proposta.cartao),
+  );
+  if (anexar.length) {
+    L.push("-- ── 4. As parcelas que já estavam lançadas como conta solta ───────────────");
+    L.push("--");
+    L.push("-- A cadeira do Olsen foi digitada como dez contas a pagar avulsas, com");
+    L.push("-- vencimento no dia 29 de cada mês. Ela é uma compra no cartão Inter em 10x, e");
+    L.push("-- as parcelas vencem com a FATURA. Em vez de apagar e recriar — o que perderia");
+    L.push("-- o histórico das linhas e os ids — elas são anexadas à fatura no lugar.");
+    L.push("--");
+    L.push("-- A guarda `card_invoice_id is null` serve a duas coisas: torna o UPDATE");
+    L.push("-- idempotente e evita acordar o gatilho de congelamento numa segunda passada.");
+    L.push("");
+    for (const { proposta: p, existente: e } of anexar.sort((a, b) =>
+      a.proposta.vencimento.localeCompare(b.proposta.vencimento),
+    )) {
+      const c = cartoes.get(p.cartao);
+      L.push("update public.financial_transactions t");
+      L.push(
+        `   set credit_card_id = ${escaparSql(c.id)}, card_invoice_id = i.id, purchase_date = ${escaparSql(p.data)},`,
+      );
+      L.push(
+        `       purchase_group_id = ${escaparSql(p.grupoDaCompra)}, installment_number = ${p.parcela}, installment_total = ${p.totalParcelas},`,
+      );
+      L.push(
+        `       due_date = i.due_date, account_id = ${escaparSql(c.accountId)}, payment_method = 'credito',`,
+      );
+      L.push(
+        `       source_type = ${escaparSql(FONTE_FATURA)}, source_id = ${escaparSql(p.chave)}, updated_at = now()`,
+      );
+      L.push(
+        `  from public.card_invoices i where i.card_id = ${escaparSql(c.id)} and i.closing_date = ${escaparSql(p.fechamentoDaFatura)}`,
+      );
+      L.push(`   and t.id = ${escaparSql(e.id)} and t.card_invoice_id is null;`);
+      contagem.parcelasAnexadas++;
+    }
+    L.push("");
+  }
+
+  // ── 5. As despesas do extrato ────────────────────────────────────────────
+  const doExtrato = novas.filter((p) => p.fonte === "extrato");
+  if (doExtrato.length) {
+    L.push("-- ── 5. As despesas pagas direto da conta (extrato) ────────────────────────");
+    L.push("--");
+    L.push("-- Saída de caixa comum: as duas colunas de cartão ficam nulas, e vencimento e");
+    L.push("-- pagamento são o mesmo dia — foi pix ou boleto pago na hora.");
+    L.push("");
+    const vistos = new Map();
+    for (const p of doExtrato.sort(
+      (a, b) => a.data.localeCompare(b.data) || a.descricao.localeCompare(b.descricao),
+    )) {
+      const base = `extrato|${p.data}|${p.valor.toFixed(2)}|${normalizar(p.origem).slice(0, 60)}`;
+      const n = (vistos.get(base) ?? 0) + 1;
+      vistos.set(base, n);
+      // Dois pix iguais no mesmo dia para o mesmo fornecedor existem (aconteceu
+      // com a Lage), então a chave leva a ocorrência.
+      const chave = `${base}#${n}`;
+      L.push(
+        "insert into public.financial_transactions (owner_id, unit_id, type, status, description," +
+          " amount, due_date, paid_date, category_id, supplier_name, account_id, payment_method," +
+          " source_type, source_id, notes)",
+      );
+      L.push(
+        `select ${escaparSql(owner)}, ${escaparSql(unidade)}, 'payable', 'paid', ${escaparSql(p.descricao)},` +
+          ` ${p.valor.toFixed(2)}, ${escaparSql(p.vencimento)}, ${escaparSql(p.pagoEm)},` +
+          ` ${categoriaPorNome(p.categoria, owner)}, ${escaparSql(p.fornecedor)}, ${escaparSql(contaDoExtrato)},` +
+          ` ${escaparSql(meioDePagamento(p.origem))}, ${escaparSql(FONTE_EXTRATO)}, ${escaparSql(chave)},` +
+          ` ${escaparSql(p.origem)}`,
+      );
+      L.push(
+        ` where not exists (select 1 from public.financial_transactions f where f.source_type = ${escaparSql(FONTE_EXTRATO)} and f.source_id = ${escaparSql(chave)});`,
+      );
+      contagem.despesasDoExtrato++;
+    }
+    L.push("");
+  }
+
+  // ── 6. As faturas pagas sem detalhe ──────────────────────────────────────
+  const semDetalhe = conferenciaDeFaturas.filter((c) => !c.temDetalhe);
+  if (semDetalhe.length) {
+    L.push("-- ── 6. As faturas pagas de que não temos o detalhe ────────────────────────");
+    L.push("--");
+    L.push("-- Março e abril do Inter foram pagos e o arquivo da fatura não existe. Sem");
+    L.push("-- parcela nenhuma, o único registro possível é o próprio pagamento — e deixá-lo");
+    L.push("-- de fora faria o caixa daqueles meses parecer menor do que foi.");
+    L.push("--");
+    L.push("-- Vai sem categoria DE PROPÓSITO: ninguém sabe o que foi comprado, e inventar");
+    L.push("-- uma categoria aqui mentiria no rateio por hora de cadeira. Aparece em");
+    L.push("-- Pagamentos como 'sem categoria', que é a verdade.");
+    L.push("");
+    for (const c of semDetalhe) {
+      const cfg = cartoes.get(c.cartao);
+      const chave = `fatura-sem-detalhe|${c.cartao}|${c.data}`;
+      L.push(
+        "insert into public.financial_transactions (owner_id, unit_id, type, status, description," +
+          " amount, due_date, paid_date, account_id, payment_method, source_type, source_id, notes)",
+      );
+      L.push(
+        `select ${escaparSql(owner)}, ${escaparSql(unidade)}, 'payable', 'paid',` +
+          ` ${escaparSql(`Fatura ${cfg?.nome ?? c.cartao} — detalhe não informado`)},` +
+          ` ${c.pagoNoExtrato.toFixed(2)}, ${escaparSql(c.data)}, ${escaparSql(c.data)},` +
+          ` ${escaparSql(contaDoExtrato)}, 'fatura', ${escaparSql(FONTE_EXTRATO)}, ${escaparSql(chave)},` +
+          ` 'O arquivo desta fatura não foi importado, então não há as compras dentro dela. Quando a fatura for juntada, apagar esta linha e lançar as compras.'`,
+      );
+      L.push(
+        ` where not exists (select 1 from public.financial_transactions f where f.source_type = ${escaparSql(FONTE_EXTRATO)} and f.source_id = ${escaparSql(chave)});`,
+      );
+      contagem.faturasSemDetalhe++;
+    }
+    L.push("");
+  }
+
+  // ── 7. As correções no que já estava lançado ─────────────────────────────
+  const idsAnexados = new Set(anexar.map((d) => d.existente.id));
+  const correcoes = ajustes.filter((a) => {
+    // "marcar como paga" de parcela de cartão não se aplica mais: a parcela
+    // ficou presa à fatura no bloco 4, e é a fatura que recebe o pagamento.
+    if (a.o_que === "marcar como paga" && idsAnexados.has(a.id)) return false;
+    // O vencimento dessas o bloco 4 já acertou, pelo da fatura.
+    if (a.o_que === "conferir o vencimento" && idsAnexados.has(a.id)) return false;
+    return true;
+  });
+
+  if (correcoes.length) {
+    L.push("-- ── 7. As correções no que já estava lançado ──────────────────────────────");
+    L.push("--");
+    L.push("-- Vale mais que lançar o que falta: é despesa que o sistema já tem e mostra");
+    L.push("-- errado. Cada UPDATE é guardado pela condição que ele mesmo destrói, então");
+    L.push("-- rodar de novo não faz nada.");
+    L.push("");
+    for (const a of correcoes) {
+      if (a.o_que === "marcar como paga") {
+        const quando = /pago em (\d{4}-\d{2}-\d{2})/.exec(a.para)?.[1];
+        if (!quando) continue;
+        L.push(`-- ${a.descricao} · ${a.fornecedor} — ${a.prova}`);
+        L.push(
+          `update public.financial_transactions set status = 'paid', paid_date = ${escaparSql(quando)}, updated_at = now()`,
+        );
+        L.push(` where id = ${escaparSql(a.id)} and status <> 'paid';`);
+      } else if (a.o_que === "corrigir a data de pagamento") {
+        L.push(`-- ${a.descricao} · ${a.fornecedor} — pago em ${a.para}, e não em ${a.de}`);
+        L.push(
+          `update public.financial_transactions set paid_date = ${escaparSql(a.para)}, updated_at = now()`,
+        );
+        L.push(` where id = ${escaparSql(a.id)} and paid_date = ${escaparSql(a.de)};`);
+      } else if (a.o_que === "conferir o vencimento") {
+        L.push(`-- ${a.descricao} · ${a.fornecedor} — vencimento ${a.de} não bate com o pagamento`);
+        L.push(
+          `update public.financial_transactions set due_date = ${escaparSql(a.para)}, updated_at = now()`,
+        );
+        L.push(` where id = ${escaparSql(a.id)} and due_date = ${escaparSql(a.de)};`);
+      } else if (a.o_que === "alinhar o nome do fornecedor") {
+        L.push(`-- ${a.descricao} — no banco sai como "${a.para}"`);
+        L.push(
+          `update public.financial_transactions set supplier_name = ${escaparSql(a.para)}, updated_at = now()`,
+        );
+        L.push(` where id = ${escaparSql(a.id)} and supplier_name = ${escaparSql(a.de)};`);
+      } else {
+        continue;
+      }
+      contagem.correcoes++;
+      L.push("");
+    }
+  }
+
+  // ── 8. As diferenças de valor ────────────────────────────────────────────
+  if (diferencasDeValor.length) {
+    L.push("-- ── 8. A diferença entre o que foi pago e o que estava lançado ────────────");
+    L.push("--");
+    L.push("-- A Esquadrias 3/6 é de R$ 1.715,00 e saiu R$ 1.749,48. A parcela foi marcada");
+    L.push("-- paga no bloco 7 pelo valor dela; a diferença entra aqui, como Juros, para o");
+    L.push("-- caixa fechar sem mexer no valor da parcela.");
+    L.push("");
+    for (const d of diferencasDeValor) {
+      const chave = `diferenca|${d.data}|${d.descricao}`;
+      L.push(
+        "insert into public.financial_transactions (owner_id, unit_id, type, status, description," +
+          " amount, due_date, paid_date, category_id, supplier_name, account_id, payment_method," +
+          " source_type, source_id, notes)",
+      );
+      L.push(
+        `select ${escaparSql(owner)}, ${escaparSql(unidade)}, 'payable', 'paid',` +
+          ` ${escaparSql(`Juros/correção — ${d.descricao.split(" · ")[0]}`)},` +
+          ` ${Math.abs(d.valor).toFixed(2)}, ${escaparSql(d.data)}, ${escaparSql(d.data)},` +
+          ` ${categoriaPorNome("Juros", owner)}, ${escaparSql(d.nome)}, ${escaparSql(contaDoExtrato)},` +
+          ` 'boleto', ${escaparSql(FONTE_EXTRATO)}, ${escaparSql(chave)}, ${escaparSql(d.motivo)}`,
+      );
+      L.push(
+        ` where not exists (select 1 from public.financial_transactions f where f.source_type = ${escaparSql(FONTE_EXTRATO)} and f.source_id = ${escaparSql(chave)});`,
+      );
+      L.push("");
+    }
+  }
+
+  // ── 9. As faturas quitadas — POR ÚLTIMO ──────────────────────────────────
+  const quitar = [];
+  for (const f of faturas.values()) {
+    const pagoEm = pagamentoDaFatura(f.cartao, f.vencimento);
+    if (pagoEm) quitar.push({ ...f, pagoEm });
+  }
+  if (quitar.length) {
+    L.push("-- ── 9. As faturas que já foram pagas — O ÚLTIMO BLOCO ─────────────────────");
+    L.push("--");
+    L.push("-- Aqui é onde o dinheiro sai do caixa, e é a única linha de cada mês que sai.");
+    L.push("-- A soma das parcelas da fatura, que `card_invoice_recalc` já calculou, bate ao");
+    L.push("-- centavo com o que o banco debitou no dia abaixo.");
+    L.push("--");
+    L.push("-- Depois deste bloco a fatura está congelada: nenhuma compra nova entra nela.");
+    L.push("-- É por isso que ele vem no fim.");
+    L.push("");
+    for (const q of quitar.sort((a, b) => a.pagoEm.localeCompare(b.pagoEm))) {
+      const c = cartoes.get(q.cartao);
+      L.push(`-- ${c.nome}, fatura que fechou em ${q.fechamento} — paga em ${q.pagoEm}`);
+      L.push("update public.financial_transactions t");
+      L.push(`   set status = 'paid', paid_date = ${escaparSql(q.pagoEm)}, updated_at = now()`);
+      L.push(
+        `  from public.card_invoices i where t.settles_card_invoice_id = i.id and i.card_id = ${escaparSql(c.id)}`,
+      );
+      L.push(`   and i.closing_date = ${escaparSql(q.fechamento)} and t.status <> 'paid';`);
+      L.push("");
+      contagem.faturasQuitadas++;
+    }
+  }
+
+  return { sql: L.join("\n") + "\n", contagem };
+}
+
+const saidaSql = caminhoSql ? gerarSql() : null;
+if (saidaSql) writeFileSync(caminhoSql, saidaSql.sql);
+
 // ── O que aparece no terminal ───────────────────────────────────────────────
 
 console.log(`Proposta gerada em ${dirSaida}/`);
@@ -1503,5 +2049,18 @@ for (const c of conferenciaDeCaixa) {
     `  caixa  ${c.data}: ${ok ? "bate" : `DIFERENÇA de ${brl(c.diferenca)}`} (${money(c.pagoNoExtrato)})`,
   );
 }
+if (saidaSql) {
+  const c = saidaSql.contagem;
+  console.log(`\nSQL gerado em ${caminhoSql}`);
+  console.log(`  ${c.faturas} faturas de cartão`);
+  console.log(`  ${c.parcelasNovas} parcelas novas`);
+  console.log(`  ${c.parcelasAnexadas} parcelas que já existiam, anexadas à fatura`);
+  console.log(`  ${c.despesasDoExtrato} despesas do extrato`);
+  console.log(`  ${c.faturasSemDetalhe} faturas pagas sem detalhe`);
+  console.log(`  ${c.correcoes} correções`);
+  console.log(`  ${c.faturasQuitadas} faturas marcadas como pagas (no último bloco)`);
+}
 for (const a of avisos) console.log(`\n⚠️  ${a}`);
-console.log("\nNada foi gravado no banco.");
+console.log(
+  "\nNada foi gravado no banco." + (saidaSql ? " O SQL existe mas não foi aplicado." : ""),
+);
