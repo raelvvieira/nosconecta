@@ -1714,40 +1714,28 @@ function gerarSql() {
     L.push("-- Nasce com valor zero: `card_invoice_recalc`, disparado pela primeira compra,");
     L.push("-- a preenche. Sem esta linha o gatilho não teria alvo e a fatura não apareceria");
     L.push("-- em Pagamentos.");
+    L.push("--");
+    L.push("-- Um statement para todas, e não um por fatura: o rótulo e a conta saem do");
+    L.push("-- cadastro do cartão, então vinte e oito linhas seriam vinte e oito cópias da");
+    L.push("-- mesma regra — e uma delas divergiria no dia em que o nome do cartão mudasse.");
     L.push("");
-    const MESES_CURTOS = [
-      "jan",
-      "fev",
-      "mar",
-      "abr",
-      "mai",
-      "jun",
-      "jul",
-      "ago",
-      "set",
-      "out",
-      "nov",
-      "dez",
-    ];
-    for (const f of [...faturas.values()].sort((a, b) =>
-      a.fechamento.localeCompare(b.fechamento),
-    )) {
-      const c = cartoes.get(f.cartao);
-      const [ano, mes] = f.vencimento.split("-").map(Number);
-      const rotulo = `Fatura ${c.nome} · ${MESES_CURTOS[mes - 1]}/${ano}`;
-      L.push(
-        `insert into public.financial_transactions (owner_id, unit_id, type, status, description, amount, due_date, account_id, payment_method, settles_card_invoice_id, credit_card_id)`,
-      );
-      L.push(
-        `select ${escaparSql(owner)}, ${escaparSql(c.unitId)}, 'payable', 'pending', ${escaparSql(rotulo)}, 0, ${escaparSql(f.vencimento)}, ${escaparSql(c.accountId)}, 'fatura', i.id, i.card_id`,
-      );
-      L.push(
-        `  from public.card_invoices i where i.card_id = ${escaparSql(c.id)} and i.closing_date = ${escaparSql(f.fechamento)}`,
-      );
-      L.push(
-        `   and not exists (select 1 from public.financial_transactions f where f.settles_card_invoice_id = i.id);`,
-      );
-    }
+    L.push(
+      "insert into public.financial_transactions (owner_id, unit_id, type, status, description," +
+        " amount, due_date, account_id, payment_method, settles_card_invoice_id, credit_card_id)",
+    );
+    L.push("select i.owner_id, i.unit_id, 'payable', 'pending',");
+    L.push(
+      "       'Fatura ' || c.name || ' · ' ||" +
+        " (array['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'])[extract(month from i.due_date)::int] ||" +
+        " '/' || extract(year from i.due_date)::text,",
+    );
+    L.push("       0, i.due_date, c.account_id, 'fatura', i.id, i.card_id");
+    L.push("  from public.card_invoices i");
+    L.push("  join public.credit_cards c on c.id = i.card_id");
+    L.push(` where i.owner_id = ${escaparSql(owner)}`);
+    L.push(
+      "   and not exists (select 1 from public.financial_transactions f where f.settles_card_invoice_id = i.id);",
+    );
     L.push("");
   }
 
@@ -1763,33 +1751,59 @@ function gerarSql() {
     L.push("-- O valor é o da parcela COMO ESTÁ NA FATURA, e não o total dividido por N: a");
     L.push("-- IR Tintas cobra R$ 362,97 na primeira e R$ 362,89 na segunda, e dividir");
     L.push("-- deixaria a fatura sem fechar ao centavo.");
+    L.push("--");
+    L.push("-- A regra aparece UMA vez e os dados vêm como tabela. Cento e sessenta e nove");
+    L.push("-- statements iguais seriam cento e sessenta e nove chances de um divergir, e");
+    L.push("-- ninguém revisa isso lendo. Assim o que se revisa é a lista de compras.");
+    L.push("--");
+    L.push("-- Vencimento, unidade e conta NÃO estão na tabela: saem da fatura e do cadastro");
+    L.push("-- do cartão, pela junção. É o que garante que a parcela caia na mesma fatura que");
+    L.push("-- o app criaria.");
     L.push("");
-    for (const p of parcelasNovas.sort(
-      (a, b) => a.vencimento.localeCompare(b.vencimento) || a.descricao.localeCompare(b.descricao),
-    )) {
-      const c = cartoes.get(p.cartao);
-      L.push(
-        "insert into public.financial_transactions (owner_id, unit_id, type, status, description, amount," +
-          " due_date, purchase_date, card_invoice_id, credit_card_id, purchase_group_id," +
-          " installment_number, installment_total, category_id, supplier_name, account_id," +
-          " payment_method, source_type, source_id)",
+    L.push(
+      "insert into public.financial_transactions (owner_id, unit_id, type, status, description," +
+        " amount, due_date, purchase_date, card_invoice_id, credit_card_id, purchase_group_id," +
+        " installment_number, installment_total, category_id, supplier_name, account_id," +
+        " payment_method, source_type, source_id)",
+    );
+    L.push(`select ${escaparSql(owner)}, c.unit_id, 'payable', 'pending', v.descricao, v.valor,`);
+    L.push("       i.due_date, v.comprada_em, i.id, c.id, v.grupo,");
+    L.push("       case when v.parcelas > 1 then v.parcela end,");
+    L.push("       case when v.parcelas > 1 then v.parcelas end,");
+    L.push(
+      `       (select id from public.financial_categories where owner_id = ${escaparSql(owner)} and name = v.categoria limit 1),`,
+    );
+    L.push(
+      "       v.fornecedor, c.account_id, 'credito', " + escaparSql(FONTE_FATURA) + ", v.chave",
+    );
+    L.push("  from (values");
+    const linhas = parcelasNovas
+      .slice()
+      .sort(
+        (a, b) =>
+          a.vencimento.localeCompare(b.vencimento) || a.descricao.localeCompare(b.descricao),
+      )
+      .map(
+        (p) =>
+          `    (${escaparSql(p.descricao)}, ${p.valor.toFixed(2)}, ${escaparSql(p.data)}::date,` +
+          ` ${p.parcela}, ${p.totalParcelas}, ${escaparSql(p.categoria)}, ${escaparSql(p.fornecedor)},` +
+          ` ${escaparSql(p.chave)}, ${escaparSql(cartoes.get(p.cartao).id)}::uuid,` +
+          ` ${escaparSql(p.grupoDaCompra)}::uuid, ${escaparSql(p.fechamentoDaFatura)}::date)`,
       );
-      L.push(
-        `select ${escaparSql(owner)}, ${escaparSql(c.unitId)}, 'payable', 'pending', ${escaparSql(p.descricao)}, ${p.valor.toFixed(2)},` +
-          ` ${escaparSql(p.vencimento)}, ${escaparSql(p.data)}, i.id, ${escaparSql(c.id)}, ${escaparSql(p.grupoDaCompra)},` +
-          ` ${p.totalParcelas > 1 ? p.parcela : "null"}, ${p.totalParcelas > 1 ? p.totalParcelas : "null"},` +
-          ` ${categoriaPorNome(p.categoria, owner)}, ${escaparSql(p.fornecedor)}, ${escaparSql(c.accountId)},` +
-          ` 'credito', ${escaparSql(FONTE_FATURA)}, ${escaparSql(p.chave)}`,
-      );
-      L.push(
-        `  from public.card_invoices i where i.card_id = ${escaparSql(c.id)} and i.closing_date = ${escaparSql(p.fechamentoDaFatura)}`,
-      );
-      L.push(
-        `   and not exists (select 1 from public.financial_transactions f where f.source_type = ${escaparSql(FONTE_FATURA)} and f.source_id = ${escaparSql(p.chave)});`,
-      );
-      contagem.parcelasNovas++;
-    }
+    L.push(linhas.join(",\n"));
+    L.push(
+      "       ) as v(descricao, valor, comprada_em, parcela, parcelas, categoria, fornecedor," +
+        " chave, cartao, grupo, fechamento)",
+    );
+    L.push("  join public.credit_cards c on c.id = v.cartao");
+    L.push(
+      "  join public.card_invoices i on i.card_id = v.cartao and i.closing_date = v.fechamento",
+    );
+    L.push(
+      ` where not exists (select 1 from public.financial_transactions f where f.source_type = ${escaparSql(FONTE_FATURA)} and f.source_id = v.chave);`,
+    );
     L.push("");
+    contagem.parcelasNovas = parcelasNovas.length;
   }
 
   // ── 4. As parcelas que já existiam como conta solta ──────────────────────
@@ -1840,35 +1854,51 @@ function gerarSql() {
     L.push("--");
     L.push("-- Saída de caixa comum: as duas colunas de cartão ficam nulas, e vencimento e");
     L.push("-- pagamento são o mesmo dia — foi pix ou boleto pago na hora.");
+    L.push("--");
+    L.push("-- `notes` guarda o que o banco escreveu, letra por letra. É o que permite");
+    L.push("-- conferir um lançamento contra o extrato meses depois, quando ninguém lembra");
+    L.push("-- por que a categoria é aquela.");
     L.push("");
+    L.push(
+      "insert into public.financial_transactions (owner_id, unit_id, type, status, description," +
+        " amount, due_date, paid_date, category_id, supplier_name, account_id, payment_method," +
+        " source_type, source_id, notes)",
+    );
+    L.push(
+      `select ${escaparSql(owner)}, ${escaparSql(unidade)}, 'payable', 'paid', v.descricao, v.valor,`,
+    );
+    L.push("       v.pago_em, v.pago_em,");
+    L.push(
+      `       (select id from public.financial_categories where owner_id = ${escaparSql(owner)} and name = v.categoria limit 1),`,
+    );
+    L.push(
+      `       v.fornecedor, ${escaparSql(contaDoExtrato)}, v.meio, ${escaparSql(FONTE_EXTRATO)}, v.chave, v.extrato`,
+    );
+    L.push("  from (values");
     const vistos = new Map();
-    for (const p of doExtrato.sort(
-      (a, b) => a.data.localeCompare(b.data) || a.descricao.localeCompare(b.descricao),
-    )) {
-      const base = `extrato|${p.data}|${p.valor.toFixed(2)}|${normalizar(p.origem).slice(0, 60)}`;
-      const n = (vistos.get(base) ?? 0) + 1;
-      vistos.set(base, n);
-      // Dois pix iguais no mesmo dia para o mesmo fornecedor existem (aconteceu
-      // com a Lage), então a chave leva a ocorrência.
-      const chave = `${base}#${n}`;
-      L.push(
-        "insert into public.financial_transactions (owner_id, unit_id, type, status, description," +
-          " amount, due_date, paid_date, category_id, supplier_name, account_id, payment_method," +
-          " source_type, source_id, notes)",
-      );
-      L.push(
-        `select ${escaparSql(owner)}, ${escaparSql(unidade)}, 'payable', 'paid', ${escaparSql(p.descricao)},` +
-          ` ${p.valor.toFixed(2)}, ${escaparSql(p.vencimento)}, ${escaparSql(p.pagoEm)},` +
-          ` ${categoriaPorNome(p.categoria, owner)}, ${escaparSql(p.fornecedor)}, ${escaparSql(contaDoExtrato)},` +
-          ` ${escaparSql(meioDePagamento(p.origem))}, ${escaparSql(FONTE_EXTRATO)}, ${escaparSql(chave)},` +
-          ` ${escaparSql(p.origem)}`,
-      );
-      L.push(
-        ` where not exists (select 1 from public.financial_transactions f where f.source_type = ${escaparSql(FONTE_EXTRATO)} and f.source_id = ${escaparSql(chave)});`,
-      );
-      contagem.despesasDoExtrato++;
-    }
+    const linhas = doExtrato
+      .slice()
+      .sort((a, b) => a.data.localeCompare(b.data) || a.descricao.localeCompare(b.descricao))
+      .map((p) => {
+        const base = `extrato|${p.data}|${p.valor.toFixed(2)}|${normalizar(p.origem).slice(0, 60)}`;
+        const n = (vistos.get(base) ?? 0) + 1;
+        vistos.set(base, n);
+        // Dois pix iguais no mesmo dia para o mesmo fornecedor existem
+        // (aconteceu com a Lage), então a chave leva a ocorrência.
+        const chave = `${base}#${n}`;
+        return (
+          `    (${escaparSql(p.descricao)}, ${p.valor.toFixed(2)}, ${escaparSql(p.pagoEm)}::date,` +
+          ` ${escaparSql(p.categoria)}, ${escaparSql(p.fornecedor)}, ${escaparSql(meioDePagamento(p.origem))},` +
+          ` ${escaparSql(chave)}, ${escaparSql(p.origem)})`
+        );
+      });
+    L.push(linhas.join(",\n"));
+    L.push("       ) as v(descricao, valor, pago_em, categoria, fornecedor, meio, chave, extrato)");
+    L.push(
+      ` where not exists (select 1 from public.financial_transactions f where f.source_type = ${escaparSql(FONTE_EXTRATO)} and f.source_id = v.chave);`,
+    );
     L.push("");
+    contagem.despesasDoExtrato = doExtrato.length;
   }
 
   // ── 6. As faturas pagas sem detalhe ──────────────────────────────────────
