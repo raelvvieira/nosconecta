@@ -8,6 +8,13 @@
       "when": 1791225333559,
       "tag": "0000_grant_card_recalc_sandbox",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791225362434,
+      "tag": "0001_grant_card_tables_update_sandbox",
+      "breakpoints": true
     }
   ]
 }
