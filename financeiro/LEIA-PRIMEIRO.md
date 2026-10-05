@@ -142,6 +142,24 @@ categorias e as contas se separam sem motivo.
 por hora de cadeira, senão todo procedimento fica mais caro por causa de
 marketing e a precificação sai torta.
 
+## O que é previsão, e o que não é
+
+Duas naturezas de linha futura, e a diferença não é de confiança no número:
+
+| | Entra? | Por quê |
+|---|---|---|
+| **Aluguel e condomínio** | **sim**, como `previsao-contrato` | contrato assinado: vence de novo no dia 31 independentemente de qualquer coisa |
+| Imposto, DAS, pró-labore | não | dependem de um faturamento que ainda não aconteceu |
+| Energia, limpeza | não | o valor varia e não há contrato de valor fixo |
+
+As previstas usam **o último valor pago**, nunca a média: o condomínio subiu três
+meses seguidos (582,91 → 583,42 → 616,51) e aluguel não cai. Errar para baixo
+numa previsão de pagamento é o erro que dói.
+
+Elas carregam `source_type = 'previsao-contrato'`, que as separa do que veio de
+arquivo (`importacao-*`) e do que veio da agenda (`agendamento`). Quando o
+boleto chegar, é conferir o valor e dar baixa — não criar linha nova.
+
 ## Nada simulado entra
 
 Imposto, DAS, pró-labore e reserva de caixa **não são lançados**. Eles são
