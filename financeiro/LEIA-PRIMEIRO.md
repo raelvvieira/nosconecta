@@ -36,14 +36,30 @@ Esta é a regra mais importante do financeiro, e ela **não é a mesma para toda
 as contas**. Aplicar a postura errada é o jeito mais fácil de encher o sistema
 de gasto pessoal — ou de perder despesa real do consultório.
 
-| Conta | O que é | Como é lida |
-|---|---|---|
-| **Banco Inter** · Mercado Pago | contas abertas para a clínica | **tudo que sai é do consultório**, menos os nomes conhecidos de fora |
-| **Stone** | onde o consultório **recebe** (cartão e pix) | entradas não viram receita (quem tem receita é a agenda); saídas são do consultório |
-| **Nubank da Dra. Mariane** | conta **pessoal** — até setembro/2026 as contas não eram separadas | **nada é do consultório**, só o que for identificado um por um |
+**O consultório não tem conta própria.** Existem quatro contas, e nenhuma é da
+clínica:
 
-A diferença não é de grau, é de sinal: numa conta da clínica, o silêncio
-significa *"é da clínica"*; na conta pessoal, significa *"não é"*.
+| Conta | De quem é | Como é lida |
+|---|---|---|
+| **Stone** | Mariane — é onde o consultório **recebe** (cartão e pix) | entradas não viram receita (quem tem receita é a agenda); saídas são do consultório |
+| **Inter (Rael)** + cartão | pessoal do Rael | **nada é do consultório**, só o que for identificado |
+| **Nubank (Rael)** | pessoal do Rael | idem |
+| **Nubank (Mariane)** | pessoal da Mariane | idem |
+| Mercado Pago + cartão | *a confirmar* — provavelmente do Rael | idem |
+
+Os dois sócios pagaram custo da clínica das próprias contas: o aluguel, a luz,
+o condomínio e a cadeira saíram do Inter do Rael; os insumos e o laboratório
+saíram do Nubank da Mariane.
+
+Por isso **a postura padrão é `pessoal`**, e não "é da clínica": numa conta de
+pessoa física o silêncio significa *"não é do consultório"*. A primeira versão
+do importador leu o Inter como conta da clínica — e junto com o aluguel entraram
+um bar e um mercado, R$ 355,10 de gasto pessoal classificado como da clínica.
+Pouco, e só pouco por sorte.
+
+Errar para o lado de excluir deixa despesa de fora, e isso aparece na
+conferência. Errar para o lado de incluir enfia gasto pessoal no custo por hora
+de cadeira, onde ninguém vai procurar.
 
 Tratar o Nubank como as outras traria para o financeiro o plano de saúde, as
 doações e os R$ 28.941 de transferência que o relatório deixou como "a

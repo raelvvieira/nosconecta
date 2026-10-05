@@ -67,8 +67,15 @@ function arg(nome, padrao = null) {
 }
 
 const caminhoExtrato = arg("extrato");
-/** A postura da conta do `--extrato`. Ver `POSTURA_DA_CONTA`. */
-const posturaDoExtrato = arg("postura", "clinica");
+/**
+ * A postura da conta do `--extrato`. Ver `POSTURA_DA_CONTA`.
+ *
+ * O padrão é `pessoal` porque hoje TODAS as contas são pessoais — nenhuma foi
+ * aberta para o consultório. Errar para o lado de excluir deixa despesa de
+ * fora, o que aparece na conferência; errar para o lado de incluir enfia gasto
+ * pessoal no custo por hora de cadeira, onde ninguém vai procurar.
+ */
+const posturaDoExtrato = arg("postura", "pessoal");
 const caminhoInter = arg("fatura-inter");
 const caminhoMp = arg("fatura-mp");
 const caminhoExistentes = arg("existentes");
@@ -296,29 +303,38 @@ const REGRAS_DO_EXTRATO = [
  * as contas. Aplicar a postura errada é o jeito mais fácil de encher o
  * financeiro de gasto pessoal — ou de perder despesa real do consultório.
  *
- *   `clinica`  — tudo que sai é do consultório, MENOS os nomes conhecidos de
- *                fora (outro negócio, aporte, CDB). É o caso do Banco Inter e
- *                do Mercado Pago: contas abertas para a clínica.
- *
  *   `pessoal`  — NADA é do consultório, SÓ o que foi identificado um por um.
- *                É o caso do Nubank da Dra. Mariane, que até setembro/2026 não
- *                separava as contas. Em setembro saíram de lá R$ 11.223,87 de
- *                insumo, laboratório e anúncio — e também plano de saúde,
- *                doação e transferência pessoal, que não entram.
  *
  *   `recebimento` — a conta onde o consultório RECEBE (Stone: cartão e pix).
  *                As entradas não viram receita aqui, porque receita tem um dono
  *                só, a agenda. As saídas são do consultório.
  *
- * A diferença não é de grau, é de sinal: numa conta `clinica` o silêncio
- * significa "é da clínica"; numa `pessoal`, significa "não é". Tratar o Nubank
- * como as outras traria para o financeiro o plano de saúde, as doações e os
- * R$ 28.941 de transferência que o relatório deixou como "a classificar".
+ *   `clinica`  — tudo que sai é do consultório, MENOS os nomes conhecidos de
+ *                fora. **Hoje nenhuma conta é assim**, e a opção fica aqui para
+ *                o dia em que o consultório abrir conta no CNPJ.
+ *
+ * ── O fato que decide isto ─────────────────────────────────────────────────
+ *
+ * O consultório NÃO TEM CONTA PRÓPRIA. Existem duas contas pessoais do Rael
+ * (Inter e Nubank), uma da Mariane (Nubank) e a Stone, que é dela e serve para
+ * receber. Os dois sócios pagaram custo da clínica das próprias contas.
+ *
+ * Por isso a postura padrão é `pessoal`, e não `clinica`. A primeira versão
+ * deste script leu o extrato do Inter como conta da clínica porque a conta se
+ * chamava "Banco Inter" e o aluguel, o condomínio, a luz e a cadeira saíam de
+ * lá. Saem mesmo — e junto saíram um bar e um mercado, que entraram no
+ * financeiro como "Alimentação" do consultório. Foram R$ 355,10 de gasto
+ * pessoal classificado como da clínica. Pouco, e só pouco por sorte: a conta
+ * de uma pessoa tem gasto de pessoa, e o padrão tem de ser excluir.
+ *
+ * A diferença não é de grau, é de sinal. Numa conta `clinica` o silêncio
+ * significa "é da clínica"; numa `pessoal`, significa "não é".
  */
 export const POSTURA_DA_CONTA = {
-  "Banco Inter": "clinica",
-  "Mercado Pago": "clinica",
+  "Inter Rael (pessoal)": "pessoal",
+  "Nubank Rael (pessoal)": "pessoal",
   "Nubank Mariane (pessoal)": "pessoal",
+  "Mercado Pago Rael (confirmar)": "pessoal",
   "Stone — recebimentos do consultório": "recebimento",
 };
 
@@ -372,7 +388,7 @@ function nomeDoFornecedor(nome) {
  * conta pessoal, ele fica de fora sem perguntar, porque perguntar sobre cada
  * compra pessoal da sócia é ruído e a resposta é sempre a mesma.
  */
-function classificarMovimento(descricao, postura = "clinica") {
+function classificarMovimento(descricao, postura = "pessoal") {
   for (const [padrao, destino, motivo, fornecedor, rotulo] of REGRAS_DO_EXTRATO) {
     if (padrao.test(descricao)) return { destino, motivo, fornecedor, rotulo: rotulo ?? null };
   }
