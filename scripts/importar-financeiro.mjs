@@ -334,7 +334,7 @@ export const POSTURA_DA_CONTA = {
   "Inter Rael (pessoal)": "pessoal",
   "Nubank Rael (pessoal)": "pessoal",
   "Nubank Mariane (pessoal)": "pessoal",
-  "Mercado Pago Rael (confirmar)": "pessoal",
+  "Mercado Pago Rael (pessoal)": "pessoal",
   "Stone — recebimentos do consultório": "recebimento",
 };
 

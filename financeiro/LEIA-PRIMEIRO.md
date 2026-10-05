@@ -45,7 +45,7 @@ clínica:
 | **Inter (Rael)** + cartão | pessoal do Rael | **nada é do consultório**, só o que for identificado |
 | **Nubank (Rael)** | pessoal do Rael | idem |
 | **Nubank (Mariane)** | pessoal da Mariane | idem |
-| Mercado Pago + cartão | *a confirmar* — provavelmente do Rael | idem |
+| **Mercado Pago (Rael)** + cartão | pessoal do Rael | idem |
 
 Os dois sócios pagaram custo da clínica das próprias contas: o aluguel, a luz,
 o condomínio e a cadeira saíram do Inter do Rael; os insumos e o laboratório
