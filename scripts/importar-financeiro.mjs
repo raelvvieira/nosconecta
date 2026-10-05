@@ -286,6 +286,48 @@ const REGRAS_DO_EXTRATO = [
   [/BEM A JEITO|MUNDIALMIX/i, "NOS", "Alimentação", null],
 ];
 
+/**
+ * O nome com que cada fornecedor fica gravado.
+ *
+ * Existe porque o extrato escreve em CAIXA ALTA e sem acento
+ * ("LAGE MATERIAIS DE CONSTRUCAO"), e a clínica digitou com acento
+ * ("Lage Materiais de Construção"). Sem canonizar, o mesmo fornecedor aparece
+ * duas vezes no relatório por fornecedor, com o gasto dividido entre as duas
+ * grafias — foi o que aconteceu com a Lage, 7 linhas de um lado e 2 do outro.
+ *
+ * As três últimas linhas não são grafia, são identidade: a imobiliária que a
+ * clínica chamava de "Pirâmides" assina AZEVEDO FILHOS no banco, o condomínio
+ * lançado como "BR Condos" é a OPPORTUNITA, e o gesseiro "Jonathan Ariel" é o
+ * JONATHAN MOLINO. São a mesma pessoa jurídica com dois nomes no sistema.
+ */
+const NOME_DO_FORNECEDOR = [
+  [/^LAGE MATERIAIS/i, "Lage Materiais de Construção"],
+  [/^CASSOL/i, "Cassol Centerlar"],
+  [/^ATACADAO DAS TINTAS/i, "Atacadão das Tintas"],
+  [/^LEROY MERLIN/i, "Leroy Merlin"],
+  [/^ZONA NOVA/i, "Zona Nova Center"],
+  [/^GUARDIAN/i, "Guardian Segurança"],
+  [/^BEM A JEITO/i, "Bem a Jeito"],
+  [/^CASAS DO CANO/i, "Casas do Cano"],
+  [/^MUNDIALMIX/i, "Mundialmix"],
+  [/^JOAO DE BARRO/i, "João de Barro"],
+  [/^PEDRA BRANCA/i, "Pedra Branca"],
+  [/^CASAS? DA AGUA|^Casa Da Água/i, "Casas da Água"],
+  [/^SUJINHO/i, "Sujinho"],
+  [/^PIR[AÂ]MIDES|^AZEVEDO FILHOS/i, "Azevedo Filhos Neg Imob"],
+  [/^BR CONDOS|^OPPORTUNITA/i, "Opportunita Empresarial"],
+  [/^JONATHAN/i, "Jonathan Molino"],
+];
+
+/** O nome canônico, ou o que veio se nenhum padrão casar. */
+function nomeDoFornecedor(nome) {
+  const texto = String(nome ?? "").trim();
+  for (const [padrao, canonico] of NOME_DO_FORNECEDOR) {
+    if (padrao.test(texto)) return canonico;
+  }
+  return texto;
+}
+
 function classificarMovimento(descricao) {
   for (const [padrao, destino, motivo, fornecedor, rotulo] of REGRAS_DO_EXTRATO) {
     if (padrao.test(descricao)) return { destino, motivo, fornecedor, rotulo: rotulo ?? null };
@@ -347,9 +389,16 @@ const ESTABELECIMENTOS = [
 
 function classificarEstabelecimento(estab) {
   for (const [padrao, categoria, fornecedor, descricao, confirmado] of ESTABELECIMENTOS) {
-    if (padrao.test(estab)) return { categoria, fornecedor, descricao, confirmado };
+    if (padrao.test(estab)) {
+      return { categoria, fornecedor: nomeDoFornecedor(fornecedor), descricao, confirmado };
+    }
   }
-  return { categoria: null, fornecedor: estab, descricao: estab, confirmado: false };
+  return {
+    categoria: null,
+    fornecedor: nomeDoFornecedor(estab),
+    descricao: estab,
+    confirmado: false,
+  };
 }
 
 // ── O .xlsx, sem biblioteca ─────────────────────────────────────────────────
@@ -550,6 +599,7 @@ function lerFaturaMercadoPago(caminho) {
   const LINHA =
     /^\s*(\d{2})\/(\d{2})\s+(.+?)\s{2,}(?:Parcela\s+(\d+)\s+de\s+(\d+))?\s*R\$\s*([\d.,]+)\s*$/;
   const transacoes = [];
+  const linhasDeCredito = [];
   let creditos = 0;
   for (const linha of texto.split("\n")) {
     const m = LINHA.exec(linha);
@@ -560,7 +610,15 @@ function lerFaturaMercadoPago(caminho) {
     // CONTA da fatura: sem somá-los à parte, a conferência acusa diferença
     // (aqui, R$ 66,49) e dá a impressão de fonte incompleta.
     if (/credito concedido|pagamento|estorno|devolvid/i.test(normalizar(descricao))) {
-      if (valor !== null) creditos += valor;
+      if (valor !== null) {
+        creditos += valor;
+        const mesCredito = Number(m[2]);
+        linhasDeCredito.push({
+          data: iso(mesCredito > mesVenc ? anoVenc - 1 : anoVenc, mesCredito, Number(m[1])),
+          descricao,
+          valor,
+        });
+      }
       continue;
     }
     if (valor === null) continue;
@@ -579,7 +637,13 @@ function lerFaturaMercadoPago(caminho) {
     });
   }
   const tot = /^Total\s+R\$\s*([\d.,]+)\s*$/m.exec(texto);
-  return { transacoes, vencimento, creditos, total: tot ? dinheiro(tot[1]) : null };
+  return {
+    transacoes,
+    vencimento,
+    creditos,
+    linhasDeCredito,
+    total: tot ? dinheiro(tot[1]) : null,
+  };
 }
 
 // ── O que já está no sistema ────────────────────────────────────────────────
@@ -796,8 +860,8 @@ for (const m of movimentos) {
   propostas.push({
     fonte: "extrato",
     data: m.data,
-    descricao: rotulo ?? nome,
-    fornecedor: nome,
+    descricao: rotulo ?? nomeDoFornecedor(nome),
+    fornecedor: nomeDoFornecedor(nome),
     categoria: motivo,
     valor: -m.valor,
     vencimento: m.data,
@@ -814,7 +878,7 @@ for (const m of movimentos) {
 
 const mp = caminhoMp
   ? lerFaturaMercadoPago(caminhoMp)
-  : { transacoes: [], vencimento: null, creditos: 0, total: null };
+  : { transacoes: [], vencimento: null, creditos: 0, linhasDeCredito: [], total: null };
 const transacoesDeCartao = [
   ...(caminhoInter ? lerFaturaInter(caminhoInter) : []),
   ...mp.transacoes,
@@ -1612,6 +1676,9 @@ writeFileSync(join(dirSaida, "RELATORIO.md"), r.join("\n"));
  * condição que eles mesmos destroem.
  */
 
+/** Quantas linhas de dados por statement. Ver o comentário no bloco 3. */
+const POR_STATEMENT = 45;
+
 const FONTE_EXTRATO = "importacao-extrato";
 const FONTE_FATURA = "importacao-fatura";
 
@@ -1760,50 +1827,117 @@ function gerarSql() {
     L.push("-- do cartão, pela junção. É o que garante que a parcela caia na mesma fatura que");
     L.push("-- o app criaria.");
     L.push("");
-    L.push(
-      "insert into public.financial_transactions (owner_id, unit_id, type, status, description," +
-        " amount, due_date, purchase_date, card_invoice_id, credit_card_id, purchase_group_id," +
-        " installment_number, installment_total, category_id, supplier_name, account_id," +
-        " payment_method, source_type, source_id)",
-    );
-    L.push(`select ${escaparSql(owner)}, c.unit_id, 'payable', 'pending', v.descricao, v.valor,`);
-    L.push("       i.due_date, v.comprada_em, i.id, c.id, v.grupo,");
-    L.push("       case when v.parcelas > 1 then v.parcela end,");
-    L.push("       case when v.parcelas > 1 then v.parcelas end,");
-    L.push(
-      `       (select id from public.financial_categories where owner_id = ${escaparSql(owner)} and name = v.categoria limit 1),`,
-    );
-    L.push(
-      "       v.fornecedor, c.account_id, 'credito', " + escaparSql(FONTE_FATURA) + ", v.chave",
-    );
-    L.push("  from (values");
-    const linhas = parcelasNovas
+    // Em fatias: um `values` de cento e sessenta e nove linhas é um statement que
+    // nenhuma ferramenta aceita colar de uma vez, e um erro nele derruba as
+    // cento e sessenta e nove. Cada fatia é independente e guardada pela mesma
+    // chave, então aplicar uma de cada vez dá o mesmo resultado.
+    const ordenadas = parcelasNovas
       .slice()
       .sort(
         (a, b) =>
           a.vencimento.localeCompare(b.vencimento) || a.descricao.localeCompare(b.descricao),
-      )
-      .map(
-        (p) =>
-          `    (${escaparSql(p.descricao)}, ${p.valor.toFixed(2)}, ${escaparSql(p.data)}::date,` +
-          ` ${p.parcela}, ${p.totalParcelas}, ${escaparSql(p.categoria)}, ${escaparSql(p.fornecedor)},` +
-          ` ${escaparSql(p.chave)}, ${escaparSql(cartoes.get(p.cartao).id)}::uuid,` +
-          ` ${escaparSql(p.grupoDaCompra)}::uuid, ${escaparSql(p.fechamentoDaFatura)}::date)`,
       );
-    L.push(linhas.join(",\n"));
-    L.push(
-      "       ) as v(descricao, valor, comprada_em, parcela, parcelas, categoria, fornecedor," +
-        " chave, cartao, grupo, fechamento)",
-    );
-    L.push("  join public.credit_cards c on c.id = v.cartao");
-    L.push(
-      "  join public.card_invoices i on i.card_id = v.cartao and i.closing_date = v.fechamento",
-    );
-    L.push(
-      ` where not exists (select 1 from public.financial_transactions f where f.source_type = ${escaparSql(FONTE_FATURA)} and f.source_id = v.chave);`,
-    );
-    L.push("");
+
+    for (let inicio = 0; inicio < ordenadas.length; inicio += POR_STATEMENT) {
+      const fatia = ordenadas.slice(inicio, inicio + POR_STATEMENT);
+      L.push(`-- parcelas ${inicio + 1} a ${inicio + fatia.length} de ${ordenadas.length}`);
+      L.push(
+        "insert into public.financial_transactions (owner_id, unit_id, type, status, description," +
+          " amount, due_date, purchase_date, card_invoice_id, credit_card_id, purchase_group_id," +
+          " installment_number, installment_total, category_id, supplier_name, account_id," +
+          " payment_method, source_type, source_id)",
+      );
+      L.push(`select ${escaparSql(owner)}, c.unit_id, 'payable', 'pending', v.descricao, v.valor,`);
+      L.push("       i.due_date, v.comprada_em, i.id, c.id, v.grupo,");
+      L.push("       case when v.parcelas > 1 then v.parcela end,");
+      L.push("       case when v.parcelas > 1 then v.parcelas end,");
+      L.push(
+        `       (select id from public.financial_categories where owner_id = ${escaparSql(owner)} and name = v.categoria limit 1),`,
+      );
+      L.push(
+        "       v.fornecedor, c.account_id, 'credito', " + escaparSql(FONTE_FATURA) + ", v.chave",
+      );
+      L.push("  from (values");
+      L.push(
+        fatia
+          .map(
+            (p) =>
+              `    (${escaparSql(p.descricao)}, ${p.valor.toFixed(2)}, ${escaparSql(p.data)}::date,` +
+              ` ${p.parcela}, ${p.totalParcelas}, ${escaparSql(p.categoria)}, ${escaparSql(p.fornecedor)},` +
+              ` ${escaparSql(p.chave)}, ${escaparSql(cartoes.get(p.cartao).id)}::uuid,` +
+              ` ${escaparSql(p.grupoDaCompra)}::uuid, ${escaparSql(p.fechamentoDaFatura)}::date)`,
+          )
+          .join(",\n"),
+      );
+      L.push(
+        "       ) as v(descricao, valor, comprada_em, parcela, parcelas, categoria, fornecedor," +
+          " chave, cartao, grupo, fechamento)",
+      );
+      L.push("  join public.credit_cards c on c.id = v.cartao");
+      L.push(
+        "  join public.card_invoices i on i.card_id = v.cartao and i.closing_date = v.fechamento",
+      );
+      L.push(
+        ` where not exists (select 1 from public.financial_transactions f where f.source_type = ${escaparSql(FONTE_FATURA)} and f.source_id = v.chave);`,
+      );
+      L.push("");
+    }
     contagem.parcelasNovas = parcelasNovas.length;
+  }
+
+  // ── 3b. Os créditos dentro da fatura ─────────────────────────────────────
+  //
+  // Um crédito concedido abate o que o banco debita, mas não é despesa a menos
+  // em categoria nenhuma. Como linha NEGATIVA da fatura, `card_invoice_recalc`
+  // o desconta sozinho e o valor da fatura passa a ser o que saiu do caixa.
+  // Sem ele, a fatura do Mercado Pago ficava R$ 66,49 acima do débito — e a
+  // tela mostraria uma fatura que ninguém pagou daquele jeito.
+  const creditosParaLancar = [];
+  if (mp.vencimento && mp.linhasDeCredito?.length && cartoes.has("Mercado Pago")) {
+    const cfg = cartoes.get("Mercado Pago");
+    const ciclo = cicloDaFatura(mp.vencimento.slice(0, 7), cfg);
+    for (const linha of mp.linhasDeCredito) {
+      creditosParaLancar.push({ ...linha, cartao: "Mercado Pago", cfg, ciclo });
+    }
+  }
+
+  if (creditosParaLancar.length) {
+    L.push("-- ── 3b. Os créditos concedidos dentro da fatura ───────────────────────────");
+    L.push("--");
+    L.push("-- Entra como linha NEGATIVA da fatura, e não como receita: `card_invoice_recalc`");
+    L.push("-- soma as compras da fatura, então um valor negativo ali é exatamente o");
+    L.push("-- abatimento que o banco deu. Lançar como receita faria a clínica parecer ter");
+    L.push("-- faturado isso.");
+    L.push("--");
+    L.push("-- Sem categoria de propósito: crédito não é gasto de nada.");
+    L.push("");
+    for (const cr of creditosParaLancar) {
+      const chave = `credito|${cr.cartao}|${cr.data}|${cr.valor.toFixed(2)}`;
+      L.push(
+        "insert into public.financial_transactions (owner_id, unit_id, type, status, description," +
+          " amount, due_date, purchase_date, card_invoice_id, credit_card_id, account_id," +
+          " payment_method, source_type, source_id, notes)",
+      );
+      L.push(
+        `select ${escaparSql(owner)}, c.unit_id, 'payable', 'pending', ${escaparSql(`Crédito na fatura — ${cr.descricao}`)},`,
+      );
+      L.push(
+        `       ${(-Math.abs(cr.valor)).toFixed(2)}, i.due_date, ${escaparSql(cr.data)}, i.id, c.id, c.account_id,`,
+      );
+      L.push(`       'credito', ${escaparSql(FONTE_FATURA)}, ${escaparSql(chave)},`);
+      L.push(
+        "       'Abatimento dado pelo banco dentro da fatura. Negativo de propósito: é o que faz o valor da fatura ser o que saiu do caixa.'",
+      );
+      L.push("  from public.credit_cards c");
+      L.push(
+        `  join public.card_invoices i on i.card_id = c.id and i.closing_date = ${escaparSql(cr.ciclo.fechamento)}`,
+      );
+      L.push(` where c.id = ${escaparSql(cr.cfg.id)}`);
+      L.push(
+        `   and not exists (select 1 from public.financial_transactions f where f.source_type = ${escaparSql(FONTE_FATURA)} and f.source_id = ${escaparSql(chave)});`,
+      );
+      L.push("");
+    }
   }
 
   // ── 4. As parcelas que já existiam como conta solta ──────────────────────
@@ -1902,7 +2036,35 @@ function gerarSql() {
   }
 
   // ── 6. As faturas pagas sem detalhe ──────────────────────────────────────
-  const semDetalhe = conferenciaDeFaturas.filter((c) => !c.temDetalhe);
+  //
+  // O DIA do pagamento vem de `faturasPagas`, que é a linha do extrato. A
+  // primeira versão tentou tirá-lo de `conferenciaDeFaturas`, que só guarda o
+  // MÊS: o `due_date`/`paid_date` saía `null`, e `due_date` é NOT NULL. O
+  // statement foi recusado e reescrito por quem aplicou, o que deixou as duas
+  // linhas pagas SEM data de pagamento — invisíveis em qualquer leitura de
+  // caixa. É o tipo de defeito que não aparece em teste de tipo nem de build:
+  // só aparece conferindo o banco contra o extrato, dia por dia.
+  const semDetalhe = conferenciaDeFaturas
+    .filter((c) => !c.temDetalhe)
+    .map((c) => {
+      const cfg = cartoes.get(c.cartao);
+      const pagamento = faturasPagas.find(
+        (f) => f.cartao === c.cartao && f.data.slice(0, 7) === c.mes,
+      );
+      return {
+        ...c,
+        pagoEm: pagamento?.data ?? null,
+        vencimento: cfg ? diaNoMes(c.mes, cfg.diaDeVencimento) : null,
+      };
+    })
+    .filter((c) => {
+      if (c.pagoEm && c.vencimento) return true;
+      avisos.push(
+        `Fatura sem detalhe de ${c.cartao} em ${c.mes} não foi gerada: ` +
+          "não achei a data do pagamento ou o dia de vencimento do cartão.",
+      );
+      return false;
+    });
   if (semDetalhe.length) {
     L.push("-- ── 6. As faturas pagas de que não temos o detalhe ────────────────────────");
     L.push("--");
@@ -1916,7 +2078,7 @@ function gerarSql() {
     L.push("");
     for (const c of semDetalhe) {
       const cfg = cartoes.get(c.cartao);
-      const chave = `fatura-sem-detalhe|${c.cartao}|${c.data}`;
+      const chave = `fatura-sem-detalhe|${c.cartao}|${c.mes}`;
       L.push(
         "insert into public.financial_transactions (owner_id, unit_id, type, status, description," +
           " amount, due_date, paid_date, account_id, payment_method, source_type, source_id, notes)",
@@ -1924,7 +2086,7 @@ function gerarSql() {
       L.push(
         `select ${escaparSql(owner)}, ${escaparSql(unidade)}, 'payable', 'paid',` +
           ` ${escaparSql(`Fatura ${cfg?.nome ?? c.cartao} — detalhe não informado`)},` +
-          ` ${c.pagoNoExtrato.toFixed(2)}, ${escaparSql(c.data)}, ${escaparSql(c.data)},` +
+          ` ${c.pagoNoExtrato.toFixed(2)}, ${escaparSql(c.vencimento)}, ${escaparSql(c.pagoEm)},` +
           ` ${escaparSql(contaDoExtrato)}, 'fatura', ${escaparSql(FONTE_EXTRATO)}, ${escaparSql(chave)},` +
           ` 'O arquivo desta fatura não foi importado, então não há as compras dentro dela. Quando a fatura for juntada, apagar esta linha e lançar as compras.'`,
       );
@@ -2047,6 +2209,37 @@ function gerarSql() {
       contagem.faturasQuitadas++;
     }
   }
+
+  // ── 10. Um nome por fornecedor ───────────────────────────────────────────
+  //
+  // Roda no fim e sobre TODAS as contas a pagar, não só as importadas: o
+  // objetivo é que o relatório por fornecedor tenha uma linha por fornecedor.
+  // Enquanto duas grafias convivem, o gasto fica dividido entre elas e nenhum
+  // dos dois números é o verdadeiro.
+  L.push("-- ── 10. Um nome por fornecedor ────────────────────────────────────────────");
+  L.push("--");
+  L.push("-- O extrato escreve em CAIXA ALTA e sem acento; a clínica digitou com acento.");
+  L.push("-- Sem isto o mesmo fornecedor aparece duas vezes no relatório, com o gasto");
+  L.push("-- dividido entre as grafias — aconteceu com a Lage, 7 linhas de um lado e 2 do");
+  L.push("-- outro. As três últimas trocas não são grafia e sim identidade: Pirâmides assina");
+  L.push("-- AZEVEDO FILHOS no banco, BR Condos é a OPPORTUNITA, e Jonathan Ariel é o");
+  L.push("-- JONATHAN MOLINO.");
+  L.push("--");
+  L.push("-- Idempotente porque o UPDATE exige que o nome ainda seja o antigo.");
+  L.push("");
+  L.push("update public.financial_transactions t");
+  L.push("   set supplier_name = v.canonico, updated_at = now()");
+  L.push("  from (values");
+  L.push(
+    NOME_DO_FORNECEDOR.map(
+      ([padrao, canonico]) => `    (${escaparSql(padrao.source)}, ${escaparSql(canonico)})`,
+    ).join(",\n"),
+  );
+  L.push("       ) as v(padrao, canonico)");
+  L.push(` where t.owner_id = ${escaparSql(owner)}`);
+  L.push("   and t.supplier_name ~* v.padrao");
+  L.push("   and t.supplier_name <> v.canonico;");
+  L.push("");
 
   return { sql: L.join("\n") + "\n", contagem };
 }

@@ -1,128 +1,107 @@
-# Como preencher as duas planilhas
+# O financeiro da clínica
 
-São duas, e a divisão é o que faz o fluxo de caixa ficar certo.
+Maio a outubro de 2026 está lançado. O que segue é como foi feito e como
+continuar — não é preciso digitar lançamento por lançamento.
 
-| arquivo | o que vai nele | de onde você tira |
+## Como entrar com um período novo
+
+Baixe os arquivos **como o banco exporta** e rode o importador. Ele não escreve
+nada no banco: gera uma proposta e um relatório para você conferir antes.
+
+```bash
+# extrato e fatura do Mercado Pago em PDF → texto
+pdftotext -layout Extrato.pdf  extrato.txt
+pdftotext -layout FaturaMP.pdf fatura-mp.txt
+
+node scripts/importar-financeiro.mjs \
+  --extrato extrato.txt \
+  --fatura-inter faturas-inter.xlsx \
+  --fatura-mp fatura-mp.txt \
+  --existentes existentes.csv \
+  --cartoes cartoes.csv \
+  --contexto contexto.csv \
+  --sql supabase/migrations/<data>_lancamentos.sql
+```
+
+A saída cai em `financeiro/importacao/`, que o git ignora: extrato tem nome de
+terceiro e valor de conta pessoal dentro.
+
+**Leia `RELATORIO.md` antes de aplicar o SQL.** A primeira tabela é a que
+importa: a soma das parcelas de cada fatura tem de bater, ao centavo, com o que
+o banco debitou. Se não bater, está faltando fatura — pare e junte.
+
+## A regra que o sistema segue
+
+Uma linha de `financial_transactions` tem três naturezas, e a diferença está em
+duas colunas:
+
+| natureza | como se reconhece | é caixa? |
 |---|---|---|
-| `extrato.csv` | o que **saiu ou entrou da conta** no mesmo dia | extrato do Inter, Nubank e Mercado Pago |
-| `cartao.csv` | o que você **comprou no cartão** | faturas do Inter Crédito e Mercado Pago Crédito |
+| saída comum (pix, boleto) | as duas colunas vazias | **sim** |
+| compra no cartão | tem `card_invoice_id` | **não** |
+| a fatura do cartão | tem `settles_card_invoice_id` | **sim** |
 
----
+Por isso a parcela do cartão fica `pending` para sempre, mesmo de fatura já
+quitada: ela não é saída de caixa. Quem sai do caixa é a **fatura**, uma linha
+por mês somando todas as compras — e é ela que recebe a data de pagamento.
 
-## A regra que não pode ser quebrada
+Em 21/09 saíram R$ 5.827,80 da conta. Isso é a parcela 5 da cadeira do Olsen
+mais as outras doze compras daquela fatura. Lançar também o "pagamento de
+fatura" do extrato faria esse dia contar duas vezes.
 
-**A linha "PAGAMENTO FATURA CARTÃO" do extrato NÃO entra em lugar nenhum.**
+As telas já leem das duas formas: **"Pago no período"** filtra por data de
+pagamento (é o caixa), **"Total previsto"** e **"A pagar"** filtram por
+vencimento (é o compromisso). A mesma parcela alimenta os dois, cada um pela sua
+data. Você não precisa escolher.
 
-É a armadilha clássica. Se você lançar as compras da fatura (em `cartao.csv`)
-**e também** o pagamento da fatura (do extrato), o mesmo gasto conta duas vezes
-e o mês parece o dobro do que foi.
+## O que fica de fora, de propósito
 
-O sistema monta a fatura sozinho, somando as compras, e ela aparece em
-Pagamentos para você dar baixa quando pagar. Você não precisa lançá-la.
+- **Pagamento de fatura de cartão.** A despesa é a parcela. Exceção: fatura paga
+  cujo detalhe não existe — aí o pagamento é o único registro possível, e entra
+  **sem categoria**, porque ninguém sabe o que foi comprado.
+- **Aplicação e resgate de CDB, aporte de sócio, transferência entre contas
+  suas.** Dinheiro mudando de bolso.
+- **Dinheiro de outro negócio.** Os nomes confirmados estão numa lista dentro do
+  importador (`REGRAS_DO_EXTRATO`), então o próximo extrato os reconhece sozinho.
+- **Entrada na conta.** Não vira receita. Receita do consultório nasce de
+  consulta realizada com valor cobrado; lançar entrada de banco duplicaria o
+  faturamento e estragaria o retorno dos anúncios.
 
-Pule também, no extrato:
+## Um nome por fornecedor
 
-- transferência entre as suas próprias contas (Inter → Nubank, por exemplo);
-- aplicação e resgate de investimento;
-- estorno que já tem a compra correspondente estornada.
-
----
-
-## Compra parcelada: UMA linha, valor TOTAL
-
-Esse é o que mais dá confusão.
-
-A fatura mostra assim:
-
-```
-29/09   OLSEN INDUSTRIA   3/10   R$ 325,62
-```
-
-Você olha e pensa em lançar R$ 325,62 em setembro. **Não.** O certo é:
-
-```
-data_da_compra: 29/05/2026     ← quando você COMPROU, não a parcela
-valor_total:    3.256,20       ← o preço inteiro, não a parcela
-parcelas:       10
-```
-
-O sistema divide nas dez faturas sozinho, cada uma na data certa. Lançar parcela
-por parcela criaria dez compras de R$ 3.256,20.
-
-Se não sabe a data original, use a data da primeira parcela que aparecer e conte
-para trás: parcela 3/10 em setembro quer dizer compra em julho.
-
-Compra à vista no cartão: `parcelas` = 1.
-
----
-
-## As colunas
-
-### `extrato.csv`
-
-| coluna | o que é | exemplo |
-|---|---|---|
-| `data` | o dia que o dinheiro mexeu | `30/06/2026` |
-| `tipo` | `saida` ou `entrada` | `saida` |
-| `valor` | só o número, sem R$ | `1.489,75` |
-| `conta` | de qual conta saiu | `Banco Inter` |
-| `descricao` | o que foi | `Aluguel da sala` |
-| `fornecedor` | para quem (ou de quem) | `Pirâmides Imobiliária` |
-| `categoria` | ver a lista abaixo | `Aluguel` |
-| `forma` | `pix`, `boleto`, `debito`, `transferencia` | `pix` |
-
-**Entradas:** só até **17/08/2026**. De 18/08 em diante a agenda já registra os
-recebimentos (são 26, R$ 14.267,00), e importar de novo contaria duas vezes. O
-importador recusa entrada depois dessa data para você conferir caso a caso.
-
-### `cartao.csv`
-
-| coluna | o que é | exemplo |
-|---|---|---|
-| `data_da_compra` | quando comprou, NÃO o vencimento | `29/05/2026` |
-| `cartao` | `Banco Inter Crédito` ou `Mercado Pago Crédito` | `Banco Inter Crédito` |
-| `valor_total` | o preço inteiro, não a parcela | `3.256,20` |
-| `parcelas` | quantas vezes (1 = à vista) | `10` |
-| `descricao` | o que foi | `Cadeira odontológica` |
-| `fornecedor` | onde comprou | `Olsen` |
-| `categoria` | ver a lista abaixo | `Equipamentos` |
-
----
+O extrato escreve `LAGE MATERIAIS DE CONSTRUCAO` e a clínica digitou
+`Lage Materiais de Construção`. Enquanto as duas grafias convivem, o relatório
+por fornecedor mostra o mesmo fornecedor duas vezes com o gasto dividido, e
+nenhum dos dois números é o verdadeiro. A lista canônica está em
+`NOME_DO_FORNECEDOR`, no importador — para acrescentar um fornecedor novo, é uma
+linha ali.
 
 ## As categorias
 
-Já existem no sistema:
+`Água` · `Alimentação` · `Aluguel` · `Anúncios` · `Contador` ·
+`Custo de Operação` · `Energia` · `Equipamentos` · `Impostos` ·
+`Internet e Telefone` · `Juros` · `Laboratório` · `Limpeza` ·
+`Material de Construção` · `Material de Consumo` · `Móveis` ·
+`Salários e Pró-labore` · `Serviços de Instalação e Manutenção` ·
+`Software e Assinaturas` · `Taxas de Operação`
 
-`Aluguel` · `Custo de Operação` · `Equipamentos` · `Juros` ·
-`Material de Construção` · `Móveis` · `Serviços de Instalação e Manutenção` ·
-`Taxas de Operação`
-
-Vou criar estas, que faltam para o custo de operar:
-
-`Salários e Pró-labore` · `Energia` · `Água` · `Internet e Telefone` ·
-`Software e Assinaturas` · `Contador` · `Impostos` · `Material de Consumo` ·
-`Laboratório` · `Anúncios` · `Limpeza` · `Alimentação`
-
-Se precisar de uma que não está aqui, escreva o nome que eu crio. Não invente
-duas grafias para a mesma coisa ("Energia" e "Luz") — vira duas categorias e as
-contas se separam sem motivo.
+Não invente duas grafias para a mesma coisa ("Energia" e "Luz"): vira duas
+categorias e as contas se separam sem motivo.
 
 **`Anúncios` fica separada de propósito:** ela não pode entrar no rateio do custo
 por hora de cadeira, senão todo procedimento fica mais caro por causa de
 marketing e a precificação sai torta.
 
----
+## O que ainda falta
 
-## Dicas para preencher rápido
-
-- Quase todo banco exporta extrato em CSV ou OFX. Exporte, abra no Excel, e cole
-  as colunas em vez de digitar.
-- Preencha a categoria por blocos: ordene por descrição, e todo "CELESC" vira
-  `Energia` de uma vez.
-- Não se preocupe em acertar tudo. O importador **confere antes de gravar** e
-  devolve um relatório com o que ficou estranho — valor sem número, categoria
-  desconhecida, data fora de maio/outubro, possível duplicata. Nada entra no
-  sistema sem você ver esse relatório.
-
-Quando terminar um dos dois arquivos, me manda que eu escrevo o importador.
-Pode ser um de cada vez — não precisa esperar os dois.
+- **As faturas de março e abril do Inter.** Foram pagas (R$ 2.420,72 no total) e
+  o arquivo não existe. Estão lançadas como pagamento sem categoria; quando você
+  juntar as faturas, apague essas duas linhas e lance as compras.
+- **Conferir as categorias que são suposição minha.** Estão marcadas no
+  relatório. As maiores: Marmoraria Passos (R$ 4.900) e IR Comércio de Tintas
+  (R$ 3.629) em `Material de Construção`.
+- **Sete lançamentos de aluguel sem lastro no extrato**, e três deles — Seguro
+  Incêndio R$ 239,44 + Calção R$ 176,40 + Juros R$ 4,86 — somam exatamente
+  R$ 420,70, igual ao "Sinal de Locação" que o banco confirma em 06/05. O
+  extrato mostra **um** pagamento de R$ 420,70 nesse dia, não dois. Vale
+  conferir se não é o mesmo pagamento lançado duas vezes.
