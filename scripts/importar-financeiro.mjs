@@ -40,6 +40,7 @@
  *   node scripts/importar-financeiro.mjs \
  *     --extrato <extrato.txt> \
  *     [--fatura-inter <faturas.xlsx>] [--fatura-mp <fatura-mp.txt>] \
+ *     [--postura clinica|pessoal|recebimento] \
  *     [--existentes <financial_transactions.csv>] \
  *     [--saida financeiro/importacao]
  *
@@ -66,6 +67,8 @@ function arg(nome, padrao = null) {
 }
 
 const caminhoExtrato = arg("extrato");
+/** A postura da conta do `--extrato`. Ver `POSTURA_DA_CONTA`. */
+const posturaDoExtrato = arg("postura", "clinica");
 const caminhoInter = arg("fatura-inter");
 const caminhoMp = arg("fatura-mp");
 const caminhoExistentes = arg("existentes");
@@ -287,6 +290,39 @@ const REGRAS_DO_EXTRATO = [
 ];
 
 /**
+ * A POSTURA DE LEITURA DE CADA CONTA.
+ *
+ * Esta é a regra mais importante deste script, e ela não é a mesma para todas
+ * as contas. Aplicar a postura errada é o jeito mais fácil de encher o
+ * financeiro de gasto pessoal — ou de perder despesa real do consultório.
+ *
+ *   `clinica`  — tudo que sai é do consultório, MENOS os nomes conhecidos de
+ *                fora (outro negócio, aporte, CDB). É o caso do Banco Inter e
+ *                do Mercado Pago: contas abertas para a clínica.
+ *
+ *   `pessoal`  — NADA é do consultório, SÓ o que foi identificado um por um.
+ *                É o caso do Nubank da Dra. Mariane, que até setembro/2026 não
+ *                separava as contas. Em setembro saíram de lá R$ 11.223,87 de
+ *                insumo, laboratório e anúncio — e também plano de saúde,
+ *                doação e transferência pessoal, que não entram.
+ *
+ *   `recebimento` — a conta onde o consultório RECEBE (Stone: cartão e pix).
+ *                As entradas não viram receita aqui, porque receita tem um dono
+ *                só, a agenda. As saídas são do consultório.
+ *
+ * A diferença não é de grau, é de sinal: numa conta `clinica` o silêncio
+ * significa "é da clínica"; numa `pessoal`, significa "não é". Tratar o Nubank
+ * como as outras traria para o financeiro o plano de saúde, as doações e os
+ * R$ 28.941 de transferência que o relatório deixou como "a classificar".
+ */
+export const POSTURA_DA_CONTA = {
+  "Banco Inter": "clinica",
+  "Mercado Pago": "clinica",
+  "Nubank Mariane (pessoal)": "pessoal",
+  "Stone — recebimentos do consultório": "recebimento",
+};
+
+/**
  * O nome com que cada fornecedor fica gravado.
  *
  * Existe porque o extrato escreve em CAIXA ALTA e sem acento
@@ -328,9 +364,25 @@ function nomeDoFornecedor(nome) {
   return texto;
 }
 
-function classificarMovimento(descricao) {
+/**
+ * `postura` é a da conta de onde veio o movimento (ver `POSTURA_DA_CONTA`).
+ *
+ * O que ela muda é só o PADRÃO, quando nenhuma regra casou: numa conta da
+ * clínica, o não reconhecido vai para "decidir" e espera uma resposta; numa
+ * conta pessoal, ele fica de fora sem perguntar, porque perguntar sobre cada
+ * compra pessoal da sócia é ruído e a resposta é sempre a mesma.
+ */
+function classificarMovimento(descricao, postura = "clinica") {
   for (const [padrao, destino, motivo, fornecedor, rotulo] of REGRAS_DO_EXTRATO) {
     if (padrao.test(descricao)) return { destino, motivo, fornecedor, rotulo: rotulo ?? null };
+  }
+  if (postura === "pessoal") {
+    return {
+      destino: "FORA",
+      motivo: "conta pessoal — só entra o que foi identificado",
+      fornecedor: null,
+      rotulo: null,
+    };
   }
   return { destino: "DECIDIR", motivo: "—", fornecedor: null, rotulo: null };
 }
@@ -835,7 +887,10 @@ for (const m of movimentos) {
 }
 
 for (const m of movimentos) {
-  const { destino, motivo, fornecedor, rotulo } = classificarMovimento(m.descricao);
+  const { destino, motivo, fornecedor, rotulo } = classificarMovimento(
+    m.descricao,
+    posturaDoExtrato,
+  );
   const nome = fornecedor ?? contraparte(m.descricao);
 
   // Resgate de CDB e aporte de sócio entram como dinheiro, mas não são receita

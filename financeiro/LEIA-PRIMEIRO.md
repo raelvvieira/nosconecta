@@ -30,6 +30,38 @@ terceiro e valor de conta pessoal dentro.
 importa: a soma das parcelas de cada fatura tem de bater, ao centavo, com o que
 o banco debitou. Se não bater, está faltando fatura — pare e junte.
 
+## As contas, e a postura de leitura de cada uma
+
+Esta é a regra mais importante do financeiro, e ela **não é a mesma para todas
+as contas**. Aplicar a postura errada é o jeito mais fácil de encher o sistema
+de gasto pessoal — ou de perder despesa real do consultório.
+
+| Conta | O que é | Como é lida |
+|---|---|---|
+| **Banco Inter** · Mercado Pago | contas abertas para a clínica | **tudo que sai é do consultório**, menos os nomes conhecidos de fora |
+| **Stone** | onde o consultório **recebe** (cartão e pix) | entradas não viram receita (quem tem receita é a agenda); saídas são do consultório |
+| **Nubank da Dra. Mariane** | conta **pessoal** — até setembro/2026 as contas não eram separadas | **nada é do consultório**, só o que for identificado um por um |
+
+A diferença não é de grau, é de sinal: numa conta da clínica, o silêncio
+significa *"é da clínica"*; na conta pessoal, significa *"não é"*.
+
+Tratar o Nubank como as outras traria para o financeiro o plano de saúde, as
+doações e os R$ 28.941 de transferência que o relatório deixou como "a
+classificar". Por isso o importador tem a opção `--postura`:
+
+```bash
+node scripts/importar-financeiro.mjs --extrato nubank.txt --postura pessoal …
+```
+
+Em setembro, saíram da conta pessoal **R$ 11.223,87 que são do consultório**:
+insumos odontológicos, laboratório de prótese e anúncios. Esses entraram. O
+resto da conta, não.
+
+**A partir de agora todos os recebimentos se concentram na Stone.** Isso é a
+decisão que torna o financeiro conferível: com receita entrando por uma conta
+só, o extrato da Stone passa a bater contra a agenda, e sobra um único lugar
+para procurar quando não bate.
+
 ## A regra que o sistema segue
 
 Uma linha de `financial_transactions` tem três naturezas, e a diferença está em
@@ -63,6 +95,8 @@ data. Você não precisa escolher.
   suas.** Dinheiro mudando de bolso.
 - **Dinheiro de outro negócio.** Os nomes confirmados estão numa lista dentro do
   importador (`REGRAS_DO_EXTRATO`), então o próximo extrato os reconhece sozinho.
+- **Gasto pessoal da sócia.** Numa conta de postura `pessoal` isso é o padrão —
+  não precisa de lista.
 - **Entrada na conta.** Não vira receita. Receita do consultório nasce de
   consulta realizada com valor cobrado; lançar entrada de banco duplicaria o
   faturamento e estragaria o retorno dos anúncios.
