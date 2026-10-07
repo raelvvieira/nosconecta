@@ -206,4 +206,71 @@ conferir(
   null,
 );
 
+// ── A cadeira e a unidade viajam até o fim ──────────────────────────────────
+//
+// São os dois campos que o `simples()` de `agenda-da-clinica.ts` jogava fora, e
+// o defeito não aparece em tela nenhuma: o agendamento nasce, só nasce sem
+// cadeira (e o horário continua livre para a próxima pessoa) e na unidade
+// padrão (e a clínica tem duas). Por isso o teste é aqui, na fronteira.
+
+const comCadeira = catalogoDeVagas({
+  paraOferecer: [
+    {
+      date: "2026-10-08",
+      hora: "08:00",
+      unidadeNome: "NÓS Florianópolis",
+      salaId: "cad-1",
+      salaNome: "Cadeira 1",
+      unidadeId: "uni-floripa",
+    },
+  ],
+  reserva: [
+    {
+      date: "2026-10-09",
+      hora: "09:00",
+      unidadeNome: "NÓS Porto Alegre",
+      salaId: "cad-9",
+      salaNome: "Cadeira 9",
+      unidadeId: "uni-poa",
+    },
+  ],
+});
+conferir("a cadeira chega no catálogo", comCadeira[0].salaId, "cad-1");
+conferir("com o nome dela", comCadeira[0].salaNome, "Cadeira 1");
+conferir("e a unidade da cadeira", comCadeira[0].unidadeId, "uni-floripa");
+// A reserva é de outra unidade: é o caso que o padrão erraria.
+conferir("a reserva guarda a unidade dela", comCadeira[1].unidadeId, "uni-poa");
+conferir("e a cadeira dela", comCadeira[1].salaId, "cad-9");
+
+// E sobrevivem ao fechamento, que é quem entrega a vaga para quem grava.
+conferir("H1 fechado traz a cadeira", vagaFechada({ codigo: "H1" }, comCadeira)?.salaId, "cad-1");
+conferir(
+  "R1 fechado traz a unidade certa",
+  vagaFechada({ codigo: "R1" }, comCadeira)?.unidadeId,
+  "uni-poa",
+);
+
+// Vaga sem cadeira continua valendo: `null` é "não sei qual", e quem grava trata.
+// O que não pode é a vaga ser recusada por isso — seria deixar de marcar.
+conferir("vaga sem cadeira ainda entra", cat.length, 4);
+conferir("e a cadeira dela é nula", cat[0].salaId, null);
+conferir("o nome também", cat[0].salaNome, null);
+conferir("a unidade também", cat[0].unidadeId, null);
+// String vazia não é id: gravar `""` em `room_id` é erro de tipo no Postgres.
+const vazios = catalogoDeVagas({
+  paraOferecer: [
+    { date: "2026-10-08", hora: "08:00", unidadeNome: "X", salaId: "", unidadeId: "" },
+  ],
+  reserva: [],
+});
+conferir("sala vazia vira nula", vazios[0].salaId, null);
+conferir("unidade vazia vira nula", vazios[0].unidadeId, null);
+
+// E nada disso aparece na instrução: o modelo não precisa saber de cadeira, e
+// cada linha que ele lê sem precisar é uma linha que ele pode repetir no chat.
+const instrucao = comoReportarFechamento(comCadeira).join("\n");
+conferir("a instrução não fala de cadeira", instrucao.includes("Cadeira 1"), false);
+conferir("nem do id da cadeira", instrucao.includes("cad-1"), false);
+conferir("nem do id da unidade", instrucao.includes("uni-floripa"), false);
+
 console.log(`ok — ${feitas} checagens do agendamento pela IA`);

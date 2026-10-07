@@ -162,11 +162,35 @@ export async function horariosParaOferecer(
     });
 
     const escolha = escolherMomentos(vagas, agora, QUANTOS_OFERECER);
-    const simples = (m: { date: string; hora: string; vagas: { unidadeNome: string }[] }) => ({
-      date: m.date,
-      hora: m.hora,
-      unidadeNome: m.vagas[0]?.unidadeNome ?? "a clínica",
-    });
+
+    // A CADEIRA vai junto, e a unidade também.
+    //
+    // `vagas.ts` diz, no comentário de `vagasLivres`: "uma vaga por (dia, hora,
+    // sala) […] quem grava usa a sala que veio junto". A primeira versão desta
+    // função jogava as duas fora e devolvia só data, hora e nome da unidade —
+    // o que bastava para a IA OFERECER e não para o sistema GRAVAR.
+    //
+    // Sem a sala, um agendamento criado pela IA não ocupa cadeira nenhuma: a
+    // vaga continua livre no cálculo seguinte e a próxima pessoa recebe o mesmo
+    // horário. Sem a unidade, ele cai na unidade padrão — e são duas, então
+    // metade das vezes na errada.
+    const simples = (m: {
+      date: string;
+      hora: string;
+      vagas: { salaId: string; salaNome: string; unidadeId: string; unidadeNome: string }[];
+    }) => {
+      // A primeira cadeira livre. Quando há duas, qualquer uma serve; o que não
+      // serve é nenhuma.
+      const v = m.vagas[0];
+      return {
+        date: m.date,
+        hora: m.hora,
+        unidadeNome: v?.unidadeNome ?? "a clínica",
+        salaId: v?.salaId ?? null,
+        salaNome: v?.salaNome ?? null,
+        unidadeId: v?.unidadeId ?? null,
+      };
+    };
 
     return {
       paraOferecer: escolha.paraOferecer.map(simples),

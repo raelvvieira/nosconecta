@@ -35,12 +35,33 @@ export interface VagaComCodigo {
   /** "HH:MM". Vem do banco, nunca do modelo. */
   hora: string;
   unidadeNome: string;
+  /**
+   * A cadeira e a unidade da vaga.
+   *
+   * Nunca chegam ao modelo — ele não precisa saber de cadeira. Viajam até aqui
+   * porque é o que a gravação precisa: sem a sala o horário não fica ocupado e
+   * a próxima pessoa recebe o mesmo; sem a unidade o agendamento cai na
+   * padrão, e a clínica tem duas.
+   */
+  salaId: string | null;
+  salaNome: string | null;
+  unidadeId: string | null;
 }
 
 /** O que a agenda devolveu, no formato de `instrucao-do-agente.ts`. */
 export interface VagasOferecidas {
-  paraOferecer: { date: string; hora: string; unidadeNome: string }[];
-  reserva: { date: string; hora: string; unidadeNome: string }[];
+  paraOferecer: VagaCrua[];
+  reserva: VagaCrua[];
+}
+
+/** Uma vaga como `agenda-da-clinica.ts` a devolve. */
+export interface VagaCrua {
+  date: string;
+  hora: string;
+  unidadeNome: string;
+  salaId?: string | null;
+  salaNome?: string | null;
+  unidadeId?: string | null;
 }
 
 /**
@@ -65,6 +86,9 @@ export function catalogoDeVagas(vagas: VagasOferecidas | null | undefined): Vaga
         date,
         hora,
         unidadeNome: String(v?.unidadeNome ?? "").trim(),
+        salaId: v?.salaId ? String(v.salaId) : null,
+        salaNome: v?.salaNome ? String(v.salaNome) : null,
+        unidadeId: v?.unidadeId ? String(v.unidadeId) : null,
       });
     }
   };

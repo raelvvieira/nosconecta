@@ -212,12 +212,30 @@ export function secaoDeUnidades(unidades: UnidadeDaClinica[] | null | undefined)
 }
 
 /** O que a agenda respondeu. Ver `escolherMomentos` em `vagas.ts`. */
+/**
+ * Uma vaga oferecida.
+ *
+ * `salaId` e `unidadeId` não aparecem em lugar nenhum da instrução — a IA não
+ * precisa saber de cadeira. Eles viajam aqui porque é esta a estrutura que
+ * sobrevive até a gravação do agendamento, em `por-na-agenda.ts`: sem a sala o
+ * horário não fica ocupado e a próxima pessoa recebe o mesmo; sem a unidade o
+ * agendamento cai na padrão, e são duas.
+ */
+export interface VagaOferecida {
+  date: string;
+  hora: string;
+  unidadeNome: string;
+  salaId?: string | null;
+  salaNome?: string | null;
+  unidadeId?: string | null;
+}
+
 export interface HorariosParaOferecer {
   /** Os que a IA deve propor AGORA — dois, pela regra da clínica. */
-  paraOferecer: { date: string; hora: string; unidadeNome: string }[];
+  paraOferecer: VagaOferecida[];
   /** Os seguintes, para responder "nenhum desses serve" sem ir ao banco de
    *  novo no meio da conversa. */
-  reserva: { date: string; hora: string; unidadeNome: string }[];
+  reserva: VagaOferecida[];
   /** "nas próximas 3 horas", "nos próximos 2 dias"… Nulo quando não há vaga. */
   faixa: string | null;
   /** Dias que são "sob consulta com a Dra." — não oferecer, não negar. */

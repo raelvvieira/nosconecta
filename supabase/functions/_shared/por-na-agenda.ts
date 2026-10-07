@@ -24,6 +24,11 @@ export interface VagaParaAgendar {
   date: string;
   hora: string;
   unidadeNome: string;
+  /** A cadeira que estava livre nesta hora. Ver o comentário em `porNaAgenda`. */
+  salaId?: string | null;
+  salaNome?: string | null;
+  /** A unidade DA CADEIRA, não a padrão da clínica. */
+  unidadeId?: string | null;
 }
 
 export interface ContatoDoAgendamento {
@@ -94,15 +99,45 @@ export async function porNaAgenda(
   const telefone = telefoneDoContato(contato.contactId);
   if (!telefone) return { criado: false, motivo: "contato sem telefone" };
 
-  const { data: unidade } = await supabase
-    .from("clinic_units")
+  // ── A unidade vem da VAGA, não do cadastro ──────────────────────────────
+  //
+  // A vaga foi calculada a partir de uma cadeira, e a cadeira pertence a uma
+  // unidade. A clínica tem duas (Florianópolis e Porto Alegre), então pegar "a
+  // padrão" acerta metade das vezes — e o endereço que a Luna deu na conversa
+  // é o da unidade da vaga, não o da padrão.
+  //
+  // Cai no padrão só quando a vaga não trouxe unidade, o que hoje não
+  // acontece: se acontecer, é melhor um agendamento na unidade errada do que
+  // uma paciente que chega e não está marcada.
+  let unitId = vaga.unidadeId ? String(vaga.unidadeId) : null;
+  if (!unitId) {
+    const { data: unidade } = await supabase
+      .from("clinic_units")
+      .select("id")
+      .eq("owner_id", ownerId)
+      .eq("active", true)
+      .order("is_default", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    unitId = unidade?.id ? String(unidade.id) : null;
+  }
+  if (!unitId) return { criado: false, motivo: "nenhuma unidade ativa" };
+
+  // ── O profissional, quando há só um ─────────────────────────────────────
+  //
+  // Não é enfeite: na agenda, sala e profissional são FILTROS. Um agendamento
+  // sem profissional desaparece da tela de quem está filtrando pela Dra.
+  // Mariane — e ninguém descobre que a Luna marcou alguém.
+  //
+  // Só preenche quando há exatamente um ativo. Com dois, escolher seria
+  // adivinhar qual deles vai atender.
+  const { data: profissionais } = await supabase
+    .from("professionals")
     .select("id, name")
     .eq("owner_id", ownerId)
     .eq("active", true)
-    .order("is_default", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!unidade?.id) return { criado: false, motivo: "nenhuma unidade ativa" };
+    .limit(2);
+  const unico = (profissionais ?? []).length === 1 ? profissionais[0] : null;
 
   // ── Já existe agendamento desta pessoa neste horário? ───────────────────
   //
@@ -154,11 +189,19 @@ export async function porNaAgenda(
     .from("appointments")
     .insert({
       owner_id: ownerId,
-      unit_id: unidade.id,
+      unit_id: unitId,
       patient_id: patientId,
       patient_name: contato.nome,
       procedure_id: procedimento.id,
       procedure_name: procedimento.nome,
+      // A CADEIRA. Sem ela o horário não fica ocupado no cálculo seguinte, e a
+      // próxima pessoa que escrever recebe o mesmo horário que já foi dado —
+      // `vagasLivres` trata bloqueio sem sala como "a unidade inteira", mas
+      // agendamento sem sala simplesmente não ocupa nada.
+      room_id: vaga.salaId ? String(vaga.salaId) : null,
+      room_name: vaga.salaNome ? String(vaga.salaNome) : null,
+      professional_id: unico?.id ? String(unico.id) : null,
+      professional_name: unico?.name ? String(unico.name) : null,
       date: vaga.date,
       start_time: vaga.hora,
       end_time: somarMinutos(vaga.hora, duracao),
