@@ -38,3 +38,5 @@ infra/evolution/.env
 
 # PDF gerado a partir de docs/LUNA_V1.md — se regenera, não se versiona
 docs/LUNA_V1.pdf
+
+docs/LUNA_V2.pdf
