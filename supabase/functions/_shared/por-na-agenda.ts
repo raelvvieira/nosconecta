@@ -58,6 +58,40 @@ export function somarMinutos(hora: string, minutos: number): string {
 }
 
 /**
+ * "Cadeira de Odontologia · NÓS Florianópolis" — o rótulo que a tela mostra.
+ *
+ * Gêmeo de `src/lib/agenda/rotuloDeSala.ts`, que roda no app e não pode ser
+ * importado aqui (Deno). Mudou lá, muda aqui.
+ *
+ * Existe porque `room_name` é TEXTO de exibição: o celular mostra
+ * "profissional · sala" e o formulário cai nele quando a cadeira sai do
+ * catálogo. Gravando só "Cadeira de Odontologia", a consulta que a Luna marcou
+ * fica visivelmente diferente de todas as outras.
+ *
+ * A comparação é por parte inteira, nunca por trecho: "NÓS Porto Alegre" e
+ * "NÓS Florianópolis" compartilham o "NÓS", e descartar por trecho apagaria a
+ * unidade de uma delas.
+ */
+export function rotuloDaSala(partes: (string | null | undefined)[]): string {
+  const vistas = new Set<string>();
+  const finais: string[] = [];
+  for (const parte of partes) {
+    const texto = String(parte ?? "").trim();
+    if (!texto) continue;
+    const chave = texto
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLocaleLowerCase("pt-BR")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!chave || vistas.has(chave)) continue;
+    vistas.add(chave);
+    finais.push(texto);
+  }
+  return finais.join(" \u00b7 ");
+}
+
+/**
  * O telefone do JID da Evolution, em dígitos.
  *
  * `554899522191@s.whatsapp.net` → `554899522191`. O `:12` que a Evolution às
@@ -176,7 +210,10 @@ export async function porNaAgenda(
   } else {
     const { data: nova, error } = await supabase
       .from("patients")
-      .insert({ owner_id: ownerId, name: contato.nome, phone: telefone })
+      // `unit_id` é NOT NULL em `patients`. Sem ele o insert falha, a ficha não
+      // nasce e o agendamento fica com `patient_id` nulo — exatamente o defeito
+      // que o comentário no topo deste arquivo diz que isto conserta.
+      .insert({ owner_id: ownerId, unit_id: unitId, name: contato.nome, phone: telefone })
       .select("id")
       .maybeSingle();
     // Ficha que não nasce não impede o agendamento: melhor a consulta na agenda
@@ -199,9 +236,13 @@ export async function porNaAgenda(
       // `vagasLivres` trata bloqueio sem sala como "a unidade inteira", mas
       // agendamento sem sala simplesmente não ocupa nada.
       room_id: vaga.salaId ? String(vaga.salaId) : null,
-      room_name: vaga.salaNome ? String(vaga.salaNome) : null,
+      room_name: rotuloDaSala([vaga.salaNome, vaga.unidadeNome]) || null,
       professional_id: unico?.id ? String(unico.id) : null,
-      professional_name: unico?.name ? String(unico.name) : null,
+      // String vazia, não `null`: `professional_name` é NOT NULL em
+      // `appointments`. Com `null` o insert inteiro falha, e com dois
+      // profissionais ativos (que é o caso quando ninguém é "o único") NENHUM
+      // agendamento da Luna nasceria. O app grava "" neste mesmo caso.
+      professional_name: unico?.name ? String(unico.name) : "",
       date: vaga.date,
       start_time: vaga.hora,
       end_time: somarMinutos(vaga.hora, duracao),
