@@ -311,6 +311,17 @@ export interface ConfigDeAtendimento {
   /** O manual de condução escrito pela clínica. Vazio = a IA usa o método
    *  gerado pelo aprendizado. */
   instrucaoBase: string;
+  /**
+   * Último dia da edição de paciente modelo, "AAAA-MM-DD". Vazio = não há.
+   *
+   * A coluna existia no banco e era usada pela instrução, mas não aparecia em
+   * tela nenhuma — então a edição de agosto ficou aberta e a de outubro ficou
+   * fechada, as duas sem ninguém poder ver nem mudar. É a única informação da
+   * Luna que EXPIRA sozinha, e justamente ela era invisível.
+   */
+  pacienteModeloAte: string;
+  /** O que a Luna pode dizer sobre a edição: dias, cidade, valores, reserva. */
+  pacienteModeloTexto: string;
 }
 
 export const getAtendimento = createServerFn({ method: "GET" })
@@ -351,6 +362,8 @@ export const getAtendimento = createServerFn({ method: "GET" })
       followupLigadoDesde: agente.followup_ligado_desde ?? null,
       modelo: String(agente.model ?? ""),
       instrucaoBase: String(agente.instrucao_base ?? ""),
+      pacienteModeloAte: String(agente.paciente_modelo_ate ?? ""),
+      pacienteModeloTexto: String(agente.paciente_modelo_texto ?? ""),
     };
   });
 
@@ -377,7 +390,19 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
       modelo?: string;
       /** O manual de condução. String vazia devolve o método gerado. */
       instrucaoBase?: string;
+      /** Último dia da edição de paciente modelo. String vazia fecha a oferta. */
+      pacienteModeloAte?: string;
+      /** O texto da edição. String vazia fecha a oferta. */
+      pacienteModeloTexto?: string;
     }) => {
+      // Data no formato que a coluna espera. Sem esta checagem, "25/10" chega
+      // ao Postgres e volta um erro de sintaxe que não diz nada a quem está na
+      // tela — e a oferta continua fechada sem explicação.
+      if (input.pacienteModeloAte) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(input.pacienteModeloAte.trim())) {
+          throw new Error("A data da edição precisa estar no formato AAAA-MM-DD.");
+        }
+      }
       if (input.novoAteDias !== undefined) {
         // O mesmo intervalo do CHECK do banco. Recusar aqui dá uma frase que
         // explica; deixar passar dá um erro de constraint que não explica
@@ -461,6 +486,14 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
     // `null` e não string vazia, mesma razão da chave: a pergunta que o resto do
     // código faz é se o manual EXISTE, não se ele está em branco.
     if (data.instrucaoBase !== undefined) campos.instrucao_base = data.instrucaoBase.trim() || null;
+    // `null` nos dois, mesma razão: a instrução pergunta se a edição EXISTE, e
+    // `secaoDePacienteModelo` fecha a oferta quando falta qualquer um dos dois.
+    if (data.pacienteModeloAte !== undefined) {
+      campos.paciente_modelo_ate = data.pacienteModeloAte.trim() || null;
+    }
+    if (data.pacienteModeloTexto !== undefined) {
+      campos.paciente_modelo_texto = data.pacienteModeloTexto.trim() || null;
+    }
 
     const { error } = await supabase
       .from("ai_agents")

@@ -398,8 +398,22 @@ export interface PacienteModelo {
  *
  * Por isso a oferta depende de `ate` estar no futuro. Expira sozinha.
  */
+/** "2026-10-25" → "25/10/2026". Sem `Date`: a data já vem pronta do banco, e
+ *  passar por `Date` traria fuso para uma conta que é de calendário. */
+function porExtenso(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso ?? "").trim());
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso ?? "").trim();
+}
+
 export function secaoDePacienteModelo(pm: PacienteModelo | null | undefined, hoje: string): string {
   const partes = ["## Harmonização facial e paciente modelo"];
+
+  // Calculado ANTES da proibição, não depois, porque é ele que decide como a
+  // proibição é escrita. Dizer "você NUNCA dá valor" de forma absoluta e só
+  // quarenta linhas abaixo abrir a exceção da mentoria deixa as duas coisas na
+  // mesma instrução sem dizer qual manda — e o modelo fica com a primeira que
+  // leu, que é a que manda calar.
+  const aberta = Boolean(pm?.ate && pm.ate >= hoje && pm?.texto?.trim());
 
   partes.push(
     "Para quem procura harmonização facial, preenchimento ou bioestimulador:",
@@ -412,19 +426,75 @@ export function secaoDePacienteModelo(pm: PacienteModelo | null | undefined, hoj
     // NÓS Prevent liberado justamente porque a clínica o anuncia em público.
     // Duas regras opostas na mesma instrução fazem o modelo escolher uma ao
     // acaso, e nunca se saberia qual escolheu.
-    "A única exceção é a lista de preços acima: o que está nela, você pode",
-    "informar do jeito que está escrito lá. O que não está nela, não.",
+    "A exceção é a lista de preços acima: o que está nela, você pode informar",
+    "do jeito que está escrito lá. O que não está nela, não.",
   );
-
-  const aberta = Boolean(pm?.ate && pm.ate >= hoje && pm?.texto?.trim());
 
   if (aberta) {
     partes.push(
       "",
-      "Há uma edição de PACIENTE MODELO aberta. Você pode falar dela quando a",
-      "pessoa demonstrar interesse em harmonização facial, ou se ela perguntar:",
+      "E há uma segunda exceção, só nesta edição: os valores de PACIENTE MODELO",
+      "logo abaixo. Eles valem para quem está falando da vaga da mentoria, e para",
+      "mais ninguém — a regra de qual preço vale onde está no fim desta seção.",
+    );
+  }
+
+  if (aberta) {
+    partes.push(
+      "",
+      "Há uma edição de PACIENTE MODELO aberta, e ela vai até " +
+        porExtenso(String(pm?.ate ?? "")) +
+        ".",
+      "Você pode falar dela quando a pessoa demonstrar interesse em harmonização",
+      "facial, ou se ela perguntar:",
       "",
       String(pm?.texto ?? "").trim(),
+      "",
+      // ── A segunda lista de preços ──────────────────────────────────────
+      //
+      // O texto da edição traz preços, e a tabela da clínica também. São os
+      // mesmos procedimentos por valores diferentes — o botox de 3 regiões é o
+      // caso certo de acontecer, porque está liberado nas duas. Sem dizer qual
+      // manda onde, o modelo escolhe um ao acaso: ou oferece o valor da
+      // mentoria a quem vai pagar o normal, ou cobra o normal de quem veio
+      // pela vaga e desiste na hora.
+      //
+      // A regra é escrita sem nomear procedimento nenhum de propósito: a
+      // clínica renomeia item do catálogo pela tela, e uma regra que cita nome
+      // envelhece calada.
+      "### Dois preços para a mesma coisa — qual deles vale",
+      "",
+      "Os valores do texto acima são EXCLUSIVOS da vaga de paciente modelo. A",
+      "lista de preços da clínica, mais acima, é a de sempre. Elas não se",
+      "misturam:",
+      "",
+      "- quem está interessado na vaga de paciente modelo paga o valor da",
+      "  mentoria;",
+      "- qualquer outra pessoa paga o da lista da clínica, e os valores da",
+      "  mentoria não existem para ela.",
+      "",
+      "Se o mesmo procedimento aparecer nas duas, é ele que exige mais cuidado:",
+      "antes de dizer qualquer número, tenha certeza de qual dos dois a pessoa",
+      "está falando. Se não estiver claro, pergunte em vez de escolher.",
+      "",
+      // ── Por que a vaga não pode virar agendamento ──────────────────────
+      //
+      // A IA tem horários para oferecer e um campo que FECHA horário: devolver
+      // um código ali cria consulta no banco, com cadeira e unidade. A vaga da
+      // mentoria não é isso — são os dias da prática supervisionada, e a
+      // reserva só existe depois dos R$ 150, que nem a IA nem o sistema
+      // recebem. Sem esta regra, "quero a vaga" viraria uma consulta comum num
+      // dia qualquer, e a pessoa chegaria para uma mentoria que não a esperava.
+      "### A vaga da mentoria NÃO é um horário da agenda",
+      "",
+      "Os horários que você tem para oferecer são da agenda normal da clínica.",
+      "A vaga de paciente modelo não é um deles: ela acontece nos dias da",
+      "mentoria, e quem confirma é a Dra. Mariane.",
+      "",
+      "Então, numa conversa de paciente modelo, você NÃO oferece horário e NÃO",
+      "preenche o campo de horário fechado — nem se a pessoa disser que quer a",
+      "vaga. O que você faz é dizer que a Dra. Mariane entra em contato por",
+      "este mesmo número para finalizar.",
     );
   } else {
     partes.push(

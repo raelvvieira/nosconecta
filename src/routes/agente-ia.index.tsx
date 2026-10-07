@@ -16,6 +16,7 @@ import {
 import { PainelDoFunil } from "@/components/agente-ia/PainelDoFunil";
 import { ChaveDaIa } from "@/components/agente-ia/ChaveDaIa";
 import { ManualDaLuna } from "@/components/agente-ia/ManualDaLuna";
+import { PacienteModelo } from "@/components/agente-ia/PacienteModelo";
 import { ComQuemFala } from "@/components/agente-ia/ComQuemFala";
 import { Ritmo } from "@/components/agente-ia/Ritmo";
 import { VoltarEmQuemSumiu } from "@/components/agente-ia/VoltarEmQuemSumiu";
@@ -190,6 +191,15 @@ function AgentePage() {
 
           {/* ── 4. O que ela pode citar ─────────────────────────────────── */}
           <Procedimentos />
+
+          {/* ── 4b. A edição de paciente modelo ──────────────────────────
+              Logo depois dos procedimentos porque é a mesma pergunta — "o que
+              a Luna pode oferecer, e por quanto" — só que com prazo. É a única
+              informação dela que VENCE: as duas colunas já eram lidas pela
+              instrução e não apareciam em tela nenhuma, e foi assim que a
+              campanha de pacientes modelos de outubro foi ao ar com a Luna
+              programada para recusar o assunto. */}
+          <PacienteModelo />
 
           {/* ── 5. A matéria-prima do manual ─────────────────────────────
               O que ela extraiu lendo as conversas reais. Desde que o manual

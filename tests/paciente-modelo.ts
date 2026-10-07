@@ -43,7 +43,7 @@ for (const [rotulo, pm] of [
   // Botox fica FORA da proibição: o NÓS Prevent está na tabela de preços porque
   // a clínica o anuncia em público, e proibir aqui contradiria a tabela.
   conferir(`botox não entra na proibição ${rotulo}`, t.includes("botox"), false);
-  contem(`a exceção da tabela é dita ${rotulo}`, t, "A única exceção é a lista de preços");
+  contem(`a exceção da tabela é dita ${rotulo}`, t, "é a lista de preços acima");
   contem(`nem faixa ${rotulo}`, t, "nem faixa");
   contem(`nem a partir de ${rotulo}`, t, 'nem "a partir');
   contem(`conduz para avaliação ${rotulo}`, t, "conduza para a avaliação");
@@ -59,10 +59,45 @@ for (const [rotulo, pm] of [
   naoContem("e não manda calar", t, "NÃO há edição");
 }
 
+// ── Edição aberta: as duas listas de preço, e a agenda ──────────────────
+//
+// Com edição aberta a instrução passa a ter DOIS preços para o mesmo
+// procedimento — o botox de 3 regiões está liberado na tabela da clínica e
+// também na mentoria. Sem dizer qual manda onde, o modelo escolhe um ao acaso.
+// E "quero a vaga" não pode virar consulta na agenda: a vaga são os dias da
+// prática, e a reserva depende dos R$ 150, que a IA não recebe.
+{
+  const t = secaoDePacienteModelo(aberta, HOJE);
+  contem("diz qual preço vale onde", t, "Dois preços para a mesma coisa");
+  // A proibição de dar valor é dita no começo; a exceção da mentoria tem de ser
+  // dita JUNTO dela, não só quarenta linhas abaixo.
+  contem("a exceção é avisada junto da proibição", t, "segunda exceção");
+  contem("os da mentoria são exclusivos", t, "EXCLUSIVOS da vaga de paciente modelo");
+  contem("e não se misturam", t, "não se");
+  contem("na dúvida, pergunta", t, "pergunte em vez de escolher");
+  // A regra não cita procedimento nenhum: a clínica renomeia item do catálogo
+  // pela tela, e regra que cita nome envelhece calada.
+  naoContem("sem nomear procedimento", t, "NÓS Prevent");
+  naoContem("nem botox", t, "botox");
+
+  contem("a vaga não é horário de agenda", t, "NÃO é um horário da agenda");
+  contem("e não preenche o campo", t, "NÃO");
+  contem("não preenche horário fechado", t, "preenche o campo de horário fechado");
+  contem("a Dra. finaliza", t, "entra em contato por");
+
+  // O último dia aparece escrito, para não convidar ninguém depois dele.
+  contem("a data de fim aparece", t, "vai até 30/10/2026");
+}
+
 // ── Sem edição: não mencionar, e não citar valores antigos ──────────────
 {
   const t = secaoDePacienteModelo(null, HOJE);
   contem("avisa que não há", t, "NÃO há edição de paciente modelo aberta");
+  // Nada da edição aberta vaza para o estado fechado: nem a regra dos dois
+  // preços (não há segunda lista) nem a da agenda.
+  naoContem("sem a regra dos dois preços", t, "Dois preços");
+  naoContem("e sem segunda exceção", t, "segunda exceção");
+  naoContem("sem a regra da agenda", t, "NÃO é um horário da agenda");
   contem("proíbe citar valores de mentoria", t, "não cite valores de mentoria");
   // Fragmento curto de propósito: o texto é quebrado em linhas, e uma asserção
   // que atravessa a quebra falha sem o texto estar errado.
