@@ -26,6 +26,50 @@ import { anotarConsumo } from "./consumo-da-ia.ts";
 import { enviarWhatsapp } from "./whatsapp-send.ts";
 import type { MensagemEspelhada } from "./evolution-mapear.ts";
 import { anuncioDoEvento } from "./veio-de-anuncio.ts";
+import { procedimentoDoTexto, SEM_PROCEDIMENTO } from "./agendamento-da-ia.ts";
+
+/**
+ * O procedimento que a pessoa está marcando.
+ *
+ * Sai do ANÚNCIO que a trouxe: quem clicou num anúncio de combo está marcando
+ * aquele combo, e é a única pista que o sistema tem sem perguntar. O texto do
+ * anúncio é casado contra os procedimentos que a clínica autorizou a Luna a
+ * citar (`ai_agent_procedures`) — os mesmos que entram na instrução, então ela
+ * nunca marca um procedimento que não podia oferecer.
+ *
+ * Sem anúncio, ou sem casamento, fica "Consulta" com valor zero: é o que o
+ * sistema já usa quando não sabe, e a recepção ajusta ao confirmar.
+ */
+async function procedimentoDoAnuncio(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  ownerId: string,
+  // deno-lint-ignore no-explicit-any
+  anuncio: any,
+): Promise<{ id: string | null; nome: string; preco: number | null; duracaoMin: number | null }> {
+  const texto = `${anuncio?.titulo ?? ""} ${anuncio?.copy ?? ""} ${anuncio?.saudacao ?? ""}`.trim();
+  if (!texto) return SEM_PROCEDIMENTO;
+
+  // Só os procedimentos que a clínica autorizou a Luna a citar — os mesmos que
+  // entram na instrução. Assim ela nunca marca o que não podia oferecer.
+  const { data: escolhidos } = await supabase
+    .from("ai_agent_procedures")
+    .select("clinic_procedures(id, name, price, duration_minutes)")
+    .eq("owner_id", ownerId);
+
+  // deno-lint-ignore no-explicit-any
+  const catalogo = ((escolhidos ?? []) as any[])
+    .map((e) => e?.clinic_procedures)
+    .filter((p) => p?.id && p?.name)
+    .map((p) => ({
+      id: String(p.id),
+      nome: String(p.name),
+      preco: p.price === null || p.price === undefined ? null : Number(p.price),
+      duracaoMin: p.duration_minutes ?? null,
+    }));
+
+  return procedimentoDoTexto(texto, catalogo);
+}
 
 /** Espera de verdade antes de mandar o pedaço — é o tempo de digitação. */
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -130,6 +174,36 @@ export async function deixarOAgenteResponder(
               // paciente. `anotarConsumo` nunca levanta — ver o comentário lá.
               void anotarConsumo(supabase, ownerId, "resposta", uso),
           ),
+        // ── Põe na agenda o que a Luna fechou ─────────────────────────────
+        //
+        // Fornecido SÓ aqui, no caminho do webhook. A prévia da tela
+        // (`ai-playbook`) não passa esta função, e por isso ela mostra o que a
+        // Luna diria sem marcar ninguém — testar a IA não pode criar paciente.
+        //
+        // O procedimento sai do anúncio quando a pessoa veio de um: ela clicou
+        // num anúncio de combo, e é esse combo que ela está marcando. Sem
+        // anúncio, fica "Consulta", que é o que o sistema usa quando não sabe.
+        registrarAgendamento: async (vaga) => {
+          const { porNaAgenda } = await import("./por-na-agenda.ts");
+          const procedimento = await procedimentoDoAnuncio(supabase, ownerId, anuncio);
+          const r = await porNaAgenda(
+            supabase,
+            ownerId,
+            vaga,
+            {
+              contactId: m.crmConversationId,
+              // O nome que a pessoa pôs no próprio WhatsApp. Pode ser apelido
+              // ("Luana Psicóloga Infantil"), e é melhor que vazio: a recepção
+              // reconhece quem é e corrige a ficha depois.
+              nome: String(m.contactName ?? "").trim() || "Contato do WhatsApp",
+            },
+            procedimento,
+          );
+          console.log(
+            `[luna] agendamento ${vaga.codigo} ${vaga.date} ${vaga.hora}: ${r.motivo}`,
+            r.appointmentId ?? "",
+          );
+        },
         enviar: async (pedaco, esperaMs) => {
           // A espera é o tempo de digitação. Acontece de verdade aqui — é o
           // que faz a resposta não chegar como um bloco instantâneo.

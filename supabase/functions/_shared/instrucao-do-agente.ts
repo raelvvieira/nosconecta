@@ -25,6 +25,7 @@
 
 /** Uma etapa da conversa, como o aprendizado a reconheceu. */
 import { secaoDoAnuncio, type Anuncio } from "./veio-de-anuncio.ts";
+import { catalogoDeVagas, comoReportarFechamento } from "./agendamento-da-ia.ts";
 
 export interface EtapaDaConversa {
   nome?: string | null;
@@ -451,8 +452,18 @@ export function secaoDeHorarios(h: HorariosParaOferecer | null | undefined): str
     ].join("\n");
   }
 
-  const linha = (v: { date: string; hora: string; unidadeNome: string }) =>
-    `- ${diaDaSemanaEmTexto(v.date)}, ${diaMesEmTexto(v.date)}, às ${v.hora}, na ${v.unidadeNome}`;
+  // O código entra na linha porque é por ele que a IA reporta o fechamento —
+  // ver `agendamento-da-ia.ts`. Ela NÃO calcula data: devolve o código, e a
+  // data sai da tabela que veio do banco.
+  const catalogo = catalogoDeVagas(h);
+  const codigoDe = (v: { date: string; hora: string }) =>
+    catalogo.find((c) => c.date === v.date && c.hora === v.hora)?.codigo ?? null;
+
+  const linha = (v: { date: string; hora: string; unidadeNome: string }) => {
+    const codigo = codigoDe(v);
+    const texto = `- ${diaDaSemanaEmTexto(v.date)}, ${diaMesEmTexto(v.date)}, às ${v.hora}, na ${v.unidadeNome}`;
+    return codigo ? `${texto} (${codigo})` : texto;
+  };
 
   const partes = ["## Horários que existem de verdade na agenda"];
 
@@ -486,6 +497,8 @@ export function secaoDeHorarios(h: HorariosParaOferecer | null | undefined): str
       );
     }
   }
+
+  partes.push(...comoReportarFechamento(catalogo));
 
   if (h.diasSobConsulta.length) {
     partes.push(

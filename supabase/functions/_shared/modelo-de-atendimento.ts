@@ -312,6 +312,49 @@ export function pedidoDeResposta(historico: string, mensagens: string[]): string
  * margem a inverter quem disse o quê. Rótulo explícito ("VOCÊ" / "PACIENTE") é
  * mais difícil de errar.
  */
+/** O que a IA devolve: a fala, e o código do horário quando ela fechou um. */
+export interface RespostaAoPaciente {
+  texto: string;
+  /** `H1`, `R2`… ou vazio. Validado em `agendamento-da-ia.ts`, não aqui. */
+  horarioFechado: string;
+}
+
+/**
+ * O formato da resposta.
+ *
+ * ── Por que JSON e não um marcador no texto ───────────────────────────────
+ *
+ * A alternativa era pedir `[AGENDAR: H2]` no fim da fala e recortar com regex.
+ * Mais simples de escrever e pior de viver com: o marcador vaza para o
+ * WhatsApp no dia em que o recorte falhar, e quem recebe é a paciente. Num
+ * campo separado ele não tem como vazar — a fala e o código nunca moram na
+ * mesma string.
+ *
+ * `horarioFechado` é string sempre presente, e vazia quando não houve
+ * fechamento, em vez de opcional: o modo estrito da OpenAI exige todo campo no
+ * `required`, e "presente e vazio" é mais difícil de errar que "às vezes
+ * existe".
+ */
+const FORMATO_DA_RESPOSTA: FormatoPedido = {
+  type: "json_schema",
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["resposta", "horarioFechado"],
+    properties: {
+      resposta: {
+        type: "string",
+        description: "A mensagem para o paciente, como a clínica escreveria.",
+      },
+      horarioFechado: {
+        type: "string",
+        description:
+          "O código do horário que a pessoa acabou de aceitar (H1, H2, R1…), exatamente como está na lista. Vazio quando ela não aceitou nenhum.",
+      },
+    },
+  },
+};
+
 export async function responderPaciente(
   instrucao: string,
   historico: string,
@@ -319,13 +362,40 @@ export async function responderPaciente(
   chaveDaClinica?: string | null,
   modelo?: string | null,
   anotarUso?: (uso: UsoDoModelo) => void,
-): Promise<string> {
-  return await chamarModelo({
+): Promise<RespostaAoPaciente> {
+  const bruto = await chamarModelo({
     chave: chaveDaClinica,
     modelo,
     instrucao,
     pergunta: pedidoDeResposta(historico, mensagens),
     maxTokens: MAX_TOKENS_DA_RESPOSTA,
+    formato: FORMATO_DA_RESPOSTA,
+    nomeDoFormato: "resposta_ao_paciente",
     anotarUso,
   });
+  return lerRespostaAoPaciente(bruto);
+}
+
+/**
+ * O JSON do modelo virando resposta.
+ *
+ * Tolerante de propósito, e sempre com um texto: se o modelo devolver algo que
+ * não é o JSON pedido, o que ele devolveu É a fala. A paciente esperando no
+ * WhatsApp não pode ficar sem resposta porque um campo veio com outro nome —
+ * perder o agendamento automático é ruim, perder a resposta é pior.
+ */
+export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
+  const cru = String(bruto ?? "").trim();
+  if (!cru) return { texto: "", horarioFechado: "" };
+  try {
+    const obj = JSON.parse(cru) as { resposta?: unknown; horarioFechado?: unknown };
+    if (!obj || typeof obj !== "object") return { texto: cru, horarioFechado: "" };
+    const texto = typeof obj.resposta === "string" ? obj.resposta.trim() : "";
+    const codigo = typeof obj.horarioFechado === "string" ? obj.horarioFechado.trim() : "";
+    // JSON válido sem o campo `resposta` não é a resposta: é outro objeto. Cai
+    // para o texto cru, que ao menos é algo que alguém escreveu.
+    return texto ? { texto, horarioFechado: codigo } : { texto: cru, horarioFechado: "" };
+  } catch {
+    return { texto: cru, horarioFechado: "" };
+  }
 }

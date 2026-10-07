@@ -28,6 +28,9 @@ import {
   jaProcurouAnuncio,
   type Anuncio,
 } from "./veio-de-anuncio.ts";
+import { catalogoDeVagas, vagaFechada, type VagaComCodigo } from "./agendamento-da-ia.ts";
+import type { HorariosParaOferecer } from "./instrucao-do-agente.ts";
+import type { RespostaAoPaciente } from "./modelo-de-atendimento.ts";
 
 export interface MensagemDeEntrada {
   conversationId: string;
@@ -115,7 +118,19 @@ export interface Dependencias {
     conversationId: string,
   ) => Promise<{ deQuem: "clinica" | "paciente"; texto: string }[]>;
   /** Chama o modelo. Separado para a simulação poder rodar sem chave. */
-  responderComIa: (instrucao: string, historico: string, mensagens: string[]) => Promise<string>;
+  responderComIa: (
+    instrucao: string,
+    historico: string,
+    mensagens: string[],
+  ) => Promise<RespostaAoPaciente>;
+  /**
+   * Põe na agenda o horário que a IA fechou.
+   *
+   * Opcional, e é a diferença entre atender de verdade e simular: a prévia da
+   * tela passa `responderComIa` e NÃO passa isto, então ela mostra o que a Luna
+   * diria sem marcar ninguém. Ausente, o fechamento é só registrado no log.
+   */
+  registrarAgendamento?: (vaga: VagaComCodigo, sessaoId: string) => Promise<void>;
   enviar: Enviar;
   agora?: Date;
   /**
@@ -361,11 +376,17 @@ export async function atender(
     .eq("id", sessao.id);
 
   let texto: string;
+  // A vaga que a IA fechou nesta resposta, se fechou alguma. Fica guardada e só
+  // é registrada DEPOIS do envio — ver o comentário no fim desta função.
+  let vagaFechadaAqui: VagaComCodigo | null = null;
   try {
-    texto =
-      agente.mode === "ia"
-        ? await responderComModelo(deps, agente, entrada, anuncio)
-        : String(agente.echo_message ?? "").trim();
+    if (agente.mode === "ia") {
+      const r = await responderComModelo(deps, agente, entrada, anuncio);
+      texto = r.texto;
+      vagaFechadaAqui = r.vaga;
+    } else {
+      texto = String(agente.echo_message ?? "").trim();
+    }
     if (!texto) return { respondeu: false, motivo: "resposta vazia", pedacos: [] };
   } catch (e) {
     const novo = registrarFalha(
@@ -470,6 +491,34 @@ export async function atender(
     .update({ last_outbound_at: agora.toISOString(), updated_at: agora.toISOString() })
     .eq("id", sessao.id);
 
+  // ── O agendamento, DEPOIS do envio ──────────────────────────────────────
+  //
+  // A ordem não é gosto. Se a criação viesse antes e falhasse, a paciente
+  // ficaria sem a resposta que ela está esperando no WhatsApp por causa de um
+  // erro de banco. Depois, o pior caso é o que já existia antes desta função:
+  // conversa respondida, agendamento não registrado, motivo no log.
+  //
+  // `registrarAgendamento` ausente é o caso da prévia da tela: ela mostra o que
+  // a Luna diria, e marcar alguém a partir de um teste seria o pior defeito
+  // possível desta feature.
+  if (vagaFechadaAqui && deps.registrarAgendamento) {
+    try {
+      await deps.registrarAgendamento(vagaFechadaAqui, sessao.id);
+    } catch (e) {
+      await registrar(supabase, ownerId, sessao.id, {
+        direction: "ignorada",
+        content: null,
+        skipped_reason: `fechou ${vagaFechadaAqui.codigo} e falhou ao agendar: ${String(e).slice(0, 240)}`,
+      });
+    }
+  } else if (vagaFechadaAqui) {
+    await registrar(supabase, ownerId, sessao.id, {
+      direction: "ignorada",
+      content: null,
+      skipped_reason: `fechou ${vagaFechadaAqui.codigo} (${vagaFechadaAqui.date} ${vagaFechadaAqui.hora}) sem registrar: simulação`,
+    });
+  }
+
   return { respondeu: true, pedacos: enviados };
 }
 
@@ -491,6 +540,18 @@ export async function atender(
  *
  * Duas montagens da mesma instrução divergem sempre. Esta é a única.
  */
+/**
+ * A instrução e a tabela de horários que ela carrega.
+ *
+ * Os horários saem junto porque é contra eles que o código devolvido pela IA é
+ * validado. Reconsultar a agenda depois da resposta daria outra tabela — meia
+ * hora passou, e a vaga que ela ofereceu pode já não estar na lista.
+ */
+export interface InstrucaoMontada {
+  texto: string;
+  horarios: HorariosParaOferecer | null;
+}
+
 export async function instrucaoDaLuna(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -499,7 +560,7 @@ export async function instrucaoDaLuna(
   agente: any,
   anuncio: Anuncio | null,
   agora: Date,
-): Promise<string> {
+): Promise<InstrucaoMontada> {
   const { data: playbook } = await supabase
     .from("ai_sales_playbooks")
     .select("learned, overrides")
@@ -553,7 +614,11 @@ export async function instrucaoDaLuna(
   // banco instável não pode virar "estamos sem horário" para quem quer marcar.
   const horarios = await horariosParaOferecer(supabase, ownerId, agora);
 
-  return montarInstrucao({
+  // Os horários saem junto com o texto, e não só dentro dele: é por eles que se
+  // valida o código que a IA devolve. Reconsultar a agenda depois da resposta
+  // daria uma tabela diferente — meia hora passou, e a vaga que ela ofereceu
+  // pode não estar mais na lista.
+  const texto = montarInstrucao({
     anuncio,
     horarios,
     clinica: unidade?.nome || "NÓS Odontologia",
@@ -574,6 +639,8 @@ export async function instrucaoDaLuna(
     },
     hoje: agoraNaClinica(agora).date,
   });
+
+  return { texto, horarios };
 }
 
 async function responderComModelo(
@@ -582,7 +649,7 @@ async function responderComModelo(
   agente: any,
   entrada: MensagemDeEntrada,
   anuncio: Anuncio | null,
-): Promise<string> {
+): Promise<{ texto: string; vaga: VagaComCodigo | null }> {
   const { supabase, ownerId } = deps;
   const instrucao = await instrucaoDaLuna(
     supabase,
@@ -612,7 +679,17 @@ async function responderComModelo(
     .map((m) => `${m.deQuem === "clinica" ? "VOCÊ" : "PACIENTE"}: ${m.texto}`)
     .join("\n");
 
-  return deps.responderComIa(instrucao, historico, bloco);
+  const resposta = await deps.responderComIa(instrucao.texto, historico, bloco);
+
+  // O código vira vaga AQUI, contra a tabela que montou a instrução. É a
+  // fronteira: daqui para baixo o que existe é uma data que veio do banco, não
+  // uma data que o modelo escreveu. Código desconhecido devolve `null` e nada
+  // é criado — ver `agendamento-da-ia.ts`.
+  const vaga = vagaFechada(
+    { codigo: resposta.horarioFechado },
+    catalogoDeVagas(instrucao.horarios),
+  );
+  return { texto: resposta.texto, vaga };
 }
 
 /**
