@@ -35,3 +35,6 @@ dist-ssr
 # modelo versionado; o `.env` de verdade guarda a API key e a senha do banco
 # e nunca entra no repositório.
 infra/evolution/.env
+
+# PDF gerado a partir de docs/LUNA_V1.md — se regenera, não se versiona
+docs/LUNA_V1.pdf
