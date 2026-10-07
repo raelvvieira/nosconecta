@@ -1,0 +1,1 @@
+GRANT UPDATE ON TABLE public.ai_agents TO sandbox_exec;

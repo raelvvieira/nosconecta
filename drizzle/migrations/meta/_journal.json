@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791389907121,
+      "tag": "0000_grant_update_ai_agents_sandbox",
+      "breakpoints": true
+    }
+  ]
+}
