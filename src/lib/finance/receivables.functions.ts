@@ -3,10 +3,16 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { localDateStr } from "@/lib/date";
+import { mesCorrente } from "./mes";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 
 export type ReceivableStatus =
-  "all" | "received" | "pending" | "overdue" | "installments" | "recurring";
+  | "all"
+  | "received"
+  | "pending"
+  | "overdue"
+  | "installments"
+  | "recurring";
 
 export interface ReceivableRow {
   id: string;
@@ -72,12 +78,21 @@ function sb() {
 
 const todayStr = () => localDateStr();
 
+/**
+ * O intervalo da consulta.
+ *
+ * Sem `from`/`to`, o padrão é o MÊS CORRENTE inteiro. Era "os últimos 30 dias
+ * corridos", que no dia 11 somava doze dias de um mês com onze do outro — e
+ * nenhuma conta da clínica fecha assim: aluguel, condomínio, fatura do cartão,
+ * DAS e pró-labore são todos mensais.
+ *
+ * As telas já mandam o intervalo resolvido; isto é a rede para quem chamar sem
+ * parâmetro, e existe para que o padrão do servidor não contradiga o da tela.
+ */
 function resolveRange(from?: string, to?: string): { from: string; to: string } {
   if (from && to) return { from, to };
-  const t = new Date();
-  const f = new Date();
-  f.setDate(f.getDate() - 29);
-  return { from: localDateStr(f), to: localDateStr(t) };
+  const mes = mesCorrente(localDateStr());
+  return { from: mes.de, to: mes.ate };
 }
 
 function previousRange(from: string, to: string): { from: string; to: string } {

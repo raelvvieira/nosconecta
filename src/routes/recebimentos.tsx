@@ -26,7 +26,9 @@ import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { RouteSkeleton } from "@/components/layout/RouteSkeleton";
 import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
-import { DateRangePicker } from "@/components/finance/DateRangePicker";
+import { SeletorDeMes } from "@/components/finance/SeletorDeMes";
+import { mesCorrente } from "@/lib/finance/mes";
+import { localDateStr } from "@/lib/date";
 import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { NewReceivableSheet } from "@/components/finance/receivables/NewReceivableSheet";
@@ -167,7 +169,15 @@ function RecebimentosPage() {
   const cancelFn = useServerFn(cancelReceivable);
   const deleteFn = useServerFn(deleteReceivable);
 
-  const { data } = useSuspenseQuery(overviewOpts(fetchOverview as any, search));
+  // ── O intervalo de verdade ──────────────────────────────────────────────
+  //
+  // Sem `from`/`to` na URL, o padrão é o MÊS CORRENTE INTEIRO — e não os
+  // últimos 30 dias corridos, que o servidor assumia e que mostravam metade de
+  // um mês e metade do outro. Ver `src/lib/finance/mes.ts`.
+  const padraoDoMes = mesCorrente(localDateStr());
+  const periodo = { from: search.from ?? padraoDoMes.de, to: search.to ?? padraoDoMes.ate };
+
+  const { data } = useSuspenseQuery(overviewOpts(fetchOverview as any, { ...search, ...periodo }));
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
@@ -266,6 +276,16 @@ function RecebimentosPage() {
           }
         />
 
+        {/* O período sai de dentro de "Filtros" e sobe para o topo, no mesmo
+            lugar e com a mesma forma das outras telas financeiras. Escolher o
+            mês não é filtrar uma lista: é dizer de que mês a tela inteira
+            fala, KPIs inclusive. */}
+        <SeletorDeMes
+          from={periodo.from}
+          to={periodo.to}
+          onChange={(r) => setSearch({ from: r.from, to: r.to, page: 1 })}
+        />
+
         <div className="grid grid-cols-1 2xl:grid-cols-[1fr_340px] gap-5">
           <div className="space-y-5 min-w-0">
             {/* KPIs */}
@@ -342,14 +362,6 @@ function RecebimentosPage() {
               </div>
 
               <div className="flex flex-wrap items-end gap-3">
-                <FilterField label="Período">
-                  <DateRangePicker
-                    from={search.from}
-                    to={search.to}
-                    onChange={(r) => setSearch({ from: r.from, to: r.to, page: 1 })}
-                    className="h-10 px-3"
-                  />
-                </FilterField>
                 <FilterField label="Paciente">
                   <FilterSelect
                     value={search.patient ?? "all"}

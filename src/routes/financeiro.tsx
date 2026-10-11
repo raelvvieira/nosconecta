@@ -9,6 +9,8 @@ import { SobDemanda, nomeado } from "@/components/finance/SobDemanda";
 import { MobileHome } from "@/components/home/MobileHome";
 import { useHomeData } from "@/components/home/useHomeData";
 import { PageHeader } from "@/components/finance/PageHeader";
+import { mesCorrente } from "@/lib/finance/mes";
+import { localDateStr } from "@/lib/date";
 import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { BankAccountsCard } from "@/components/finance/BankAccountsCard";
@@ -103,19 +105,31 @@ export const Route = createFileRoute("/financeiro")({
 function FinanceiroVisaoGeral() {
   const { period, granularity, from, to } = Route.useSearch();
   const navigate = Route.useNavigate();
+
+  // ── O intervalo de verdade ──────────────────────────────────────────────
+  //
+  // Sem `from`/`to` na URL, o padrão é o MÊS CORRENTE INTEIRO — não os últimos
+  // 30 dias corridos, que mostravam metade de setembro e metade de outubro no
+  // dia 11. O mês vai até o último dia de propósito: é o que faz "a receber" e
+  // "a pagar" enxergarem o resto do mês, que é a parte sobre a qual ainda dá
+  // para agir.
+  //
+  // Fica aqui, e não num `default` do schema, para a URL continuar limpa
+  // enquanto ninguém escolheu nada — e mesmo assim o seletor acender o mês
+  // certo, porque recebe o intervalo já resolvido.
+  const padrao = mesCorrente(localDateStr());
+  const de = from ?? padrao.de;
+  const ate = to ?? padrao.ate;
+
   const fetchOverview = useServerFn(getFinanceOverview);
   const { data } = useSuspenseQuery(
-    overviewQueryOptions(fetchOverview as any, { period, granularity, from, to }),
+    overviewQueryOptions(fetchOverview as any, { period, granularity, from: de, to: ate }),
   );
 
   useEffect(() => {
     document.title = "Financeiro · NÓS Conecta";
   }, []);
 
-  const setPeriod = (p: Period) =>
-    navigate({
-      search: (prev: FinanceiroSearch) => ({ ...prev, period: p, from: undefined, to: undefined }),
-    });
   const setGranularity = (g: Granularity) =>
     navigate({ search: (prev: FinanceiroSearch) => ({ ...prev, granularity: g }) });
   const setRange = (r: { from?: string; to?: string }) =>
@@ -137,14 +151,7 @@ function FinanceiroVisaoGeral() {
       {dadosHome && <MobileHome dados={dadosHome} />}
 
       <main className="hidden lg:block flex-1 min-w-0 overflow-y-auto sem-arrasto-lateral custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-nav lg:pb-8">
-        <PageHeader
-          acoes={<LancamentoRapido />}
-          period={period}
-          onPeriodChange={setPeriod}
-          from={from}
-          to={to}
-          onRangeChange={setRange}
-        />
+        <PageHeader acoes={<LancamentoRapido />} from={de} to={ate} onRangeChange={setRange} />
 
         <GrupoDeKpis>
           <KpiCard

@@ -4,6 +4,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { soCaixa, temColunasDeCartao } from "./schema-cartao";
 import { localDateStr } from "@/lib/date";
+import { mesCorrente } from "./mes";
 
 export type Period = "today" | "7d" | "30d" | "90d";
 export type Granularity = "daily" | "weekly" | "monthly";
@@ -87,14 +88,21 @@ function periodToRange(
     const t = new Date(customTo + "T23:59:59");
     return { from: f, to: t };
   }
-  const to = new Date();
-  to.setHours(23, 59, 59, 999);
-  const from = new Date();
-  from.setHours(0, 0, 0, 0);
-  if (period === "7d") from.setDate(from.getDate() - 6);
-  else if (period === "30d") from.setDate(from.getDate() - 29);
-  else if (period === "90d") from.setDate(from.getDate() - 89);
-  return { from, to };
+  if (period === "today") {
+    const d = new Date();
+    const from = new Date(d);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(d);
+    to.setHours(23, 59, 59, 999);
+    return { from, to };
+  }
+  // Sem intervalo explícito, o padrão é o MÊS CORRENTE — não os últimos 30,
+  // 7 ou 90 dias corridos. Ver o comentário longo em `src/lib/finance/mes.ts`.
+  const mes = mesCorrente(localDateStr());
+  return {
+    from: new Date(mes.de + "T00:00:00"),
+    to: new Date(mes.ate + "T23:59:59"),
+  };
 }
 
 const toDateStr = (d: Date) => localDateStr(d);
