@@ -17,19 +17,23 @@ export const listAccounts = createServerFn({ method: "GET" })
     const supabase: any = context.supabase;
     let query = supabase
       .from("financial_accounts")
-      .select("id, name, type, last_digits, unit_id")
+      .select("id, name, type, last_digits, unit_id, current_balance")
       .eq("owner_id", context.ownerId)
       .order("name");
     if (unitFilter) query = query.eq("unit_id", unitFilter);
     const { data: rows, error } = await query;
     if (error) throw error;
-    return (rows ?? []) as {
-      id: string;
-      name: string;
-      type: string;
-      last_digits: string | null;
-      unit_id: string;
-    }[];
+    return ((rows ?? []) as Record<string, unknown>[]).map((r) => ({
+      id: String(r.id),
+      name: String(r.name),
+      type: String(r.type),
+      last_digits: (r.last_digits as string | null) ?? null,
+      unit_id: String(r.unit_id),
+      // `null` e 0 chegam diferentes do banco e significam coisas diferentes:
+      // conta nunca informada contra conta zerada de verdade. Quem decide o
+      // que mostrar é a tela; aqui os dois sobrevivem.
+      current_balance: r.current_balance === null ? null : Number(r.current_balance),
+    }));
   });
 
 export const createAccount = createServerFn({ method: "POST" })
@@ -111,6 +115,52 @@ export const updateAccount = createServerFn({ method: "POST" })
     const { error } = await supabase
       .from("financial_accounts")
       .update({ name: data.name, type: data.type, last_digits: data.last_digits })
+      .eq("id", data.id)
+      .eq("owner_id", context.ownerId);
+    if (error) throw error;
+    return { ok: true };
+  });
+
+/**
+ * O saldo de uma conta.
+ *
+ * ── Por que isto não existia ────────────────────────────────────────────
+ *
+ * `financial_accounts.current_balance` era lido em cinco lugares do app — o
+ * cartão de contas, o total disponível do painel, o Saldo Atual do
+ * Planejamento e as duas projeções de 30 e 90 dias — e escrito em NENHUM. Não
+ * havia tela, campo nem função para informá-lo. Por isso as cinco contas da
+ * clínica estavam todas em R$ 0,00: não é que ninguém preencheu, é que não
+ * havia como.
+ *
+ * E como o Planejamento inteiro parte desse número, as três projeções dele
+ * eram calculadas em cima de um zero que ninguém escolheu.
+ *
+ * ── Por que é um lançamento manual, e não um cálculo ────────────────────
+ *
+ * O saldo de verdade está no banco, e o sistema não tem integração bancária.
+ * Somar os lançamentos também não daria: o financeiro começou em agosto e o
+ * dinheiro é anterior a ele. Então alguém informa o que o extrato mostra, e a
+ * data em que olhou fica registrada — é ela que diz se o número ainda vale.
+ */
+export const setAccountBalance = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { id: string; balance: number }) => {
+    if (!input.id) throw new Error("Conta inválida");
+    const balance = Number(input.balance);
+    if (!Number.isFinite(balance)) throw new Error("Informe um saldo válido");
+    // Negativo é permitido: conta no cheque especial existe, e recusá-la
+    // obrigaria a informar um número falso.
+    if (Math.abs(balance) > 99_999_999) throw new Error("Saldo fora do limite");
+    return { id: input.id, balance: Math.round(balance * 100) / 100 };
+  })
+  .handler(async ({ data, context }) => {
+    // Sem o escape de `any` que o resto deste arquivo usa: ali ele existe
+    // porque `types.ts` ainda não conhece `unit_id`, e `current_balance` ele
+    // conhece.
+    const { error } = await context.supabase
+      .from("financial_accounts")
+      .update({ current_balance: data.balance, updated_at: new Date().toISOString() })
       .eq("id", data.id)
       .eq("owner_id", context.ownerId);
     if (error) throw error;

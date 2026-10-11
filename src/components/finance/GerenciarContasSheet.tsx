@@ -30,6 +30,7 @@ import {
   deleteAccount,
   listAccounts,
   updateAccount,
+  setAccountBalance,
 } from "@/lib/finance/accounts.functions";
 import {
   archiveCard,
@@ -259,7 +260,13 @@ function ListaDeContas({
   onEditarCartao,
   onMudou,
 }: {
-  contas: { id: string; name: string; type: string; last_digits: string | null }[];
+  contas: {
+    id: string;
+    name: string;
+    type: string;
+    last_digits: string | null;
+    current_balance?: number | null;
+  }[];
   cartoes: CartaoDeCredito[];
   carregando: boolean;
   onNovaConta: () => void;
@@ -395,7 +402,13 @@ function FormularioDeConta({
   onEditarCartao,
   onSalvo,
 }: {
-  conta: { id: string; name: string; type: string; last_digits: string | null } | null;
+  conta: {
+    id: string;
+    name: string;
+    type: string;
+    last_digits: string | null;
+    current_balance?: number | null;
+  } | null;
   cartoesDaConta: CartaoDeCredito[];
   unitId: string | null;
   units: { id: string; name: string }[];
@@ -406,10 +419,19 @@ function FormularioDeConta({
 }) {
   const criar = useServerFn(createAccount);
   const atualizar = useServerFn(updateAccount);
+  const gravarSaldo = useServerFn(setAccountBalance);
 
   const [nome, setNome] = useState(conta?.name ?? "");
   const [tipo, setTipo] = useState(conta?.type ?? "bank");
   const [digitos, setDigitos] = useState(conta?.last_digits ?? "");
+  // Vazio quando o saldo nunca foi informado — e não "0", que afirmaria que a
+  // conta está zerada. São coisas diferentes, e a diferença é justamente o que
+  // o painel precisa saber para não dizer "R$ 0,00" com confiança.
+  const [saldo, setSaldo] = useState(
+    conta?.current_balance === null || conta?.current_balance === undefined
+      ? ""
+      : String(conta.current_balance).replace(".", ","),
+  );
   // Começa ligado quando a conta já tem cartão — o estado da tela conta a
   // verdade do cadastro, não o contrário.
   const [temCartao, setTemCartao] = useState(cartoesDaConta.length > 0);
@@ -423,9 +445,18 @@ function FormularioDeConta({
   const salvar = useMutation({
     mutationFn: async () => {
       if (conta) {
-        return atualizar({
+        await atualizar({
           data: { id: conta.id, name: nome, type: tipo as any, last_digits: digitos || null },
         });
+        // Só grava saldo se alguém digitou algo. Campo em branco é "não
+        // informei", e mandar 0 por isso zeraria um saldo que já existia.
+        const digitado = saldo.trim();
+        if (digitado) {
+          const n = Number(digitado.replace(/\./g, "").replace(",", "."));
+          if (!Number.isFinite(n)) throw new Error("Saldo inválido. Use apenas números.");
+          await gravarSaldo({ data: { id: conta.id, balance: n } });
+        }
+        return { ok: true };
       }
       if (precisaEscolherUnidade && !unidade) throw new Error("Selecione a unidade.");
       return criar({
@@ -490,6 +521,27 @@ function FormularioDeConta({
           />
         </div>
       </div>
+
+      {/* O saldo só aparece ao EDITAR, não ao criar: ele é a foto de um
+          extrato, e na criação ninguém tem o extrato à mão. Aparece aqui
+          porque é o número que faltava para o painel responder "quanto eu
+          tenho" e para o Planejamento parar de projetar a partir de zero. */}
+      {conta && (
+        <div className="grid gap-2">
+          <Label htmlFor="conta-saldo">Saldo de hoje</Label>
+          <Input
+            id="conta-saldo"
+            value={saldo}
+            onChange={(e) => setSaldo(e.target.value)}
+            placeholder="0,00"
+            inputMode="decimal"
+          />
+          <p className="text-xs text-muted-foreground">
+            O que o extrato mostra agora. É daqui que saem o &quot;caixa hoje&quot; do painel e as
+            projeções do planejamento. Deixe em branco para não informar.
+          </p>
+        </div>
+      )}
 
       {precisaEscolherUnidade && (
         <div className="grid gap-2">
