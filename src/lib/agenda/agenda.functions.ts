@@ -11,6 +11,7 @@ import {
 import { clinicTodayStr, localDateStr } from "@/lib/date";
 import { decidirRecebimento } from "@/lib/finance/recebimento-do-atendimento";
 import { recusaDoValor } from "./valor-ao-concluir";
+import { comoGravar, recusaDoPagamento } from "./forma-de-pagamento";
 import { valorDaConversao } from "@/lib/integrations/valor-da-conversao";
 import type {
   Appointment,
@@ -406,7 +407,12 @@ const appointmentInput = (input: {
    * receber — o plano de tratamento parcelado — é que precisa dizer.
    */
   pagamentoRecebido?: boolean;
+  /** Como foi pago, e em quantas vezes. Ver `forma-de-pagamento.ts`. */
+  forma?: string | null;
+  parcelas?: number | null;
 }) => {
+  const recusaPagamento = recusaDoPagamento(input.forma, input.parcelas);
+  if (recusaPagamento) throw new Error(recusaPagamento.mensagem);
   if (!input.patientName?.trim()) throw new Error("Informe o nome do paciente");
   if (!input.date) throw new Error("Informe a data");
   if (!input.startTime || !input.endTime) throw new Error("Informe o horário");
@@ -460,6 +466,8 @@ const appointmentInput = (input: {
     __skipConfirmation: Boolean(input.skipConfirmation),
     __retornoEm: input.retornoEm ?? null,
     __pagamentoRecebido: input.pagamentoRecebido ?? true,
+    __forma: input.forma ?? null,
+    __parcelas: input.parcelas ?? null,
   };
 };
 
@@ -540,6 +548,9 @@ export async function criarAgendamento(
     retornoEm?: string | null;
     /** A confirmação marcou "pagamento já recebido". Ausente = sim. */
     pagamentoRecebido?: boolean;
+    /** Como foi pago, e em quantas vezes. Ausente = ninguém informou. */
+    forma?: string | null;
+    parcelas?: number | null;
   } = {},
 ): Promise<{ id: string }> {
   // `__procedures` orienta este handler e NÃO é coluna — sai do payload antes
@@ -674,6 +685,8 @@ export const createAppointment = createServerFn({ method: "POST" })
       __skipConfirmation: skipConfirmation,
       __retornoEm: retornoEm,
       __pagamentoRecebido: pagamentoRecebido,
+      __forma: forma,
+      __parcelas: parcelas,
       unitId: rawUnitId,
       ...row
     } = data;
@@ -689,6 +702,8 @@ export const createAppointment = createServerFn({ method: "POST" })
         skipConfirmation,
         retornoEm,
         pagamentoRecebido,
+        forma,
+        parcelas,
       },
     );
   });
@@ -739,6 +754,11 @@ async function onStatusTransition(
     retornoEm?: string | null;
     /** A pessoa marcou "pagamento já recebido" na confirmação. */
     pagamentoRecebido?: boolean;
+    /** Como foi pago, e em quantas vezes. Vira `payment_method` e
+     *  `installment_total` no recebimento — é o que permite cruzar o
+     *  atendimento com o crédito que a maquininha deposita dias depois. */
+    forma?: string | null;
+    parcelas?: number | null;
     /** Registro retroativo: o agendamento NASCEU com data no passado, só para
      *  ficar no histórico. Silencia as automações; a Meta continua recebendo. */
     registroRetroativo?: boolean;
@@ -813,6 +833,9 @@ async function onStatusTransition(
         // atendimento. A guarda de transição acima já evita o caso comum; esta
         // pega o caso de o status ir, voltar e ir de novo.
         appointmentId: id,
+        // Como foi pago. A tradução acontece em `comoGravar` e não aqui, para
+        // a tela e o banco nunca discordarem sobre o que é "parcelado".
+        pagamento: comoGravar(opcoes.forma ?? null, opcoes.parcelas ?? null),
       });
     } catch (e) {
       console.error("[agenda] recebimento do atendimento concluído", e);
@@ -898,6 +921,8 @@ export const updateAppointment = createServerFn({ method: "POST" })
       __skipConfirmation: _ignored,
       __retornoEm: retornoEm,
       __pagamentoRecebido: pagamentoRecebido,
+      __forma: forma,
+      __parcelas: parcelas,
       __procedures: procedimentos,
       ...row
     } = data;
@@ -946,7 +971,7 @@ export const updateAppointment = createServerFn({ method: "POST" })
       id,
       antes?.status,
       updated,
-      { retornoEm, pagamentoRecebido },
+      { retornoEm, pagamentoRecebido, forma, parcelas },
     );
     return { ok: true, conflitos };
   });

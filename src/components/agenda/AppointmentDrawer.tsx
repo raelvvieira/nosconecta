@@ -57,6 +57,10 @@ export interface OpcoesDoSave {
   nome?: NomeDoPacienteNovo;
   /** A confirmação marcou que o valor já entrou no caixa. */
   pagamentoRecebido?: boolean;
+  /** Como foi pago. Nulo quando ninguém informou. */
+  forma?: string | null;
+  /** Em quantas vezes, quando foi cartão parcelado. */
+  parcelas?: number | null;
 }
 
 interface Props {
@@ -465,7 +469,7 @@ export function AppointmentDrawer({
         appointmentDate={form.date ?? localDateStr()}
         generateFinancial={form.generateFinancial ?? true}
         isPending={isSaving}
-        onConfirm={({ valor, retornoEm, gerarCobranca, pagamentoRecebido }) => {
+        onConfirm={({ valor, retornoEm, gerarCobranca, pagamentoRecebido, forma, parcelas }) => {
           // Criando pelo registro retroativo, este é o botão que grava —
           // então a checagem do paciente tem de valer aqui também.
           const nome = conferirPaciente();
@@ -477,7 +481,7 @@ export function AppointmentDrawer({
               actualRevenue: valor,
               generateFinancial: gerarCobranca,
             },
-            { retornoEm, nome, pagamentoRecebido },
+            { retornoEm, nome, pagamentoRecebido, forma, parcelas },
           );
         }}
       />

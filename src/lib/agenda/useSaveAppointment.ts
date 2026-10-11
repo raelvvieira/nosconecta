@@ -174,6 +174,8 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       retornoEm,
       nome,
       pagamentoRecebido,
+      forma,
+      parcelas,
     }: {
       data: Partial<Appointment>;
       existingId?: string;
@@ -184,6 +186,11 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       nome?: NomeDoPacienteNovo;
       /** A confirmação marcou que o valor já entrou no caixa. */
       pagamentoRecebido?: boolean;
+      /** Como foi pago, e em quantas vezes. Percorrem o mesmo caminho de
+       *  `pagamentoRecebido`, inclusive na criação — ver o comentário abaixo
+       *  sobre o `retornoEm` que faltava só ali. */
+      forma?: string | null;
+      parcelas?: number | null;
     }) => {
       // Só ao criar: editar um agendamento existente não deve inventar paciente.
       //
@@ -219,7 +226,7 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       // único ponto por onde passam os dois caminhos que concluem (formulário
       // e botão do celular).
       const r: any = existingId
-        ? await updateFn({ data: { ...payload, retornoEm, pagamentoRecebido } })
+        ? await updateFn({ data: { ...payload, retornoEm, pagamentoRecebido, forma, parcelas } })
         : await createFn({
             data: {
               ...payload,
@@ -232,6 +239,8 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
               // caminho e teria sumido do mesmo jeito.
               retornoEm,
               pagamentoRecebido,
+              forma,
+              parcelas,
               unitId: unidadeDaCadeira(data.roomId) ?? selectedUnitId ?? undefined,
             },
           });

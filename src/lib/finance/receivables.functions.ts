@@ -693,6 +693,17 @@ export async function createAppointmentReceivable(
      * tratamento), e lá a chave é outra.
      */
     appointmentId?: string | null;
+    /**
+     * Como foi pago, já traduzido para as colunas do financeiro.
+     *
+     * Chega pronto de `comoGravar` em vez de ser traduzido aqui: a regra de
+     * "parcelado é cartão com installment_total > 1" precisa valer igual na
+     * tela, que mostra o rótulo, e aqui, que grava. Duas traduções divergem.
+     *
+     * Ausente mantém o comportamento antigo — nulo nas duas colunas, que
+     * significa "ninguém informou".
+     */
+    pagamento?: { payment_method: string | null; installment_total: number | null };
   },
   // Devolve o id do lançamento criado, ou null quando não havia valor.
   //
@@ -721,7 +732,8 @@ export async function createAppointmentReceivable(
       professional_id: params.professionalId,
       category_id: null,
       account_id: null,
-      payment_method: null,
+      payment_method: params.pagamento?.payment_method ?? null,
+      installment_total: params.pagamento?.installment_total ?? null,
       notes: null,
       is_recurring: false,
       recurrence_type: null,

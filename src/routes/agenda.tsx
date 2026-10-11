@@ -233,6 +233,8 @@ function AgendaPage() {
       retornoEm: opcoes?.retornoEm,
       nome: opcoes?.nome,
       pagamentoRecebido: opcoes?.pagamentoRecebido,
+      forma: opcoes?.forma,
+      parcelas: opcoes?.parcelas,
     });
   const handleSaveBlock = (data: Partial<(typeof blocked)[number]>) =>
     saveBlockMutation.mutate(data);

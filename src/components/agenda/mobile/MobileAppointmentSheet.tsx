@@ -27,6 +27,8 @@ export interface ExtrasDaConclusao {
   generateFinancial?: boolean;
   /** O valor já entrou no caixa, na data do atendimento. */
   pagamentoRecebido?: boolean;
+  forma?: string | null;
+  parcelas?: number | null;
 }
 
 interface Props {
@@ -142,12 +144,21 @@ export function MobileAppointmentSheet({
             actualRevenue={a.status === "completed" ? (a.actualRevenue ?? 0) : null}
             appointmentDate={a.date}
             generateFinancial={a.generateFinancial ?? true}
-            onConfirm={({ valor, retornoEm, gerarCobranca, pagamentoRecebido }) => {
+            onConfirm={({
+              valor,
+              retornoEm,
+              gerarCobranca,
+              pagamentoRecebido,
+              forma,
+              parcelas,
+            }) => {
               onStatusChange(a.id, "completed", {
                 actualRevenue: valor,
                 retornoEm,
                 generateFinancial: gerarCobranca,
                 pagamentoRecebido,
+                forma,
+                parcelas,
               });
               onClose();
             }}

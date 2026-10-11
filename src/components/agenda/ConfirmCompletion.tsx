@@ -6,7 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { formatBRL, parseBRLInput } from "@/lib/finance/format";
 import { addMonths } from "@/lib/date";
-import { podeConcluir, ehCortesia } from "@/lib/agenda/valor-ao-concluir";
+import { podeConcluir, ehCortesia, recusaDoValor } from "@/lib/agenda/valor-ao-concluir";
+import {
+  FORMAS,
+  MAX_PARCELAS,
+  MIN_PARCELAS,
+  pedeParcelas,
+  recusaDoPagamento,
+  rotuloDoPagamento,
+  type FormaDePagamento,
+} from "@/lib/agenda/forma-de-pagamento";
 
 /**
  * Confirmar que o atendimento aconteceu — sempre com o valor cobrado junto.
@@ -69,6 +78,14 @@ export interface ConfirmacaoAtendimento {
    * tratamento que será pago depois.
    */
   pagamentoRecebido: boolean;
+  /**
+   * Como foi pago. `null` quando ninguém informou — e isso é um estado
+   * legítimo, não um campo esquecido: cortesia não teve pagamento, e
+   * atendimento antigo sendo regularizado pode não ter mais a informação.
+   */
+  forma: FormaDePagamento | null;
+  /** Em quantas vezes, quando foi cartão parcelado. */
+  parcelas: number | null;
 }
 
 export function ConfirmCompletion({
@@ -113,6 +130,13 @@ export function ConfirmCompletion({
   // vencido, e o atendimento costuma ser de ontem.
   const [pagamentoRecebido, setPagamentoRecebido] = useState(true);
 
+  // Como foi pago. Começa sem nada escolhido de propósito: um padrão aqui
+  // seria gravado sem ninguém decidir, e "pix" chutado em cem atendimentos é
+  // pior que cem atendimentos sem forma — o chute não se distingue da verdade
+  // quando alguém for cruzar com o extrato da Stone.
+  const [forma, setForma] = useState<FormaDePagamento | null>(null);
+  const [parcelas, setParcelas] = useState<number | null>(null);
+
   if (actualRevenue !== null && actualRevenue !== undefined) {
     return (
       <div className="flex items-center gap-2.5 rounded-xl bg-success-soft px-3 py-2.5">
@@ -125,17 +149,19 @@ export function ConfirmCompletion({
   }
 
   const confirmar = () => {
+    // A MESMA função do botão e do servidor. Em 05/10 o botão passou a aceitar
+    // zero e este clique continuou recusando: o botão acendia, a pessoa
+    // clicava e lia "o valor precisa ser maior que zero". Duas regras para a
+    // mesma pergunta, escritas em lugares diferentes, é como isso acontece.
     const n = parseBRLInput(valor);
-    if (Number.isNaN(n)) {
-      setErro("Informe o valor cobrado para confirmar o atendimento.");
+    const recusa = recusaDoValor(Number.isNaN(n) ? null : n);
+    if (recusa) {
+      setErro(recusa.mensagem);
       return;
     }
-    if (n < 0) {
-      setErro("O valor cobrado não pode ser negativo.");
-      return;
-    }
-    if (n === 0) {
-      setErro("O valor precisa ser maior que zero para o atendimento ser confirmado.");
+    const pago = recusaDoPagamento(forma, parcelas);
+    if (pago) {
+      setErro(pago.mensagem);
       return;
     }
     setErro(null);
@@ -145,11 +171,20 @@ export function ConfirmCompletion({
   // Passo do retorno: o valor já passou, falta decidir se o paciente volta.
   if (valorConfirmado !== null) {
     const confirmarCom = (retornoEm: string | null) =>
-      onConfirm({ valor: valorConfirmado, retornoEm, gerarCobranca, pagamentoRecebido });
+      onConfirm({
+        valor: valorConfirmado,
+        retornoEm,
+        gerarCobranca,
+        pagamentoRecebido,
+        forma,
+        parcelas,
+      });
     return (
       <div className="space-y-2.5 rounded-xl border border-coral/30 bg-coral-soft px-3 py-3">
         <p className="text-sm font-medium text-foreground">
-          Atendimento de {formatBRL(valorConfirmado)} · deixar retorno pré-agendado?
+          Atendimento de {formatBRL(valorConfirmado)}
+          {rotuloDoPagamento(forma, parcelas) && ` · ${rotuloDoPagamento(forma, parcelas)}`} ·
+          deixar retorno pré-agendado?
         </p>
         <div className="flex flex-wrap gap-1.5">
           {PRAZOS.map((p) => (
@@ -282,6 +317,85 @@ export function ConfirmCompletion({
           Previsto era {formatBRL(expectedRevenue)}. Informe quanto foi pago — digite 0 se não
           entrou receita.
         </p>
+      )}
+
+      {/* ── Como foi pago ──────────────────────────────────────────────
+          Fica depois do valor e antes da cobrança, que é a ordem da conversa
+          no balcão: quanto foi, como pagou, e só então o que fazer com isso.
+
+          Não aparece para cortesia: não houve pagamento, e oferecer "Pix ou
+          cartão?" para um atendimento de R$ 0,00 é pedir uma resposta que não
+          existe.
+
+          É opcional, e por isso não tem asterisco nem bloqueia o botão. Quem
+          não souber segue em frente, e a linha fica sem forma — que é
+          verdade, e é melhor do que um "pix" chutado que ninguém consegue
+          distinguir do verdadeiro quando for cruzar com o extrato. */}
+      {!ehCortesia(valorDigitado) && (
+        <div className="space-y-2 rounded-xl bg-white px-3 py-2.5">
+          <p className="text-sm text-foreground-secondary">Como foi pago?</p>
+          <div className="flex flex-wrap gap-1.5">
+            {FORMAS.map((f) => (
+              <button
+                key={f.valor}
+                type="button"
+                onClick={() => {
+                  // Clicar de novo na mesma desmarca: é o único jeito de
+                  // voltar a "não informado" depois de ter clicado por engano.
+                  const mesma = forma === f.valor;
+                  setForma(mesma ? null : f.valor);
+                  if (mesma || !f.pedeParcelas) setParcelas(null);
+                  if (erro) setErro(null);
+                }}
+                aria-pressed={forma === f.valor}
+                className={
+                  forma === f.valor
+                    ? "h-9 rounded-xl border border-coral bg-coral-soft px-3 text-xs font-medium text-foreground"
+                    : "h-9 rounded-xl border border-border px-3 text-xs text-foreground-secondary hover:bg-muted/50"
+                }
+              >
+                {f.rotulo}
+              </button>
+            ))}
+          </div>
+
+          {pedeParcelas(forma) && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              <span className="text-xs text-muted-foreground">Em quantas vezes?</span>
+              {Array.from(
+                { length: MAX_PARCELAS - MIN_PARCELAS + 1 },
+                (_, i) => i + MIN_PARCELAS,
+              ).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => {
+                    setParcelas(n);
+                    if (erro) setErro(null);
+                  }}
+                  aria-pressed={parcelas === n}
+                  className={
+                    parcelas === n
+                      ? "h-8 w-9 rounded-lg border border-coral bg-coral-soft text-xs font-medium tabular-nums text-foreground"
+                      : "h-8 w-9 rounded-lg border border-border text-xs tabular-nums text-foreground-secondary hover:bg-muted/50"
+                  }
+                >
+                  {n}x
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* A taxa da maquininha e a antecipação ainda não são descontadas em
+              lugar nenhum. Dizer isso aqui evita que alguém leia o valor
+              gravado como se fosse o que caiu na conta. */}
+          {forma === "cartao_parcelado" && parcelas !== null && (
+            <p className="text-2xs text-muted-foreground">
+              O valor gravado é o cobrado da paciente. A taxa do cartão e a antecipação ainda não
+              são descontadas.
+            </p>
+          )}
+        </div>
       )}
 
       {/* Rótulo com o valor dentro: "gerar cobrança" é abstrato, "gerar
