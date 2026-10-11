@@ -52,6 +52,16 @@ export interface OverviewData {
     current_balance: number;
   }[];
   totalAvailable: number;
+  /**
+   * O que está em aberto DENTRO do mês escolhido.
+   *
+   * Não é "os próximos 30 dias": é o que vence neste mês e ainda não foi
+   * pago nem recebido. Num mês passado, isso é o que ficou para trás; no mês
+   * corrente, é o que ainda vai acontecer; num mês futuro, é o mês inteiro.
+   * Nos três casos responde a mesma pergunta, que é a que falta ao lado de
+   * "entrou" e "saiu": e o resto?
+   */
+  emAberto: { receber: number; pagar: number };
   upcomingReceivables: {
     id: string;
     description: string;
@@ -213,6 +223,8 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
       profRes,
       upRecRes,
       upPayRes,
+      abertoRecRes,
+      abertoPagRes,
       cashRes,
       paidByDayRes,
     ] = await Promise.all([
@@ -285,6 +297,31 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
             .limit(5),
         ),
       ),
+      // O que vence DENTRO do intervalo e ainda não saiu nem entrou. `overdue`
+      // entra junto com `pending`: uma conta vencida e não paga continua em
+      // aberto, e somá-la só em "atrasado" a tiraria da conta do mês.
+      cu(
+        supabase
+          .from("financial_transactions")
+          .select("amount")
+          .eq("owner_id", ownerId)
+          .eq("type", "receivable")
+          .in("status", ["pending", "overdue"])
+          .gte("due_date", fromStr)
+          .lte("due_date", toStr),
+      ),
+      caixa(
+        cu(
+          supabase
+            .from("financial_transactions")
+            .select("amount")
+            .eq("owner_id", ownerId)
+            .eq("type", "payable")
+            .in("status", ["pending", "overdue"])
+            .gte("due_date", fromStr)
+            .lte("due_date", toStr),
+        ),
+      ),
       supabase.rpc("finance_cash_flow_series", {
         p_owner_id: ownerId,
         p_unit_id: unitId,
@@ -331,6 +368,13 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
       current_balance: Number(a.current_balance),
     }));
     const totalAvailable = accounts.reduce((a, b) => a + b.current_balance, 0);
+
+    const somar = (res: { data?: unknown } | null) =>
+      ((res?.data ?? []) as { amount: unknown }[]).reduce((a, r) => a + Number(r.amount ?? 0), 0);
+    const emAberto = {
+      receber: somar(abertoRecRes as { data?: unknown }),
+      pagar: somar(abertoPagRes as { data?: unknown }),
+    };
 
     const procRows = (procRes.data ?? []) as {
       category_id: string;
@@ -480,6 +524,7 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
       cashFlow: series,
       accounts,
       totalAvailable,
+      emAberto,
       upcomingReceivables,
       upcomingPayables,
       procedures,

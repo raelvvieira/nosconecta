@@ -1,8 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, queryOptions } from "@tanstack/react-query";
 import { lazy, useEffect, useState } from "react";
-import { DollarSign, TrendingDown, BarChart3, Users } from "lucide-react";
+import { DollarSign, TrendingDown, BarChart3, Wallet } from "lucide-react";
 
 import { Sidebar } from "@/components/finance/Sidebar";
 import { SobDemanda, nomeado } from "@/components/finance/SobDemanda";
@@ -140,6 +140,19 @@ function FinanceiroVisaoGeral() {
   const [contasAbertas, setContasAbertas] = useState(false);
 
   const { kpis } = data;
+
+  // Saldo não informado é diferente de saldo zero. As cinco contas da clínica
+  // estão com R$ 0,00 no cadastro, e mostrar "R$ 0,00" com confiança seria
+  // afirmar que não há dinheiro — num cartão que a pessoa abre justamente para
+  // saber quanto tem.
+  const semSaldo =
+    data.accounts.length === 0 || data.accounts.every((c) => c.current_balance === 0);
+
+  // Como o mês fecha se tudo que está em aberto acontecer. Nulo quando não há
+  // nada em aberto: aí o número do cartão já É o fechamento, e repetir a mesma
+  // cifra embaixo não diria nada.
+  const emAbertoLiquido = data.emAberto.receber - data.emAberto.pagar;
+  const projecao = emAbertoLiquido === 0 ? null : kpis.profit.current + emAbertoLiquido;
   // No celular esta rota mostra a tela inicial — os mesmos números de /inicio,
   // buscados pelo mesmo hook para nunca divergirem.
   const dadosHome = useHomeData();
@@ -153,46 +166,86 @@ function FinanceiroVisaoGeral() {
       <main className="hidden lg:block flex-1 min-w-0 overflow-y-auto sem-arrasto-lateral custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-nav lg:pb-8">
         <PageHeader acoes={<LancamentoRapido />} from={de} to={ate} onRangeChange={setRange} />
 
+        {/* ── Os quatro números do mês ─────────────────────────────────
+            Eram Receita · Despesas · Lucro · Inadimplência, e os três
+            primeiros repetiam, com outro nome, o topo de Recebimentos e de
+            Pagamentos. O painel não tinha pergunta própria.
+
+            A pergunta dele agora é "como está o mês", e ela só se responde
+            com o caixa junto: receita e despesa contam o passado do mês, e
+            quem decide precisa saber com quanto está e quanto ainda falta
+            acontecer até o dia 31. Por isso cada número carrega embaixo o que
+            ainda está em aberto. */}
         <GrupoDeKpis>
           <KpiCard
-            label="Receita"
+            label="Caixa hoje"
+            value={semSaldo ? "—" : formatBRL(data.totalAvailable)}
+            icon={Wallet}
+            tone="violet"
+            highlight
+            footer={
+              semSaldo ? (
+                <Link
+                  to="/configuracoes/contas"
+                  className="text-warning font-medium underline-offset-2 hover:underline"
+                >
+                  Informe o saldo das contas
+                </Link>
+              ) : (
+                <span className="text-muted-foreground">
+                  somando {data.accounts.length} {data.accounts.length === 1 ? "conta" : "contas"}
+                </span>
+              )
+            }
+          />
+          <KpiCard
+            label="Entrou no mês"
             value={formatBRL(kpis.revenue.current)}
             icon={DollarSign}
             tone="success"
             deltaPct={kpis.revenue.deltaPct}
-            footer={<span className="text-muted-foreground">vs período anterior</span>}
+            footer={
+              data.emAberto.receber > 0 ? (
+                <span className="text-muted-foreground">
+                  faltam {formatBRL(data.emAberto.receber)} a receber
+                </span>
+              ) : (
+                <span className="text-muted-foreground">vs mês anterior</span>
+              )
+            }
           />
           <KpiCard
-            label="Despesas"
+            label="Saiu no mês"
             value={formatBRL(kpis.expenses.current)}
             icon={TrendingDown}
             tone="danger"
             deltaPct={kpis.expenses.deltaPct}
-            footer={<span className="text-muted-foreground">vs período anterior</span>}
-          />
-          <KpiCard
-            label="Lucro Líquido"
-            value={formatBRL(kpis.profit.current)}
-            icon={BarChart3}
-            tone="violet"
-            highlight
-            nota={`Margem ${kpis.margin.toFixed(0)}%`}
             footer={
-              <span className="inline-flex items-center px-2 py-1 rounded-full bg-violet-soft text-violet font-medium">
-                Margem {kpis.margin.toFixed(0)}%
-              </span>
+              data.emAberto.pagar > 0 ? (
+                <span className="text-muted-foreground">
+                  faltam {formatBRL(data.emAberto.pagar)} a pagar
+                </span>
+              ) : (
+                <span className="text-muted-foreground">vs mês anterior</span>
+              )
             }
           />
           <KpiCard
-            label="Inadimplência"
-            value={formatBRL(kpis.overdue.total)}
-            icon={Users}
-            tone="warning"
-            nota={`${kpis.overdue.patients} pacientes`}
+            label="Sobrou"
+            value={formatBRL(kpis.profit.current)}
+            icon={BarChart3}
+            tone={kpis.profit.current < 0 ? "danger" : "success"}
+            corNoValor
+            nota={`Margem ${kpis.margin.toFixed(0)}%`}
             footer={
-              <span className="inline-flex items-center px-2 py-1 rounded-full bg-warning-soft text-warning font-medium">
-                {kpis.overdue.patients} pacientes
-              </span>
+              /* O fim do mês, e não a margem: a margem já está na nota, e o
+                 que falta a quem olha este cartão é saber se o número ainda
+                 vai mudar antes do dia 31. */
+              projecao !== null ? (
+                <span className="text-muted-foreground">fecha o mês em {formatBRL(projecao)}</span>
+              ) : (
+                <span className="text-muted-foreground">mês fechado</span>
+              )
             }
           />
         </GrupoDeKpis>
