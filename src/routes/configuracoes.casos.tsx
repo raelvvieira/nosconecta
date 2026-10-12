@@ -21,13 +21,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -38,7 +31,6 @@ import {
   CampoDeImagem,
   type ImagemDoDisparo,
 } from "@/components/atendimentos/contacts/CampoDeImagem";
-import { getSettings } from "@/lib/settings/settings.functions";
 import {
   excluirCaso,
   listarCasos,
@@ -79,7 +71,6 @@ const SEM_CASOS: CasoDaBiblioteca[] = [];
 function CasosPage() {
   const queryClient = useQueryClient();
   const buscar = useServerFn(listarCasos);
-  const buscarCadastros = useServerFn(getSettings);
   const doExcluir = useServerFn(excluirCaso);
 
   const [editando, setEditando] = useState<CasoDaBiblioteca | "novo" | null>(null);
@@ -87,15 +78,6 @@ function CasosPage() {
 
   const casosQuery = useQuery({ queryKey: ["casos-da-luna"], queryFn: () => buscar() });
   const casos = casosQuery.data ?? SEM_CASOS;
-
-  // Os procedimentos vêm do mesmo cadastro da tela ao lado — a lista de
-  // procedimentos não pode divergir entre as duas.
-  const cadastrosQuery = useQuery({
-    queryKey: ["settings"],
-    queryFn: () => buscarCadastros(),
-    staleTime: 60_000,
-  });
-  const procedimentos = cadastrosQuery.data?.procedures ?? [];
 
   const invalidar = () => queryClient.invalidateQueries({ queryKey: ["casos-da-luna"] });
 
@@ -177,7 +159,6 @@ function CasosPage() {
 
       <FormularioDeCaso
         caso={editando}
-        procedimentos={procedimentos}
         onFechar={() => setEditando(null)}
         onSalvo={() => {
           setEditando(null);
@@ -249,15 +230,8 @@ function CartaoDeCaso({
             </button>
           </div>
         </div>
-        {caso.procedimento && <p className="text-xs text-muted-foreground">{caso.procedimento}</p>}
         {caso.quandoUsar && (
           <p className="text-xs leading-5 text-foreground-secondary">Usar {caso.quandoUsar}</p>
-        )}
-        {caso.autorizadaPor && (
-          <p className="text-2xs text-muted-foreground">
-            Autorizado por {caso.autorizadaPor}
-            {caso.autorizadaEm ? ` em ${caso.autorizadaEm.split("-").reverse().join("/")}` : ""}
-          </p>
         )}
       </div>
     </article>
@@ -307,12 +281,10 @@ function Miniatura({ path, titulo, inativo }: { path: string; titulo: string; in
 
 function FormularioDeCaso({
   caso,
-  procedimentos,
   onFechar,
   onSalvo,
 }: {
   caso: CasoDaBiblioteca | "novo" | null;
-  procedimentos: { id: string; name: string }[];
   onFechar: () => void;
   onSalvo: () => void;
 }) {
@@ -322,9 +294,6 @@ function FormularioDeCaso({
 
   const [titulo, setTitulo] = useState("");
   const [quandoUsar, setQuandoUsar] = useState("");
-  const [procedureId, setProcedureId] = useState("");
-  const [autorizadaPor, setAutorizadaPor] = useState("");
-  const [autorizadaEm, setAutorizadaEm] = useState("");
   const [ativo, setAtivo] = useState(true);
   const [imagem, setImagem] = useState<ImagemDoDisparo | null>(null);
 
@@ -334,9 +303,6 @@ function FormularioDeCaso({
     if (!aberto) return;
     setTitulo(editando?.titulo ?? "");
     setQuandoUsar(editando?.quandoUsar ?? "");
-    setProcedureId(editando?.procedureId ?? "");
-    setAutorizadaPor(editando?.autorizadaPor ?? "");
-    setAutorizadaEm(editando?.autorizadaEm ?? "");
     setAtivo(editando?.ativo ?? true);
     setImagem(editando ? { path: editando.mediaPath, previa: "", nome: "imagem atual" } : null);
   }, [aberto, editando]);
@@ -349,9 +315,6 @@ function FormularioDeCaso({
           titulo,
           mediaPath: imagem?.path ?? "",
           quandoUsar: quandoUsar || null,
-          procedureId: procedureId || null,
-          autorizadaPor: autorizadaPor || null,
-          autorizadaEm: autorizadaEm || null,
           ativo,
         },
       }),
@@ -402,22 +365,6 @@ function FormularioDeCaso({
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="caso-procedimento">Procedimento</Label>
-            <Select value={procedureId} onValueChange={setProcedureId}>
-              <SelectTrigger id="caso-procedimento">
-                <SelectValue placeholder="Selecione o procedimento" />
-              </SelectTrigger>
-              <SelectContent>
-                {procedimentos.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid gap-2">
             <Label htmlFor="caso-quando">Quando usar</Label>
             <Input
               id="caso-quando"
@@ -426,30 +373,11 @@ function FormularioDeCaso({
               placeholder="quando a pessoa teme ficar artificial"
             />
             <p className="text-xs text-muted-foreground">
-              É isto que faz a Luna escolher o caso que combina com o que a pessoa disse, em vez do
-              primeiro da lista. Comece com “quando…”.
+              É por aqui que a Luna decide se o caso serve. Comece com “quando…” e escreva o
+              assunto, não o nome exato do procedimento: “quando o assunto for limpeza ou
+              clareamento” cobre as duas conversas, “quando a pessoa teme ficar artificial” cobre o
+              medo.
             </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="caso-autor">Autorizado por</Label>
-              <Input
-                id="caso-autor"
-                value={autorizadaPor}
-                onChange={(e) => setAutorizadaPor(e.target.value)}
-                placeholder="Nome da paciente"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="caso-data">Em</Label>
-              <Input
-                id="caso-data"
-                type="date"
-                value={autorizadaEm}
-                onChange={(e) => setAutorizadaEm(e.target.value)}
-              />
-            </div>
           </div>
 
           <label className="flex items-center justify-between gap-3 rounded-xl bg-surface px-3 py-2.5">

@@ -661,7 +661,7 @@ export async function instrucaoDaLuna(
   try {
     const { data } = await supabase
       .from("ai_agent_casos")
-      .select("id, titulo, media_path, quando_usar, clinic_procedures(name)")
+      .select("id, titulo, media_path, quando_usar")
       .eq("owner_id", ownerId)
       .eq("ativo", true)
       .order("created_at", { ascending: false });
@@ -676,7 +676,6 @@ export async function instrucaoDaLuna(
       titulo: String(c.titulo ?? ""),
       mediaPath: String(c.media_path ?? ""),
       quandoUsar: c.quando_usar ?? null,
-      procedimento: c.clinic_procedures?.name ?? null,
     })),
   );
 

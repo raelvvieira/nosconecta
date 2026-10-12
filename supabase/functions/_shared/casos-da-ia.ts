@@ -29,10 +29,17 @@ export interface CasoDaClinica {
   titulo: string;
   /** Caminho no bucket. NUNCA chega ao modelo. */
   mediaPath: string;
-  /** "quando a pessoa teme ficar artificial". Vazio quando não informado. */
+  /**
+   * "quando o assunto for limpeza ou clareamento".
+   *
+   * É o único sinal de ADEQUAÇÃO que o modelo recebe. O caso já teve um
+   * procedimento do catálogo amarrado a ele e isso saiu: um nome de catálogo é
+   * estreito demais — "Clareamento em consultório (limpeza + 2 sessões)" lia
+   * como se a foto só servisse para quem falasse daquele combo exato, e a mesma
+   * foto tinha de ser cadastrada de novo para cada conversa vizinha. Uma frase
+   * de assunto cobre todas elas.
+   */
   quandoUsar?: string | null;
-  /** Nome do procedimento, para a Luna casar com o que foi conversado. */
-  procedimento?: string | null;
 }
 
 /** O mesmo caso, já com o código pelo qual a IA o nomeia. */
@@ -75,7 +82,6 @@ export function catalogoDeCasos(
       titulo,
       mediaPath,
       quandoUsar: String(c?.quandoUsar ?? "").trim() || null,
-      procedimento: String(c?.procedimento ?? "").trim() || null,
     });
   }
   return saida;
@@ -141,7 +147,6 @@ export function comoUsarOsCasos(catalogo: CasoComCodigo[], jaUsou = false): stri
 
   for (const c of catalogo) {
     const partes = [`- **${c.codigo}** · ${c.titulo}`];
-    if (c.procedimento) partes.push(`(${c.procedimento})`);
     if (c.quandoUsar) partes.push(`— use ${c.quandoUsar}`);
     linhas.push(partes.join(" "));
   }
@@ -154,6 +159,10 @@ export function comoUsarOsCasos(catalogo: CasoComCodigo[], jaUsou = false): stri
     "  dificuldade de imaginar o que vai acontecer;",
     "- quando o caso tem a ver com o que ELA falou. Diga por que lembrou dele:",
     '  "lembrei desse caso porque você comentou que queria algo natural".',
+    "",
+    'O "use quando…" é o assunto que o caso cobre, não uma condição exata. Um',
+    'caso que diz "use quando o assunto for limpeza ou clareamento" serve tanto',
+    "para quem perguntou dos dois quanto para quem perguntou só de um.",
     "",
     "Quando NÃO mandar:",
     "",

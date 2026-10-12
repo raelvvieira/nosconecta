@@ -27,14 +27,12 @@ const casos: CasoDaClinica[] = [
     titulo: "Clareamento, resultado natural",
     mediaPath: "casos/clareamento-natural.jpg",
     quandoUsar: "quando a pessoa teme ficar com os dentes artificiais",
-    procedimento: "Clareamento em consultório",
   },
   {
     id: "b2",
     titulo: "Lentes de resina",
     mediaPath: "casos/lentes.jpg",
     quandoUsar: null,
-    procedimento: "Faceta em resina",
   },
 ];
 
@@ -123,8 +121,13 @@ conferir("sem caso, nada a ensinar", comoUsarOsCasos([]).length, 0);
   conferir("traz o código", texto.includes("**C1**"), true);
   conferir("e o título", texto.includes("Clareamento, resultado natural"), true);
   conferir("e o quando usar", texto.includes("quando a pessoa teme"), true);
-  conferir("e o procedimento", texto.includes("Faceta em resina"), true);
   conferir("diz qual campo preencher", texto.includes("casoEnviado"), true);
+  // O procedimento do catálogo saiu do cadastro: amarrar a foto a um item da
+  // tabela de preços a deixava presa àquele item. Quem diz se o caso serve é o
+  // "quando usar", e a instrução precisa dizer que ele é ASSUNTO, não condição
+  // exata — senão a Luna volta a tratar "limpeza e clareamento" como uma coisa
+  // só que não cobre quem falou de clareamento.
+  conferir("o quando usar é assunto, não condição", texto.includes("não uma condição exata"), true);
 
   // A regra que protege: o caminho do arquivo NÃO pode aparecer na instrução.
   // Se aparecer, o modelo pode citá-lo na conversa ou tentar usá-lo direto.

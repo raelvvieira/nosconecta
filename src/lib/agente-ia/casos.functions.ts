@@ -18,12 +18,16 @@ export interface CasoDaBiblioteca {
   id: string;
   titulo: string;
   mediaPath: string;
+  /**
+   * "quando o assunto for limpeza ou clareamento".
+   *
+   * É o ÚNICO sinal que a Luna tem para decidir se o caso serve, desde que o
+   * procedimento saiu do cadastro: amarrar a foto a um item do catálogo a
+   * deixava presa àquele item — um caso de clareamento com limpeza junto não
+   * servia para quem só falou de clareamento, e a clínica tinha de cadastrar a
+   * mesma foto de novo. Uma frase de assunto cobre as duas conversas.
+   */
   quandoUsar: string | null;
-  procedureId: string | null;
-  /** Nome do procedimento, já resolvido — a grade mostra o nome, não o id. */
-  procedimento: string | null;
-  autorizadaEm: string | null;
-  autorizadaPor: string | null;
   ativo: boolean;
 }
 
@@ -34,9 +38,6 @@ function validar(input: {
   titulo: string;
   mediaPath: string;
   quandoUsar?: string | null;
-  procedureId?: string | null;
-  autorizadaEm?: string | null;
-  autorizadaPor?: string | null;
   ativo?: boolean;
 }) {
   const titulo = input.titulo?.trim();
@@ -48,21 +49,7 @@ function validar(input: {
   if (quandoUsar && quandoUsar.length > MAX_QUANDO) {
     throw new Error(`"Quando usar" muito longo (máx. ${MAX_QUANDO}).`);
   }
-  // Data só no formato da coluna. "13/10/2026" chega ao Postgres e volta um
-  // erro de sintaxe que não diz nada a quem está na tela.
-  const autorizadaEm = input.autorizadaEm?.trim() || null;
-  if (autorizadaEm && !/^\d{4}-\d{2}-\d{2}$/.test(autorizadaEm)) {
-    throw new Error("A data da autorização precisa estar no formato AAAA-MM-DD.");
-  }
-  return {
-    titulo,
-    mediaPath,
-    quandoUsar,
-    procedureId: input.procedureId?.trim() || null,
-    autorizadaEm,
-    autorizadaPor: input.autorizadaPor?.trim() || null,
-    ativo: input.ativo !== false,
-  };
+  return { titulo, mediaPath, quandoUsar, ativo: input.ativo !== false };
 }
 
 export const listarCasos = createServerFn({ method: "GET" })
@@ -74,7 +61,7 @@ export const listarCasos = createServerFn({ method: "GET" })
     const supabase: any = context.supabase;
     const { data, error } = await supabase
       .from("ai_agent_casos")
-      .select("*, clinic_procedures(name)")
+      .select("id, titulo, media_path, quando_usar, ativo")
       .eq("owner_id", context.ownerId)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -84,10 +71,6 @@ export const listarCasos = createServerFn({ method: "GET" })
       titulo: String(r.titulo),
       mediaPath: String(r.media_path),
       quandoUsar: r.quando_usar ?? null,
-      procedureId: r.procedure_id ?? null,
-      procedimento: r.clinic_procedures?.name ?? null,
-      autorizadaEm: r.autorizada_em ?? null,
-      autorizadaPor: r.autorizada_por ?? null,
       ativo: r.ativo !== false,
     }));
   });
@@ -100,9 +83,6 @@ export const salvarCaso = createServerFn({ method: "POST" })
       titulo: string;
       mediaPath: string;
       quandoUsar?: string | null;
-      procedureId?: string | null;
-      autorizadaEm?: string | null;
-      autorizadaPor?: string | null;
       ativo?: boolean;
     }) => ({ id: input.id?.trim() || null, ...validar(input) }),
   )
@@ -113,9 +93,6 @@ export const salvarCaso = createServerFn({ method: "POST" })
       titulo: data.titulo,
       media_path: data.mediaPath,
       quando_usar: data.quandoUsar,
-      procedure_id: data.procedureId,
-      autorizada_em: data.autorizadaEm,
-      autorizada_por: data.autorizadaPor,
       ativo: data.ativo,
       updated_at: new Date().toISOString(),
     };
