@@ -707,7 +707,12 @@ export async function instrucaoDaLuna(
     casos,
     // Um caso por conversa. A marca fica no espelho das mensagens: se alguma
     // saída desta sessão já levou imagem, não vai outra.
-    jaMandouCaso: sessaoId ? await jaMandouCasoNestaConversa(supabase, sessaoId) : false,
+    //
+    // Só pergunta ao banco se há caso para mandar. Sem biblioteca — que é o
+    // estado de hoje, e vai ser por um tempo — a resposta não mudaria nada e
+    // seria uma consulta a mais em cada mensagem de paciente.
+    jaMandouCaso:
+      casos.length > 0 && sessaoId ? await jaMandouCasoNestaConversa(supabase, sessaoId) : false,
   });
 
   return { texto, horarios, casos };
