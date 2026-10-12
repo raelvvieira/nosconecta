@@ -317,6 +317,10 @@ export interface RespostaAoPaciente {
   texto: string;
   /** `H1`, `R2`… ou vazio. Validado em `agendamento-da-ia.ts`, não aqui. */
   horarioFechado: string;
+  /** `C1`, `C2`… ou vazio. Validado em `casos-da-ia.ts`, não aqui — e aqui é
+   *  só uma string, de propósito: este arquivo não sabe o que é um caso, e
+   *  quem transforma código em arquivo é quem tem o catálogo da conversa. */
+  casoEnviado: string;
 }
 
 /**
@@ -340,7 +344,7 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["resposta", "horarioFechado"],
+    required: ["resposta", "horarioFechado", "casoEnviado"],
     properties: {
       resposta: {
         type: "string",
@@ -350,6 +354,11 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
         type: "string",
         description:
           "O código do horário que a pessoa acabou de aceitar (H1, H2, R1…), exatamente como está na lista. Vazio quando ela não aceitou nenhum.",
+      },
+      casoEnviado: {
+        type: "string",
+        description:
+          "O código do caso de antes e depois a mandar junto desta mensagem (C1, C2…), exatamente como está na lista. Vazio quando não há caso a mandar, que é o normal.",
       },
     },
   },
@@ -386,16 +395,23 @@ export async function responderPaciente(
  */
 export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
   const cru = String(bruto ?? "").trim();
-  if (!cru) return { texto: "", horarioFechado: "" };
+  const vazia = { texto: "", horarioFechado: "", casoEnviado: "" };
+  if (!cru) return vazia;
   try {
-    const obj = JSON.parse(cru) as { resposta?: unknown; horarioFechado?: unknown };
-    if (!obj || typeof obj !== "object") return { texto: cru, horarioFechado: "" };
+    const obj = JSON.parse(cru) as {
+      resposta?: unknown;
+      horarioFechado?: unknown;
+      casoEnviado?: unknown;
+    };
+    if (!obj || typeof obj !== "object") return { ...vazia, texto: cru };
     const texto = typeof obj.resposta === "string" ? obj.resposta.trim() : "";
     const codigo = typeof obj.horarioFechado === "string" ? obj.horarioFechado.trim() : "";
+    const caso = typeof obj.casoEnviado === "string" ? obj.casoEnviado.trim() : "";
     // JSON válido sem o campo `resposta` não é a resposta: é outro objeto. Cai
-    // para o texto cru, que ao menos é algo que alguém escreveu.
-    return texto ? { texto, horarioFechado: codigo } : { texto: cru, horarioFechado: "" };
+    // para o texto cru, que ao menos é algo que alguém escreveu — e sem caso
+    // nenhum: num objeto que não entendemos, mandar foto é o pior palpite.
+    return texto ? { texto, horarioFechado: codigo, casoEnviado: caso } : { ...vazia, texto: cru };
   } catch {
-    return { texto: cru, horarioFechado: "" };
+    return { ...vazia, texto: cru };
   }
 }

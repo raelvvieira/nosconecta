@@ -7,6 +7,7 @@ import {
   Tag as TagIcon,
   BriefcaseMedical,
   Building2,
+  Images,
   MessageCircle,
   Share2,
   ShieldCheck,
@@ -66,6 +67,16 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
         label: "Procedimentos",
         description: "Duração, preço e custo",
         icon: BriefcaseMedical,
+      },
+      {
+        // Rota própria: a CRUD genérica grava campos de texto, e um caso é uma
+        // IMAGEM — upload para o bucket, miniatura por URL assinada e uma
+        // grade para olhar. Nada disso cabe na lista genérica desta tela.
+        kind: "link",
+        to: "/configuracoes/casos",
+        label: "Biblioteca de casos",
+        description: "Antes e depois que a Luna pode enviar",
+        icon: Images,
       },
       {
         // Rota própria pelo mesmo motivo das tags: a CRUD genérica grava três

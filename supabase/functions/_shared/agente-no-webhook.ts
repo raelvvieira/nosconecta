@@ -23,10 +23,11 @@ import { ehPacienteDoContato } from "./quem-e-paciente.ts";
 import { historicoDoEspelho } from "./historico-da-conversa.ts";
 import { responderPaciente } from "./modelo-de-atendimento.ts";
 import { anotarConsumo } from "./consumo-da-ia.ts";
-import { enviarWhatsapp } from "./whatsapp-send.ts";
+import { enviarWhatsapp, type MidiaDeEnvio } from "./whatsapp-send.ts";
 import type { MensagemEspelhada } from "./evolution-mapear.ts";
 import { anuncioDoEvento } from "./veio-de-anuncio.ts";
 import { procedimentoDoTexto, SEM_PROCEDIMENTO } from "./agendamento-da-ia.ts";
+import type { CasoComCodigo } from "./casos-da-ia.ts";
 
 /**
  * O procedimento que a pessoa está marcando.
@@ -69,6 +70,44 @@ async function procedimentoDoAnuncio(
     }));
 
   return procedimentoDoTexto(texto, catalogo);
+}
+
+/** O bucket onde a imagem do caso mora — o mesmo do disparo de campanha. */
+const BUCKET_DE_CASOS = "crm-campaign-media";
+
+/**
+ * Traz a imagem do caso do bucket.
+ *
+ * Molde de `baixarMidia` em `whatsapp-broadcast/index.ts`, com uma diferença
+ * que importa: aqui a imagem é acessório de uma CONVERSA em andamento. Se o
+ * download falhar — arquivo apagado do bucket, Storage fora do ar — a resposta
+ * tem de sair sem ela. Devolver erro faria a Luna emudecer no meio do
+ * atendimento por causa de uma foto, o que é pior do que a foto não ir.
+ *
+ * O caminho vem do banco, nunca do modelo: `casoEscolhido` já traduziu o
+ * código `C1` para a linha de `ai_agent_casos`. O modelo não vê `media_path` e
+ * não teria como apontar para outro arquivo.
+ */
+async function baixarCaso(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  caso: CasoComCodigo,
+): Promise<MidiaDeEnvio | null> {
+  try {
+    const { data, error } = await supabase.storage.from(BUCKET_DE_CASOS).download(caso.mediaPath);
+    if (error || !data) {
+      console.warn(`[luna] caso ${caso.codigo} sem arquivo no bucket:`, error?.message ?? "vazio");
+      return null;
+    }
+    return {
+      nome: caso.mediaPath.split("/").pop() || "caso.jpg",
+      tipo: data.type || "image/jpeg",
+      bytes: new Uint8Array(await data.arrayBuffer()),
+    };
+  } catch (e) {
+    console.error("[luna] falhou ao baixar o caso:", e instanceof Error ? e.message : e);
+    return null;
+  }
 }
 
 /** Espera de verdade antes de mandar o pedaço — é o tempo de digitação. */
@@ -204,10 +243,19 @@ export async function deixarOAgenteResponder(
             r.appointmentId ?? "",
           );
         },
-        enviar: async (pedaco, esperaMs) => {
+        enviar: async (pedaco, esperaMs, caso) => {
           // A espera é o tempo de digitação. Acontece de verdade aqui — é o
           // que faz a resposta não chegar como um bloco instantâneo.
           await dormir(esperaMs);
+          // A imagem do caso, quando houver. Só chega aqui no último pedaço —
+          // `atendimento.ts` decide isso — e só por este caminho: a prévia da
+          // tela passa o próprio `enviar`, que ignora o terceiro argumento, e
+          // por isso testar a Luna não manda foto de paciente para ninguém.
+          //
+          // O download acontece DEPOIS da espera de digitação, de propósito:
+          // antes dela somaria segundos de rede ao tempo que a pessoa vê como
+          // "digitando", e a resposta chegaria devagar mesmo sem imagem.
+          const midia = caso ? await baixarCaso(supabase, caso) : null;
           // O telefone vai junto, e é seguro: medido no banco, toda conversa
           // que chega pelo webhook é `@s.whatsapp.net` (telefone de verdade)
           // ou `@g.us` (grupo, que o filtro barra antes daqui). Os 1.962
@@ -216,12 +264,28 @@ export async function deixarOAgenteResponder(
           // tem 14 ou 15 dígitos e passaria por `numeroParaEnvio` como se
           // fosse um número internacional, mandando a resposta para um
           // estranho.
-          await enviarWhatsapp(
+          const { midiaIgnorada, messageId } = await enviarWhatsapp(
             supabase,
             ownerId,
             { conversation_id: m.crmConversationId, phone: m.phone },
             pedaco,
+            midia,
           );
+          // A foto que não saiu não pode sumir calada: a mensagem foi escrita
+          // apostando nela ("olha esse caso aqui"), e sem o aviso no log
+          // ninguém descobre que a pessoa recebeu a frase sem a imagem.
+          if (caso && !midia) {
+            console.warn(`[luna] caso ${caso.codigo} não foi junto: arquivo indisponível`);
+          } else if (midiaIgnorada) {
+            console.warn(`[luna] caso ${caso?.codigo} recusado no envio: ${midiaIgnorada}`);
+          }
+          // O id que o WhatsApp deu, devolvido para quem chamou gravar na
+          // linha de auditoria. É o que faz a mensagem ser reconhecida como
+          // DELA quando volta pelo webhook como `from_me` — sem ele sobra a
+          // comparação por texto, que erra quando a recepção repete uma frase
+          // da Luna. `agente-followup` já devolvia; este caminho, que é por
+          // onde passa toda resposta ao vivo, não devolvia.
+          return messageId ?? null;
         },
       },
       entrada,

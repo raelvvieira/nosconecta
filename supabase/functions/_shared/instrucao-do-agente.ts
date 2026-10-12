@@ -26,6 +26,7 @@
 /** Uma etapa da conversa, como o aprendizado a reconheceu. */
 import { secaoDoAnuncio, type Anuncio } from "./veio-de-anuncio.ts";
 import { catalogoDeVagas, comoReportarFechamento } from "./agendamento-da-ia.ts";
+import { comoUsarOsCasos, type CasoComCodigo } from "./casos-da-ia.ts";
 
 export interface EtapaDaConversa {
   nome?: string | null;
@@ -120,6 +121,13 @@ export interface EntradaDaInstrucao {
   /** Hoje, "YYYY-MM-DD", no fuso da clínica — é o que decide se a oferta de
    *  paciente modelo ainda vale. Obrigatório quando `pacienteModelo` vem. */
   hoje?: string;
+  /** Os casos de antes e depois autorizados, já com código. Ausente ou vazio:
+   *  a seção some e ela fala de resultado só com palavras. */
+  casos?: CasoComCodigo[] | null;
+  /** Já mandou um caso nesta conversa? Muda a seção para "não mande outro" —
+   *  a trava de um por conversa só funciona se o texto souber disso, porque o
+   *  modelo não lembra sozinho. */
+  jaMandouCaso?: boolean;
   /**
    * Os horários de verdade a oferecer, já escolhidos.
    *
@@ -649,6 +657,8 @@ export function montarInstrucao({
   parcelamento,
   pacienteModelo,
   hoje,
+  casos,
+  jaMandouCaso,
   horarios,
   anuncio,
   unidades,
@@ -724,6 +734,11 @@ export function montarInstrucao({
   // maior que isso, então a oferta nasce FECHADA. Falha fechada de propósito —
   // convidar para uma mentoria que já passou é pior que não convidar.
   partes.push("", secaoDePacienteModelo(pacienteModelo, hoje ?? "9999-12-31"));
+
+  // A biblioteca de casos entra DEPOIS da seção de prova e de paciente modelo,
+  // e antes das regras invioláveis: é uma ferramenta de venda, e o lugar dela
+  // é junto das outras — não no meio dos horários, que é operação.
+  partes.push(...comoUsarOsCasos(casos ?? [], jaMandouCaso === true));
 
   partes.push(
     "",

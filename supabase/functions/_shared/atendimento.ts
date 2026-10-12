@@ -29,6 +29,7 @@ import {
   type Anuncio,
 } from "./veio-de-anuncio.ts";
 import { catalogoDeVagas, vagaFechada, type VagaComCodigo } from "./agendamento-da-ia.ts";
+import { casoEscolhido, catalogoDeCasos, type CasoComCodigo } from "./casos-da-ia.ts";
 import type { HorariosParaOferecer } from "./instrucao-do-agente.ts";
 import type { RespostaAoPaciente } from "./modelo-de-atendimento.ts";
 
@@ -108,7 +109,19 @@ export interface MensagemDeEntrada {
  * reconhecer a própria mensagem quando ela volta pelo webhook, em vez de
  * comparar o texto e errar quando a recepção repete uma frase da IA.
  */
-export type Enviar = (pedaco: string, esperaMs: number) => Promise<string | null | void>;
+export type Enviar = (
+  pedaco: string,
+  esperaMs: number,
+  /**
+   * O caso de antes e depois que vai JUNTO deste pedaço, como legenda.
+   *
+   * Só chega preenchido no ÚLTIMO pedaço, e só no webhook: a prévia da tela
+   * recebe o mesmo `Enviar` sem saber baixar imagem, e por isso testar a Luna
+   * nunca manda foto de paciente para ninguém. Mesma separação de
+   * `registrarAgendamento`.
+   */
+  caso?: CasoComCodigo | null,
+) => Promise<string | null | void>;
 
 export interface Dependencias {
   supabase: any;
@@ -379,11 +392,15 @@ export async function atender(
   // A vaga que a IA fechou nesta resposta, se fechou alguma. Fica guardada e só
   // é registrada DEPOIS do envio — ver o comentário no fim desta função.
   let vagaFechadaAqui: VagaComCodigo | null = null;
+  // O caso de antes e depois que ela escolheu mandar, já validado contra o
+  // catálogo desta conversa. `null` é o normal: prova visual é exceção.
+  let caso: CasoComCodigo | null = null;
   try {
     if (agente.mode === "ia") {
-      const r = await responderComModelo(deps, agente, entrada, anuncio);
+      const r = await responderComModelo(deps, agente, entrada, anuncio, sessao.id);
       texto = r.texto;
       vagaFechadaAqui = r.vaga;
+      caso = r.caso;
     } else {
       texto = String(agente.echo_message ?? "").trim();
     }
@@ -448,7 +465,13 @@ export async function atender(
   // travessão junto.
   const pedacos = segmentar(semTravessao(texto), ritmo);
   const enviados: string[] = [];
-  for (const pedaco of pedacos) {
+  for (const [indice, pedaco] of pedacos.entries()) {
+    // A imagem vai no ÚLTIMO pedaço, como legenda dele.
+    //
+    // No primeiro ela chegaria antes do contexto — a pessoa veria a foto e só
+    // depois leria por que a Luna a mandou. E numa mensagem só, porque é assim
+    // que uma pessoa manda: escreve e anexa, não anexa e some.
+    const casoDestePedaco = indice === pedacos.length - 1 ? caso : null;
     // ── Alguém assumiu enquanto eu escrevia? ────────────────────────────
     //
     // A decisão de responder já passou faz tempo: houve a espera, a chamada do
@@ -472,12 +495,16 @@ export async function atender(
       };
     }
 
-    const idEnviado = await deps.enviar(pedaco, esperaDeDigitacao(pedaco, ritmo));
+    const idEnviado = await deps.enviar(pedaco, esperaDeDigitacao(pedaco, ritmo), casoDestePedaco);
     enviados.push(pedaco);
     await registrar(supabase, ownerId, sessao.id, {
       direction: "saida",
       content: pedaco,
       wa_message_id: typeof idEnviado === "string" ? idEnviado : null,
+      // O caso fica gravado NA mensagem que o levou. É daqui que sai a trava
+      // de um por conversa, e é daqui que vai sair a medição de se prova
+      // visual converte.
+      caso_id: casoDestePedaco?.id ?? null,
     });
   }
 
@@ -550,6 +577,10 @@ export async function atender(
 export interface InstrucaoMontada {
   texto: string;
   horarios: HorariosParaOferecer | null;
+  /** Os casos com código, para validar o que o modelo devolver. Sai junto do
+   *  texto, e não é reconsultado depois, pelo mesmo motivo dos horários: a
+   *  lista precisa ser a MESMA que montou a instrução. */
+  casos: CasoComCodigo[];
 }
 
 export async function instrucaoDaLuna(
@@ -560,6 +591,9 @@ export async function instrucaoDaLuna(
   agente: any,
   anuncio: Anuncio | null,
   agora: Date,
+  /** A conversa, para saber se um caso já saiu nela. Ausente na prévia da
+   *  tela, que mostra o que ela diria numa conversa do zero. */
+  sessaoId?: string | null,
 ): Promise<InstrucaoMontada> {
   const { data: playbook } = await supabase
     .from("ai_sales_playbooks")
@@ -614,6 +648,38 @@ export async function instrucaoDaLuna(
   // banco instável não pode virar "estamos sem horário" para quem quer marcar.
   const horarios = await horariosParaOferecer(supabase, ownerId, agora);
 
+  // ── A biblioteca de casos ───────────────────────────────────────────────
+  //
+  // Só os ATIVOS. Desligar um caso na tela precisa tirá-lo da conversa
+  // seguinte, não só escondê-lo da grade — é o único jeito de retirar de
+  // circulação uma foto que a paciente pediu para não usar mais.
+  //
+  // Falha de leitura devolve lista vazia, nunca derruba a resposta: sem caso a
+  // Luna fala de resultado com palavras, que é o que ela fazia até ontem.
+  // deno-lint-ignore no-explicit-any
+  let casosDaClinica: any[] = [];
+  try {
+    const { data } = await supabase
+      .from("ai_agent_casos")
+      .select("id, titulo, media_path, quando_usar, clinic_procedures(name)")
+      .eq("owner_id", ownerId)
+      .eq("ativo", true)
+      .order("created_at", { ascending: false });
+    casosDaClinica = data ?? [];
+  } catch (e) {
+    console.warn("[atendimento] não deu para ler a biblioteca de casos:", e);
+  }
+  const casos = catalogoDeCasos(
+    // deno-lint-ignore no-explicit-any
+    casosDaClinica.map((c: any) => ({
+      id: String(c.id),
+      titulo: String(c.titulo ?? ""),
+      mediaPath: String(c.media_path ?? ""),
+      quandoUsar: c.quando_usar ?? null,
+      procedimento: c.clinic_procedures?.name ?? null,
+    })),
+  );
+
   // Os horários saem junto com o texto, e não só dentro dele: é por eles que se
   // valida o código que a IA devolve. Reconsultar a agenda depois da resposta
   // daria uma tabela diferente — meia hora passou, e a vaga que ela ofereceu
@@ -638,9 +704,42 @@ export async function instrucaoDaLuna(
       texto: agente.paciente_modelo_texto ?? null,
     },
     hoje: agoraNaClinica(agora).date,
+    casos,
+    // Um caso por conversa. A marca fica no espelho das mensagens: se alguma
+    // saída desta sessão já levou imagem, não vai outra.
+    jaMandouCaso: sessaoId ? await jaMandouCasoNestaConversa(supabase, sessaoId) : false,
   });
 
-  return { texto, horarios };
+  return { texto, horarios, casos };
+}
+
+/**
+ * Um caso já saiu nesta conversa?
+ *
+ * Falha de leitura devolve `true` — e isto é de propósito. Errando para "já
+ * mandou", a Luna deixa de mandar uma foto que poderia; errando para o outro
+ * lado, manda a segunda. Entre perder uma prova e insistir com a imagem de
+ * uma paciente, o lado seguro é não mandar.
+ */
+async function jaMandouCasoNestaConversa(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  sessaoId: string,
+): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from("ai_agent_messages")
+      .select("id")
+      .eq("session_id", sessaoId)
+      .not("caso_id", "is", null)
+      .limit(1);
+    // A coluna só existe depois da migration. Enquanto ela não rodar, o erro
+    // significa "nenhum caso foi mandado ainda", não "pare de mandar".
+    if (error) return false;
+    return (data ?? []).length > 0;
+  } catch {
+    return true;
+  }
 }
 
 async function responderComModelo(
@@ -649,7 +748,8 @@ async function responderComModelo(
   agente: any,
   entrada: MensagemDeEntrada,
   anuncio: Anuncio | null,
-): Promise<{ texto: string; vaga: VagaComCodigo | null }> {
+  sessaoId: string,
+): Promise<{ texto: string; vaga: VagaComCodigo | null; caso: CasoComCodigo | null }> {
   const { supabase, ownerId } = deps;
   const instrucao = await instrucaoDaLuna(
     supabase,
@@ -657,6 +757,7 @@ async function responderComModelo(
     agente,
     anuncio,
     agoraDoAtendimento(deps),
+    sessaoId,
   );
 
   const anteriores = await deps.historico(entrada.conversationId);
@@ -689,7 +790,10 @@ async function responderComModelo(
     { codigo: resposta.horarioFechado },
     catalogoDeVagas(instrucao.horarios),
   );
-  return { texto: resposta.texto, vaga };
+  // Mesma fronteira, para o arquivo: o código vira caso AQUI, contra a lista
+  // que montou esta instrução. Código fora dela não manda imagem nenhuma.
+  const caso = casoEscolhido({ codigo: resposta.casoEnviado }, instrucao.casos);
+  return { texto: resposta.texto, vaga, caso };
 }
 
 /**
@@ -867,12 +971,35 @@ async function registrar(
     content: string | null;
     skipped_reason?: string | null;
     wa_message_id?: string | null;
+    /** O caso de antes e depois que foi junto. Coluna nova: ver abaixo por que
+     *  o insert tolera que ela ainda não exista. */
+    caso_id?: string | null;
   },
 ) {
   // A auditoria falhar não pode impedir a resposta de sair: o paciente esperando
   // importa mais que a linha de log.
-  await supabase
+  const { error } = await supabase
     .from("ai_agent_messages")
-    .insert({ owner_id: ownerId, session_id: sessionId, ...linha })
-    .then(undefined, (e: unknown) => console.error("[atendimento] auditoria falhou:", e));
+    .insert({ owner_id: ownerId, session_id: sessionId, ...linha });
+  if (!error) return;
+
+  // ── A coluna que pode não existir ainda ────────────────────────────────
+  //
+  // Migration e deploy são dois passos manuais no Lovable, sem ordem garantida
+  // entre eles. Se a função subir antes da migration, `caso_id` derruba TODO
+  // insert de auditoria — inclusive o das conversas que nunca viram um caso.
+  //
+  // Então tenta de novo sem ela. A mensagem já saiu para a paciente; perder a
+  // linha de log inteira por causa de uma coluna pendente é o pior dos dois.
+  if (linha.caso_id !== undefined) {
+    const { caso_id: _pendente, ...semCaso } = linha;
+    const { error: erroSemCaso } = await supabase
+      .from("ai_agent_messages")
+      .insert({ owner_id: ownerId, session_id: sessionId, ...semCaso });
+    if (!erroSemCaso) {
+      console.warn("[atendimento] coluna caso_id ausente, migration pendente");
+      return;
+    }
+  }
+  console.error("[atendimento] auditoria falhou:", error);
 }
