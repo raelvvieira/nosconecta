@@ -10,6 +10,7 @@ import type { BroadcastResumo } from "./broadcast.functions";
  * que decide se você espera ou se vai fazer outra coisa.
  */
 export type EstadoDoDisparo =
+  | "agendado"
   | "na_fila"
   | "enviando"
   | "concluido"
@@ -27,7 +28,11 @@ export interface ProgressoDoDisparo {
   emAndamento: boolean;
 }
 
-export function progressoDoDisparo(d: BroadcastResumo): ProgressoDoDisparo {
+export function progressoDoDisparo(
+  d: BroadcastResumo,
+  /** Injetável para o teste não depender do relógio da máquina. */
+  agora: number = Date.now(),
+): ProgressoDoDisparo {
   // Falha conta como tratada: aquela pessoa não recebe mais, e deixá-la fora da
   // conta faria a barra travar em 99% para sempre num disparo que já acabou.
   const tratados = d.enviados + d.falhas;
@@ -47,12 +52,67 @@ export function progressoDoDisparo(d: BroadcastResumo): ProgressoDoDisparo {
         }
       : { estado: "concluido", rotulo: "Concluído", progresso, tratados, emAndamento: false };
   }
+  // ── Programada ─────────────────────────────────────────────────────────
+  //
+  // Uma campanha agendada é uma campanha NORMAL com os horários no futuro: o
+  // status no banco continua `running`, porque o tick descarta qualquer alvo
+  // cujo lote não esteja assim. Então quem separa as duas é esta conta, e não
+  // uma coluna.
+  //
+  // Sem ela, uma campanha marcada para dia 20 apareceria como "Na fila" por
+  // oito dias, idêntica a uma que começa no próximo minuto.
+  const comeca = d.proximoEnvioEm ? new Date(d.proximoEnvioEm) : null;
+  const noFuturo = comeca && Number.isFinite(comeca.getTime()) && comeca.getTime() > agora;
+  if (tratados === 0 && noFuturo) {
+    return {
+      estado: "agendado",
+      rotulo: `Agendada para ${quandoPorExtenso(comeca!)}`,
+      progresso,
+      tratados,
+      emAndamento: false,
+    };
+  }
   // `running` com nada tratado ainda: a fila existe, mas a primeira mensagem
   // não saiu. Dizer "Enviando" aqui seria promessa adiantada.
   if (tratados === 0) {
     return { estado: "na_fila", rotulo: "Na fila", progresso, tratados, emAndamento: true };
   }
+  // Dividida em dias: o número sozinho faria parecer que travou em 200 de 500.
+  if (d.diasRestantes > 1) {
+    return {
+      estado: "enviando",
+      rotulo: `Enviando · continua ${quandoPorExtenso(comeca!)}`,
+      progresso,
+      tratados,
+      emAndamento: true,
+    };
+  }
   return { estado: "enviando", rotulo: "Enviando", progresso, tratados, emAndamento: true };
+}
+
+/** "hoje às 14:30", "amanhã às 09:00", "20/10 às 09:00". */
+export function quandoPorExtenso(quando: Date, agora: Date = new Date()): string {
+  const dia = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(d);
+  const hora = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(quando);
+
+  const hoje = dia(agora);
+  const amanha = dia(new Date(agora.getTime() + 86_400_000));
+  const alvo = dia(quando);
+  if (alvo === hoje) return `hoje às ${hora}`;
+  if (alvo === amanha) return `amanhã às ${hora}`;
+  const [, mm, dd] = alvo.split("-");
+  return `${dd}/${mm} às ${hora}`;
 }
 
 /** Vale continuar consultando? Polling eterno queima requisição com ninguém

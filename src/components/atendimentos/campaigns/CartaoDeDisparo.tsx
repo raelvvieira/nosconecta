@@ -19,12 +19,17 @@ function Selo({ estado, rotulo }: { estado: string; rotulo: string }) {
         estado === "concluido" && "bg-success-soft text-success",
         estado === "concluido_com_falhas" && "bg-warning-soft text-warning",
         estado === "cancelado" && "bg-muted text-muted-foreground",
+        // Agendada tem cor própria: não está acontecendo (nada de pulsar) e
+        // não terminou. Confundi-la com "Na fila" foi o defeito que esta
+        // feature inteira existe para evitar.
+        estado === "agendado" && "bg-info-soft text-info",
         emAndamento && "bg-surface text-foreground-secondary",
       )}
     >
       {emAndamento && (
         <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" strokeWidth={2.5} />
       )}
+      {estado === "agendado" && <Clock className="h-3 w-3" strokeWidth={2.5} />}
       {estado === "concluido" && <Check className="h-3 w-3" strokeWidth={3} />}
       {rotulo}
     </span>
@@ -68,10 +73,7 @@ export function CartaoDeDisparo({
   return (
     <div
       data-disparo={disparo.id}
-      className={cn(
-        "px-4 py-4 transition-colors sm:px-5",
-        destacado && "bg-coral-soft/40",
-      )}
+      className={cn("px-4 py-4 transition-colors sm:px-5", destacado && "bg-coral-soft/40")}
     >
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
         <p className="min-w-0 flex-1 truncate text-sm font-semibold">{titulo}</p>
@@ -122,8 +124,13 @@ export function CartaoDeDisparo({
           <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={onDetalhes}>
             <ListTree className="h-3.5 w-3.5" /> Ver detalhes
           </Button>
-          {p.emAndamento && (
-            <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-danger" onClick={onCancelar}>
+          {(p.emAndamento || p.estado === "agendado") && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1.5 text-danger"
+              onClick={onCancelar}
+            >
               <X className="h-3.5 w-3.5" /> Cancelar
             </Button>
           )}

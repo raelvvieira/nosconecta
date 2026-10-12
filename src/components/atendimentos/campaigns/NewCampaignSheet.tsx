@@ -13,7 +13,10 @@ import { getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
 import type { RitmoDoDisparo } from "@/lib/atendimentos/broadcast.functions";
 import { enfileirarDisparo } from "@/lib/atendimentos/enfileiramento";
 import { classificarSelecao } from "@/lib/atendimentos/prepararAlvos";
-import { ContactsTab, type ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
+import {
+  ContactsTab,
+  type ContatoSelecionado,
+} from "@/components/atendimentos/contacts/ContactsTab";
 import { BroadcastDialog } from "@/components/atendimentos/contacts/BroadcastDialog";
 
 /**
@@ -68,6 +71,8 @@ export function NewCampaignSheet({
     name: string;
     ritmo: RitmoDoDisparo;
     mediaPath: string | null;
+    iniciarEm: string | null;
+    dividirEmDias: boolean;
   }) => {
     const alvos = disparoSelecao ?? [];
     setDisparoSelecao(null);
@@ -81,6 +86,8 @@ export function NewCampaignSheet({
       message: dados.message,
       ritmo: dados.ritmo,
       mediaPath: dados.mediaPath,
+      iniciarEm: dados.iniciarEm,
+      dividirEmDias: dados.dividirEmDias,
       prontos,
       aVincular,
       foraDoDisparo,

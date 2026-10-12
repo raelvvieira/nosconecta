@@ -49,9 +49,53 @@ function inicioDoDiaDaClinica(agora = new Date()): Date {
   return new Date(agora.getTime() - decorrido);
 }
 
+/**
+ * O começo e o fim de um dia da clínica, como instantes.
+ *
+ * ── Por que não `new Date(dia + "T00:00:00-03:00")` ──────────────────────
+ *
+ * Cravar o deslocamento é o que quebra calado se o horário de verão voltar. O
+ * Brasil não tem hoje, mas é decisão política e o código não deveria depender
+ * dela. Aqui o offset nunca aparece: meio-dia UTC cai com folga dentro do dia
+ * em qualquer deslocamento brasileiro, e de lá `inicioDoDiaDaClinica` encontra
+ * a meia-noite consultando o relógio do fuso.
+ *
+ * O fim é o COMEÇO DO DIA SEGUINTE, e a comparação de quem usa é `<`, não
+ * `<=`: assim um envio às 23:59:59.999 entra e o primeiro instante do dia
+ * seguinte não. Somar 24 horas erraria num dia de 23 ou 25.
+ */
+export function janelaDoDiaDaClinica(dia: string): { de: Date; ate: Date } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dia ?? "").trim());
+  if (!m) return null;
+  const meioDia = new Date(`${dia}T12:00:00Z`);
+  if (Number.isNaN(meioDia.getTime())) return null;
+  const de = inicioDoDiaDaClinica(meioDia);
+  // 36 horas à frente é meio-dia do dia seguinte em qualquer offset brasileiro.
+  const ate = inicioDoDiaDaClinica(new Date(meioDia.getTime() + 36 * 3600 * 1000));
+  return { de, ate };
+}
+
+/** O dia da clínica, "AAAA-MM-DD", para um instante. */
+export function diaDaClinica(agora: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(agora);
+}
+
 export async function getDailyUsage(
   supabase: any,
   ownerId: string,
+  /**
+   * De qual dia. Ausente = hoje.
+   *
+   * Existe porque campanha programada reserva a cota do dia em que VAI sair,
+   * não do dia em que foi criada. Sem isto, deixar o mês inteiro programado
+   * gastaria a cota de hoje quatro vezes e a segunda campanha seria recusada.
+   */
+  dia?: string,
 ): Promise<{ limit: number; usedToday: number }> {
   // O limite morava numa coluna de `crm_credentials` — a tabela das credenciais
   // do CRM, que vai ser apagada. Ele nunca teve a ver com credencial nenhuma:
@@ -62,12 +106,22 @@ export async function getDailyUsage(
     .eq("owner_id", ownerId)
     .maybeSingle();
   const limit = ajuste?.daily_send_limit ?? 200;
-  const startOfDay = inicioDoDiaDaClinica();
-  const { data: sends } = await supabase
+  const janela = dia ? janelaDoDiaDaClinica(dia) : null;
+  const de = janela?.de ?? inicioDoDiaDaClinica();
+  // ── O teto, que faltava ──────────────────────────────────────────────
+  //
+  // A consulta era só `gte(início do dia)`, sem fim. Enquanto nada era
+  // marcado para o futuro isso não aparecia; com campanha programada, a
+  // reserva do dia 20 entraria na conta de hoje e o limite de hoje pareceria
+  // estourado sem nada ter sido enviado.
+  const ate = janela?.ate ?? janelaDoDiaDaClinica(diaDaClinica())?.ate ?? null;
+  let q = supabase
     .from("crm_campaign_sends")
     .select("recipient_count")
     .eq("owner_id", ownerId)
-    .gte("executed_at", startOfDay.toISOString());
+    .gte("executed_at", de.toISOString());
+  if (ate) q = q.lt("executed_at", ate.toISOString());
+  const { data: sends } = await q;
   const usedToday = (sends ?? []).reduce((s: number, r: any) => s + (r.recipient_count ?? 0), 0);
   return { limit, usedToday };
 }
@@ -79,8 +133,18 @@ export async function debitDailyUsage(
   ownerId: string,
   campaignId: string,
   quantidade: number,
+  /** Em que dia a cota é consumida, "AAAA-MM-DD". Ausente = agora.
+   *
+   *  Uma leva marcada para o dia 21 precisa debitar o dia 21: é isso que faz
+   *  a divisão em dias funcionar e que impede a campanha seguinte de ocupar
+   *  um dia que já está cheio. Grava meio-dia do dia, que cai dentro da
+   *  janela em qualquer deslocamento. */
+  dia?: string,
 ): Promise<void> {
-  await supabase
-    .from("crm_campaign_sends")
-    .insert({ owner_id: ownerId, campaign_id: campaignId, recipient_count: quantidade });
+  await supabase.from("crm_campaign_sends").insert({
+    owner_id: ownerId,
+    campaign_id: campaignId,
+    recipient_count: quantidade,
+    ...(dia ? { executed_at: new Date(`${dia}T12:00:00Z`).toISOString() } : {}),
+  });
 }

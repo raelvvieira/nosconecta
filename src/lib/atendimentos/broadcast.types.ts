@@ -20,6 +20,18 @@ export interface BroadcastResumo {
   createdAt: string;
   /** Quando a fila deve terminar, pelo ritmo gravado. */
   terminaEm: string | null;
+  /**
+   * Quando o PRIMEIRO contato ainda na fila deve sair.
+   *
+   * É o que distingue "na fila, começa já" de "programada para o dia 20" —
+   * duas coisas que o status `running` não separa, porque uma campanha
+   * agendada é uma campanha normal com os horários no futuro. Nulo quando não
+   * sobrou ninguém pendente.
+   */
+  proximoEnvioEm: string | null;
+  /** Em quantos dias diferentes a fila restante está espalhada. 1 no caso
+   *  comum; mais quando a campanha foi dividida por causa do limite diário. */
+  diasRestantes: number;
 }
 
 /** Ritmo da fila. Espelha `supabase/functions/_shared/ritmo.ts`. */

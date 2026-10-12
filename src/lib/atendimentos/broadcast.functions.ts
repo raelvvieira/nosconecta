@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { diaDaClinica } from "./cota";
 import {
   JANELA_DIAS,
   callBroadcast,
@@ -40,6 +41,12 @@ export const criarDisparo = createServerFn({ method: "POST" })
       aVincular: AlvoAVincular[];
       /** Caminho no bucket `crm-campaign-media`, não URL assinada. */
       mediaPath?: string | null;
+      /** Quando a fila deve COMEÇAR, em ISO. Ausente = agora, que é o
+       *  comportamento de sempre. No passado, o servidor puxa para agora. */
+      iniciarEm?: string | null;
+      /** Quem criou aprovou espalhar por mais de um dia quando não couber em
+       *  um. Sem isso o servidor recusa, como sempre recusou. */
+      dividirEmDias?: boolean;
     }) => {
       if (!input.message?.trim()) throw new Error("Escreva a mensagem antes de disparar.");
       if (!input.prontos?.length && !input.aVincular?.length) {
@@ -79,12 +86,17 @@ export const criarDisparo = createServerFn({ method: "POST" })
       name: data.name?.trim() || null,
       ritmo: data.ritmo,
       mediaPath: data.mediaPath ?? null,
+      iniciarEm: data.iniciarEm ?? null,
+      dividirEmDias: data.dividirEmDias === true,
       targets,
     });
     return {
       broadcastId: String(json.broadcastId),
       total: Number(json.total ?? 0),
       terminaEm: String(json.terminaEm ?? ""),
+      // Em que dias a fila ficou, para a tela confirmar o que de fato foi
+      // programado em vez de repetir o que ela própria propôs.
+      dias: (json.dias ?? []) as { dia: string; quantos: number }[],
       foraDoDisparo,
     };
   });
@@ -172,7 +184,10 @@ export const listarDisparos = createServerFn({ method: "GET" })
 
     const { data: alvos } = await supabase
       .from("whatsapp_broadcast_targets")
-      .select("broadcast_id, status")
+      // `scheduled_for` entra para a lista saber o que já está marcado e para
+      // quando: sem ele, uma campanha programada para daqui a uma semana
+      // aparecia como "Na fila", idêntica a uma que começa no próximo minuto.
+      .select("broadcast_id, status, scheduled_for")
       .eq("owner_id", context.ownerId)
       .in(
         "broadcast_id",
@@ -181,6 +196,12 @@ export const listarDisparos = createServerFn({ method: "GET" })
 
     const contar = (id: string, status: string) =>
       (alvos ?? []).filter((a: any) => a.broadcast_id === id && a.status === status).length;
+
+    const pendentesDe = (id: string) =>
+      (alvos ?? [])
+        .filter((a: any) => a.broadcast_id === id && a.status === "pending")
+        .map((a: any) => String(a.scheduled_for))
+        .sort();
 
     return lotes.map((l: any) => ({
       id: String(l.id),
@@ -193,6 +214,12 @@ export const listarDisparos = createServerFn({ method: "GET" })
       pendentes: contar(l.id, "pending"),
       createdAt: l.created_at,
       terminaEm: previsaoDeTermino(l),
+      proximoEnvioEm: pendentesDe(l.id)[0] ?? null,
+      // Dias distintos entre os que ainda não saíram. A conta é por data no
+      // fuso da clínica, não por fatia da string ISO, que está em UTC: às 22h
+      // de Brasília a ISO já diz o dia seguinte.
+      diasRestantes: new Set(pendentesDe(l.id).map((iso: string) => diaDaClinica(new Date(iso))))
+        .size,
     }));
   });
 

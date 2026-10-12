@@ -47,3 +47,39 @@ export function inicioDoDiaDaClinica(agora: Date = new Date()): Date {
   const decorrido = (hora * 3600 + Number(p.minute) * 60 + Number(p.second)) * 1000;
   return new Date(agora.getTime() - decorrido);
 }
+
+/**
+ * O começo e o fim de um dia da clínica, como instantes.
+ *
+ * ── Por que não `new Date(dia + "T00:00:00-03:00")` ──────────────────────
+ *
+ * Cravar o deslocamento é o que quebra calado se o horário de verão voltar. O
+ * Brasil não tem hoje, mas é decisão política e o código não deveria depender
+ * dela. Aqui o offset nunca aparece: meio-dia UTC cai com folga dentro do dia
+ * em qualquer deslocamento brasileiro, e de lá `inicioDoDiaDaClinica` encontra
+ * a meia-noite consultando o relógio do fuso.
+ *
+ * O fim é o COMEÇO DO DIA SEGUINTE, e a comparação de quem usa é `<`, não
+ * `<=`: assim um envio às 23:59:59.999 entra e o primeiro instante do dia
+ * seguinte não. Somar 24 horas erraria num dia de 23 ou 25.
+ */
+export function janelaDoDiaDaClinica(dia: string): { de: Date; ate: Date } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dia ?? "").trim());
+  if (!m) return null;
+  const meioDia = new Date(`${dia}T12:00:00Z`);
+  if (Number.isNaN(meioDia.getTime())) return null;
+  const de = inicioDoDiaDaClinica(meioDia);
+  // 36 horas à frente é meio-dia do dia seguinte em qualquer offset brasileiro.
+  const ate = inicioDoDiaDaClinica(new Date(meioDia.getTime() + 36 * 3600 * 1000));
+  return { de, ate };
+}
+
+/** O dia da clínica, "AAAA-MM-DD", para um instante. */
+export function diaDaClinica(agora: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(agora);
+}

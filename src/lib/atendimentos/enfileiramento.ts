@@ -38,6 +38,13 @@ export interface DisparoEmPreparacao {
   prontos: BroadcastAlvo[];
   aVincular: AlvoAVincular[];
   foraDoDisparo: { nome: string; motivo: string }[];
+  /** Quando a fila começa, em ISO. `null`/ausente = agora.
+   *
+   *  Opcionais porque esta fila é persistida em `localStorage`: um disparo em
+   *  preparação gravado antes desta versão volta sem os dois campos, e
+   *  exigi-los faria a retentativa dele quebrar na leitura. */
+  iniciarEm?: string | null;
+  dividirEmDias?: boolean;
   etapa: EtapaDoEnfileiramento;
   /** Vínculos já resolvidos — reaproveitados na retentativa. */
   resolvidos: Record<string, string>;
@@ -180,6 +187,8 @@ async function executar(localId: string) {
         name: inicial.nome || null,
         ritmo: inicial.ritmo,
         mediaPath: inicial.mediaPath,
+        iniciarEm: inicial.iniciarEm ?? null,
+        dividirEmDias: inicial.dividirEmDias === true,
         prontos: alvos,
         aVincular: [],
       },
@@ -211,6 +220,10 @@ export function enfileirarDisparo(dados: {
   prontos: BroadcastAlvo[];
   aVincular: AlvoAVincular[];
   foraDoDisparo: { nome: string; motivo: string }[];
+  /** Quando a fila começa, em ISO. `null` = agora. */
+  iniciarEm?: string | null;
+  /** A clínica aprovou espalhar por mais de um dia quando não couber em um. */
+  dividirEmDias?: boolean;
 }) {
   const localId = `prep_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   publicar([

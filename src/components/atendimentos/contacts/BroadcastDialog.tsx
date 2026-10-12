@@ -2,7 +2,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { AlertTriangle, Gauge, Image as ImageIcon, Info, MessageCircle, UserX } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarClock,
+  Gauge,
+  Image as ImageIcon,
+  Info,
+  MessageCircle,
+  UserX,
+} from "lucide-react";
+import { planoDeDias, resumoDoPlano } from "@/lib/atendimentos/plano-de-dias";
+import { diaDaClinica } from "@/lib/atendimentos/cota";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -114,6 +124,10 @@ export function BroadcastDialog({
     name: string;
     ritmo: RitmoDoDisparo;
     mediaPath: string | null;
+    /** Quando a fila começa, em ISO. `null` = agora. */
+    iniciarEm: string | null;
+    /** A clínica aprovou espalhar por mais de um dia. */
+    dividirEmDias: boolean;
   }) => void;
 }) {
   const [nome, setNome] = useState("");
@@ -121,6 +135,9 @@ export function BroadcastDialog({
   const [ritmoId, setRitmoId] = useState("seguro");
   const [imagem, setImagem] = useState<ImagemDoDisparo | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  // Vazio = agora, que é o comportamento de sempre. O campo é `datetime-local`,
+  // então o texto já está no relógio de quem digita.
+  const [quando, setQuando] = useState("");
   const [salvarComoModelo, setSalvarComoModelo] = useState(false);
   const [nomeDoModelo, setNomeDoModelo] = useState("");
   const caixaRef = useRef<HTMLTextAreaElement>(null);
@@ -179,7 +196,32 @@ export function BroadcastDialog({
   const ritmo = RITMOS.find((r) => r.id === ritmoId)?.ritmo ?? RITMOS[0].ritmo;
   const total = contatos?.length ?? 0;
   const restante = Math.max(0, usage.limit - usage.usedToday);
-  const estouraLimite = total > restante;
+
+  // ── Em quantos dias isto cabe ────────────────────────────────────────────
+  //
+  // A MESMA função que a Edge Function usa para gravar (`plano-de-dias.ts`,
+  // que tem um gêmeo em Deno). A tela não pode propor uma divisão e o servidor
+  // executar outra: é o número que a clínica aprova antes de 500 mensagens
+  // saírem.
+  const diaDoInicio = quando ? quando.slice(0, 10) : diaDaClinica();
+  const plano = planoDeDias({
+    total,
+    limitePorDia: usage.limit,
+    // `usage` é sempre o consumo de HOJE — é o número da barra no topo da
+    // tela de Campanhas. Então ele só entra na conta quando o dia escolhido é
+    // hoje; descontá-lo de um dia 20 ainda vazio mostraria uma divisão em dois
+    // dias que não vai acontecer.
+    //
+    // O que outros dias já devem, quem sabe é o servidor, que lê o livro de
+    // reservas inteiro — e é ele que grava. Esta prévia erra para o lado
+    // seguro: no máximo propõe menos dias do que o servidor vai usar, e o
+    // resultado real volta em `r.dias`.
+    reservadoPorDia: diaDoInicio === diaDaClinica() ? { [diaDoInicio]: usage.usedToday } : {},
+    diaInicial: diaDoInicio,
+  });
+  const precisaDividir = plano.dias.length > 1;
+  const naoCabe = !plano.cobreTudo || plano.dias.length === 0;
+  const estouraLimite = naoCabe;
   const minutos = duracaoMinutos(total, ritmo);
   const desconhecidas = variaveisDesconhecidas(mensagem);
   const previa = aplicarVariaveis(mensagem, { nome: exemploDeNome });
@@ -216,6 +258,11 @@ export function BroadcastDialog({
       name: nome.trim(),
       ritmo,
       mediaPath: imagem?.path ?? null,
+      // `datetime-local` vem sem fuso ("2026-10-20T09:00"); `new Date` o lê no
+      // relógio de quem digitou, que é o da clínica. É o que queremos: a
+      // pessoa escolheu 9h da manhã dela.
+      iniciarEm: quando ? new Date(quando).toISOString() : null,
+      dividirEmDias: precisaDividir,
     });
   };
 
@@ -491,10 +538,52 @@ export function BroadcastDialog({
                 </p>
               </div>
 
-              {estouraLimite && (
+              {/* ── Quando começar ────────────────────────────────────────
+                  Vazio = agora, que é o que sempre aconteceu. Preenchido, a
+                  fila fica marcada e o cron de minuto a solta na hora — é o
+                  mesmo caminho que a mensagem agendada do chat já usa. */}
+              <label className="flex flex-col gap-1.5 rounded-xl bg-surface px-3 py-2.5">
+                <span className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <CalendarClock className="h-3.5 w-3.5" /> Quando começar
+                </span>
+                <input
+                  type="datetime-local"
+                  value={quando}
+                  onChange={(e) => setQuando(e.target.value)}
+                  className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-sm tabular-nums"
+                />
+                <span className="text-2xs text-muted-foreground">
+                  {quando ? "Fica programado e sai sozinho." : "Vazio: começa agora."}
+                </span>
+              </label>
+
+              {/* Antes isto era um aviso vermelho de "o disparo será recusado".
+                  Recusar era o comportamento certo quando não havia o que
+                  oferecer; agora há — a mesma campanha, dividida pelos dias
+                  seguintes, que é o laço que a clínica fazia na mão. */}
+              {precisaDividir && !naoCabe && (
+                <div className="flex gap-2 rounded-xl bg-warning-soft px-3 py-2.5 text-2xs leading-4 text-warning">
+                  <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                  <span>
+                    <strong>{total} contatos não cabem em um dia</strong> (limite {usage.limit}).
+                    Vai ser dividido assim:
+                    <span className="mt-1 block font-medium text-foreground">
+                      {resumoDoPlano(plano)}
+                    </span>
+                    <span className="mt-1 block">
+                      Cada dia começa no mesmo horário. Você pode cancelar os dias que ainda não
+                      saíram.
+                    </span>
+                  </span>
+                </div>
+              )}
+
+              {naoCabe && (
                 <p className="flex gap-2 rounded-xl bg-danger-soft px-3 py-2 text-2xs leading-4 text-danger">
-                  <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />A seleção
-                  passa do limite diário. O disparo será recusado.
+                  <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                  {usage.limit > 0
+                    ? `Nem dividido cabe: sobrariam ${plano.sobraram} contatos. Suba o limite diário ou reduza a seleção.`
+                    : "O limite diário está em zero. Ajuste o limite na tela de Campanhas."}
                 </p>
               )}
             </div>
@@ -529,7 +618,13 @@ export function BroadcastDialog({
               confirmar();
             }}
           >
-            {isPending ? "Enfileirando..." : `Disparar para ${total}`}
+            {isPending
+              ? "Enfileirando..."
+              : precisaDividir
+                ? `Programar ${total} em ${plano.dias.length} dias`
+                : quando
+                  ? `Programar para ${total}`
+                  : `Disparar para ${total}`}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

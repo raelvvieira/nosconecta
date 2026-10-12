@@ -10,7 +10,13 @@
 // clínica escolheu como limite.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enviarWhatsapp, type MidiaDeEnvio } from "../_shared/whatsapp-send.ts";
-import { debitDailyUsage, getDailyUsage } from "../_shared/daily-quota.ts";
+import {
+  debitDailyUsage,
+  diaDaClinica,
+  getDailyUsage,
+  janelaDoDiaDaClinica,
+} from "../_shared/daily-quota.ts";
+import { planoDeDias, type PlanoDeDias } from "../_shared/plano-de-dias.ts";
 import { horariosDaFila, normalizarRitmo, type Ritmo } from "../_shared/ritmo.ts";
 import { aplicarVariaveis } from "../_shared/variaveis-disparo.ts";
 import { inserirTolerandoColunaAusente } from "../_shared/coluna-ausente.ts";
@@ -45,6 +51,10 @@ async function handleCreate(
    *  outra significa que o agendamento herda o que ela já sabe fazer —
    *  cancelar, registrar falha, respeitar a cota e sair pelo mesmo caminho. */
   iniciarEm: string | null = null,
+  /** Quem criou aprovou espalhar a fila por mais de um dia quando não couber
+   *  em um. Ausente = não: um cliente antigo continua recebendo a recusa de
+   *  antes, em vez de uma campanha espalhada por uma semana que ninguém viu. */
+  dividirEmDias = false,
 ) {
   if (!message?.trim()) throw new Error("Escreva a mensagem antes de disparar.");
   if (!alvosEntrada?.length) throw new Error("Selecione ao menos um contato.");
@@ -77,12 +87,45 @@ async function handleCreate(
     );
   }
 
+  // ── Em quantos dias isto cabe ──────────────────────────────────────────
+  //
   // Confere ANTES de enfileirar: enfileirar e recusar depois deixaria metade
   // das mensagens saindo antes de alguém perceber.
-  const { limit, usedToday } = await getDailyUsage(supabase, ownerId);
-  if (usedToday + alvos.length > limit) {
+  //
+  // O dia é o do INÍCIO pedido, não o de hoje: uma campanha marcada para o dia
+  // 20 ocupa a cota do dia 20. Sem isso, deixar o mês inteiro programado
+  // gastaria a cota de hoje quatro vezes e a segunda campanha seria recusada.
+  const inicioPedido = iniciarEm ? new Date(iniciarEm).getTime() : NaN;
+  const inicio = Number.isFinite(inicioPedido) ? Math.max(inicioPedido, Date.now()) : Date.now();
+  const diaInicial = diaDaClinica(new Date(inicio));
+
+  const { limit } = await getDailyUsage(supabase, ownerId, diaInicial);
+  const reservadoPorDia = await reservasAPartirDe(ownerId, diaInicial);
+  const plano = planoDeDias({
+    total: alvos.length,
+    limitePorDia: limit,
+    reservadoPorDia,
+    diaInicial,
+  });
+
+  if (!plano.dias.length) {
+    const usado = reservadoPorDia[diaInicial] ?? 0;
     throw new Error(
-      `Limite diário excedido (${usedToday}/${limit} contatos hoje, esta seleção tem ${alvos.length}). Ajuste o limite ou aguarde amanhã.`,
+      `Limite diário excedido (${usado}/${limit} contatos no dia ${diaInicial}, esta seleção tem ${alvos.length}). Ajuste o limite ou escolha outro dia.`,
+    );
+  }
+  // Mais de um dia só acontece quando quem criou pediu. Um cliente antigo, que
+  // não sabe desta opção, continua recebendo a mesma recusa de antes — e não
+  // uma campanha espalhada por uma semana que ninguém aprovou.
+  if (plano.dias.length > 1 && !dividirEmDias) {
+    const cabeHoje = plano.dias[0].quantos;
+    throw new Error(
+      `Esta seleção tem ${alvos.length} contatos e só cabem ${cabeHoje} no dia ${diaInicial} (limite ${limit}). Divida em dias ou escolha outro dia.`,
+    );
+  }
+  if (!plano.cobreTudo) {
+    throw new Error(
+      `Esta seleção não cabe nem dividida: sobrariam ${plano.sobraram} contatos depois de ${plano.dias.length} dias. Suba o limite diário ou reduza a seleção.`,
     );
   }
 
@@ -122,35 +165,99 @@ async function handleCreate(
     console.warn("[whatsapp-broadcast] colunas ausentes, migration pendente:", removidas);
   }
 
-  // O ritmo mora aqui: cada alvo nasce com o horário em que deve sair, então a
-  // fila é previsível e o cron não guarda estado nenhum.
-  // Horário pedido, quando houver — e nunca no passado: uma fila marcada para
-  // ontem sairia inteira de uma vez no próximo tique.
-  const pedido = iniciarEm ? new Date(iniciarEm).getTime() : NaN;
-  const inicio = Number.isFinite(pedido) ? Math.max(pedido, Date.now()) : Date.now();
-  const horarios = horariosDaFila(alvos.length, ritmo, inicio);
-  const linhas = alvos.map((a, i) => ({
-    broadcast_id: lote.id,
-    owner_id: ownerId,
-    contact_id: a.contactId,
-    conversation_id: a.conversationId ?? null,
-    contact_name: a.name ?? null,
-    phone: a.phone ?? null,
-    scheduled_for: new Date(horarios[i]).toISOString(),
-  }));
+  // ── O plano vira fila ──────────────────────────────────────────────────
+  //
+  // O ritmo mora em cada alvo: ele nasce com o horário em que deve sair, então
+  // a fila é previsível e o cron não guarda estado nenhum. Dividido em dias, a
+  // única diferença é que o relógio recomeça no mesmo horário do dia seguinte
+  // em vez de continuar correndo pela madrugada.
+  const relogio = horaDoDia(inicio);
+  const linhas: Record<string, unknown>[] = [];
+  let ultimo = inicio;
+  let lidos = 0;
+
+  for (const [i, dia] of plano.dias.entries()) {
+    // O primeiro dia começa no instante pedido; os seguintes, no MESMO horário
+    // do relógio. Somar 24h ao anterior pareceria igual e não é: a fila do dia
+    // 20 termina às 9h40, e o dia 21 começaria às 9h40 também, andando um
+    // pouco a cada dia até cair fora do horário comercial.
+    const comeco = i === 0 ? inicio : instanteNoDia(dia.dia, relogio);
+    const horarios = horariosDaFila(dia.quantos, ritmo, comeco);
+    for (let k = 0; k < dia.quantos; k++) {
+      const a = alvos[lidos + k];
+      linhas.push({
+        broadcast_id: lote.id,
+        owner_id: ownerId,
+        contact_id: a.contactId,
+        conversation_id: a.conversationId ?? null,
+        contact_name: a.name ?? null,
+        phone: a.phone ?? null,
+        scheduled_for: new Date(horarios[k]).toISOString(),
+      });
+    }
+    lidos += dia.quantos;
+    ultimo = Math.max(ultimo, horarios[horarios.length - 1] ?? comeco);
+  }
+
   const { error: erroAlvos } = await supabase.from("whatsapp_broadcast_targets").insert(linhas);
   if (erroAlvos) throw new Error(erroAlvos.message);
 
-  // Debita a cota inteira agora, como o disparo de campanha já faz: cancelar no
-  // meio não devolve, porque o que já saiu não volta.
-  await debitDailyUsage(supabase, ownerId, `broadcast:${lote.id}`, alvos.length);
+  // Debita a cota de CADA dia no próprio dia. É isto que faz a divisão
+  // funcionar de verdade: a próxima campanha enxerga o dia 21 já comprometido
+  // e não marca nada em cima.
+  //
+  // Debitado na criação e não no envio, como o disparo sempre fez: cancelar no
+  // meio não devolve o que já saiu. O que o cancelamento devolve são os dias
+  // que ainda não começaram — ver `handleCancel`.
+  for (const dia of plano.dias) {
+    await debitDailyUsage(supabase, ownerId, `broadcast:${lote.id}`, dia.quantos, dia.dia);
+  }
 
   return {
     ok: true,
     broadcastId: lote.id,
     total: alvos.length,
-    terminaEm: new Date(horarios[horarios.length - 1]).toISOString(),
+    terminaEm: new Date(ultimo).toISOString(),
+    dias: plano.dias,
   };
+}
+
+/** O relógio da clínica (ms desde a meia-noite dela) de um instante. */
+function horaDoDia(instante: number): number {
+  const dia = diaDaClinica(new Date(instante));
+  const janela = janelaDoDiaDaClinica(dia);
+  return janela ? instante - janela.de.getTime() : 0;
+}
+
+/** O instante que é `relogio` ms depois da meia-noite de `dia` na clínica. */
+function instanteNoDia(dia: string, relogio: number): number {
+  const janela = janelaDoDiaDaClinica(dia);
+  // Sem janela o dia não existe, e marcar para agora é melhor do que marcar
+  // para 1970 — que sairia inteiro no próximo tique.
+  return janela ? janela.de.getTime() + relogio : Date.now();
+}
+
+/**
+ * Quanto cada dia, a partir de `desde`, já tem reservado por outras campanhas.
+ *
+ * Lê o mesmo livro que a cota usa (`crm_campaign_sends`), agrupando por dia da
+ * clínica. É o que impede a campanha nova de ocupar um dia que já está cheio —
+ * e sem isso a divisão em dias marcaria duas campanhas no mesmo dia 21.
+ */
+async function reservasAPartirDe(ownerId: string, desde: string): Promise<Record<string, number>> {
+  const janela = janelaDoDiaDaClinica(desde);
+  if (!janela) return {};
+  const { data } = await supabase
+    .from("crm_campaign_sends")
+    .select("recipient_count, executed_at")
+    .eq("owner_id", ownerId)
+    .gte("executed_at", janela.de.toISOString());
+  const porDia: Record<string, number> = {};
+  for (const linha of data ?? []) {
+    const dia = diaDaClinica(new Date(String(linha.executed_at)));
+    porDia[dia] = (porDia[dia] ?? 0) + Number(linha.recipient_count ?? 0);
+  }
+  return porDia;
 }
 
 /** A imagem do lote, baixada UMA vez por tick e reaproveitada por todos os
@@ -283,7 +390,32 @@ async function handleCancel(ownerId: string, broadcastId: string) {
     .eq("broadcast_id", broadcastId)
     .eq("owner_id", ownerId)
     .eq("status", "pending");
-  // A cota já debitada não é devolvida: quem já recebeu, recebeu.
+
+  // ── A cota dos dias que não chegaram volta ─────────────────────────────
+  //
+  // "Quem já recebeu, recebeu" continua valendo para o dia em curso: aquela
+  // reserva fica. O que volta é a dos dias FUTUROS, que nunca viraram
+  // mensagem — e segurá-los bloquearia o calendário de uma campanha que foi
+  // cancelada justamente para liberar a agenda.
+  //
+  // Apaga por dia, e não a etiqueta inteira: a leva de hoje pode já ter saído
+  // pela metade, e devolvê-la deixaria o limite do dia ser estourado pelo que
+  // viesse depois.
+  const hoje = diaDaClinica();
+  const janela = janelaDoDiaDaClinica(hoje);
+  if (janela) {
+    const { data: devolvidas } = await supabase
+      .from("crm_campaign_sends")
+      .delete()
+      .eq("owner_id", ownerId)
+      .eq("campaign_id", `broadcast:${broadcastId}`)
+      .gte("executed_at", janela.ate.toISOString())
+      .select("recipient_count");
+    if (devolvidas?.length) {
+      console.log(`[whatsapp-broadcast] cancelamento devolveu ${devolvidas.length} dia(s) de cota`);
+    }
+  }
+
   return { ok: true, cancelados: count ?? 0 };
 }
 
@@ -296,7 +428,9 @@ Deno.serve(async (req) => {
     // `tick` vem do cron e varre todos os donos — não tem ownerId.
     if (action === "tick" || !action) {
       const result = await handleTick();
-      return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify(result), {
+        headers: { "content-type": "application/json" },
+      });
     }
 
     if (!ownerId) {
@@ -325,16 +459,21 @@ Deno.serve(async (req) => {
           body.mediaPath ?? null,
           body.name ?? null,
           body.iniciarEm ?? null,
+          body.dividirEmDias === true,
         );
         break;
       case "cancel":
         result = await handleCancel(ownerId, body.broadcastId);
         break;
       default:
-        return new Response(JSON.stringify({ error: `action desconhecida: ${action}` }), { status: 400 });
+        return new Response(JSON.stringify({ error: `action desconhecida: ${action}` }), {
+          status: 400,
+        });
     }
 
-    return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify(result), {
+      headers: { "content-type": "application/json" },
+    });
   } catch (e) {
     console.error("[whatsapp-broadcast]", e);
     return new Response(JSON.stringify({ error: String(e) }), { status: 500 });

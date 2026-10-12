@@ -5,7 +5,7 @@
 // nossa ainda não existe para o TypeScript até ele regerar o arquivo.
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
-import { inicioDoDiaDaClinica } from "./cota";
+import { diaDaClinica, inicioDoDiaDaClinica, janelaDoDiaDaClinica } from "./cota";
 
 /**
  * O que sobrou do módulo de campanhas.
@@ -142,9 +142,14 @@ export const deleteMessageTemplate = createServerFn({ method: "POST" })
  * fuso mora em `cota.ts`, junto da mesma regra do lado Deno.
  */
 export const getDailySendUsage = createServerFn({ method: "GET" })
+  .inputValidator((input: { dia?: string } | undefined) => ({ dia: input?.dia }))
   .middleware([requireClinicMembership])
-  .handler(async ({ context }): Promise<DailyUsage> => {
+  .handler(async ({ data, context }): Promise<DailyUsage> => {
     const supabase: any = context.supabase;
+    // Sem dia pedido, hoje. Com dia, o dia escolhido — é o que faz a barra de
+    // limite falar do dia da campanha que está sendo programada, e não do dia
+    // em que alguém está mexendo na tela.
+    const janela = janelaDoDiaDaClinica(data.dia ?? diaDaClinica());
 
     const [ajuste, envios] = await Promise.all([
       supabase
@@ -152,11 +157,18 @@ export const getDailySendUsage = createServerFn({ method: "GET" })
         .select("daily_send_limit")
         .eq("owner_id", context.ownerId)
         .maybeSingle(),
+      // ── O teto, que faltava ──────────────────────────────────────────
+      //
+      // Era só `gte(início do dia)`, sem fim. Enquanto nada era marcado para o
+      // futuro isso não aparecia; com campanha programada, a reserva do dia 20
+      // entraria na conta de hoje e a barra mostraria o limite estourado sem
+      // nada ter sido enviado.
       supabase
         .from("crm_campaign_sends")
         .select("recipient_count")
         .eq("owner_id", context.ownerId)
-        .gte("executed_at", inicioDoDiaDaClinica().toISOString()),
+        .gte("executed_at", (janela?.de ?? inicioDoDiaDaClinica()).toISOString())
+        .lt("executed_at", (janela?.ate ?? new Date(Date.now() + 86_400_000)).toISOString()),
     ]);
     if (ajuste.error) throw new Error(ajuste.error.message);
     if (envios.error) throw new Error(envios.error.message);

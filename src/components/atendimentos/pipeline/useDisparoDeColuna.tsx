@@ -41,6 +41,8 @@ export function useDisparoDeColuna() {
       name: string;
       ritmo: RitmoDoDisparo;
       mediaPath: string | null;
+      iniciarEm: string | null;
+      dividirEmDias: boolean;
     }) => {
       // Sem I/O aqui: o vínculo com o CRM é feito no servidor, em lote.
       const { prontos, aVincular, foraDoDisparo } = classificarSelecao(selecao ?? []);
@@ -51,7 +53,15 @@ export function useDisparoDeColuna() {
       return { ...r, foraDoDisparo: [...foraDoDisparo, ...r.foraDoDisparo] };
     },
     onSuccess: (r) => {
-      toast.success(`Fila criada com ${r.total} contatos.`, { duration: 8000 });
+      // O número de dias vem do servidor, não do que a tela propôs: é o que
+      // de fato foi gravado.
+      const dias = r.dias?.length ?? 1;
+      toast.success(
+        dias > 1
+          ? `Fila criada com ${r.total} contatos, dividida em ${dias} dias.`
+          : `Fila criada com ${r.total} contatos.`,
+        { duration: 8000 },
+      );
       if (r.foraDoDisparo.length) {
         toast.warning(
           `${r.foraDoDisparo.length} ${r.foraDoDisparo.length === 1 ? "pessoa ficou" : "pessoas ficaram"} de fora: ` +
