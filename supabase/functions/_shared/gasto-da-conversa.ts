@@ -152,7 +152,7 @@ export interface LeituraBruta {
 }
 
 /** O que a mensagem não disse e o robô não pode inventar. */
-export type DadoQueFalta = "conta" | "forma";
+export type DadoQueFalta = "data" | "conta" | "forma";
 
 /** O lançamento já conferido, pronto para virar linha no financeiro. */
 export interface GastoConferido {
@@ -182,8 +182,8 @@ export interface GastoConferido {
    * calculada depois, e é ela que separa o que entrou do que sobrou.
    */
   faltando: DadoQueFalta[];
-  /** "YYYY-MM-DD", no fuso da clínica. */
-  data: string;
+  /** "YYYY-MM-DD", no fuso da clínica. `null` enquanto ninguém disser quando. */
+  data: string | null;
   descricao: string;
   fornecedor: string | null;
   /** `false` quando é conta a vencer em vez de despesa já paga. */
@@ -255,7 +255,12 @@ export function dataDoGasto(bruto: unknown, hoje: string): string | null {
   const palavra = String(bruto ?? "")
     .trim()
     .toLowerCase();
-  if (!palavra || palavra === "hoje") return hoje;
+  // Vazio NÃO é hoje. Quem escreve "paguei 240 na luz" na segunda pode estar
+  // falando de sexta, e uma despesa no dia errado desalinha a semana inteira
+  // do fluxo de caixa sem nunca acusar erro. Quem decide o que fazer com a
+  // ausência é `gastoLido`, que pergunta em vez de supor.
+  if (!palavra) return null;
+  if (palavra === "hoje") return hoje;
   if (palavra === "ontem") return somarDias(hoje, -1);
   if (palavra === "anteontem") return somarDias(hoje, -2);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(palavra)) return null;
@@ -314,8 +319,15 @@ export function gastoLido(
   // Sem descrição a linha fica "R$ 240,00" no extrato e ninguém lembra do quê.
   if (!descricao) return { ok: false, motivo: "sem descrição" };
 
-  const data = dataDoGasto(bruto.quando ?? "hoje", hoje);
-  if (!data) return { ok: false, motivo: "data inválida" };
+  // Três estados, e os três são diferentes: a mensagem não disse (pergunta), a
+  // mensagem disse algo que não é data (recusa tudo, porque o resto da leitura
+  // também é suspeito), ou disse uma data boa.
+  const quandoCru = String(bruto.quando ?? "").trim();
+  let data: string | null = null;
+  if (quandoCru) {
+    data = dataDoGasto(quandoCru, hoje);
+    if (!data) return { ok: false, motivo: "data inválida" };
+  }
 
   // Código fora da lista não vira categoria nenhuma — e isso NÃO recusa o
   // lançamento. A coluna aceita vazio, e uma despesa sem categoria no lugar
@@ -350,6 +362,7 @@ export function gastoLido(
   const gravavel = comoGravar(forma, parcelas);
 
   const faltando: DadoQueFalta[] = [];
+  if (!data) faltando.push("data");
   if (!conta) faltando.push("conta");
   // Parcelado sem o número de vezes é o mesmo que não ter dito a forma: a
   // forma afirma algo que o resto da mensagem não sustenta, e gravar "cartão"
@@ -413,11 +426,14 @@ export function completarGasto(
   const parcelas = guardado.parcelas ?? novo.parcelas;
   const gravavel = comoGravar(forma, parcelas);
   const contaId = guardado.contaId ?? novo.contaId;
+  const data = guardado.data ?? novo.data;
   const faltando: DadoQueFalta[] = [];
+  if (!data) faltando.push("data");
   if (!contaId) faltando.push("conta");
   if (!forma || (pedeParcelas(forma) && parcelas === null)) faltando.push("forma");
   return {
     ...guardado,
+    data,
     contaId,
     contaNome: guardado.contaNome ?? novo.contaNome,
     forma,
@@ -528,6 +544,11 @@ export function dataCurta(dia: string): string {
   return `${d}/${m}`;
 }
 
+/** A data no recado, ou o aviso de que ela ainda não existe. */
+function quandoCurto(dia: string | null): string {
+  return dia ? dataCurta(dia) : "sem data";
+}
+
 /**
  * O recado de que ficou lançado.
  *
@@ -543,7 +564,7 @@ export function recadoDoLancamento(gasto: GastoConferido): string {
       gasto.categoriaNome ?? "sem categoria",
       rotuloDoPagamento(gasto.forma, gasto.parcelas) || "forma não informada",
       gasto.contaNome ?? "conta não informada",
-      dataCurta(gasto.data),
+      quandoCurto(gasto.data),
     ].join(" · ") + (gasto.pago ? "" : " · a vencer"),
   );
   // O valor da parcela sai calculado, e não lido: é o número que a pessoa tem
@@ -565,22 +586,32 @@ export function recadoDoLancamento(gasto: GastoConferido): string {
  * palavras, "me dá mais detalhes" não se responde. E repete o que já entendeu,
  * porque é a chance de a pessoa ver o valor errado antes de ele ser gravado.
  */
+/** "a e b", "a, b e c" — três perguntas numa linha só, como se fala. */
+function juntarPerguntas(partes: string[]): string {
+  if (partes.length <= 1) return partes[0] ?? "";
+  return `${partes.slice(0, -1).join(", ")} e ${partes[partes.length - 1]}`;
+}
+
 export function recadoDoQueFalta(gasto: GastoConferido, contas: ContaComCodigo[]): string {
   const perguntas: string[] = [];
+  if (gasto.faltando.includes("data")) perguntas.push("de quando é");
   if (gasto.faltando.includes("conta")) perguntas.push("de qual conta saiu");
   if (gasto.faltando.includes("forma")) {
     perguntas.push(gasto.forma && pedeParcelas(gasto.forma) ? "em quantas vezes" : "como foi pago");
   }
   const partes = [
-    `Anotei ${emReais(gasto.valor)} · ${gasto.descricao} · ${dataCurta(gasto.data)}`,
+    `Anotei ${emReais(gasto.valor)} · ${gasto.descricao} · ${quandoCurto(gasto.data)}`,
     "",
-    `Só falta: ${perguntas.join(" e ")}?`,
+    `Só falta: ${juntarPerguntas(perguntas)}?`,
   ];
   if (gasto.faltando.includes("conta") && contas.length) {
     partes.push("", `Contas: ${contas.map((c) => c.nome).join(", ")}`);
   }
   if (gasto.faltando.includes("forma")) {
     partes.push("Formas: pix, dinheiro, cartão à vista ou cartão em Nx");
+  }
+  if (gasto.faltando.includes("data")) {
+    partes.push('Data: "hoje", "ontem" ou o dia, como 09/10');
   }
   return partes.join("\n");
 }
@@ -600,7 +631,7 @@ export function recadoParaConferir(gasto: GastoConferido, deFoto: boolean): stri
       gasto.categoriaNome ?? "sem categoria",
       rotuloDoPagamento(gasto.forma, gasto.parcelas) || "forma não informada",
       gasto.contaNome ?? "conta não informada",
-      dataCurta(gasto.data),
+      quandoCurto(gasto.data),
     ].join(" · "),
   ];
   if (gasto.parcelas && gasto.parcelas > 1) {
@@ -673,6 +704,12 @@ export function comoLerOGasto(
     '  espécie, "cartao" para crédito ou débito à vista, "cartao_parcelado"',
     '  quando houver parcelas. Não disse? Devolva "".',
     '- `parcelas` só com "cartao_parcelado", e é o número de vezes (2 a 12).',
+    "- `quando` sai do que a mensagem DIZ. Se ela não disser quando foi, devolva",
+    '  "" — não escreva "hoje" por padrão. Quem registra na segunda um gasto de',
+    "  sexta põe a despesa no dia errado, e data errada não acusa erro em lugar",
+    "  nenhum: só desalinha a semana no fluxo de caixa.",
+    '- "hoje" vale quando a mensagem disser hoje, agora, acabei de, ou falar no',
+    "  presente de algo que acabou de acontecer.",
     "- `quando` nunca é no futuro, a não ser que a mensagem fale de uma conta a",
     "  vencer; aí `pago` é false.",
     "- `descricao` é o que a pessoa escreveu, limpo. Não invente detalhe que a",

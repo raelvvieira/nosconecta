@@ -133,7 +133,8 @@ function GrupoDoFinanceiroPage() {
           “comprei a cadeira, 5.000 em 10x no cartão do Nubank”
         </p>
         <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          Faltou a conta ou a forma de pagamento? Ele pergunta antes de lançar. Mandou foto do
+          Faltou a data, a conta ou a forma de pagamento? Ele pergunta antes de lançar — nunca supõe
+          que foi hoje, porque despesa no dia errado não acusa erro em lugar nenhum. Mandou foto do
           comprovante? Ele lê e pergunta se está certo. Errou? Responda <strong>“apaga”</strong>.
         </p>
       </section>

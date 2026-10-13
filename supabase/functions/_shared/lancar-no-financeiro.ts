@@ -55,6 +55,12 @@ export async function lancarNoFinanceiro(
       motivo: `falta ${gasto.faltando.join(" e ")}`,
     };
   }
+  // A data é NOT NULL em `due_date`, e `faltando` já a cobre — esta linha é a
+  // segunda porta, que existe para o compilador e para o dia em que alguém
+  // mexer na primeira.
+  if (!gasto.data) {
+    return { ok: false, transactionId: null, motivo: "falta data" };
+  }
 
   // De onde veio, escrito na própria linha. Quem abrir a tela de Pagamentos
   // daqui a três meses vê "lançado pelo WhatsApp por Rael" e sabe onde

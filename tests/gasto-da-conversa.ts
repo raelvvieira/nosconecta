@@ -61,6 +61,7 @@ const COMPLETO = {
   categoria: "G1",
   conta: "C1",
   forma: "pix",
+  quando: "hoje",
   descricao: "conta de luz",
 };
 
@@ -140,8 +141,11 @@ conferir("nan", valorEmReais(NaN), null);
 // ── A data ──────────────────────────────────────────────────────────────────
 
 conferir("hoje", dataDoGasto("hoje", HOJE), HOJE);
-conferir("vazio vira hoje", dataDoGasto("", HOJE), HOJE);
-conferir("nulo vira hoje", dataDoGasto(null, HOJE), HOJE);
+// Vazio NÃO é hoje: é "a mensagem não disse", e quem decide o que fazer com
+// isso é `gastoLido`, que pergunta.
+conferir("vazio não vira data", dataDoGasto("", HOJE), null);
+conferir("nulo não vira data", dataDoGasto(null, HOJE), null);
+conferir("só espaço não vira data", dataDoGasto("   ", HOJE), null);
 conferir("ontem", dataDoGasto("ontem", HOJE), "2026-10-12");
 conferir("anteontem", dataDoGasto("anteontem", HOJE), "2026-10-11");
 conferir("caixa alta vale", dataDoGasto("ONTEM", HOJE), "2026-10-12");
@@ -384,7 +388,7 @@ conferir("data curta", dataCurta("2026-10-13"), "13/10");
 
 {
   const r = gastoLido(
-    { ehGasto: true, valor: 240, categoria: "G1", descricao: "conta de luz" },
+    { ehGasto: true, valor: 240, categoria: "G1", quando: "hoje", descricao: "conta de luz" },
     cat,
     contas,
     HOJE,
@@ -398,20 +402,30 @@ conferir("data curta", dataCurta("2026-10-13"), "13/10");
   conferir("ensina a desfazer", recado.includes("apaga"), true);
 }
 {
-  const r = gastoLido({ ehGasto: true, valor: 90, descricao: "algo" }, cat, contas, HOJE);
+  const r = gastoLido(
+    { ehGasto: true, valor: 90, quando: "hoje", descricao: "algo" },
+    cat,
+    contas,
+    HOJE,
+  );
   if (!r.ok) throw new Error("devia passar");
   const recado = recadoDoLancamento(r.gasto);
   conferir("avisa que ficou sem categoria", recado.includes("sem categoria"), true);
   conferir("e diz onde arrumar", recado.includes("Pagamentos"), true);
 }
 {
-  const r = gastoLido({ ehGasto: true, valor: 90, descricao: "x", pago: false }, cat, contas, HOJE);
+  const r = gastoLido(
+    { ehGasto: true, valor: 90, quando: "hoje", descricao: "x", pago: false },
+    cat,
+    contas,
+    HOJE,
+  );
   if (!r.ok) throw new Error("devia passar");
   conferir("a vencer aparece no recado", recadoDoLancamento(r.gasto).includes("a vencer"), true);
 }
 {
   const r = gastoLido(
-    { ehGasto: true, valor: 500, categoria: "G1", descricao: "nota" },
+    { ehGasto: true, valor: 500, categoria: "G1", quando: "hoje", descricao: "nota" },
     cat,
     contas,
     HOJE,
@@ -469,6 +483,47 @@ conferir(
     return r.ok ? r.gasto.contaId : null;
   })(),
   "conta-stone",
+);
+
+// ── A data: perguntada, nunca suposta ───────────────────────────────────────
+//
+// Assumir hoje é o erro mais quieto de todos: quem registra na segunda um gasto
+// de sexta vê a despesa cair no dia errado, e data errada não acusa erro em
+// lugar nenhum — só desalinha a semana no fluxo de caixa.
+
+{
+  const r = ler({ ...COMPLETO, quando: "" });
+  conferir("sem data ainda é leitura boa", r.ok, true);
+  conferir("mas falta data", r.ok && r.gasto.faltando.includes("data"), true);
+  conferir("e a data fica nula", r.ok && r.gasto.data, null);
+}
+conferir(
+  "campo ausente também falta",
+  (() => {
+    const { quando: _fora, ...sem } = COMPLETO;
+    const r = ler(sem);
+    return r.ok ? r.gasto.faltando.includes("data") : "PASSOU";
+  })(),
+  true,
+);
+{
+  const r = ler({ ...COMPLETO, quando: "ontem" });
+  conferir("ontem vira data de verdade", r.ok && r.gasto.data, "2026-10-12");
+  conferir("e nada falta", r.ok && r.gasto.faltando.length, 0);
+}
+
+// Data que a mensagem DISSE e não dá para entender recusa a leitura inteira: se
+// o modelo errou aí, o resto do que ele leu também é suspeito. É diferente de
+// não ter dito nada, que é pergunta.
+conferir(
+  "data inventada recusa tudo",
+  recusa({ ...COMPLETO, quando: "semana passada" }),
+  "data inválida",
+);
+conferir(
+  "data no futuro recusa tudo",
+  recusa({ ...COMPLETO, quando: "2027-01-01" }),
+  "data inválida",
 );
 
 // ── A forma de pagamento ────────────────────────────────────────────────────
@@ -568,6 +623,18 @@ conferir(
 // ── Completar o que faltava ─────────────────────────────────────────────────
 
 {
+  const primeiro = ler({ ...COMPLETO, conta: "", forma: "", quando: "" });
+  if (!primeiro.ok) throw new Error("devia passar");
+  conferir("faltam os três", primeiro.gasto.faltando.length, 3);
+
+  const soAData = ler({ ehGasto: true, valor: 1, descricao: "x", quando: "ontem" });
+  if (!soAData.ok) throw new Error("devia passar");
+  const comData = completarGasto(primeiro.gasto, soAData.gasto);
+  conferir("a data entra", comData.data, "2026-10-12");
+  conferir("e o valor original fica", comData.valor, 240);
+  conferir("ainda faltam dois", comData.faltando.length, 2);
+}
+{
   const primeiro = ler({ ...COMPLETO, conta: "", forma: "" });
   if (!primeiro.ok) throw new Error("devia passar");
   conferir("faltam os dois", primeiro.gasto.faltando.length, 2);
@@ -606,12 +673,20 @@ conferir(
 // ── O recado de que falta dado ──────────────────────────────────────────────
 
 {
-  const r = ler({ ...COMPLETO, conta: "", forma: "" });
+  const r = ler({ ...COMPLETO, conta: "", forma: "", quando: "" });
   if (!r.ok) throw new Error("devia passar");
   const recado = recadoDoQueFalta(r.gasto, contas);
   conferir("repete o valor", recado.includes("R$ 240,00"), true);
+  conferir("pergunta a data", recado.includes("de quando é"), true);
   conferir("pergunta a conta", recado.includes("de qual conta saiu"), true);
   conferir("pergunta a forma", recado.includes("como foi pago"), true);
+  // Três perguntas numa linha só, como se fala — e não "a e b e c".
+  conferir(
+    "junta com vírgula e e",
+    recado.includes("de quando é, de qual conta saiu e como foi pago"),
+    true,
+  );
+  conferir("dá o jeito de responder a data", recado.includes('"hoje", "ontem"'), true);
   conferir("lista as contas", recado.includes("Inter Rael"), true);
   conferir("e as formas", recado.includes("pix"), true);
   conferir("não diz que lançou", recado.includes("Lançado"), false);
@@ -659,6 +734,7 @@ conferir(
   conferir("ensina as formas", texto.includes("cartao_parcelado"), true);
   conferir("proíbe chutar a conta", texto.includes("NUNCA chute"), true);
   conferir("manda o total, não a parcela", texto.includes("nunca o de uma parcela"), true);
+  conferir("proíbe supor hoje", texto.includes('não escreva "hoje" por padrão'), true);
 }
 
 console.log(`ok — ${feitas} checagens do gasto lido na conversa`);
