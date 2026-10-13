@@ -15,6 +15,7 @@ import {
   TYPE_LABEL,
 } from "./appointment-utils";
 import { useCalendarDrag, type AlvoArraste, type ItemArrastavel } from "./useCalendarDrag";
+import { lugaresNaColuna, COLUNA_INTEIRA } from "@/lib/agenda/sobreposicao";
 
 const DAYS_PT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MONTHS_PT = [
@@ -382,6 +383,10 @@ export function WeeklyCalendar({
                   const isToday = ds === todayStr;
                   const dayAppts = filtered.filter((a) => a.date === ds);
                   const dayBlocked = filteredBlocked.filter((b) => b.date === ds);
+                  // Quem divide largura com quem. Só entre consultas: o
+                  // compromisso bloqueado é fundo hachurado e fica atrás, e
+                  // espremê-lo junto faria a grade parecer mais cheia do que é.
+                  const lugares = lugaresNaColuna(dayAppts);
 
                   return (
                     <div
@@ -468,6 +473,7 @@ export function WeeklyCalendar({
                             left: 4,
                             right: 4,
                             height: Math.max(apptHeight(b.startTime, b.endTime), 28),
+                            overflow: "hidden",
                             touchAction: onMove ? "none" : undefined,
                             cursor: onMove ? "grab" : undefined,
                             background:
@@ -488,6 +494,7 @@ export function WeeklyCalendar({
                       {/* Appointments */}
                       {dayAppts.map((appt) => {
                         const s = statusStyle(appt.status);
+                        const lugar = lugares.get(appt.id) ?? COLUNA_INTEIRA;
                         return (
                           <button
                             key={appt.id}
@@ -510,9 +517,21 @@ export function WeeklyCalendar({
                             style={{
                               position: "absolute",
                               top: apptTop(appt.startTime),
-                              left: 4,
-                              right: 4,
+                              // `calc` em cima da fração: a margem de 4px é
+                              // fixa e a largura é relativa, então a conta
+                              // precisa acontecer no CSS. Dividir em pixel
+                              // aqui exigiria medir a coluna, e ela muda com a
+                              // janela.
+                              left: `calc(${lugar.esquerda * 100}% + 4px)`,
+                              width: `calc(${lugar.largura * 100}% - 8px)`,
                               height: Math.max(apptHeight(appt.startTime, appt.endTime), 32),
+                              // Sem isto, as três linhas do cartão (horário,
+                              // nome, procedimento, profissional) vazam para
+                              // fora de uma consulta de 30 min, que tem 32px, e
+                              // pousam em cima do cartão de baixo. Cortar é o
+                              // certo: o detalhe inteiro está na gaveta, a um
+                              // clique.
+                              overflow: "hidden",
                               background: s.bg,
                               border: `1px solid ${s.border}`,
                               borderRadius: "var(--radius-chip)",
