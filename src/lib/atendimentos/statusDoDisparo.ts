@@ -66,7 +66,7 @@ export function progressoDoDisparo(
   if (tratados === 0 && noFuturo) {
     return {
       estado: "agendado",
-      rotulo: `Agendada para ${quandoPorExtenso(comeca!)}`,
+      rotulo: `Agendada para ${quandoPorExtenso(comeca!, new Date(agora))}`,
       progresso,
       tratados,
       emAndamento: false,
@@ -81,7 +81,7 @@ export function progressoDoDisparo(
   if (d.diasRestantes > 1) {
     return {
       estado: "enviando",
-      rotulo: `Enviando · continua ${quandoPorExtenso(comeca!)}`,
+      rotulo: `Enviando · continua ${quandoPorExtenso(comeca!, new Date(agora))}`,
       progresso,
       tratados,
       emAndamento: true,
@@ -91,6 +91,15 @@ export function progressoDoDisparo(
 }
 
 /** "hoje às 14:30", "amanhã às 09:00", "20/10 às 09:00". */
+/**
+ * "hoje às 14:00", "amanhã às 09:00", "20/10 às 12:00".
+ *
+ * `agora` é parâmetro e precisa ser PASSADO por quem já tem um. Quem chamar
+ * sem ele cai no relógio de verdade, e aí a função deixa de ser pura: o mesmo
+ * disparo passa a ler "hoje" antes da meia-noite e "12/10" depois, sem nada
+ * ter mudado no banco. Foi assim que o teste desta função, escrito no dia 12,
+ * passou naquele dia e falhou no 13.
+ */
 export function quandoPorExtenso(quando: Date, agora: Date = new Date()): string {
   const dia = (d: Date) =>
     new Intl.DateTimeFormat("en-CA", {

@@ -30,6 +30,14 @@
 // vezes, as duas pontas divergem — a tela aceita, o servidor recusa, e a
 // pessoa vê um erro depois de um botão que estava aceso.
 
+// ── Gêmeo deliberado ───────────────────────────────────────────────────────
+//
+// `supabase/functions/_shared/forma-de-pagamento.ts` é o par deste arquivo: as
+// Edge Functions rodam em Deno e não importam de `src/`. **Mexeu aqui, mexa
+// lá** — principalmente em `NO_BANCO`, que é o vocabulário que o filtro da
+// tela de Recebimentos compara. Duas pontas discordando fazem o lançamento
+// sumir do filtro, em silêncio.
+
 export type FormaDePagamento = "pix" | "dinheiro" | "cartao" | "cartao_parcelado";
 
 /**

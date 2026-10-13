@@ -162,6 +162,20 @@ export interface PedidoAoModelo {
   instrucao?: string;
   /** Vai como `user`. */
   pergunta: string;
+  /**
+   * Uma imagem junto da pergunta, quando há o que olhar.
+   *
+   * Existe por causa do comprovante fotografado no grupo do financeiro: ler o
+   * papel é a única forma de o valor entrar sem alguém digitar. Fica AQUI, e
+   * não num cliente separado, pelo mesmo motivo que o arquivo inteiro existe —
+   * duas portas para a mesma IA divergem em silêncio, e a segunda nasceria sem
+   * o reteste de teto de tokens e sem a medição de consumo.
+   *
+   * O modelo precisa enxergar imagem. Quando não enxerga, a OpenAI recusa a
+   * chamada com mensagem clara, e quem chamou mostra essa mensagem — melhor do
+   * que um silêncio que parece a foto não ter chegado.
+   */
+  imagem?: { base64: string; mimetype: string } | null;
   maxTokens: number;
   formato?: FormatoPedido;
   /** Nome do esquema, exigido pela OpenAI. Só quando há `formato`. */
@@ -200,11 +214,26 @@ export async function chamarModelo(p: PedidoAoModelo): Promise<string> {
     );
   }
 
+  // Com imagem, o conteúdo do `user` deixa de ser texto e vira uma lista de
+  // pedaços — é o formato que a OpenAI exige para visão. Sem imagem continua
+  // string pura, que é o que as outras três chamadas sempre mandaram.
+  const conteudo = p.imagem?.base64
+    ? [
+        { type: "text", text: p.pergunta },
+        {
+          type: "image_url",
+          image_url: {
+            url: `data:${p.imagem.mimetype || "image/jpeg"};base64,${p.imagem.base64}`,
+          },
+        },
+      ]
+    : p.pergunta;
+
   const base: Record<string, unknown> = {
     model: modelo,
     messages: [
       ...(p.instrucao?.trim() ? [{ role: "system", content: p.instrucao }] : []),
-      { role: "user", content: p.pergunta },
+      { role: "user", content: conteudo },
     ],
     ...(p.formato
       ? { response_format: formatoDeResposta(p.formato, p.nomeDoFormato ?? "resposta") }

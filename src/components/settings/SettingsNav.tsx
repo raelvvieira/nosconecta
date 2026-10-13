@@ -9,6 +9,7 @@ import {
   Building2,
   Images,
   MessageCircle,
+  Receipt,
   Share2,
   ShieldCheck,
   Stethoscope,
@@ -87,6 +88,13 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
         label: "Contas e cartões",
         description: "Bancos e faturas de cartão de crédito",
         icon: Wallet,
+      },
+      {
+        kind: "link",
+        to: "/configuracoes/grupo-do-financeiro",
+        label: "Grupo do financeiro",
+        description: "Lançar despesa escrevendo no WhatsApp",
+        icon: Receipt,
       },
       {
         // Rota própria, e não `section`, porque a CRUD genérica desta tela

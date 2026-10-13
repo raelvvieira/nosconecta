@@ -30,6 +30,7 @@ import {
 import { gravarMensagemEspelhada } from "../_shared/espelho-evolution.ts";
 import { pushToOwner } from "../_shared/push.ts";
 import { deixarOAgenteResponder } from "../_shared/agente-no-webhook.ts";
+import { deixarORoboRegistrar } from "../_shared/robo-do-financeiro.ts";
 import { tratarRespostaDoPaciente } from "../_shared/resposta-do-paciente.ts";
 
 const supabase = createClient(
@@ -114,10 +115,25 @@ async function gravarMensagem(ownerId: string, data: any) {
   // (`contextInfo.externalAdReply`) existe, e é por ele que a Luna sabe que
   // esta pessoa clicou num anúncio — hoje o único público que ela atende.
   const doAgente = deixarOAgenteResponder(supabase, ownerId, m, data);
+
+  // ── O robô do financeiro, pelo mesmo caminho e pelo mesmo motivo ──────
+  //
+  // Ele também chama modelo e também demora, então também sai da resposta ao
+  // webhook. Os dois são excludentes na prática — a Luna ignora grupo e o robô
+  // só olha grupo cadastrado —, mas dispará-los juntos é mais simples e mais
+  // seguro do que um `if` aqui decidindo quem é da vez: o dia em que a regra de
+  // um deles mudar, este arquivo não precisa saber.
+  //
+  // O evento cru vai junto por causa do `pushName`: é de lá que sai quem
+  // escreveu a mensagem no grupo, e é esse nome que aparece no histórico do
+  // lançamento.
+  const doFinanceiro = deixarORoboRegistrar(supabase, ownerId, m, data);
+
   // deno-lint-ignore no-explicit-any
   const runtime = (globalThis as any).EdgeRuntime;
-  if (runtime?.waitUntil) runtime.waitUntil(doAgente);
-  else await doAgente;
+  const tudo = Promise.all([doAgente, doFinanceiro]);
+  if (runtime?.waitUntil) runtime.waitUntil(tudo);
+  else await tudo;
 
   return { gravado: m.crmMessageId, telefone: m.phone, grupo: m.ehGrupo, resposta };
 }
