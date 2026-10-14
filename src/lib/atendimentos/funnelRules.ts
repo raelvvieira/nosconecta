@@ -15,6 +15,7 @@
 
 /** Condições sobre um paciente, para o funil de Clientes. */
 export type CondicaoCliente =
+  | "primeira_consulta"
   | "nunca_teve_consulta"
   | "tem_orcamento_aberto"
   | "tem_tratamento_pendente"
@@ -31,10 +32,25 @@ export type CondicaoPerdido =
   | "perdido_ha_menos_de_dias"
   | "sempre";
 
-export type Condicao = CondicaoCliente | CondicaoPerdido;
+/**
+ * Condições sobre quem chamou no WhatsApp, para o funil de Leads.
+ *
+ * A clínica definiu a fronteira em 14/10: lead é quem chamou e ainda não tem
+ * atendimento CONFIRMADO. Agendar não basta — "pode ter agendado, mas não
+ * confirmou que vinha, não veio". Quem confirma é o botão "Confirmar
+ * atendimento realizado", na agenda.
+ */
+export type CondicaoLead =
+  | "agendou_sem_confirmar"
+  | "falou_ha_menos_de_dias"
+  | "calado_ha_mais_de_dias"
+  | "sempre";
+
+export type Condicao = CondicaoCliente | CondicaoPerdido | CondicaoLead;
 
 /** Rótulo e se a condição pede um número. Alimenta a tela de edição. */
 export const CONDICOES: Record<Condicao, { rotulo: string; parametro: string | null }> = {
+  primeira_consulta: { rotulo: "Teve só o primeiro atendimento", parametro: null },
   nunca_teve_consulta: { rotulo: "Nunca teve consulta concluída", parametro: null },
   tem_orcamento_aberto: { rotulo: "Tem orçamento em aberto", parametro: null },
   tem_tratamento_pendente: { rotulo: "Tem tratamento aprovado pendente", parametro: null },
@@ -47,6 +63,9 @@ export const CONDICOES: Record<Condicao, { rotulo: string; parametro: string | n
   respondeu_apos_disparo: { rotulo: "Respondeu depois do disparo", parametro: null },
   recebeu_disparo_apos_perda: { rotulo: "Recebeu disparo depois da perda", parametro: null },
   perdido_ha_menos_de_dias: { rotulo: "Perdido há menos de", parametro: "dias" },
+  agendou_sem_confirmar: { rotulo: "Agendou e falta confirmar", parametro: null },
+  falou_ha_menos_de_dias: { rotulo: "Falou há menos de", parametro: "dias" },
+  calado_ha_mais_de_dias: { rotulo: "Calado há mais de", parametro: "dias" },
   sempre: { rotulo: "Todos os demais", parametro: null },
 };
 
@@ -72,12 +91,23 @@ export interface RegraDeFunil {
 
 export const REGRAS_CLIENTES_PADRAO: RegraDeFunil[] = [
   {
+    // ⚠️ Esta regra foi INVERTIDA em 14/10, e é a mudança mais fácil de
+    // entender errado deste arquivo.
+    //
+    // Antes, "Novo" era `nunca_teve_consulta` — ou seja, ficha sem atendimento.
+    // Com a importação antiga, isso punha 3.227 das 3.268 fichas numa coluna
+    // chamada "Novo", que ninguém nunca abriria: a maioria é cadastro herdado
+    // de gente que nunca falou com a clínica.
+    //
+    // A clínica redefiniu: cliente é quem teve atendimento CONFIRMADO, e
+    // "Novo" é quem acabou de confirmar o primeiro. Quem ainda não confirmou
+    // não é cliente nenhum — é lead, e vive no funil de Leads.
     id: "novo",
     nome: "Novo",
     cor: "#8B5CF6",
-    condicao: "nunca_teve_consulta",
+    condicao: "primeira_consulta",
     ativa: true,
-    explica: "Ainda sem consulta concluída",
+    explica: "Veio uma vez — acabou de virar cliente",
   },
   {
     id: "orcamento_aberto",
@@ -122,6 +152,46 @@ export const REGRAS_CLIENTES_PADRAO: RegraDeFunil[] = [
     condicao: "sempre",
     ativa: true,
     explica: "Em dia, sem pendência",
+  },
+];
+
+export const REGRAS_LEADS_PADRAO: RegraDeFunil[] = [
+  {
+    // Primeiro de propósito: é quem está a um passo de virar cliente, e ficaria
+    // escondido no meio de mil conversas se caísse por tempo de silêncio.
+    id: "agendou",
+    nome: "Agendou, falta confirmar",
+    cor: "#F59E0B",
+    condicao: "agendou_sem_confirmar",
+    ativa: true,
+    explica: "Tem horário marcado e nenhum atendimento confirmado",
+  },
+  {
+    id: "conversando",
+    nome: "Conversando",
+    cor: "#0EA5E9",
+    condicao: "falou_ha_menos_de_dias",
+    valor: 7,
+    ativa: true,
+    explica: "Falou nos últimos 7 dias",
+  },
+  {
+    id: "esfriando",
+    nome: "Esfriando",
+    cor: "#8B5CF6",
+    condicao: "calado_ha_mais_de_dias",
+    valor: 30,
+    ativa: true,
+    explica: "Calado há mais de 30 dias",
+  },
+  {
+    // O resto: entre 8 e 30 dias, e quem não tem data de mensagem.
+    id: "aguardando",
+    nome: "Aguardando resposta",
+    cor: "#94A3B8",
+    condicao: "sempre",
+    ativa: true,
+    explica: "Sem resposta recente, ainda dentro do mês",
   },
 ];
 
@@ -175,10 +245,20 @@ export const REGRAS_PERDIDOS_PADRAO: RegraDeFunil[] = [
  *  view `patient_funnel_signals`. */
 export interface SinaisDoCliente {
   teveConsulta: boolean;
+  /** Quantos atendimentos confirmados. Um só = acabou de virar cliente. */
+  consultasConcluidas: number;
   temOrcamentoAberto: boolean;
   temTratamentoPendente: boolean;
   /** `null` para quem nunca foi atendido — que é diferente de "muitos dias". */
   diasSemConsulta: number | null;
+}
+
+/** O que o funil de Leads sabe sobre quem chamou. */
+export interface SinaisDoLead {
+  /** Tem horário na agenda, mas nenhum confirmado como realizado. */
+  temAgendamento: boolean;
+  /** `null` quando não há mensagem datada — que é diferente de "há muito". */
+  diasEmSilencio: number | null;
 }
 
 /** O que o funil de Perdidos sabe sobre uma negociação. */
@@ -191,16 +271,19 @@ export interface SinaisDoPerdido {
   respondeuAposDisparo: boolean;
 }
 
-type Sinais = SinaisDoCliente | SinaisDoPerdido;
+type Sinais = SinaisDoCliente | SinaisDoPerdido | SinaisDoLead;
 
 function casa(regra: RegraDeFunil, s: Sinais): boolean {
   const cliente = s as SinaisDoCliente;
   const perdido = s as SinaisDoPerdido;
+  const lead = s as SinaisDoLead;
   const n = Number(regra.valor ?? 0);
 
   switch (regra.condicao) {
     case "sempre":
       return true;
+    case "primeira_consulta":
+      return Number(cliente.consultasConcluidas ?? 0) === 1;
     case "nunca_teve_consulta":
       return !cliente.teveConsulta;
     case "tem_orcamento_aberto":
@@ -219,6 +302,16 @@ function casa(regra: RegraDeFunil, s: Sinais): boolean {
       if (!cliente.temTratamentoPendente) return false;
       if (cliente.diasSemConsulta === null || cliente.diasSemConsulta === undefined) return false;
       return cliente.diasSemConsulta > n;
+    case "agendou_sem_confirmar":
+      return !!lead.temAgendamento;
+    case "falou_ha_menos_de_dias":
+      // Sem data de mensagem não casa: `null` é ausência de informação, não um
+      // número pequeno. Quem não tem data cai na última regra, que é o resto.
+      if (lead.diasEmSilencio === null || lead.diasEmSilencio === undefined) return false;
+      return lead.diasEmSilencio <= n;
+    case "calado_ha_mais_de_dias":
+      if (lead.diasEmSilencio === null || lead.diasEmSilencio === undefined) return false;
+      return lead.diasEmSilencio > n;
     case "motivo_definitivo":
       return !!perdido.motivoDefinitivo;
     case "respondeu_apos_disparo":
@@ -254,7 +347,10 @@ export function regrasOuPadrao(salvas: unknown, padrao: RegraDeFunil[]): RegraDe
   if (!Array.isArray(salvas) || !salvas.length) return padrao;
   const validas = salvas.filter(
     (r): r is RegraDeFunil =>
-      !!r && typeof r === "object" && typeof (r as any).id === "string" && (r as any).condicao in CONDICOES,
+      !!r &&
+      typeof r === "object" &&
+      typeof (r as any).id === "string" &&
+      (r as any).condicao in CONDICOES,
   );
   return validas.length ? validas : padrao;
 }
