@@ -10,11 +10,16 @@ import { clinicNowStamp } from "@/lib/date";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 import { dividirNome, montarNome } from "./nome";
 import { gravarTolerandoColunaAusente, semColuna } from "@/lib/schema-fallback";
+import { variantesDoNumero } from "@/lib/atendimentos/phone";
 import { normalizeBrazilianPhone } from "@/lib/atendimentos/phone";
 import { clinicTodayStr } from "@/lib/date";
 
 export type PatientStatus =
-  "active" | "in_treatment" | "return_pending" | "delinquent" | "inactive";
+  | "active"
+  | "in_treatment"
+  | "return_pending"
+  | "delinquent"
+  | "inactive";
 export type PatientFilter = "all" | PatientStatus;
 
 export interface PatientAppointment {
@@ -344,17 +349,19 @@ export const getPatientDetail = createServerFn({ method: "GET" })
     // implementações divergiriam no que conta como "aconteceu", e a mesma
     // pessoa teria duas últimas consultas diferentes em duas telas.
     const historico = historicoDoPaciente(
-      (appointmentsRes.data ?? []).map((a: any): ConsultaDoHistorico => ({
-        id: String(a.id),
-        patientId: a.patient_id ?? null,
-        date: String(a.date ?? ""),
-        startTime: String(a.start_time ?? ""),
-        status: a.status,
-        procedureName: a.procedure_name ?? "",
-        professionalName: a.professional_name ?? "",
-        expectedRevenue: money(a.expected_revenue),
-        actualRevenue: a.actual_revenue === null ? null : money(a.actual_revenue),
-      })),
+      (appointmentsRes.data ?? []).map(
+        (a: any): ConsultaDoHistorico => ({
+          id: String(a.id),
+          patientId: a.patient_id ?? null,
+          date: String(a.date ?? ""),
+          startTime: String(a.start_time ?? ""),
+          status: a.status,
+          procedureName: a.procedure_name ?? "",
+          professionalName: a.professional_name ?? "",
+          expectedRevenue: money(a.expected_revenue),
+          actualRevenue: a.actual_revenue === null ? null : money(a.actual_revenue),
+        }),
+      ),
       data.patientId,
       clinicNowStamp(),
     );
@@ -869,4 +876,68 @@ export const fixMissingCountryCodePhones = createServerFn({ method: "POST" })
       if (!updError) corrigidos++;
     }
     return { corrigidos };
+  });
+
+/**
+ * Os telefones de quem já esteve na agenda, em todas as formas.
+ *
+ * ── Por que telefone, e não `crm_contact_id` ────────────────────────────
+ *
+ * Porque `crm_contact_id` acha 11 pessoas e telefone acha 44, das 49 que já
+ * tiveram horário marcado. Medido nesta base, em 14/10.
+ *
+ * A coluna só é preenchida por `createPatient`, ou seja, por quem virou
+ * paciente a partir de uma conversa. Quem a recepção cadastrou direto na
+ * agenda — que é a maioria de quem efetivamente se consultou — não tem nada
+ * ali. Usar a coluna faria o filtro esconder 4 de cada 5 clientes de verdade, e
+ * esconder em silêncio: a tela mostraria um número menor e ninguém saberia que
+ * faltava gente.
+ *
+ * `quem-e-paciente.ts` escolheu `crm_contact_id` para a pergunta DELE, que é
+ * outra ("esta conversa é de alguém com ficha?") e exige concordar com o painel
+ * do chat. Aqui a pergunta é "quem já se consultou?", e a resposta certa é a
+ * mais larga.
+ *
+ * ── Por que as duas formas do número ────────────────────────────────────
+ *
+ * A ficha guarda `5551993967887` e o WhatsApp `555193967887`. Comparar
+ * literalmente acha 6 das 49. `variantesDoNumero` devolve as duas formas, e é
+ * a mesma função que o resto do sistema já usa para casar paciente com
+ * conversa — inventar aqui uma chave curta própria criaria uma segunda
+ * definição de "mesmo número", que é como duas telas passam a discordar.
+ *
+ * Qualquer status serve: cancelado também é alguém que esteve na agenda, e a
+ * clínica pediu "alguma vez, com horário marcado".
+ */
+export const getTelefonesNaAgenda = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .handler(async ({ context }): Promise<string[]> => {
+    const supabase: any = context.supabase;
+
+    // Duas consultas em vez de um join: o PostgREST não faz `select` a partir
+    // da tabela filha com filtro na mãe sem embutir o relacionamento, e os
+    // volumes aqui são de centenas — 103 agendamentos hoje.
+    const { data: agendados, error: erroAgenda } = await supabase
+      .from("appointments")
+      .select("patient_id")
+      .eq("owner_id", context.ownerId)
+      .not("patient_id", "is", null);
+    if (erroAgenda) throw new Error(erroAgenda.message);
+
+    const ids = [...new Set(((agendados ?? []) as any[]).map((a) => String(a.patient_id)))];
+    if (!ids.length) return [];
+
+    const { data: fichas, error: erroFichas } = await supabase
+      .from("patients")
+      .select("phone")
+      .eq("owner_id", context.ownerId)
+      .in("id", ids)
+      .not("phone", "is", null);
+    if (erroFichas) throw new Error(erroFichas.message);
+
+    const formas = new Set<string>();
+    for (const f of (fichas ?? []) as any[]) {
+      for (const v of variantesDoNumero(f.phone)) formas.add(v);
+    }
+    return [...formas];
   });

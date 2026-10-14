@@ -57,6 +57,23 @@ conferir("celular sem 9 ganha a forma com 9", variantesDoNumero("555193967887").
   "555193967887",
   "5551993967887",
 ]);
+// E o caminho de volta tem o mesmo limite do de ida: tirar o nono dígito só
+// vale quando o que sobra ainda tem desenho de celular.
+//
+// "5551933334444" sem o 9 daria "555133334444", que começa com 3 e é FIXO —
+// um número de outra pessoa, que nunca foi a forma antiga daquele celular.
+// Nesta base há 74 celulares nesse caso e 14 fixos para colidirem com eles, e
+// a colisão apareceria como um estranho dentro de um disparo "só para
+// clientes".
+conferir("celular 9 + fixo não perde o nono dígito", variantesDoNumero("5551933334444"), [
+  "5551933334444",
+]);
+conferir(
+  "mas o celular de verdade continua ganhando as duas",
+  variantesDoNumero("5551996667777").sort(),
+  ["555196667777", "5551996667777"],
+);
+
 // As duas entradas produzem o MESMO conjunto — é isso que faz a ponte casar
 // venha o número de onde vier.
 conferir(

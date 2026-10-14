@@ -1,7 +1,14 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { AlertTriangle, Loader2, MessageCircle, UserRound, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarCheck,
+  Loader2,
+  MessageCircle,
+  UserRound,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,13 +17,14 @@ import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { useContatosIncremental } from "@/lib/atendimentos/useContatosIncremental";
 import {
   alternarSelecaoDoRecorte,
+  contarNaAgenda,
   contarPorDdd,
   filtrarContatos,
 } from "@/lib/atendimentos/contactFilters";
 import { getConversations } from "@/lib/atendimentos/atendimentos.functions";
 import { getRecentRecipients } from "@/lib/atendimentos/broadcast.functions";
 import { getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
-import { getPatientContacts } from "@/lib/patients/patients.functions";
+import { getPatientContacts, getTelefonesNaAgenda } from "@/lib/patients/patients.functions";
 import { calcularLote } from "@/lib/atendimentos/loteDeDisparo";
 import { pessoasUnicas } from "@/lib/atendimentos/prepararAlvos";
 import { conversaPorContato } from "@/lib/atendimentos/agruparConversas";
@@ -112,6 +120,7 @@ export function ContactsTab({
 }) {
   const fetchConversations = useServerFn(getConversations);
   const fetchPatientContacts = useServerFn(getPatientContacts);
+  const fetchTelefonesNaAgenda = useServerFn(getTelefonesNaAgenda);
   const fetchRecentRecipients = useServerFn(getRecentRecipients);
 
   // Chega aos pedaços: a primeira página já aparece, e o resto entra por trás
@@ -132,6 +141,15 @@ export function ContactsTab({
   const patientsQuery = useQuery({
     queryKey: ["patient-contacts-sem-crm"],
     queryFn: () => fetchPatientContacts(),
+    enabled: ativo,
+    staleTime: 60_000,
+  });
+
+  // Quem já teve horário marcado alguma vez, pelo telefone — nas duas formas,
+  // com e sem o nono dígito. Lista curta (49 pessoas hoje) e consulta única.
+  const naAgendaQuery = useQuery({
+    queryKey: ["telefones-na-agenda"],
+    queryFn: () => fetchTelefonesNaAgenda(),
     enabled: ativo,
     staleTime: 60_000,
   });
@@ -173,6 +191,8 @@ export function ContactsTab({
 
   const [busca, setBusca] = useState("");
   const [ddds, setDdds] = useState<Set<string>>(new Set());
+  /** Só quem já teve horário marcado alguma vez. */
+  const [soClientesAtivos, setSoClientesAtivos] = useState(false);
   const [tagsEscolhidas, setTagsEscolhidas] = useState<Set<string>>(new Set());
   // Só quem é do número conectado, por padrão. Trocar de número no WhatsApp
   // deixa a caixa antiga na conta com todas as conversas dela, e disparar para
@@ -311,9 +331,27 @@ export function ContactsTab({
 
   /** DDDs presentes na base, do mais numeroso para o menos. */
   const fichasDdd = useMemo(() => contarPorDdd(semRecentes), [semRecentes]);
+
+  // O conjunto de telefones de quem já esteve na agenda. `null` enquanto a
+  // consulta não voltou — e `null` NÃO filtra, de propósito: ligar a ficha
+  // antes dos dados chegarem esvaziaria a lista por um instante e faria
+  // parecer que não há cliente nenhum.
+  const naAgenda = useMemo(
+    () => (naAgendaQuery.data ? new Set(naAgendaQuery.data) : null),
+    [naAgendaQuery.data],
+  );
+  const recorteNaAgenda = soClientesAtivos && naAgenda ? naAgenda : null;
+  const quantosAtivos = useMemo(
+    () => (naAgenda ? contarNaAgenda(semRecentes, naAgenda) : 0),
+    [semRecentes, naAgenda],
+  );
+
   const filtrados = useMemo(
-    () => filtrarContatos(semRecentes, { busca, ddds }).filter(temAlgumaTagEscolhida),
-    [semRecentes, busca, ddds, tagsEscolhidas, porContatoTags],
+    () =>
+      filtrarContatos(semRecentes, { busca, ddds, naAgenda: recorteNaAgenda }).filter(
+        temAlgumaTagEscolhida,
+      ),
+    [semRecentes, busca, ddds, recorteNaAgenda, tagsEscolhidas, porContatoTags],
   );
 
   // O recorte para o envio em lotes, em duas medidas: quantos existem e quantos
@@ -321,12 +359,18 @@ export function ContactsTab({
   // propósito — desligar "sem disparo recente" muda o que a lista MOSTRA, mas
   // não pode fazer o lote reenviar para quem já recebeu.
   const recorteTotal = useMemo(
-    () => filtrarContatos(noEscopo, { busca, ddds }).filter(temAlgumaTagEscolhida).length,
-    [noEscopo, busca, ddds, tagsEscolhidas, porContatoTags],
+    () =>
+      filtrarContatos(noEscopo, { busca, ddds, naAgenda: recorteNaAgenda }).filter(
+        temAlgumaTagEscolhida,
+      ).length,
+    [noEscopo, busca, ddds, recorteNaAgenda, tagsEscolhidas, porContatoTags],
   );
   const recortePendente = useMemo(
-    () => filtrarContatos(naoTratados, { busca, ddds }).filter(temAlgumaTagEscolhida),
-    [naoTratados, busca, ddds, tagsEscolhidas, porContatoTags],
+    () =>
+      filtrarContatos(naoTratados, { busca, ddds, naAgenda: recorteNaAgenda }).filter(
+        temAlgumaTagEscolhida,
+      ),
+    [naoTratados, busca, ddds, recorteNaAgenda, tagsEscolhidas, porContatoTags],
   );
 
   const lote = calcularLote({
@@ -466,6 +510,31 @@ export function ContactsTab({
         visiveis={semRecentes.length}
         base={contatos.length + semTelefone}
       />
+
+      {/* Clientes ativos vem ANTES dos DDDs: é o recorte com significado
+          comercial, e os DDDs são geografia. Fica fora da faixa rolável para
+          não sumir para a direita numa base com oito DDDs. */}
+      {quantosAtivos > 0 && (
+        <button
+          type="button"
+          onClick={() => {
+            setSoClientesAtivos((v) => !v);
+            // Sair do recorte não pode deixar selecionado alguém que sumiu da
+            // lista — a mesma regra dos outros filtros desta tela.
+            onSelecionadosChange(new Set());
+          }}
+          className={cn(
+            "mt-3 flex h-11 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors",
+            soClientesAtivos
+              ? "border-coral bg-coral-soft text-coral"
+              : "border-border bg-white text-foreground-secondary",
+          )}
+        >
+          <CalendarCheck className="h-4 w-4" strokeWidth={2} />
+          Clientes ativos
+          <span className="text-muted-foreground">({quantosAtivos})</span>
+        </button>
+      )}
 
       {fichasDdd.length > 0 && (
         <div className="scrollbar-none -mx-4 mt-3 flex gap-2 overflow-x-auto px-4">

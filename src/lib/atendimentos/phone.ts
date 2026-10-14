@@ -98,8 +98,18 @@ export function variantesDoNumero(raw: string | null | undefined): string[] {
   const resto = completo.slice(4);
   const formas = new Set<string>([completo]);
 
-  if (resto.length === 9 && resto.startsWith("9")) {
+  if (resto.length === 9 && /^9[6-9]/.test(resto)) {
     // Com o 9 → acrescenta a forma sem ele.
+    //
+    // `9[6-9]` e não só `9`: tirar o nono dígito de "933334444" daria
+    // "33334444", que começa com 3 e portanto é desenho de FIXO. Celular
+    // antigo sempre começou com 6, 7, 8 ou 9, então essa forma nunca existiu —
+    // é um número de outra pessoa. Nesta base há 74 celulares que caem nesse
+    // caso e 14 fixos para colidirem com eles, e a colisão apareceria como um
+    // estranho dentro de um disparo "só para clientes".
+    //
+    // Não perde casamento verdadeiro: um celular que ganhou o 9 tem a forma
+    // 9 + [6-9]XXXXXXX, que passa no teste.
     formas.add(`55${ddd}${resto.slice(1)}`);
   } else if (resto.length === 8 && /^[6-9]/.test(resto)) {
     // Celular antigo, sem o 9 → acrescenta a forma com ele.
