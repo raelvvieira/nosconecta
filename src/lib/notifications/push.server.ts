@@ -8,7 +8,8 @@ export type PushType =
   | "daily_agenda"
   | "appointment_reply"
   | "deal_result"
-  | "automation";
+  | "automation"
+  | "luna_duvida";
 
 export async function sendPushToOwner(
   ownerId: string,

@@ -13,6 +13,7 @@
 // E em nenhum dos dois a IA manda dados de pagamento: a chave pix da clínica é o
 // CPF pessoal da doutora.
 import {
+  montarInstrucao,
   secaoDePacienteModelo,
   type PacienteModelo,
 } from "../supabase/functions/_shared/instrucao-do-agente.ts";
@@ -144,6 +145,86 @@ contem(
   secaoDePacienteModelo({ ate: "2026-10-30", texto: "   " }, HOJE),
   "NÃO há edição",
 );
+
+// ── O endereço do evento, que não é o da clínica ───────────────────────────
+//
+// A conversa de 15/10, às 01:48. A Luna já tinha dito, certíssima, que a vaga
+// era "em Porto Alegre, nos dias 23, 24 e 25 de outubro". Perguntaram "onde fica
+// endereço" e ela respondeu: "A NÓS Florianópolis fica na R. José Brognoli,
+// 117". A Dra. Mariane entrou na conversa e colou o endereço certo à mão.
+//
+// Ela não errou o raciocínio. O endereço do local da mentoria não existia em
+// campo nenhum do sistema, e a seção "Onde a clínica fica" manda cair na unidade
+// principal quando não há horário combinado — e a principal é Florianópolis.
+
+const MEDPLEX = "MedPlex Santana, R. Gomes Jardim, 301, Sala 913, Porto Alegre";
+const emPoa: PacienteModelo = {
+  ate: "2026-10-25",
+  texto: "Edição de outubro em PORTO ALEGRE, dias 23, 24 e 25. Reserva de R$ 150.",
+  local: MEDPLEX,
+};
+
+{
+  const t = secaoDePacienteModelo(emPoa, HOJE);
+  contem("o endereço da edição aparece", t, MEDPLEX);
+  contem("e é apresentado como o da edição", t, "Onde esta edição acontece");
+  contem("com a ressalva de que é o único", t, "é o único que você dá");
+  contem("e que os da clínica não valem aqui", t, "NÃO valem aqui");
+}
+
+// Sem endereço cadastrado NÃO é silêncio: é a proibição de chutar. Era este o
+// comportamento que faltava — a Luna não tinha a resposta certa e usou a errada
+// em vez de passar para uma pessoa.
+{
+  const t = secaoDePacienteModelo({ ...emPoa, local: null }, HOJE);
+  contem("sem endereço, manda confirmar", t, "vai confirmar o endereço");
+  contem("e proíbe o da clínica", t, "não dê o endereço da clínica");
+  naoContem("e não inventa endereço", t, MEDPLEX);
+}
+{
+  const t = secaoDePacienteModelo({ ...emPoa, local: "   " }, HOJE);
+  contem("endereço em branco conta como ausente", t, "vai confirmar o endereço");
+}
+
+// Edição fechada não vaza o endereço do evento: sem oferta, não há evento para
+// o qual dar endereço.
+{
+  const t = secaoDePacienteModelo({ ...emPoa, ate: "2026-09-01" }, HOJE);
+  naoContem("edição vencida não traz o endereço", t, MEDPLEX);
+  contem("e continua mandando calar", t, "NÃO há edição");
+}
+
+// ── A instrução inteira: as duas seções juntas, sem se contradizer ─────────
+//
+// É aqui que o defeito aparecia de verdade. Cada seção, sozinha, estava certa.
+// Montadas na mesma instrução, a da clínica dizia "na dúvida, a principal" sem
+// nenhum limite — e a principal é a cidade errada para uma mentoria.
+{
+  const inteira = montarInstrucao({
+    clinica: "NÓS Odontologia",
+    manual: {},
+    procedimentos: [],
+    hoje: HOJE,
+    pacienteModelo: emPoa,
+    unidades: [
+      { nome: "NÓS Florianópolis", endereco: "R. José Brognoli, 117", principal: true },
+      { nome: "NÓS Porto Alegre", endereco: "Av. Osvaldo Aranha, 1022", principal: false },
+    ],
+  });
+  contem("a instrução traz o endereço da edição", inteira, MEDPLEX);
+  contem("e traz os das unidades também", inteira, "R. José Brognoli, 117");
+  // O limite que faltava: sem ele a regra da unidade principal vale para tudo.
+  contem(
+    "a regra da unidade padrão é limitada à clínica",
+    inteira,
+    "vale para atendimento NA CLÍNICA",
+  );
+  contem(
+    "e manda usar o endereço da mentoria nessas conversas",
+    inteira,
+    "o endereço é o daquela seção",
+  );
+}
 
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);

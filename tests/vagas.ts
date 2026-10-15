@@ -434,6 +434,152 @@ conferir("noite das 17h em diante", periodoDoDia("17:00"), "noite");
   );
 }
 
+// ── Duas cidades nunca viram duas opções equivalentes ──────────────────────
+//
+// O caso real, de 15/10 às 01:48: a conversa era sobre uma mentoria em PORTO
+// ALEGRE, e quando perguntaram o endereço a Luna respondeu o de Florianópolis.
+// A causa aqui dentro era o agrupamento: um momento era (dia, hora), e as
+// cadeiras das duas unidades caíam no mesmo. Quem gravava ficava com `vagas[0]`
+// — a primeira que o banco devolvesse —, e com duas unidades ativas isso era
+// uma moeda jogada em metade das conversas.
+//
+// Agora um momento é (dia, hora, UNIDADE), e os dois horários oferecidos são
+// sempre da mesma.
+
+const POA = "u-poa";
+function vagasEmPoa(date: string, horas: string[]): Vaga[] {
+  const saida: Vaga[] = [];
+  for (const hora of horas)
+    saida.push({
+      date,
+      hora,
+      salaId: "poa-1",
+      salaNome: "Cadeira 1",
+      unidadeId: POA,
+      unidadeNome: "NÓS Porto Alegre",
+    });
+  return saida;
+}
+
+// O mesmo dia e a mesma hora nas duas cidades são DOIS momentos, não um.
+{
+  const r = escolherMomentos(
+    [...vagasEm("2026-09-28", ["15:00"]), ...vagasEmPoa("2026-09-28", ["15:00"])],
+    { date: "2026-09-28", hora: "14:00" },
+    2,
+  );
+  const todos = [...r.paraOferecer, ...r.reserva];
+  conferir("as duas cidades não se fundem num momento", todos.length, 2);
+  conferir(
+    "e cada momento sabe a sua unidade",
+    todos.map((m) => m.unidadeId).sort(),
+    [UNIDADE, POA].sort(),
+  );
+  // Nenhuma das duas tem DUAS opções, então não há par para oferecer de uma
+  // unidade só — e o que não pode acontecer é oferecer uma de cada cidade.
+  conferir(
+    "a oferta não mistura cidade",
+    new Set(r.paraOferecer.map((m) => m.unidadeId)).size <= 1,
+    true,
+  );
+}
+
+// A cadeira que sobrou não arrasta a unidade: cada momento guarda a sua.
+{
+  const r = escolherMomentos(
+    [...vagasEm("2026-09-28", ["15:00", "16:00"]), ...vagasEmPoa("2026-09-28", ["15:00", "16:00"])],
+    { date: "2026-09-28", hora: "14:00" },
+    2,
+  );
+  conferir(
+    "os dois oferecidos são da mesma cidade",
+    new Set(r.paraOferecer.map((m) => m.unidadeId)).size,
+    1,
+  );
+  conferir(
+    "e as cadeiras do momento são todas dela",
+    r.paraOferecer.every((m) => m.vagas.every((vg) => vg.unidadeId === m.unidadeId)),
+    true,
+  );
+  // A outra cidade continua existindo, na reserva — é o que responde "eu sou de
+  // Porto Alegre". Jogá-la fora deixaria quem está na outra cidade sem resposta.
+  conferir(
+    "a outra cidade sobra na reserva",
+    r.reserva.some((m) => m.unidadeId !== r.paraOferecer[0].unidadeId),
+    true,
+  );
+}
+
+// A unidade escolhida é a do horário MAIS PRÓXIMO entre as que têm duas opções.
+{
+  const r = escolherMomentos(
+    [
+      // Porto Alegre tem duas, e mais cedo.
+      ...vagasEmPoa("2026-09-28", ["15:00", "16:00"]),
+      // Florianópolis tem duas também, mas depois.
+      ...vagasEm("2026-09-28", ["16:30"]),
+      ...vagasEm("2026-09-29", ["09:00"]),
+    ],
+    { date: "2026-09-28", hora: "14:00" },
+    2,
+  );
+  conferir("ganha quem tem o horário mais próximo", r.paraOferecer[0].unidadeId, POA);
+  conferir(
+    "e o par inteiro é dela",
+    r.paraOferecer.every((m) => m.unidadeId === POA),
+    true,
+  );
+}
+
+// Uma opção em cada cidade na faixa curta NÃO fecha a faixa: a conta é por
+// unidade. Somando as duas, a faixa de 3 horas passaria e a oferta sairia com
+// uma cidade de cada lado.
+{
+  const r = escolherMomentos(
+    [
+      ...vagasEm("2026-09-28", ["15:00"]),
+      ...vagasEmPoa("2026-09-28", ["16:00"]),
+      // Só Florianópolis tem duas, e já na faixa de dois dias.
+      ...vagasEm("2026-09-29", ["09:00", "11:00"]),
+    ],
+    { date: "2026-09-28", hora: "14:00" },
+    2,
+  );
+  conferir("a faixa abre até caber um par de uma só unidade", r.faixa, "nos próximos 2 dias");
+  conferir("e o par é de uma cidade só", new Set(r.paraOferecer.map((m) => m.unidadeId)).size, 1);
+}
+
+// A tarde da outra cidade não é apagada da reserva por já ter saído uma tarde.
+// Para quem está em Porto Alegre, a tarde de Porto Alegre é a resposta certa.
+{
+  const r = escolherMomentos(
+    [...vagasEm("2026-09-29", ["14:00", "15:00"]), ...vagasEmPoa("2026-09-29", ["14:30"])],
+    { date: "2026-09-29", hora: "09:00" },
+    2,
+    10,
+  );
+  conferir(
+    "a tarde da outra cidade continua na reserva",
+    r.reserva.some((m) => m.unidadeId === POA),
+    true,
+  );
+}
+
+// Uma clínica de uma unidade só não muda de comportamento. É a maioria, e uma
+// mudança de regra que mexe no caso simples é uma regressão disfarçada.
+{
+  const r = escolherMomentos(vagasEm("2026-09-28", ["15:00", "16:00"]), {
+    date: "2026-09-28",
+    hora: "14:00",
+  });
+  conferir("unidade única: duas opções como antes", r.paraOferecer.length, 2);
+  conferir(
+    "e as horas são as mesmas",
+    r.paraOferecer.map((m) => m.hora),
+    ["15:00", "16:00"],
+  );
+}
+
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);
   for (const f of falhas) console.error("  - " + f);

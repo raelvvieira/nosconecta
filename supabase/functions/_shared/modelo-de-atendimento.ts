@@ -350,6 +350,17 @@ export interface RespostaAoPaciente {
    *  só uma string, de propósito: este arquivo não sabe o que é um caso, e
    *  quem transforma código em arquivo é quem tem o catálogo da conversa. */
   casoEnviado: string;
+  /**
+   * A dúvida que ela acabou de encaminhar para a equipe, com as palavras dela.
+   * Vazia quando não encaminhou nada, que é o normal.
+   *
+   * Texto livre, e não um código como os dois acima, porque aqui nada é
+   * EXECUTADO: a string é registrada e mostrada a uma pessoa. Código validado
+   * contra catálogo existe onde a resposta do modelo vira arquivo enviado ou
+   * consulta criada; uma pergunta que vai para a tela da recepção não vira
+   * nada sozinha.
+   */
+  duvidaEncaminhada: string;
 }
 
 /**
@@ -373,7 +384,7 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["resposta", "horarioFechado", "casoEnviado"],
+    required: ["resposta", "horarioFechado", "casoEnviado", "duvidaEncaminhada"],
     properties: {
       resposta: {
         type: "string",
@@ -388,6 +399,11 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
         type: "string",
         description:
           "O código do caso de antes e depois a mandar junto desta mensagem (C1, C2…), exatamente como está na lista. Vazio quando não há caso a mandar, que é o normal.",
+      },
+      duvidaEncaminhada: {
+        type: "string",
+        description:
+          "A pergunta específica que você acabou de dizer que vai confirmar com a equipe, em uma frase curta. Vazio quando você respondeu tudo sozinha, que é o normal.",
       },
     },
   },
@@ -424,22 +440,30 @@ export async function responderPaciente(
  */
 export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
   const cru = String(bruto ?? "").trim();
-  const vazia = { texto: "", horarioFechado: "", casoEnviado: "" };
+  const vazia = { texto: "", horarioFechado: "", casoEnviado: "", duvidaEncaminhada: "" };
   if (!cru) return vazia;
   try {
     const obj = JSON.parse(cru) as {
       resposta?: unknown;
       horarioFechado?: unknown;
       casoEnviado?: unknown;
+      duvidaEncaminhada?: unknown;
     };
     if (!obj || typeof obj !== "object") return { ...vazia, texto: cru };
     const texto = typeof obj.resposta === "string" ? obj.resposta.trim() : "";
     const codigo = typeof obj.horarioFechado === "string" ? obj.horarioFechado.trim() : "";
     const caso = typeof obj.casoEnviado === "string" ? obj.casoEnviado.trim() : "";
+    // Teto curto: é uma frase para uma pessoa ler na tela, não um relatório. Um
+    // modelo que resolvesse despejar a conversa inteira aqui encheria a coluna
+    // e o aviso no celular de quem atende.
+    const duvida =
+      typeof obj.duvidaEncaminhada === "string" ? obj.duvidaEncaminhada.trim().slice(0, 300) : "";
     // JSON válido sem o campo `resposta` não é a resposta: é outro objeto. Cai
     // para o texto cru, que ao menos é algo que alguém escreveu — e sem caso
     // nenhum: num objeto que não entendemos, mandar foto é o pior palpite.
-    return texto ? { texto, horarioFechado: codigo, casoEnviado: caso } : { ...vazia, texto: cru };
+    return texto
+      ? { texto, horarioFechado: codigo, casoEnviado: caso, duvidaEncaminhada: duvida }
+      : { ...vazia, texto: cru };
   } catch {
     return { ...vazia, texto: cru };
   }

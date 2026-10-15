@@ -31,14 +31,17 @@ export function PacienteModelo() {
   const { config, gravar } = useAtendimento();
   const [ate, setAte] = useState("");
   const [texto, setTexto] = useState("");
+  const [local, setLocal] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   const ateDoServidor = config?.pacienteModeloAte ?? "";
   const textoDoServidor = config?.pacienteModeloTexto ?? "";
+  const localDoServidor = config?.pacienteModeloLocal ?? "";
   useEffect(() => setAte(ateDoServidor), [ateDoServidor]);
   useEffect(() => setTexto(textoDoServidor), [textoDoServidor]);
+  useEffect(() => setLocal(localDoServidor), [localDoServidor]);
 
-  const mudou = ate !== ateDoServidor || texto !== textoDoServidor;
+  const mudou = ate !== ateDoServidor || texto !== textoDoServidor || local !== localDoServidor;
 
   // O MESMO critério de `secaoDePacienteModelo`, e por isso a comparação é de
   // string: as duas datas são "AAAA-MM-DD", formato em que ordem alfabética e
@@ -105,6 +108,30 @@ export function PacienteModelo() {
           />
         </div>
 
+        {/* O endereço vem ANTES do texto grande, e logo depois da data, porque
+            é o campo que corrige um erro conhecido: em 15/10 a Luna respondeu
+            o endereço de Florianópolis numa conversa sobre uma edição em Porto
+            Alegre, e a Dra. Mariane teve de colar o certo à mão. Enterrado
+            embaixo de catorze linhas de texto, ninguém preencheria. */}
+        <div>
+          <label htmlFor="pm-local" className="text-sm font-medium">
+            Endereço do local da mentoria
+          </label>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Onde esta edição acontece. É o endereço que a Luna dá quando perguntarem, e ele{" "}
+            <strong>substitui</strong> o da clínica nessas conversas. Em branco, ela passa a
+            conversa para uma pessoa em vez de arriscar a cidade errada.
+          </p>
+          <Textarea
+            id="pm-local"
+            value={local}
+            onChange={(e) => setLocal(e.target.value)}
+            rows={3}
+            placeholder="Prédio, rua e número, sala, cidade."
+            className="mt-2 resize-y rounded-xl border-border text-sm leading-5"
+          />
+        </div>
+
         <div>
           <label htmlFor="pm-texto" className="text-sm font-medium">
             O que a Luna pode dizer
@@ -133,7 +160,11 @@ export function PacienteModelo() {
           disabled={!mudou || salvando}
           onClick={async () => {
             setSalvando(true);
-            await gravar({ pacienteModeloAte: ate, pacienteModeloTexto: texto });
+            await gravar({
+              pacienteModeloAte: ate,
+              pacienteModeloTexto: texto,
+              pacienteModeloLocal: local,
+            });
             setSalvando(false);
           }}
         >
@@ -145,6 +176,7 @@ export function PacienteModelo() {
             onClick={() => {
               setAte(ateDoServidor);
               setTexto(textoDoServidor);
+              setLocal(localDoServidor);
             }}
             className="text-xs text-muted-foreground underline-offset-2 hover:underline"
           >

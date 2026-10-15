@@ -16,6 +16,13 @@ const PREFERENCE_COLUMN = {
   // "resultado de negociação" não controle silenciosamente algo que a
   // clínica configurou noutro lugar.
   automation: "automation",
+  // A Luna encaminhou uma dúvida e está esperando alguém confirmar. Tipo
+  // próprio, e não reaproveitando `whatsapp_message`, pela mesma razão do
+  // `automation` acima: quem desliga o aviso de mensagem nova porque o celular
+  // vibra demais não está pedindo para deixar de saber que a Luna travou numa
+  // pergunta. Entre 28/09 e 15/10 ela encaminhou 50 dúvidas e nenhuma chegou a
+  // ninguém.
+  luna_duvida: "luna_duvida",
 } as const;
 
 export type PushType = keyof typeof PREFERENCE_COLUMN;

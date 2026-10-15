@@ -18,12 +18,13 @@
 // Aqui embaixo, nada do que acontece pode subir. O pior caso é o agente não
 // responder, com o motivo no log.
 import { atender, type MensagemDeEntrada } from "./atendimento.ts";
-import { ehConversaNova, primeiraMensagemDaPessoa } from "./conversa-nova.ts";
+import { ehConversaNova, ritmoDoContato } from "./conversa-nova.ts";
 import { ehPacienteDoContato } from "./quem-e-paciente.ts";
 import { historicoDoEspelho } from "./historico-da-conversa.ts";
 import { responderPaciente } from "./modelo-de-atendimento.ts";
 import { anotarConsumo } from "./consumo-da-ia.ts";
 import { enviarWhatsapp, type MidiaDeEnvio } from "./whatsapp-send.ts";
+import { pushToOwner } from "./push.ts";
 import type { MensagemEspelhada } from "./evolution-mapear.ts";
 import { anuncioDoEvento } from "./veio-de-anuncio.ts";
 import { procedimentoDoTexto, SEM_PROCEDIMENTO } from "./agendamento-da-ia.ts";
@@ -152,9 +153,9 @@ export async function deixarOAgenteResponder(
 
     // Os dois fatos, em paralelo: são consultas independentes e a mensagem do
     // paciente já está esperando resposta.
-    const [ehPaciente, primeiraEm] = await Promise.all([
+    const [ehPaciente, ritmo] = await Promise.all([
       ehPacienteDoContato(supabase, ownerId, m.crmContactId),
-      primeiraMensagemDaPessoa(supabase, ownerId, m.crmConversationId),
+      ritmoDoContato(supabase, ownerId, m.crmConversationId),
     ]);
 
     // Uma leitura só: o anúncio serve para duas coisas (o filtro e a
@@ -179,7 +180,16 @@ export async function deixarOAgenteResponder(
       // esta chamada faria a consulta voltar vazia para todo contato novo — e
       // "vazia" quer dizer "nova", então por sorte ainda daria certo, mas por
       // motivo errado. Não antecipar.
-      conversaNova: ehConversaNova(primeiraEm, new Date(), Number(agente?.novo_ate_dias ?? 7)),
+      conversaNova: ehConversaNova(
+        ritmo.primeiraEm,
+        new Date(),
+        Number(agente?.novo_ate_dias ?? 7),
+      ),
+      // Quanto tempo a pessoa ficou calada antes desta mensagem. É o que
+      // permite a Luna CONTINUAR numa conversa que já é dela depois de a janela
+      // de contato novo passar — `atender` junta este fato com o
+      // `last_outbound_at` da sessão, que é quem sabe se ela já falou aqui.
+      silencioEmDias: ritmo.silencioEmDias,
       // De onde a pessoa veio, lido do evento cru. `null` quando não veio de
       // anúncio — e `null`, aqui, é uma AFIRMAÇÃO: olhei e não tem marcador.
       // É diferente de omitir, que é o que a simulação da tela faz e significa
@@ -241,6 +251,31 @@ export async function deixarOAgenteResponder(
           console.log(
             `[luna] agendamento ${vaga.codigo} ${vaga.date} ${vaga.hora}: ${r.motivo}`,
             r.appointmentId ?? "",
+          );
+        },
+        // ── O aviso de dúvida encaminhada ─────────────────────────────────
+        //
+        // Fornecido SÓ aqui, como `registrarAgendamento`: a prévia da tela não
+        // passa, e por isso testar a Luna não faz o celular de ninguém vibrar.
+        //
+        // Vai para a caixa de avisos TAMBÉM, e não só para o push (o segundo
+        // argumento de `pushToOwner` com `caixa`): o push é uma tentativa de
+        // entrega e pode não sair — sem VAPID, com o tipo desligado, sem
+        // aparelho inscrito. A caixa é o registro durável, e é ela que garante
+        // que a dúvida não desapareça como as 50 de setembro.
+        avisarDuvida: async (pergunta) => {
+          await pushToOwner(
+            supabase,
+            ownerId,
+            "luna_duvida",
+            {
+              title: `A Luna precisa de você: ${String(m.contactName ?? "").trim() || m.phone || "contato"}`,
+              body: pergunta.length > 160 ? `${pergunta.slice(0, 157)}…` : pergunta,
+              url: "/atendimentos/chat",
+            },
+            // Sem agendamento e sem paciente: é uma dúvida de conversa. O
+            // objeto vazio é o que LIGA a caixa — ausente, só haveria push.
+            {},
           );
         },
         enviar: async (pedaco, esperaMs, caso) => {

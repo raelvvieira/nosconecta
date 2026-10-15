@@ -177,18 +177,26 @@ export async function horariosParaOferecer(
     const simples = (m: {
       date: string;
       hora: string;
+      unidadeId: string;
+      unidadeNome: string;
       vagas: { salaId: string; salaNome: string; unidadeId: string; unidadeNome: string }[];
     }) => {
       // A primeira cadeira livre. Quando há duas, qualquer uma serve; o que não
       // serve é nenhuma.
+      //
+      // A UNIDADE não sai mais daqui, e essa é a diferença: ela vem do momento,
+      // que desde 16/10 é (dia, hora, unidade). Antes saía de `vagas[0]` — a
+      // primeira cadeira que o banco devolvesse —, e com duas unidades ativas
+      // isso fazia o horário anunciar uma cidade e a consulta ser gravada
+      // naquela que por acaso vinha primeiro.
       const v = m.vagas[0];
       return {
         date: m.date,
         hora: m.hora,
-        unidadeNome: v?.unidadeNome ?? "a clínica",
+        unidadeNome: m.unidadeNome || "a clínica",
         salaId: v?.salaId ?? null,
         salaNome: v?.salaNome ?? null,
-        unidadeId: v?.unidadeId ?? null,
+        unidadeId: m.unidadeId || null,
       };
     };
 

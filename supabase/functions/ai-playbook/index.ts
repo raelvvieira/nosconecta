@@ -773,6 +773,10 @@ async function contextoDaClinica(ownerId: string, agente: any) {
     pacienteModelo: {
       ate: agente?.paciente_modelo_ate ?? null,
       texto: agente?.paciente_modelo_texto ?? null,
+      // O endereço do local da mentoria. A prévia da tela mostra a instrução
+      // de verdade, e deixá-lo de fora aqui faria a tela exibir uma Luna que
+      // não sabe o endereço enquanto a de produção sabe.
+      local: agente?.paciente_modelo_local ?? null,
     },
     hoje: agoraNaClinica().date,
     procedimentos: procedimentos.map((p) => ({

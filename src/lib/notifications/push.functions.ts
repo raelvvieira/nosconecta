@@ -6,7 +6,8 @@ export type PushType =
   | "daily_agenda"
   | "appointment_reply"
   | "deal_result"
-  | "automation";
+  | "automation"
+  | "luna_duvida";
 
 export const PUSH_TYPE_LABEL: Record<PushType, { title: string; description: string }> = {
   whatsapp_message: {
@@ -29,6 +30,11 @@ export const PUSH_TYPE_LABEL: Record<PushType, { title: string; description: str
     title: "Aviso de automação",
     description: "Quando uma automação com a ação \u201cNotificar a equipe\u201d dispara.",
   },
+  luna_duvida: {
+    title: "A Luna precisa de uma confirmação",
+    description:
+      "Quando ela encaminha uma dúvida para a equipe. Sem este aviso, ninguém fica sabendo e o paciente espera.",
+  },
 };
 
 export const PUSH_TYPES = Object.keys(PUSH_TYPE_LABEL) as PushType[];
@@ -39,6 +45,7 @@ export interface PushPreferences {
   appointment_reply: boolean;
   deal_result: boolean;
   automation: boolean;
+  luna_duvida: boolean;
 }
 
 export interface PushDevice {
@@ -88,6 +95,7 @@ export const getPushPreferences = createServerFn({ method: "GET" })
       appointment_reply: data?.appointment_reply ?? true,
       deal_result: data?.deal_result ?? true,
       automation: data?.automation ?? true,
+      luna_duvida: data?.luna_duvida ?? true,
     };
   });
 
@@ -96,10 +104,12 @@ export const savePushPreferences = createServerFn({ method: "POST" })
   .inputValidator((input: Partial<PushPreferences>) => input)
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
-    const { error } = await supabase.from("push_preferences").upsert(
-      { owner_id: context.ownerId, ...data, updated_at: new Date().toISOString() },
-      { onConflict: "owner_id" },
-    );
+    const { error } = await supabase
+      .from("push_preferences")
+      .upsert(
+        { owner_id: context.ownerId, ...data, updated_at: new Date().toISOString() },
+        { onConflict: "owner_id" },
+      );
     if (error) throw new Error(error.message);
     return { ok: true };
   });

@@ -271,8 +271,25 @@ export interface Momento {
   hora: string;
   /** Quantos minutos daqui. Usado para ordenar e para achar a faixa. */
   emMinutosDaqui: number;
+  /**
+   * A unidade DESTE momento.
+   *
+   * Um momento é (dia, hora, UNIDADE), e a unidade entrou na chave em 16/10.
+   * Antes era só (dia, hora): as cadeiras das duas cidades caíam no mesmo
+   * momento e quem gravava ficava com `vagas[0]` — a primeira que o banco
+   * devolveu. Com duas unidades ativas, metade das vezes era a outra.
+   *
+   * O estrago não é só de gravação. Em 15/10, 01:48, numa conversa sobre uma
+   * mentoria em Porto Alegre, a Luna respondeu o endereço de Florianópolis
+   * quando perguntaram onde ficava, e a Dra. Mariane teve de entrar e colar o
+   * endereço certo à mão.
+   */
+  unidadeId: string;
+  unidadeNome: string;
   /** Uma opção por momento; as cadeiras livres nessa hora vêm todas, e quem
-   *  grava escolhe a primeira. Sem isto, o agendamento não saberia a sala. */
+   *  grava escolhe a primeira. Sem isto, o agendamento não saberia a sala.
+   *  Depois de 16/10 todas são da MESMA unidade, então "a primeira" deixou de
+   *  ser uma escolha de cidade. */
   vagas: Vaga[];
 }
 
@@ -308,7 +325,8 @@ export function espalharMomentos(
   momentos: readonly Momento[],
   quantos: number,
   /**
-   * Períodos a evitar na primeira passada, no formato `YYYY-MM-DD|manhã`.
+   * Períodos a evitar na primeira passada, no formato
+   * `YYYY-MM-DD|manhã|<unidadeId>`.
    *
    * É o que faz a reserva não começar meia hora depois do que a pessoa acabou de
    * recusar: quem disse não para segunda às 08:00 não quer segunda às 08:30.
@@ -321,7 +339,10 @@ export function espalharMomentos(
 
   for (const m of momentos) {
     if (escolhidos.length >= quantos) break;
-    const chave = `${m.date}|${periodoDoDia(m.hora)}`;
+    // A unidade entra na chave desde 16/10: sem ela, oferecer a tarde de quinta
+    // em Florianópolis apagaria da reserva a tarde de quinta em Porto Alegre —
+    // que é exatamente o horário certo para quem está na outra cidade.
+    const chave = `${m.date}|${periodoDoDia(m.hora)}|${m.unidadeId}`;
     if (vistos.has(chave)) continue;
     vistos.add(chave);
     escolhidos.push(m);
@@ -356,7 +377,9 @@ export function escolherMomentos(
 ): { paraOferecer: Momento[]; reserva: Momento[]; faixa: string | null } {
   const porMomento = new Map<string, Momento>();
   for (const v of vagas) {
-    const chave = `${v.date}T${v.hora}`;
+    // A unidade entra na chave: ver o comentário em `Momento`. Sem ela, duas
+    // cidades no mesmo horário viram um momento só.
+    const chave = `${v.date}T${v.hora}@${v.unidadeId}`;
     const existente = porMomento.get(chave);
     if (existente) {
       existente.vagas.push(v);
@@ -365,6 +388,8 @@ export function escolherMomentos(
     porMomento.set(chave, {
       date: v.date,
       hora: v.hora,
+      unidadeId: v.unidadeId,
+      unidadeNome: v.unidadeNome,
       emMinutosDaqui:
         diasEntre(agora.date, v.date) * 24 * 60 + (emMinutos(v.hora) - emMinutos(agora.hora)),
       vagas: [v],
@@ -377,27 +402,80 @@ export function escolherMomentos(
     .filter((m) => m.emMinutosDaqui >= 0)
     .sort((a, b) => a.emMinutosDaqui - b.emMinutosDaqui);
 
-  // A primeira faixa que contém `quantas` opções. Não havendo em nenhuma, vale
-  // a última — é melhor oferecer uma opção distante que nenhuma.
+  // ── A faixa, e a unidade ────────────────────────────────────────────────
+  //
+  // A primeira faixa em que UMA unidade sozinha tem `quantas` opções. A
+  // contagem é por unidade, e não no total, porque é isso que a clínica pediu:
+  // "não misturar horários de cidades diferentes como opções equivalentes".
+  // Contando no total, uma faixa com uma vaga em Florianópolis e uma em Porto
+  // Alegre passaria, e as duas opções oferecidas seriam de cidades diferentes.
+  //
+  // Havendo mais de uma unidade qualificada na mesma faixa, vale a que tem o
+  // horário MAIS PRÓXIMO — a mesma preferência que o resto da função já usa.
+  //
+  // Não havendo nenhuma em faixa nenhuma, vale a última faixa e a unidade do
+  // horário mais próximo que existir: oferecer uma opção distante é melhor que
+  // nenhuma, e era o que a versão anterior já fazia.
   let faixa: Faixa | null = null;
+  let unidadeEscolhida: string | null = null;
   for (const f of FAIXAS) {
-    if (momentos.filter((m) => m.emMinutosDaqui <= f.ateMinutos).length >= quantas) {
+    const naFaixa = momentos.filter((m) => m.emMinutosDaqui <= f.ateMinutos);
+    // `momentos` já está em ordem cronológica, então a primeira unidade a bater
+    // a conta é a que tem o horário mais próximo entre as qualificadas.
+    const porUnidade = new Map<string, number>();
+    let achou: string | null = null;
+    for (const m of naFaixa) {
+      const quantos = (porUnidade.get(m.unidadeId) ?? 0) + 1;
+      porUnidade.set(m.unidadeId, quantos);
+      if (quantos >= quantas) {
+        achou = m.unidadeId;
+        break;
+      }
+    }
+    if (achou) {
       faixa = f;
+      unidadeEscolhida = achou;
       break;
     }
   }
   const limite = faixa?.ateMinutos ?? FAIXAS[FAIXAS.length - 1].ateMinutos;
   const dentro = momentos.filter((m) => m.emMinutosDaqui <= limite);
+  const unidade = unidadeEscolhida ?? dentro[0]?.unidadeId ?? null;
 
-  const paraOferecer = espalharMomentos(dentro, quantas);
+  // Os dois para oferecer saem de UMA unidade só. É a trava: daqui não sai um
+  // par de horários em cidades diferentes, nem com a agenda vazia de um lado.
+  const paraOferecer = espalharMomentos(
+    unidade ? dentro.filter((m) => m.unidadeId === unidade) : dentro,
+    quantas,
+  );
 
   // A reserva sai do intervalo INTEIRO, não só da faixa escolhida: ela existe
   // para responder "prefiro à tarde", e a tarde pode não estar na faixa de três
   // horas. Espalhada pelo mesmo critério, ela cobre manhã, tarde e noite de
   // vários dias em vez de dez meia-horas seguidas.
+  //
+  // E ela PODE ter outras unidades, de propósito: é o que responde "eu sou de
+  // Porto Alegre". Cada linha da instrução diz a unidade do horário, então aqui
+  // elas não são equivalentes — são alternativas identificadas. O que não pode
+  // é a OFERTA misturar, e isso o filtro acima resolveu.
+  //
+  // Ordem: primeiro a unidade oferecida, depois as outras. Quem disse "nenhum
+  // desses, prefiro à tarde" quer a tarde na mesma cidade.
   const jaOferecidos = new Set(paraOferecer);
-  const restantes = momentos.filter((m) => !jaOferecidos.has(m));
-  const periodosOferecidos = new Set(paraOferecer.map((m) => `${m.date}|${periodoDoDia(m.hora)}`));
+  const restantes = momentos
+    .filter((m) => !jaOferecidos.has(m))
+    .sort((a, b) => {
+      const pesoA = a.unidadeId === unidade ? 0 : 1;
+      const pesoB = b.unidadeId === unidade ? 0 : 1;
+      return pesoA - pesoB || a.emMinutosDaqui - b.emMinutosDaqui;
+    });
+  // A unidade entra na chave do período evitado: a tarde de quinta em Porto
+  // Alegre é uma alternativa de verdade para quem recusou a tarde de quinta em
+  // Florianópolis, e bloqueá-la esconderia justamente a resposta certa para
+  // quem está na outra cidade.
+  const periodosOferecidos = new Set(
+    paraOferecer.map((m) => `${m.date}|${periodoDoDia(m.hora)}|${m.unidadeId}`),
+  );
 
   return {
     paraOferecer,

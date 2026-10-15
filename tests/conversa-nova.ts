@@ -7,7 +7,10 @@
 // Errar para o lado permissivo aqui é a IA entrando numa conversa antiga por
 // cima de uma pessoa. Errar para o lado restritivo é ela calar com quem
 // acabou de chegar, que é o único caso em que ela deveria falar.
-import { ehConversaNova } from "../supabase/functions/_shared/conversa-nova.ts";
+import {
+  aConversaAindaEDaIa,
+  ehConversaNova,
+} from "../supabase/functions/_shared/conversa-nova.ts";
 
 let ok = 0;
 const falhas: string[] = [];
@@ -52,6 +55,102 @@ conferir("data vazia é tratada como sem histórico", ehConversaNova("", AGORA, 
 
 // Relógio torto na origem: a conversa certamente não é velha.
 conferir("data no futuro é nova", ehConversaNova(diasAtras(-5), AGORA, 7), true);
+
+// ── Continuar numa conversa que já é dela ──────────────────────────────────
+//
+// A outra metade da pergunta. A janela acima decide se a IA pode ENTRAR; esta
+// decide se ela pode CONTINUAR. Uma regra só respondendo as duas é o que
+// calaria a Luna no dia 12 de um fechamento que começou no dia 1, com a pessoa
+// respondendo do outro lado.
+//
+// O erro para o lado permissivo aqui é a IA assumindo um lead esquecido que ela
+// atendeu meses atrás; para o lado restritivo, é ela abandonando uma negociação
+// em andamento. Por isso o silêncio é medido, e não a idade.
+
+// O caso que trouxe esta função: conversa de doze dias, pessoa respondendo a
+// cada três. A janela de sete dias diria "antiga"; o silêncio diz "está aqui".
+conferir(
+  "pessoa respondendo a cada 3 dias continua",
+  aConversaAindaEDaIa({ iaJaFalou: true, silencioEmDias: 3 }, 7),
+  true,
+);
+conferir(
+  "respondeu hoje mesmo continua",
+  aConversaAindaEDaIa({ iaJaFalou: true, silencioEmDias: 0 }, 7),
+  true,
+);
+conferir(
+  "sumiu por 8 dias não continua",
+  aConversaAindaEDaIa({ iaJaFalou: true, silencioEmDias: 8 }, 7),
+  false,
+);
+// A borda é a mesma de `ehConversaNova`, e de propósito: duas bordas
+// diferentes para a mesma janela é como elas passam a discordar.
+conferir(
+  "6,9 dias de silêncio continua",
+  aConversaAindaEDaIa({ iaJaFalou: true, silencioEmDias: 6.9 }, 7),
+  true,
+);
+conferir(
+  "7 dias exatos não continua",
+  aConversaAindaEDaIa({ iaJaFalou: true, silencioEmDias: 7 }, 7),
+  false,
+);
+
+// A IA nunca falou aqui: não há conversa dela para continuar, e deixar passar
+// seria ela ENTRAR numa conversa antiga pela porta errada. Era o caso das 52
+// conversas que o motivo "conversa antiga" barrou entre 28/09 e 15/10 — em
+// todas as 52 ela nunca havia falado.
+conferir(
+  "sem a IA ter falado, não continua",
+  aConversaAindaEDaIa({ iaJaFalou: false, silencioEmDias: 1 }, 7),
+  false,
+);
+conferir(
+  "nem com silêncio zero",
+  aConversaAindaEDaIa({ iaJaFalou: false, silencioEmDias: 0 }, 7),
+  false,
+);
+
+// Primeira mensagem da pessoa: não há anterior, então não há silêncio para
+// medir. Quem responde é a regra de entrar, que já diz sim.
+conferir(
+  "sem mensagem anterior, não continua por aqui",
+  aConversaAindaEDaIa({ iaJaFalou: true, silencioEmDias: null }, 7),
+  false,
+);
+
+// Lixo não abre a porta.
+conferir(
+  "silêncio não numérico não continua",
+  aConversaAindaEDaIa({ iaJaFalou: true, silencioEmDias: Number.NaN }, 7),
+  false,
+);
+conferir(
+  "infinito não continua",
+  aConversaAindaEDaIa({ iaJaFalou: true, silencioEmDias: Number.POSITIVE_INFINITY }, 7),
+  false,
+);
+
+// Relógio torto na origem: silêncio negativo é zero, a pessoa certamente não
+// ficou calada.
+conferir(
+  "silêncio negativo conta como zero",
+  aConversaAindaEDaIa({ iaJaFalou: true, silencioEmDias: -3 }, 7),
+  true,
+);
+
+// A janela é a mesma configuração da tela, então ela manda aqui também.
+conferir(
+  "com janela de 30, 20 dias de silêncio continua",
+  aConversaAindaEDaIa({ iaJaFalou: true, silencioEmDias: 20 }, 30),
+  true,
+);
+conferir(
+  "com janela de 1, 2 dias de silêncio não",
+  aConversaAindaEDaIa({ iaJaFalou: true, silencioEmDias: 2 }, 1),
+  false,
+);
 
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);

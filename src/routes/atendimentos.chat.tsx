@@ -36,6 +36,7 @@ import { getContatosComPaciente } from "@/lib/patients/patients.functions";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { ChatComposer } from "@/components/atendimentos/chat/ChatComposer";
+import { EstadoDaLuna } from "@/components/atendimentos/chat/EstadoDaLuna";
 import type { ComposerHandle } from "@/components/atendimentos/chat/ChatComposer";
 import { useArrastoDeSugestao } from "@/components/atendimentos/chat/useArrastoDeSugestao";
 import type { PendingAttachment } from "@/components/atendimentos/chat/AttachmentTray";
@@ -934,6 +935,12 @@ function ChatPage() {
                 ))}
               </div>
             </div>
+
+            {/* Em cima do composer, e não dentro do painel do perfil: é o
+                instante em que quem atende decide se digita. A faixa só
+                aparece quando há algo a fazer — conversa calada por alguém da
+                equipe, ou dúvida esperando confirmação. */}
+            <EstadoDaLuna conversationId={selected.id} />
 
             <ChatComposer
               ref={composerRef}

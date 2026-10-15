@@ -322,6 +322,16 @@ export interface ConfigDeAtendimento {
   pacienteModeloAte: string;
   /** O que a Luna pode dizer sobre a edição: dias, cidade, valores, reserva. */
   pacienteModeloTexto: string;
+  /**
+   * O endereço do local da mentoria. Vazio = a Luna não dá endereço nenhum
+   * numa conversa de paciente modelo.
+   *
+   * Campo separado das unidades de propósito: a mentoria acontece onde a
+   * mentoria acontece, e em outubro de 2026 isso é outro prédio em outra
+   * cidade. Sem ele, a Luna respondeu o endereço de Florianópolis numa conversa
+   * sobre uma edição em Porto Alegre.
+   */
+  pacienteModeloLocal: string;
 }
 
 export const getAtendimento = createServerFn({ method: "GET" })
@@ -364,6 +374,7 @@ export const getAtendimento = createServerFn({ method: "GET" })
       instrucaoBase: String(agente.instrucao_base ?? ""),
       pacienteModeloAte: String(agente.paciente_modelo_ate ?? ""),
       pacienteModeloTexto: String(agente.paciente_modelo_texto ?? ""),
+      pacienteModeloLocal: String(agente.paciente_modelo_local ?? ""),
     };
   });
 
@@ -394,6 +405,9 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
       pacienteModeloAte?: string;
       /** O texto da edição. String vazia fecha a oferta. */
       pacienteModeloTexto?: string;
+      /** O endereço do local da mentoria. String vazia = sem endereço, e aí a
+       *  Luna passa a conversa para uma pessoa quando perguntarem onde fica. */
+      pacienteModeloLocal?: string;
     }) => {
       // Data no formato que a coluna espera. Sem esta checagem, "25/10" chega
       // ao Postgres e volta um erro de sintaxe que não diz nada a quem está na
@@ -493,6 +507,11 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
     }
     if (data.pacienteModeloTexto !== undefined) {
       campos.paciente_modelo_texto = data.pacienteModeloTexto.trim() || null;
+    }
+    // `null` pela mesma razão: `enderecoDaEdicao` pergunta se o endereço
+    // EXISTE, e string vazia responderia "existe e está em branco".
+    if (data.pacienteModeloLocal !== undefined) {
+      campos.paciente_modelo_local = data.pacienteModeloLocal.trim() || null;
     }
 
     const { error } = await supabase
@@ -617,7 +636,68 @@ export const simularAtendimento = createServerFn({ method: "POST" })
     },
   );
 
-/** Devolve a conversa para a IA depois de um humano ter assumido. */
+/**
+ * Como está a Luna NESTA conversa.
+ *
+ * ── Por que esta função existe ──────────────────────────────────────────
+ *
+ * Porque `devolverParaIa` existia desde o começo e não era chamada de lugar
+ * nenhum. A auditoria de 15/10 mediu o preço disso: 2.910 mensagens
+ * descartadas com o motivo "humano assumiu a conversa", em 171 das 291
+ * conversas. A marca é gravada na PRIMEIRA mensagem que sai da clínica e não
+ * tinha fim — nem botão, nem aviso, nem tela que mostrasse o estado.
+ *
+ * Devolve `null` quando a conversa nunca passou pela Luna: sem sessão não há
+ * estado, e a faixa não aparece.
+ */
+export interface EstadoDaLunaNaConversa {
+  sessionId: string;
+  /** O interruptor geral. Desligado, não faz sentido oferecer "devolver". */
+  agenteLigado: boolean;
+  /** Quando uma pessoa assumiu. Nulo = a conversa ainda é da Luna. */
+  humanoAssumiuEm: string | null;
+  /** A dúvida que a Luna encaminhou e ninguém respondeu ainda. */
+  duvidaPendente: string | null;
+  duvidaPendenteEm: string | null;
+}
+
+export const getEstadoDaLunaNaConversa = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { conversationId: string }) => input)
+  .handler(async ({ data, context }): Promise<EstadoDaLunaNaConversa | null> => {
+    // `: any` como no resto do arquivo, e aqui é obrigatório, não hábito:
+    // `duvida_pendente` é coluna nova e `types.ts` é gerado pelo Lovable, não
+    // se edita à mão. Com o cliente tipado, `tsc` recusa a coluna com
+    // "column 'duvida_pendente' does not exist" — tentei e é o que acontece.
+    const supabase: any = context.supabase;
+    const [sessao, agente] = await Promise.all([
+      supabase
+        .from("ai_agent_sessions")
+        .select("id, human_took_over_at, duvida_pendente, duvida_pendente_em")
+        .eq("owner_id", context.ownerId)
+        .eq("conversation_id", data.conversationId)
+        .maybeSingle(),
+      supabase.from("ai_agents").select("enabled").eq("owner_id", context.ownerId).maybeSingle(),
+    ]);
+    if (sessao.error) throw new Error(sessao.error.message);
+    if (!sessao.data) return null;
+    return {
+      sessionId: String(sessao.data.id),
+      agenteLigado: agente.data?.enabled === true,
+      humanoAssumiuEm: sessao.data.human_took_over_at ?? null,
+      duvidaPendente: String(sessao.data.duvida_pendente ?? "").trim() || null,
+      duvidaPendenteEm: sessao.data.duvida_pendente_em ?? null,
+    };
+  });
+
+/**
+ * Devolve a conversa para a IA depois de um humano ter assumido.
+ *
+ * Limpa a dúvida pendente no mesmo gesto, e isso não é conveniência: quem
+ * devolve a conversa para a Luna acabou de responder o que faltava. Deixar a
+ * pergunta marcada fariam a instrução dizer "isto já está com a equipe" para
+ * sempre, e a Luna repetiria que está aguardando uma confirmação que já veio.
+ */
 export const devolverParaIa = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   .inputValidator((input: { sessionId: string }) => input)
@@ -625,7 +705,38 @@ export const devolverParaIa = createServerFn({ method: "POST" })
     const supabase: any = context.supabase;
     const { error } = await supabase
       .from("ai_agent_sessions")
-      .update({ human_took_over_at: null, updated_at: new Date().toISOString() })
+      .update({
+        human_took_over_at: null,
+        duvida_pendente: null,
+        duvida_pendente_em: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", data.sessionId)
+      .eq("owner_id", context.ownerId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/**
+ * A dúvida foi respondida, e a conversa continua da Luna.
+ *
+ * Separado de `devolverParaIa` porque são dois estados diferentes — é a
+ * distinção que o manual V4 chama de `QUESTION_ESCALATED` contra
+ * `CONVERSATION_HUMAN_TAKEOVER`. Uma dúvida respondida sem ninguém ter
+ * assumido a conversa não precisa de devolução: a Luna nunca saiu.
+ */
+export const resolverDuvidaDaLuna = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { sessionId: string }) => input)
+  .handler(async ({ data, context }) => {
+    const supabase: any = context.supabase;
+    const { error } = await supabase
+      .from("ai_agent_sessions")
+      .update({
+        duvida_pendente: null,
+        duvida_pendente_em: null,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", data.sessionId)
       .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);

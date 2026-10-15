@@ -118,6 +118,37 @@ conferir(
   );
 }
 
+// ── O limite da regra da unidade padrão ────────────────────────────────────
+//
+// Com duas unidades, a seção diz "na dúvida, vale a principal". Isso é um bom
+// palpite para quem vai ser atendido na clínica e um palpite errado para um
+// evento em outra cidade — e foi ele que fez a Luna dar o endereço de
+// Florianópolis numa conversa sobre uma mentoria em Porto Alegre, em 15/10.
+{
+  const duas = secaoDeUnidades([FLORIPA, POA]);
+  conferir(
+    "com duas unidades, a regra do padrão aparece",
+    duas.includes("a unidade é a NÓS Florianópolis"),
+    true,
+  );
+  conferir(
+    "e vem limitada ao atendimento na clínica",
+    duas.includes("vale para atendimento NA CLÍNICA"),
+    true,
+  );
+  conferir(
+    "mandando usar a seção da mentoria quando é dela que se fala",
+    duas.includes("o endereço é o daquela seção"),
+    true,
+  );
+  // Com uma unidade só não há escolha a limitar, e a ressalva seria ruído.
+  conferir(
+    "com uma unidade, nada disso é dito",
+    secaoDeUnidades([FLORIPA]).includes("vale para atendimento NA CLÍNICA"),
+    false,
+  );
+}
+
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);
   for (const f of falhas) console.error("  - " + f);

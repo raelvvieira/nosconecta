@@ -239,7 +239,15 @@ async function cuidarDaClinica(agente: {
     // comentário em `instrucaoDaLuna`: eu tinha copiado estas consultas para
     // cá e errado duas delas — a Luna do follow-up citaria preço de
     // procedimento que a clínica tirou da lista de propósito.
-    const instrucao = await instrucaoDaLuna(
+    // `.texto` e não o objeto: `instrucaoDaLuna` devolve `{ texto, horarios,
+    // casos }`, porque o atendimento valida o código do horário contra a MESMA
+    // tabela que montou a instrução. Aqui estava sendo passado o objeto inteiro
+    // para `chamarModelo`, que espera uma string — a chamada iria com um objeto
+    // no lugar do `system` e a OpenAI recusaria. Nunca apareceu porque o
+    // follow-up nasceu desligado e nunca rodou: `bunx tsc` não alcança os
+    // arquivos do Deno, e `checar-edge-functions` só pega identificador que não
+    // existe. Achado em 16/10, implementando a Etapa 1.
+    const { texto: instrucao } = await instrucaoDaLuna(
       supabase,
       ownerId,
       agente,

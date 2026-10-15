@@ -15,6 +15,7 @@
 // (`filtros-do-agente.ts`) moram em outros arquivos, de propósito. Aqui é a
 // orquestração; lá é a decisão. Misturar as três coisas foi o que produziu, na
 // referência, um arquivo em que ninguém achava mais o filtro que importava.
+import { aConversaAindaEDaIa } from "./conversa-nova.ts";
 import { decidirSeResponde, registrarFalha, registrarSucesso } from "./filtros-do-agente.ts";
 import { esperaDeDigitacao, normalizarRitmo, segmentar } from "./humanizacao.ts";
 import { manualEfetivo, montarInstrucao } from "./instrucao-do-agente.ts";
@@ -56,6 +57,18 @@ export interface MensagemDeEntrada {
   /** A conversa nasceu dentro da janela de contato novo. Mesma regra de
    *  omissão do campo acima. */
   conversaNova?: boolean;
+  /**
+   * Dias que a pessoa ficou calada ANTES desta mensagem.
+   *
+   * Serve a uma pergunta diferente de `conversaNova`, e a confusão entre as
+   * duas é o que calava a Luna no meio de um fechamento: a janela de contato
+   * novo decide se ela pode ENTRAR, e o silêncio decide se ela pode CONTINUAR
+   * numa conversa que já é dela. Ver `aConversaAindaEDaIa`.
+   *
+   * `null` ou omitido quando não se sabe — e aí só a regra de entrar vale, que
+   * é o lado conservador.
+   */
+  silencioEmDias?: number | null;
   /**
    * A pessoa chegou clicando num anúncio.
    *
@@ -144,6 +157,17 @@ export interface Dependencias {
    * diria sem marcar ninguém. Ausente, o fechamento é só registrado no log.
    */
   registrarAgendamento?: (vaga: VagaComCodigo, sessaoId: string) => Promise<void>;
+  /**
+   * Avisa a clínica de que a Luna encaminhou uma dúvida.
+   *
+   * Opcional pela MESMA razão de `registrarAgendamento`: a prévia da tela não
+   * passa isto, e por isso testar a Luna não faz o celular de ninguém vibrar.
+   * Ausente, a dúvida é só registrada na sessão e no log.
+   *
+   * Nunca levanta — quem fornece engole a falha. Um push que não sai não pode
+   * impedir a resposta que já foi para a paciente de ser contabilizada.
+   */
+  avisarDuvida?: (pergunta: string) => Promise<void>;
   enviar: Enviar;
   agora?: Date;
   /**
@@ -313,7 +337,20 @@ export async function atender(
       privada: entrada.privada,
       ehGrupo: !!entrada.ehGrupo,
       ehPaciente: !!entrada.ehPaciente,
-      conversaNova: entrada.conversaNova !== false,
+      // Entrar, OU continuar. A primeira parte é a regra de sempre: a conversa
+      // nasceu dentro da janela. A segunda é a que faltava: a conversa já é da
+      // Luna (`last_outbound_at`) e a pessoa não ficou calada mais que a
+      // janela. Sem ela, um fechamento que leva mais de `novo_ate_dias` morre
+      // de velhice com a pessoa respondendo do outro lado.
+      conversaNova:
+        entrada.conversaNova !== false ||
+        aConversaAindaEDaIa(
+          {
+            iaJaFalou: !!sessao.last_outbound_at,
+            silencioEmDias: entrada.silencioEmDias ?? null,
+          },
+          Number(agente.novo_ate_dias ?? 7),
+        ),
       // O fato explícito quando quem chamou sabe, OU o anúncio guardado na
       // sessão. As duas leituras concordam no webhook, que calcula o fato do
       // mesmo anúncio; a segunda é o que sustenta a conversa a partir da
@@ -395,12 +432,19 @@ export async function atender(
   // O caso de antes e depois que ela escolheu mandar, já validado contra o
   // catálogo desta conversa. `null` é o normal: prova visual é exceção.
   let caso: CasoComCodigo | null = null;
+  // A dúvida que ela encaminhou NESTA resposta. Registrada depois do envio, pelo
+  // mesmo motivo do agendamento: a mensagem para a paciente vem primeiro.
+  let duvidaNova = "";
+  // A que já estava esperando. Lida da sessão porque é ela que muda a instrução
+  // — sem isso a Luna encaminharia a mesma pergunta a cada mensagem.
+  const duvidaPendente = String(sessao.duvida_pendente ?? "").trim() || null;
   try {
     if (agente.mode === "ia") {
-      const r = await responderComModelo(deps, agente, entrada, anuncio, sessao.id);
+      const r = await responderComModelo(deps, agente, entrada, anuncio, sessao.id, duvidaPendente);
       texto = r.texto;
       vagaFechadaAqui = r.vaga;
       caso = r.caso;
+      duvidaNova = r.duvida;
     } else {
       texto = String(agente.echo_message ?? "").trim();
     }
@@ -518,6 +562,50 @@ export async function atender(
     .update({ last_outbound_at: agora.toISOString(), updated_at: agora.toISOString() })
     .eq("id", sessao.id);
 
+  // ── A dúvida encaminhada, DEPOIS do envio ───────────────────────────────
+  //
+  // A ordem é a mesma do agendamento, e pela mesma razão: se gravar a dúvida
+  // falhasse antes do envio, a paciente ficaria sem a resposta por causa de uma
+  // linha de registro.
+  //
+  // Só a PRIMEIRA fica guardada. Já havendo uma esperando, a instrução já disse
+  // para ela não encaminhar de novo; se encaminhou mesmo assim, sobrescrever
+  // apagaria a pergunta que alguém ainda não respondeu.
+  if (duvidaNova && !duvidaPendente) {
+    const { error } = await supabase
+      .from("ai_agent_sessions")
+      .update({
+        duvida_pendente: duvidaNova,
+        duvida_pendente_em: agora.toISOString(),
+        updated_at: agora.toISOString(),
+      })
+      .eq("id", sessao.id);
+
+    if (error) {
+      // Coluna pendente de migration, ou banco instável. A resposta já saiu;
+      // o que se perde é o aviso, e isso vai para o log em vez de estourar.
+      console.warn("[atendimento] dúvida não ficou registrada:", error.message);
+    } else {
+      await registrar(supabase, ownerId, sessao.id, {
+        direction: "ignorada",
+        content: null,
+        skipped_reason: `dúvida encaminhada: ${duvidaNova.slice(0, 240)}`,
+      });
+      // O aviso é o ponto da coisa: antes disto, "vou confirmar com a equipe"
+      // não chegava a ninguém. Nunca derruba nada — ver `avisarDuvida`.
+      if (deps.avisarDuvida) {
+        try {
+          await deps.avisarDuvida(duvidaNova);
+        } catch (e) {
+          console.warn(
+            "[atendimento] aviso da dúvida não saiu:",
+            e instanceof Error ? e.message : e,
+          );
+        }
+      }
+    }
+  }
+
   // ── O agendamento, DEPOIS do envio ──────────────────────────────────────
   //
   // A ordem não é gosto. Se a criação viesse antes e falhasse, a paciente
@@ -594,6 +682,9 @@ export async function instrucaoDaLuna(
   /** A conversa, para saber se um caso já saiu nela. Ausente na prévia da
    *  tela, que mostra o que ela diria numa conversa do zero. */
   sessaoId?: string | null,
+  /** A dúvida que já está com a equipe nesta conversa. Ver
+   *  `secaoDaDuvidaEncaminhada`. */
+  duvidaPendente?: string | null,
 ): Promise<InstrucaoMontada> {
   const { data: playbook } = await supabase
     .from("ai_sales_playbooks")
@@ -701,6 +792,9 @@ export async function instrucaoDaLuna(
     pacienteModelo: {
       ate: agente.paciente_modelo_ate ?? null,
       texto: agente.paciente_modelo_texto ?? null,
+      // O endereço do LOCAL da mentoria, que não é nenhuma das unidades. Ver
+      // `PacienteModelo.local` e a conversa de 15/10 citada lá.
+      local: agente.paciente_modelo_local ?? null,
     },
     hoje: agoraNaClinica(agora).date,
     casos,
@@ -712,6 +806,7 @@ export async function instrucaoDaLuna(
     // seria uma consulta a mais em cada mensagem de paciente.
     jaMandouCaso:
       casos.length > 0 && sessaoId ? await jaMandouCasoNestaConversa(supabase, sessaoId) : false,
+    duvidaPendente: duvidaPendente ?? null,
   });
 
   return { texto, horarios, casos };
@@ -753,7 +848,14 @@ async function responderComModelo(
   entrada: MensagemDeEntrada,
   anuncio: Anuncio | null,
   sessaoId: string,
-): Promise<{ texto: string; vaga: VagaComCodigo | null; caso: CasoComCodigo | null }> {
+  duvidaPendente: string | null,
+): Promise<{
+  texto: string;
+  vaga: VagaComCodigo | null;
+  caso: CasoComCodigo | null;
+  /** A dúvida que ela encaminhou nesta resposta. Vazio é o normal. */
+  duvida: string;
+}> {
   const { supabase, ownerId } = deps;
   const instrucao = await instrucaoDaLuna(
     supabase,
@@ -762,6 +864,7 @@ async function responderComModelo(
     anuncio,
     agoraDoAtendimento(deps),
     sessaoId,
+    duvidaPendente,
   );
 
   const anteriores = await deps.historico(entrada.conversationId);
@@ -797,7 +900,7 @@ async function responderComModelo(
   // Mesma fronteira, para o arquivo: o código vira caso AQUI, contra a lista
   // que montou esta instrução. Código fora dela não manda imagem nenhuma.
   const caso = casoEscolhido({ codigo: resposta.casoEnviado }, instrucao.casos);
-  return { texto: resposta.texto, vaga, caso };
+  return { texto: resposta.texto, vaga, caso, duvida: resposta.duvidaEncaminhada };
 }
 
 /**

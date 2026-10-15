@@ -148,6 +148,15 @@ export interface EntradaDaInstrucao {
   anuncio?: Anuncio | null;
   /** As unidades ativas, com endereço. Ver `secaoDeUnidades`. */
   unidades?: UnidadeDaClinica[] | null;
+  /**
+   * A dúvida que já está com a equipe nesta conversa, se houver.
+   *
+   * Vazio é o normal. Quando vem, a seção muda de "como encaminhar" para "esta
+   * já está encaminhada, não prometa de novo" — e é isso que impede o laço de
+   * ela encaminhar a mesma pergunta a cada mensagem, porque o modelo não lembra
+   * sozinho o que fez na mensagem anterior.
+   */
+  duvidaPendente?: string | null;
 }
 
 export interface UnidadeDaClinica {
@@ -201,6 +210,14 @@ export function secaoDeUnidades(unidades: UnidadeDaClinica[] | null | undefined)
       "",
       "Responda com o endereço da unidade do horário que vocês combinaram. Se",
       `ainda não houver horário combinado, a unidade é a ${principal.nome.trim()}.`,
+      "",
+      // Sem este limite a regra acima vale para TUDO, e foi ela que mandou a
+      // Luna dar o endereço de Florianópolis numa conversa sobre uma mentoria
+      // em Porto Alegre, em 15/10. A unidade padrão é um bom palpite para quem
+      // vai ser atendido na clínica, e um palpite errado para um evento.
+      "Isto vale para atendimento NA CLÍNICA. Se a conversa for sobre a vaga de",
+      "paciente modelo ou sobre a mentoria, o endereço é o daquela seção, não",
+      "este — a mentoria pode acontecer em outra cidade.",
     );
   }
 
@@ -384,6 +401,24 @@ export interface PacienteModelo {
   ate: string | null;
   /** O que a IA pode dizer sobre a edição. */
   texto: string | null;
+  /**
+   * O endereço ONDE esta edição acontece.
+   *
+   * ── Por que este campo existe ──────────────────────────────────────────
+   *
+   * Em 15/10, 01:48, a Luna já tinha dito "é em Porto Alegre, nos dias 23, 24 e
+   * 25 de outubro". A pessoa perguntou "onde fica endereço" e ela respondeu: "A
+   * NÓS Florianópolis fica na R. José Brognoli, 117". A Dra. Mariane entrou na
+   * conversa e colou o endereço certo à mão — MedPlex Santana, em Porto Alegre.
+   *
+   * Ela não errou o raciocínio: o endereço do local da mentoria não existia em
+   * campo nenhum do sistema, e `secaoDeUnidades` manda cair na unidade
+   * principal quando não há horário combinado. A principal é Florianópolis.
+   *
+   * Vazio = ela diz que vai confirmar e passa para uma pessoa, que é o que
+   * deveria ter acontecido.
+   */
+  local?: string | null;
 }
 
 /**
@@ -411,6 +446,44 @@ export interface PacienteModelo {
 function porExtenso(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso ?? "").trim());
   return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso ?? "").trim();
+}
+
+/**
+ * As linhas do endereço da edição. Ver `PacienteModelo.local`.
+ *
+ * Vazio NÃO vira silêncio: vira a instrução de não dar endereço nenhum. Sem
+ * esta parte, a Luna cai na seção "Onde a clínica fica", que é verdadeira para
+ * atendimento na clínica e errada para uma mentoria em outra cidade — e foi
+ * exatamente isso que aconteceu em 15/10.
+ */
+function enderecoDaEdicao(local?: string | null): string[] {
+  const endereco = String(local ?? "").trim();
+
+  if (!endereco) {
+    return [
+      "### Onde esta edição acontece",
+      "",
+      "O endereço do local da mentoria NÃO está cadastrado. Se a pessoa",
+      "perguntar onde fica, diga que vai confirmar o endereço e passe a conversa",
+      "para uma pessoa.",
+      "",
+      "E não dê o endereço da clínica: a mentoria não acontece lá. Esse engano",
+      "já aconteceu, numa conversa sobre uma edição em outra cidade.",
+      "",
+    ];
+  }
+
+  return [
+    "### Onde esta edição acontece",
+    "",
+    endereco,
+    "",
+    "Este é o endereço desta edição, e é o único que você dá numa conversa de",
+    "paciente modelo. Os endereços da seção 'Onde a clínica fica' são das",
+    "unidades de atendimento e NÃO valem aqui — a mentoria pode ser em outra",
+    "cidade, e é o caso desta.",
+    "",
+  ];
 }
 
 export function secaoDePacienteModelo(pm: PacienteModelo | null | undefined, hoje: string): string {
@@ -458,6 +531,7 @@ export function secaoDePacienteModelo(pm: PacienteModelo | null | undefined, hoj
       "",
       String(pm?.texto ?? "").trim(),
       "",
+      ...enderecoDaEdicao(pm?.local),
       // ── A segunda lista de preços ──────────────────────────────────────
       //
       // O texto da edição traz preços, e a tabela da clínica também. São os
@@ -645,6 +719,70 @@ function diaMesEmTexto(iso: string): string {
 }
 
 /**
+ * A dúvida que precisa de uma pessoa, sem perder a conversa.
+ *
+ * ── O defeito que isto conserta ────────────────────────────────────────
+ *
+ * Entre 28/09 e 15/10 a Luna disse 50 vezes, em 31 conversas, que ia confirmar
+ * algo com a equipe. Nenhuma dessas 50 virou aviso para ninguém: "vou
+ * encaminhar" era uma frase no texto e mais nada. A pessoa ficava esperando uma
+ * resposta que ninguém sabia que devia dar.
+ *
+ * E quando alguém da clínica finalmente escrevia, a conversa saía das mãos da
+ * Luna PARA SEMPRE — é o `human_took_over_at`, e são 2.910 mensagens
+ * descartadas por ele. Uma pergunta que ela não sabia custava o atendimento
+ * inteiro.
+ *
+ * ── As duas situações que o manual V4 separa ───────────────────────────
+ *
+ * `QUESTION_ESCALATED`: uma informação específica precisa de confirmação. A
+ * conversa continua sendo da Luna, e ela segue respondendo o resto.
+ *
+ * `CONVERSATION_HUMAN_TAKEOVER`: uma pessoa assumiu o atendimento. A Luna se
+ * cala até alguém devolver a conversa para ela, na tela do chat.
+ *
+ * Esta seção é a primeira. A segunda é `human_took_over_at`, e agora tem volta.
+ */
+export function secaoDaDuvidaEncaminhada(duvidaPendente?: string | null): string {
+  const pendente = String(duvidaPendente ?? "").trim();
+
+  const partes = [
+    "## Quando você precisa confirmar algo com a equipe",
+    "",
+    "Sempre que você disser que vai confirmar alguma coisa, escreva a pergunta",
+    "no campo `duvidaEncaminhada` da sua resposta, em uma frase curta. É isso, e",
+    "só isso, que avisa alguém da clínica. A frase na mensagem é para a pessoa",
+    "do outro lado; o campo é para a equipe.",
+    "",
+    "Sem o campo preenchido, ninguém fica sabendo, e a pessoa espera por uma",
+    "resposta que não vem.",
+    "",
+    "Encaminhar uma dúvida NÃO encerra o atendimento. Você continua respondendo",
+    "tudo o que sabe na mesma conversa: preço liberado, o que é o procedimento,",
+    "endereço, horário. O que está com a equipe é aquela pergunta, não a pessoa.",
+  ];
+
+  if (pendente) {
+    partes.push(
+      "",
+      "### Já tem uma dúvida com a equipe nesta conversa",
+      "",
+      `A pergunta que está esperando é esta: ${pendente}`,
+      "",
+      "Não encaminhe esta mesma pergunta de novo e não prometa de novo que vai",
+      "confirmar — já está com alguém. Se a pessoa cobrar, diga que já pediu a",
+      "confirmação e que logo respondem por aqui. Deixe `duvidaEncaminhada`",
+      "vazio, a menos que seja uma pergunta DIFERENTE.",
+      "",
+      "E siga o atendimento: enquanto essa confirmação não chega, tudo o que",
+      "você já sabe responder continua valendo.",
+    );
+  }
+
+  return partes.join("\n");
+}
+
+/**
  * Monta a instrução completa. Função pura: mesma entrada, mesmo texto — é o
  * que permite exercitá-la sem servidor, sem modelo e sem enviar nada a
  * ninguém.
@@ -662,6 +800,7 @@ export function montarInstrucao({
   horarios,
   anuncio,
   unidades,
+  duvidaPendente,
 }: EntradaDaInstrucao): string {
   const daClinica = String(instrucaoBase ?? "").trim();
 
@@ -739,6 +878,12 @@ export function montarInstrucao({
   // e antes das regras invioláveis: é uma ferramenta de venda, e o lugar dela
   // é junto das outras — não no meio dos horários, que é operação.
   partes.push(...comoUsarOsCasos(casos ?? [], jaMandouCaso === true));
+
+  // Antes das regras invioláveis, e depois de tudo que ela PODE responder: a
+  // regra nº 1 manda passar a conversa para uma pessoa em certas situações, e
+  // esta seção é o que diz que passar UMA DÚVIDA não é passar a conversa. Lida
+  // depois da regra, a distinção chegaria tarde.
+  partes.push("", secaoDaDuvidaEncaminhada(duvidaPendente));
 
   partes.push(
     "",
