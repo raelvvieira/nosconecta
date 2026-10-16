@@ -671,22 +671,39 @@ export const getEstadoDaLunaNaConversa = createServerFn({ method: "GET" })
     // "column 'duvida_pendente' does not exist" — tentei e é o que acontece.
     const supabase: any = context.supabase;
     const [sessao, agente] = await Promise.all([
+      // ── A mais recente, e não "a única" ────────────────────────────────
+      //
+      // O índice único de `ai_agent_sessions` é por (agent_id, conversation_id),
+      // não por (owner_id, conversation_id). Hoje há um agente por clínica e as
+      // duas chaves dão no mesmo, mas no dia em que houver dois a mesma conversa
+      // teria duas sessões — e `maybeSingle` responderia com erro, derrubando
+      // justamente a faixa que existe para destravar a conversa.
+      //
+      // `limit(1)` pela sessão mexida mais recentemente: é a que está
+      // atendendo.
       supabase
         .from("ai_agent_sessions")
         .select("id, human_took_over_at, duvida_pendente, duvida_pendente_em")
         .eq("owner_id", context.ownerId)
         .eq("conversation_id", data.conversationId)
-        .maybeSingle(),
-      supabase.from("ai_agents").select("enabled").eq("owner_id", context.ownerId).maybeSingle(),
+        .order("updated_at", { ascending: false })
+        .limit(1),
+      supabase
+        .from("ai_agents")
+        .select("enabled")
+        .eq("owner_id", context.ownerId)
+        .order("created_at", { ascending: true })
+        .limit(1),
     ]);
     if (sessao.error) throw new Error(sessao.error.message);
-    if (!sessao.data) return null;
+    const linha = (sessao.data ?? [])[0];
+    if (!linha) return null;
     return {
-      sessionId: String(sessao.data.id),
-      agenteLigado: agente.data?.enabled === true,
-      humanoAssumiuEm: sessao.data.human_took_over_at ?? null,
-      duvidaPendente: String(sessao.data.duvida_pendente ?? "").trim() || null,
-      duvidaPendenteEm: sessao.data.duvida_pendente_em ?? null,
+      sessionId: String(linha.id),
+      agenteLigado: (agente.data ?? [])[0]?.enabled === true,
+      humanoAssumiuEm: linha.human_took_over_at ?? null,
+      duvidaPendente: String(linha.duvida_pendente ?? "").trim() || null,
+      duvidaPendenteEm: linha.duvida_pendente_em ?? null,
     };
   });
 
