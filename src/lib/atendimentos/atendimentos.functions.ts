@@ -697,9 +697,50 @@ export const marcarConversaComoLida = createServerFn({ method: "POST" })
         _conversas: ids,
       });
       if (error) throw new Error(error.message);
+
+      // ── E avisa o WhatsApp ───────────────────────────────────────────
+      //
+      // Sem isto a sincronia é de mão única: quem lê aqui continua vendo a
+      // bolinha no celular. O caminho de volta (ler no celular apaga a bolinha
+      // daqui) é o `wa-webhook`.
+      //
+      // Aguardado, e não solto: no Cloudflare Workers uma promessa ainda
+      // pendente quando a resposta sai é cancelada — mesma razão escrita em
+      // `push.server.ts`. E o erro morre aqui dentro: a marcação no aparelho é
+      // acessório de uma conversa que já abriu bem.
+      await avisarWhatsappQueLeu(context.ownerId, id);
+
       return { ok: true, marcadas: Number(marcadas ?? 0) };
     } catch (e) {
       console.error("[marcarConversaComoLida]", e instanceof Error ? e.message : e);
       return { ok: false, marcadas: 0 };
     }
   });
+
+/**
+ * Pede à Evolution que marque a conversa como lida no aparelho.
+ *
+ * A chave da Evolution é segredo do Supabase e não existe no aplicativo, então
+ * quem fala com ela é a Edge Function. Aqui só se bate na porta.
+ *
+ * Nunca levanta. Uma falha aqui significa "a bolinha continuou acesa no
+ * celular", que é exatamente o que acontecia antes desta função existir.
+ */
+async function avisarWhatsappQueLeu(ownerId: string, conversationId: string): Promise<void> {
+  const url = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) return;
+  try {
+    await fetch(`${url}/functions/v1/wa-lida`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({ ownerId, conversationId }),
+      // Curto de propósito: isto roda ao ABRIR a conversa, sem ninguém pedir.
+      // Segurar a abertura por causa de uma marcação seria trocar um defeito
+      // invisível por um visível.
+      signal: AbortSignal.timeout(6000),
+    });
+  } catch (e) {
+    console.warn("[wa-lida] não avisou o aparelho:", e instanceof Error ? e.message : e);
+  }
+}

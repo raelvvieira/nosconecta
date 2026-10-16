@@ -32,6 +32,12 @@ import { pushToOwner } from "../_shared/push.ts";
 import { deixarOAgenteResponder } from "../_shared/agente-no-webhook.ts";
 import { deixarORoboRegistrar } from "../_shared/robo-do-financeiro.ts";
 import { tratarRespostaDoPaciente } from "../_shared/resposta-do-paciente.ts";
+import {
+  EVENTOS_DE_CONVERSA,
+  ehConversaDoAparelho,
+  foiLidaNoCelular,
+  leiturasDoEvento,
+} from "../_shared/leitura-no-celular.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -226,6 +232,87 @@ async function gravarContato(ownerId: string, data: any) {
   return { gravado: String(jid) };
 }
 
+/**
+ * Anota que este tipo de evento chegou.
+ *
+ * ── Por que isto existe ──────────────────────────────────────────────────
+ *
+ * Porque esta função trata três eventos e descarta o resto sem deixar rastro.
+ * Então não havia como responder, olhando o banco, à pergunta "a Evolution
+ * manda o evento de leitura?" — e a resposta depende de como a instância foi
+ * configurada no servidor, que não é coisa deste repositório.
+ *
+ * Guarda o NOME do evento, a contagem e as chaves de primeiro nível do corpo.
+ * Nunca o conteúdo: nem texto, nem telefone, nem nome. As chaves bastam para
+ * ver se `unreadCount` vem junto, e não são dado de paciente.
+ *
+ * Nunca levanta, e nunca atrasa o que importa: é medição, e medição que
+ * derruba a gravação de uma mensagem não vale a informação que ela traz.
+ */
+async function anotarEvento(
+  ownerId: string,
+  instancia: string,
+  evento: string,
+  // `unknown` e não `any`: aqui o corpo é só inspecionado, nunca usado como
+  // objeto conhecido — e as duas linhas abaixo estreitam o tipo sozinhas.
+  data: unknown,
+) {
+  try {
+    const primeiro = Array.isArray(data) ? data[0] : data;
+    const chaves =
+      primeiro && typeof primeiro === "object" ? Object.keys(primeiro).slice(0, 40) : [];
+    await supabase.rpc("wa_anotar_evento", {
+      _owner: ownerId,
+      _instancia: instancia,
+      _evento: evento,
+      _chaves: chaves,
+    });
+  } catch (e) {
+    console.warn("[wa-webhook] não deu para anotar o evento:", e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * A conversa foi lida no celular.
+ *
+ * ── O sinal ──────────────────────────────────────────────────────────────
+ *
+ * O WhatsApp não diz "fulano leu". O que chega é o ESTADO do chat depois da
+ * leitura, com um contador de não lidas — zerou, foi lido no aparelho. Quem lê
+ * esse estado é `leitura-no-celular.ts`, que é puro e tem teste; aqui só se
+ * grava o resultado.
+ *
+ * ── O que NÃO acontece aqui ──────────────────────────────────────────────
+ *
+ * Contador ausente não vira zero, contador maior que zero não mexe em nada, e
+ * `read_at` nunca anda para trás. Os três são a mesma precaução: apagar a
+ * bolinha de uma conversa que ninguém leu some com a mensagem de um paciente
+ * que está esperando, e ninguém descobre.
+ */
+async function lerNoCelular(ownerId: string, data: unknown) {
+  const leituras = leiturasDoEvento({ data });
+  const lidas = leituras.filter(
+    (l) => foiLidaNoCelular(l) && ehConversaDoAparelho(l.conversationId),
+  );
+  if (!lidas.length) return { ignorado: "nenhuma conversa zerada neste evento" };
+
+  const zeradas: string[] = [];
+  for (const l of lidas) {
+    const { error } = await supabase.rpc("wa_marcar_lida_pelo_celular", {
+      _owner: ownerId,
+      _conversa: l.conversationId,
+    });
+    if (error) {
+      // Coluna ou função pendente de migration, ou banco instável. A bolinha
+      // continuar acesa é o pior caso aceitável; derrubar o webhook não é.
+      console.warn("[wa-webhook] leitura do celular não gravou:", error.message);
+      return { ignorado: `não deu para marcar: ${error.message}` };
+    }
+    zeradas.push(l.conversationId);
+  }
+  return { lidasNoCelular: zeradas.length };
+}
+
 const ESTADOS: Record<string, "open" | "connecting" | "close"> = {
   open: "open",
   connecting: "connecting",
@@ -259,9 +346,15 @@ Deno.serve(async (req) => {
       return ok({ ignorado: "instância não cadastrada" });
     }
 
+    // Antes de tudo, e sem esperar: toda passagem por aqui vira uma linha de
+    // contagem. É o que responde quais eventos esta instância manda.
+    void anotarEvento(ownerId, instancia, evento, body?.data);
+
     let resultado: unknown = { ignorado: evento };
 
-    if (evento === "messages.upsert") {
+    if (EVENTOS_DE_CONVERSA.includes(evento as (typeof EVENTOS_DE_CONVERSA)[number])) {
+      resultado = { evento, ...(await lerNoCelular(ownerId, body?.data)) };
+    } else if (evento === "messages.upsert") {
       // A Evolution manda ora um objeto, ora uma lista.
       const itens = Array.isArray(body?.data) ? body.data : [body?.data];
       const gravados = [];
