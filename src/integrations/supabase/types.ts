@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_agent_casos: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          media_path: string
+          owner_id: string
+          quando_usar: string | null
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          media_path: string
+          owner_id: string
+          quando_usar?: string | null
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          media_path?: string
+          owner_id?: string
+          quando_usar?: string | null
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_agent_licoes: {
         Row: {
           appointment_id: string | null
@@ -88,6 +121,7 @@ export type Database = {
       }
       ai_agent_messages: {
         Row: {
+          caso_id: string | null
           content: string | null
           created_at: string
           direction: string
@@ -98,6 +132,7 @@ export type Database = {
           wa_message_id: string | null
         }
         Insert: {
+          caso_id?: string | null
           content?: string | null
           created_at?: string
           direction: string
@@ -108,6 +143,7 @@ export type Database = {
           wa_message_id?: string | null
         }
         Update: {
+          caso_id?: string | null
           content?: string | null
           created_at?: string
           direction?: string
@@ -118,6 +154,13 @@ export type Database = {
           wa_message_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ai_agent_messages_caso_id_fkey"
+            columns: ["caso_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agent_casos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ai_agent_messages_session_id_fkey"
             columns: ["session_id"]
@@ -224,6 +267,8 @@ export type Database = {
           contact_name: string | null
           conversation_id: string
           created_at: string
+          duvida_pendente: string | null
+          duvida_pendente_em: string | null
           followups_enviados: number
           human_took_over_at: string | null
           id: string
@@ -240,6 +285,8 @@ export type Database = {
           contact_name?: string | null
           conversation_id: string
           created_at?: string
+          duvida_pendente?: string | null
+          duvida_pendente_em?: string | null
           followups_enviados?: number
           human_took_over_at?: string | null
           id?: string
@@ -256,6 +303,8 @@ export type Database = {
           contact_name?: string | null
           conversation_id?: string
           created_at?: string
+          duvida_pendente?: string | null
+          duvida_pendente_em?: string | null
           followups_enviados?: number
           human_took_over_at?: string | null
           id?: string
@@ -298,6 +347,7 @@ export type Database = {
           novo_ate_dias: number
           owner_id: string
           paciente_modelo_ate: string | null
+          paciente_modelo_local: string | null
           paciente_modelo_texto: string | null
           parcelamento: string | null
           segment_enabled: boolean
@@ -332,6 +382,7 @@ export type Database = {
           novo_ate_dias?: number
           owner_id: string
           paciente_modelo_ate?: string | null
+          paciente_modelo_local?: string | null
           paciente_modelo_texto?: string | null
           parcelamento?: string | null
           segment_enabled?: boolean
@@ -366,6 +417,7 @@ export type Database = {
           novo_ate_dias?: number
           owner_id?: string
           paciente_modelo_ate?: string | null
+          paciente_modelo_local?: string | null
           paciente_modelo_texto?: string | null
           parcelamento?: string | null
           segment_enabled?: boolean
@@ -1575,6 +1627,94 @@ export type Database = {
         }
         Relationships: []
       }
+      financeiro_do_grupo: {
+        Row: {
+          created_at: string
+          estado: string
+          group_jid: string
+          id: string
+          owner_id: string
+          proposta: Json | null
+          quem: string | null
+          transaction_id: string | null
+          updated_at: string
+          wa_message_id: string
+        }
+        Insert: {
+          created_at?: string
+          estado?: string
+          group_jid: string
+          id?: string
+          owner_id: string
+          proposta?: Json | null
+          quem?: string | null
+          transaction_id?: string | null
+          updated_at?: string
+          wa_message_id: string
+        }
+        Update: {
+          created_at?: string
+          estado?: string
+          group_jid?: string
+          id?: string
+          owner_id?: string
+          proposta?: Json | null
+          quem?: string | null
+          transaction_id?: string | null
+          updated_at?: string
+          wa_message_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financeiro_do_grupo_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "financial_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financeiro_grupos: {
+        Row: {
+          apelido: string | null
+          ativo: boolean
+          created_at: string
+          group_jid: string
+          id: string
+          owner_id: string
+          unit_id: string
+          updated_at: string
+        }
+        Insert: {
+          apelido?: string | null
+          ativo?: boolean
+          created_at?: string
+          group_jid: string
+          id?: string
+          owner_id: string
+          unit_id: string
+          updated_at?: string
+        }
+        Update: {
+          apelido?: string | null
+          ativo?: boolean
+          created_at?: string
+          group_jid?: string
+          id?: string
+          owner_id?: string
+          unit_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financeiro_grupos_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_accounts: {
         Row: {
           company_id: string | null
@@ -2721,6 +2861,7 @@ export type Database = {
           created_at: string
           daily_agenda: boolean
           deal_result: boolean
+          luna_duvida: boolean
           owner_id: string
           updated_at: string
           whatsapp_message: boolean
@@ -2731,6 +2872,7 @@ export type Database = {
           created_at?: string
           daily_agenda?: boolean
           deal_result?: boolean
+          luna_duvida?: boolean
           owner_id: string
           updated_at?: string
           whatsapp_message?: boolean
@@ -2741,6 +2883,7 @@ export type Database = {
           created_at?: string
           daily_agenda?: boolean
           deal_result?: boolean
+          luna_duvida?: boolean
           owner_id?: string
           updated_at?: string
           whatsapp_message?: boolean
@@ -3324,8 +3467,24 @@ export type Database = {
       }
     }
     Views: {
+      lead_funnel_signals: {
+        Row: {
+          crm_contact_id: string | null
+          desqualificado: boolean | null
+          dias_em_silencio: number | null
+          fone: string | null
+          name: string | null
+          owner_id: string | null
+          tem_agendamento: boolean | null
+          teve_consulta: boolean | null
+          ultima_concluida: string | null
+          ultima_mensagem: string | null
+        }
+        Relationships: []
+      }
       patient_funnel_signals: {
         Row: {
+          consultas_concluidas: number | null
           crm_contact_id: string | null
           dias_sem_consulta: number | null
           name: string | null
@@ -3488,6 +3647,7 @@ export type Database = {
           total: number
         }[]
       }
+      fone_canonico: { Args: { raw: string }; Returns: string }
       get_invitation_by_token: {
         Args: { _token: string }
         Returns: {
