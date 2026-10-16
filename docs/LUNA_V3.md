@@ -1,3 +1,7 @@
+> **SUBSTITUÍDO.** Em 16/10/2026 a instrução da Luna passou a ser o
+> `LUNA_V4.md`, nesta mesma pasta. Este arquivo fica como registro do que ela
+> recebia até aqui, e NÃO é mais o que ela lê.
+
 # LUNA V3
 ## Manual operacional de atendimento e venda consultiva da NÓS
 
