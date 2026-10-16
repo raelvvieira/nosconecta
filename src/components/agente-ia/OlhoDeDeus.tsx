@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAtendimento } from "./useAtendimento";
 import { Bloco, Chave } from "./campos";
+import { listarModelosDaIa } from "@/lib/agente-ia/agente.functions";
 import {
   gerarRelatorioDoOlho,
   getRelatoriosDoOlho,
@@ -42,6 +43,20 @@ export function OlhoDeDeus() {
     queryFn: () => buscar(),
     staleTime: 60_000,
   });
+
+  // A MESMA lista da Luna, da conta e não do código — ver `listarModelosDaIa`.
+  // A chave de cache é a mesma de propósito: duas consultas à OpenAI para a
+  // mesma pergunta renderiam duas listas que podem discordar por um instante.
+  const buscarModelos = useServerFn(listarModelosDaIa);
+  const modelosQuery = useQuery({
+    queryKey: ["modelos-da-ia", config?.temChavePropria === true],
+    queryFn: () => buscarModelos(),
+    enabled: Boolean(config),
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
+  const modelos = modelosQuery.data?.modelos ?? [];
+  const olhoModelo = config?.olhoModelo ?? "";
 
   const rodar = useMutation({
     mutationFn: () => gerar({ data: {} }),
@@ -88,17 +103,56 @@ export function OlhoDeDeus() {
           ligada={config?.olhoNaWeb === true}
           onMudar={(v) => gravar({ olhoNaWeb: v })}
         />
-        <p className="text-xs text-muted-foreground">
-          Ele usa o mesmo modelo da Luna
-          {config?.modelo ? (
-            <>
-              {" "}
-              (<span className="font-mono">{config.modelo}</span>)
-            </>
-          ) : null}
-          . Para dar um modelo melhor só para ele, escolha em Chave da IA — ler a semana inteira e
-          responder a um paciente são trabalhos diferentes.
-        </p>
+        {/* ── O modelo DELE ────────────────────────────────────────────
+            Separado do da Luna porque são trabalhos diferentes: responder a
+            um paciente em quinze segundos e ler a semana inteira de uma vez
+            não pedem a mesma coisa, e o olho roda uma vez por semana — pode
+            valer um modelo mais caro.
+
+            A lista vem da CONTA, nunca de uma lista escrita aqui: um nome de
+            modelo chutado no código falha com "model not found" no meio da
+            rodada, e quais existem depende do plano da clínica. */}
+        <div>
+          <label htmlFor="olho-modelo" className="text-sm font-medium">
+            O modelo que lê a semana
+          </label>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Em branco, ele usa o mesmo da Luna
+            {config?.modelo ? (
+              <>
+                {" "}
+                (<span className="font-mono">{config.modelo}</span>)
+              </>
+            ) : null}
+            .
+          </p>
+          {modelosQuery.data?.erro ? (
+            <p className="mt-2 text-xs leading-5 text-danger">{modelosQuery.data.erro}</p>
+          ) : (
+            <select
+              id="olho-modelo"
+              value={olhoModelo}
+              disabled={!modelos.length}
+              onChange={(e) => void gravar({ olhoModelo: e.target.value })}
+              className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2 font-mono text-sm disabled:opacity-60"
+            >
+              <option value="">
+                {modelos.length ? "O mesmo da Luna" : "Cadastre a chave para ver a lista"}
+              </option>
+              {/* O gravado entra na lista mesmo que a conta não o devolva
+                  mais: sem isto, um modelo descontinuado apareceria como "o
+                  mesmo da Luna" e o campo mentiria sobre o que roda. */}
+              {olhoModelo && !modelos.includes(olhoModelo) && (
+                <option value={olhoModelo}>{olhoModelo} (não está mais na conta)</option>
+              )}
+              {modelos.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {relatorios.isPending ? (
