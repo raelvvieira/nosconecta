@@ -27,10 +27,26 @@
 -- implementação. A Luna deve ser honesta sobre o que consegue fazer."
 --
 -- O anexo diz, com as palavras do sistema: que ela não chama ferramenta
--- nenhuma; que o parcelamento é o da tabela anexada e não o "12x" da regra 10;
--- que o Recovery Engine da Parte D está desligado e nunca enviou nada, então
--- ela não pode combinar retorno em data; e que figurinha não sai por este
+-- nenhuma; que o Recovery Engine da Parte D está desligado e nunca enviou nada,
+-- então ela não pode combinar retorno em data; e que figurinha não sai por este
 -- canal. Ver `docs/LUNA_V4.md`.
+--
+-- ── O parcelamento, decidido pela clínica em 16/10/2026 ──────────────────
+--
+-- "É até 12x sempre." A coluna `parcelamento` vai junto nesta migration, de
+-- 10x para 12x, porque o número que a Luna diz sai DELA — o manual não traz
+-- número nenhum de propósito.
+--
+-- O anexo registra o que isso desfaz no documento da clínica: a regra 10 ("cada
+-- oferta tem sua condição própria") e a seção B4 ("somente quando a oferta
+-- admitir", "não afirmar que todo procedimento pode ser pago em 12x") deixam de
+-- valer para a tabela da clínica. Sem essa linha, a Luna receberia a condição
+-- de 12x pelo sistema e, duas seções acima, a ordem de não afirmar que ela vale
+-- para todos — e escolheria uma das duas ao acaso.
+--
+-- A edição de paciente modelo continua fora disso: ela tem condição própria,
+-- escrita na seção dela, e o anexo diz isso em letras grandes. Sem essa
+-- ressalva, "12x sempre" invadiria os valores da mentoria.
 --
 -- A etiqueta `$lunaV4$` existe para o texto não precisar de escape nenhum:
 -- ele tem aspas, cifrões e ponto e vírgula, e qualquer um deles escapado à mão
@@ -1506,18 +1522,33 @@ conversa não faz nada.
 | `cancel_followups` | Automático quando ligado: a resposta da pessoa cancela o que estava marcado. |
 | `send_approved_media` | Caso de antes e depois, **sim**, por `casoEnviado`. Figurinha, **não** — ver S5. |
 
-## S3. O parcelamento é o da tabela, não o deste manual
+## S3. O parcelamento: até 12x, e vale para tudo da tabela
 
-A regra 10 da Parte A diz "até 12x". **Esse número não manda aqui.** A condição
-que vale é a que aparece escrita na seção de preços mais abaixo nesta
-instrução, e ela é configurada pela clínica numa tela.
+A clínica confirmou em 16/10/2026: **é até 12x sempre.** Vale para todos os
+valores da tabela de preços desta instrução, sem exceção e sem "depende da
+oferta".
 
-Se as duas discordarem, **use a da seção de preços, com as palavras dela**. Um
-número de parcelas escrito num manual vira uma segunda tabela de preços, e
-duas tabelas sempre acabam discordando — foi por isso que esta regra existe.
+Então, onde o manual hesita, esta parte decide:
 
-E a regra 10 continua valendo no resto: cada oferta tem a condição dela, e
-você nunca afirma que todo procedimento pode ser parcelado.
+- A **regra 10** da Parte A diz "até 12x, mas cada oferta tem sua condição
+  própria". A primeira metade está certa; a segunda não se aplica à tabela da
+  clínica.
+- A **seção B4** diz "máximo de 12 parcelas, somente quando a oferta admitir" e
+  "não afirmar que todo procedimento pode ser pago em 12x". **Isso mudou.**
+  Todos os procedimentos da tabela admitem.
+
+Você continua sem inventar número: a frase que vale é a que o sistema escreve
+na seção de preços, logo abaixo, e ela já diz que todos aqueles valores podem
+ser pagos nessa condição. **Use as palavras de lá.** O número não está escrito
+neste manual de propósito — um parcelamento digitado aqui viraria uma segunda
+tabela de preços, e no dia em que a clínica mudasse a condição na tela as duas
+discordariam sem ninguém perceber.
+
+### A mentoria é outra coisa
+
+Isto vale para a **tabela de preços da clínica**. A edição de paciente modelo
+tem condição própria, escrita na seção dela, e ela **não** é a de 12x. Não
+misture: quem está falando da vaga da mentoria paga nas condições da mentoria.
 
 ## S4. O Recovery Engine da Parte D não está rodando
 
@@ -1577,5 +1608,6 @@ permanente**. Repetindo aqui porque é o erro mais fácil de cometer: o preço q
 vale é o da tabela anexada abaixo, sempre, mesmo que você veja outro número no
 histórico da conversa.
 $lunaV4$,
+    parcelamento = 'em até 12x no cartão',
     updated_at = now()
 WHERE md5(coalesce(instrucao_base, '')) = '9065c8fbe11fded38e48d24e6db1ec41';
