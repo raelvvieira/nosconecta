@@ -345,6 +345,9 @@ export type Database = {
           model: string | null
           name: string
           novo_ate_dias: number
+          olho_ligado: boolean
+          olho_modelo: string | null
+          olho_na_web: boolean
           owner_id: string
           paciente_modelo_ate: string | null
           paciente_modelo_local: string | null
@@ -380,6 +383,9 @@ export type Database = {
           model?: string | null
           name?: string
           novo_ate_dias?: number
+          olho_ligado?: boolean
+          olho_modelo?: string | null
+          olho_na_web?: boolean
           owner_id: string
           paciente_modelo_ate?: string | null
           paciente_modelo_local?: string | null
@@ -415,6 +421,9 @@ export type Database = {
           model?: string | null
           name?: string
           novo_ate_dias?: number
+          olho_ligado?: boolean
+          olho_modelo?: string | null
+          olho_na_web?: boolean
           owner_id?: string
           paciente_modelo_ate?: string | null
           paciente_modelo_local?: string | null
@@ -429,6 +438,48 @@ export type Database = {
           so_sem_historico?: boolean
           updated_at?: string
           winning_stage_ids?: Json
+        }
+        Relationships: []
+      }
+      ai_olho_relatorios: {
+        Row: {
+          ate: string
+          created_at: string
+          de: string
+          id: string
+          markdown: string
+          modelo: string | null
+          motivo_sem_praticas: string | null
+          numeros: Json
+          owner_id: string
+          praticas: Json | null
+          relatorio: Json
+        }
+        Insert: {
+          ate: string
+          created_at?: string
+          de: string
+          id?: string
+          markdown?: string
+          modelo?: string | null
+          motivo_sem_praticas?: string | null
+          numeros?: Json
+          owner_id: string
+          praticas?: Json | null
+          relatorio?: Json
+        }
+        Update: {
+          ate?: string
+          created_at?: string
+          de?: string
+          id?: string
+          markdown?: string
+          modelo?: string | null
+          motivo_sem_praticas?: string | null
+          numeros?: Json
+          owner_id?: string
+          praticas?: Json | null
+          relatorio?: Json
         }
         Relationships: []
       }
@@ -2862,6 +2913,7 @@ export type Database = {
           daily_agenda: boolean
           deal_result: boolean
           luna_duvida: boolean
+          olho_relatorio: boolean
           owner_id: string
           updated_at: string
           whatsapp_message: boolean
@@ -2873,6 +2925,7 @@ export type Database = {
           daily_agenda?: boolean
           deal_result?: boolean
           luna_duvida?: boolean
+          olho_relatorio?: boolean
           owner_id: string
           updated_at?: string
           whatsapp_message?: boolean
@@ -2884,6 +2937,7 @@ export type Database = {
           daily_agenda?: boolean
           deal_result?: boolean
           luna_duvida?: boolean
+          olho_relatorio?: boolean
           owner_id?: string
           updated_at?: string
           whatsapp_message?: boolean
