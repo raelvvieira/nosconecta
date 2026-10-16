@@ -23,6 +23,10 @@ const PREFERENCE_COLUMN = {
   // pergunta. Entre 28/09 e 15/10 ela encaminhou 50 dúvidas e nenhuma chegou a
   // ninguém.
   luna_duvida: "luna_duvida",
+  // O relatório semanal do Olho de Deus ficou pronto. Tipo próprio pela mesma
+  // razão dos dois acima — e porque um relatório que ninguém sabe que chegou é
+  // a mesma falha das dúvidas que a Luna encaminhava para o vazio.
+  olho_relatorio: "olho_relatorio",
 } as const;
 
 export type PushType = keyof typeof PREFERENCE_COLUMN;

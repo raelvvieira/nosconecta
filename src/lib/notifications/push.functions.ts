@@ -7,7 +7,8 @@ export type PushType =
   | "appointment_reply"
   | "deal_result"
   | "automation"
-  | "luna_duvida";
+  | "luna_duvida"
+  | "olho_relatorio";
 
 export const PUSH_TYPE_LABEL: Record<PushType, { title: string; description: string }> = {
   whatsapp_message: {
@@ -35,6 +36,10 @@ export const PUSH_TYPE_LABEL: Record<PushType, { title: string; description: str
     description:
       "Quando ela encaminha uma dúvida para a equipe. Sem este aviso, ninguém fica sabendo e o paciente espera.",
   },
+  olho_relatorio: {
+    title: "Relatório semanal do Olho de Deus",
+    description: "Quando o relatório da semana fica pronto, com o gargalo e o que mudar.",
+  },
 };
 
 export const PUSH_TYPES = Object.keys(PUSH_TYPE_LABEL) as PushType[];
@@ -46,6 +51,7 @@ export interface PushPreferences {
   deal_result: boolean;
   automation: boolean;
   luna_duvida: boolean;
+  olho_relatorio: boolean;
 }
 
 export interface PushDevice {
@@ -96,6 +102,7 @@ export const getPushPreferences = createServerFn({ method: "GET" })
       deal_result: data?.deal_result ?? true,
       automation: data?.automation ?? true,
       luna_duvida: data?.luna_duvida ?? true,
+      olho_relatorio: data?.olho_relatorio ?? true,
     };
   });
 

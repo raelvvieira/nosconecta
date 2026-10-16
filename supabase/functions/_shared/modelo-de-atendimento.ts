@@ -163,6 +163,23 @@ export interface PedidoAoModelo {
   /** Vai como `user`. */
   pergunta: string;
   /**
+   * Deixar o modelo buscar na internet antes de responder.
+   *
+   * ── O que isto depende, e que não dá para prometer daqui ───────────────
+   *
+   * `web_search_options` é aceito por uma PARTE dos modelos da OpenAI, e quais
+   * dependem da conta da clínica — a mesma razão pela qual a lista de modelos
+   * não está escrita no código (ver `listarModelosDaIa`). Num modelo que não
+   * suporta, a API recusa a chamada inteira com 400.
+   *
+   * Por isso quem usa isto trata a recusa como resultado possível, e não como
+   * erro: hoje só o Olho de Deus liga, numa chamada SEPARADA da que escreve o
+   * relatório. Se a busca falhar, o relatório sai completo sem a seção de fora,
+   * com o motivo registrado. O contrário — a semana inteira perdida porque uma
+   * busca não rolou — seria o pior desenho possível.
+   */
+  buscarNaWeb?: boolean;
+  /**
    * Uma imagem junto da pergunta, quando há o que olhar.
    *
    * Existe por causa do comprovante fotografado no grupo do financeiro: ler o
@@ -238,6 +255,10 @@ export async function chamarModelo(p: PedidoAoModelo): Promise<string> {
     ...(p.formato
       ? { response_format: formatoDeResposta(p.formato, p.nomeDoFormato ?? "resposta") }
       : {}),
+    // Objeto vazio = "busque como achar melhor". Só vai quando pedido: mandar
+    // sempre encareceria e atrasaria toda resposta de paciente por uma busca
+    // que ninguém pediu.
+    ...(p.buscarNaWeb ? { web_search_options: {} } : {}),
   };
 
   // `temperature` não é enviado de propósito: parte dos modelos recusa

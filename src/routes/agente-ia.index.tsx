@@ -23,6 +23,7 @@ import { VoltarEmQuemSumiu } from "@/components/agente-ia/VoltarEmQuemSumiu";
 import { Testar } from "@/components/agente-ia/Testar";
 import { Procedimentos } from "@/components/agente-ia/Procedimentos";
 import { LicoesDaLuna } from "@/components/agente-ia/LicoesDaLuna";
+import { OlhoDeDeus } from "@/components/agente-ia/OlhoDeDeus";
 import { ConsumoDaIa } from "@/components/agente-ia/ConsumoDaIa";
 import { OQueAprendeu } from "@/components/agente-ia/OQueAprendeu";
 
@@ -221,6 +222,14 @@ function AgentePage() {
               conversas dela. Misturar os dois faria parecer que o manual já
               foi corrigido pelas lições — e ninguém corrigiu. */}
           <LicoesDaLuna />
+
+          {/* ── 5c. O Olho de Deus ──────────────────────────────────────
+              DEPOIS das lições, de propósito: ele é a soma delas. As lições
+              são uma linha por conversa, e eram 117 em 16/10 — o padrão só
+              aparece agrupando, e 72 das 117 sugestões diziam a mesma coisa.
+              Em cima das lições, o relatório pareceria outra análise solta;
+              embaixo, ele é a resposta do que está logo acima. */}
+          <OlhoDeDeus />
 
           {/* ── 5c. O que isso custa ──────────────────────────────────────
               Depois das lições e antes do funil: é a última pergunta que se

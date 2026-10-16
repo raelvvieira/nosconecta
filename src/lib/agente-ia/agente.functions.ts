@@ -332,6 +332,12 @@ export interface ConfigDeAtendimento {
    * sobre uma edição em Porto Alegre.
    */
   pacienteModeloLocal: string;
+  /** O Olho de Deus gera o relatório semanal. Nasce desligado. */
+  olhoLigado: boolean;
+  /** O modelo que lê a semana. Vazio = o mesmo da Luna. */
+  olhoModelo: string;
+  /** Deixar o olho buscar boas práticas na internet. */
+  olhoNaWeb: boolean;
 }
 
 export const getAtendimento = createServerFn({ method: "GET" })
@@ -375,6 +381,13 @@ export const getAtendimento = createServerFn({ method: "GET" })
       pacienteModeloAte: String(agente.paciente_modelo_ate ?? ""),
       pacienteModeloTexto: String(agente.paciente_modelo_texto ?? ""),
       pacienteModeloLocal: String(agente.paciente_modelo_local ?? ""),
+      // `=== true` e não `!== false`: estes nasceram DESLIGADOS de propósito, e
+      // uma linha criada antes das colunas traz `undefined`. Com `!== false` o
+      // olho nasceria ligado justamente na clínica que já tinha agente — o
+      // contrário do `DEFAULT false` da migration.
+      olhoLigado: agente.olho_ligado === true,
+      olhoModelo: String(agente.olho_modelo ?? ""),
+      olhoNaWeb: agente.olho_na_web === true,
     };
   });
 
@@ -408,6 +421,10 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
       /** O endereço do local da mentoria. String vazia = sem endereço, e aí a
        *  Luna passa a conversa para uma pessoa quando perguntarem onde fica. */
       pacienteModeloLocal?: string;
+      olhoLigado?: boolean;
+      /** O modelo do olho. String vazia volta a usar o da Luna. */
+      olhoModelo?: string;
+      olhoNaWeb?: boolean;
     }) => {
       // Data no formato que a coluna espera. Sem esta checagem, "25/10" chega
       // ao Postgres e volta um erro de sintaxe que não diz nada a quem está na
@@ -513,6 +530,11 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
     if (data.pacienteModeloLocal !== undefined) {
       campos.paciente_modelo_local = data.pacienteModeloLocal.trim() || null;
     }
+    if (data.olhoLigado !== undefined) campos.olho_ligado = data.olhoLigado;
+    if (data.olhoNaWeb !== undefined) campos.olho_na_web = data.olhoNaWeb;
+    // `null` e não string vazia, mesma razão do modelo da Luna: a pergunta que
+    // a função faz é se o olho TEM modelo próprio, não se ele está em branco.
+    if (data.olhoModelo !== undefined) campos.olho_modelo = data.olhoModelo.trim() || null;
 
     const { error } = await supabase
       .from("ai_agents")

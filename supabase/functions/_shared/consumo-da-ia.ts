@@ -81,7 +81,14 @@ export function usoDaResposta(corpo: unknown, modelo: string): UsoDoModelo | nul
 
 /** Para que serviu a chamada. É o que permite à tela dizer QUEM gasta. */
 export type ParaQue =
-  "resposta" | "sugestao" | "aprendizado" | "licao" | "leitura" | "teste" | "followup";
+  | "resposta"
+  | "sugestao"
+  | "aprendizado"
+  | "licao"
+  | "leitura"
+  | "teste"
+  | "followup"
+  | "olho";
 
 /**
  * Grava o consumo de uma chamada.
