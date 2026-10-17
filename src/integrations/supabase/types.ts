@@ -3246,6 +3246,36 @@ export type Database = {
         }
         Relationships: []
       }
+      wa_eventos_vistos: {
+        Row: {
+          chaves: string[]
+          evento: string
+          instancia: string
+          owner_id: string
+          primeiro_em: string
+          quantos: number
+          ultimo_em: string
+        }
+        Insert: {
+          chaves?: string[]
+          evento: string
+          instancia?: string
+          owner_id: string
+          primeiro_em?: string
+          quantos?: number
+          ultimo_em?: string
+        }
+        Update: {
+          chaves?: string[]
+          evento?: string
+          instancia?: string
+          owner_id?: string
+          primeiro_em?: string
+          quantos?: number
+          ultimo_em?: string
+        }
+        Relationships: []
+      }
       wa_instances: {
         Row: {
           connected_at: string | null
@@ -3727,7 +3757,20 @@ export type Database = {
       }
       primary_clinic_owner: { Args: never; Returns: string }
       telefone_br_normalizado: { Args: { _raw: string }; Returns: string }
+      wa_anotar_evento: {
+        Args: {
+          _chaves: string[]
+          _evento: string
+          _instancia: string
+          _owner: string
+        }
+        Returns: undefined
+      }
       wa_e164_br: { Args: { raw: string }; Returns: string }
+      wa_marcar_lida_pelo_celular: {
+        Args: { _conversa: string; _owner: string; _quando?: string }
+        Returns: number
+      }
       wa_marcar_lidas: {
         Args: { _conversas: string[]; _owner: string }
         Returns: number
