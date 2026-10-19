@@ -125,6 +125,63 @@ naoContem(
   contem("e ainda assim explica o domingo", t, "domingo, 04/10");
 }
 
+// ── A quarta ausência: não há vaga NA CIDADE DELA ───────────────────────
+//
+// Esta é diferente das três de cima, e é a que apareceu com a unidade de Porto
+// Alegre. A agenda foi consultada, há vaga de sobra — em Florianópolis. Para
+// quem acabou de dizer que está em Porto Alegre, "temos horário" é falso e
+// oferecer um dos de Florianópolis é marcar uma viagem de 470 km sem avisar.
+{
+  const t = secaoDeHorarios({
+    paraOferecer: [],
+    reserva: [
+      { date: "2026-10-05", hora: "09:00", unidadeNome: "NÓS Florianópolis" },
+      { date: "2026-10-06", hora: "14:00", unidadeNome: "NÓS Florianópolis" },
+    ],
+    faixa: null,
+    diasSobConsulta: [],
+    unidadeDoPaciente: { id: "u-poa", nome: "NÓS Porto Alegre" },
+  });
+  contem("diz em qual cidade não há vaga", t, "NÃO há vaga na NÓS Porto Alegre");
+  contem("proíbe oferecer da outra", t, "NÃO ofereça horário de outra");
+  contem("inclusive os que aparecem abaixo", t, "nem os que aparecerem mais abaixo");
+  contem("manda confirmar as próximas datas", t, "próximas datas de atendimento");
+  // E não pode sair a frase genérica, que convida a "ver uma possibilidade" sem
+  // dizer que a possibilidade é em outra cidade.
+  naoContem("sem a frase genérica", t, "ver uma possibilidade com a");
+}
+
+// Com vaga na cidade dela, a seção oferece normalmente — e avisa que a lista de
+// alternativas pode ter outra cidade, porque ela tem mesmo: é de propósito, para
+// responder "na verdade eu estou na outra".
+{
+  const t = secaoDeHorarios({
+    paraOferecer: [
+      { date: "2026-10-05", hora: "09:00", unidadeNome: "NÓS Porto Alegre" },
+      { date: "2026-10-05", hora: "15:00", unidadeNome: "NÓS Porto Alegre" },
+    ],
+    reserva: [{ date: "2026-10-06", hora: "10:00", unidadeNome: "NÓS Florianópolis" }],
+    faixa: "nos próximos 2 dias",
+    diasSobConsulta: [],
+    unidadeDoPaciente: { id: "u-poa", nome: "NÓS Porto Alegre" },
+  });
+  contem("oferece os dois dela", t, "às 09:00, na NÓS Porto Alegre");
+  contem("avisa da outra cidade na reserva", t, "pode ter horários de outra cidade");
+  contem("e diz qual é a dela", t, "da NÓS Porto Alegre — ofereça só os que dizem");
+}
+
+// Sem cidade confirmada, o texto é o de sempre: nenhuma dessas frases aparece.
+{
+  const t = secaoDeHorarios({
+    paraOferecer: [{ date: "2026-10-05", hora: "09:00", unidadeNome: "NÓS Florianópolis" }],
+    reserva: [{ date: "2026-10-06", hora: "10:00", unidadeNome: "NÓS Porto Alegre" }],
+    faixa: "nos próximos 2 dias",
+    diasSobConsulta: [],
+  });
+  naoContem("sem cidade, nada de aviso de cidade", t, "pode ter horários de outra cidade");
+  naoContem("nem de proibição", t, "NÃO ofereça horário de outra");
+}
+
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);
   for (const f of falhas) console.error("  - " + f);

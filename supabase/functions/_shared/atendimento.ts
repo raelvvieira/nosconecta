@@ -31,6 +31,12 @@ import {
 } from "./veio-de-anuncio.ts";
 import { catalogoDeVagas, vagaFechada, type VagaComCodigo } from "./agendamento-da-ia.ts";
 import { casoEscolhido, catalogoDeCasos, type CasoComCodigo } from "./casos-da-ia.ts";
+import {
+  catalogoDeUnidades,
+  unidadeEscolhida,
+  unidadePeloDdd,
+  type UnidadeComCodigo,
+} from "./cidade-do-paciente.ts";
 import type { HorariosParaOferecer } from "./instrucao-do-agente.ts";
 import type { RespostaAoPaciente } from "./modelo-de-atendimento.ts";
 
@@ -113,6 +119,17 @@ export interface MensagemDeEntrada {
    * `last_outbound_at` da sessão, porque o espelho não sabe quem escreveu.
    */
   semHistorico?: boolean;
+  /**
+   * O número de WhatsApp da pessoa, como o jid informou ("5551999887766").
+   *
+   * Serve a uma coisa só: o DDD, que sugere de que cidade ela é quando a
+   * clínica atende em mais de uma. Palpite, nunca resposta — ver
+   * `cidade-do-paciente.ts`.
+   *
+   * Ausente na prévia da tela, e aí não há palpite e a Luna pergunta a cidade
+   * sem viés, que é o comportamento certo para uma conversa inventada.
+   */
+  telefone?: string | null;
 }
 
 /**
@@ -438,13 +455,29 @@ export async function atender(
   // A que já estava esperando. Lida da sessão porque é ela que muda a instrução
   // — sem isso a Luna encaminharia a mesma pergunta a cada mensagem.
   const duvidaPendente = String(sessao.duvida_pendente ?? "").trim() || null;
+  // A cidade que ela já confirmou nesta conversa. Lida da sessão porque é ela
+  // que decide QUAIS horários entram na instrução — precisa estar em mãos antes
+  // de montar a instrução, não depois da resposta.
+  const unidadeDaSessao = String(sessao.unidade_id ?? "").trim() || null;
+  // A que ela confirmou NESTA mensagem, se confirmou. Gravada depois do envio,
+  // pelo mesmo motivo do agendamento e da dúvida.
+  let cidadeNova: UnidadeComCodigo | null = null;
   try {
     if (agente.mode === "ia") {
-      const r = await responderComModelo(deps, agente, entrada, anuncio, sessao.id, duvidaPendente);
+      const r = await responderComModelo(
+        deps,
+        agente,
+        entrada,
+        anuncio,
+        sessao.id,
+        duvidaPendente,
+        unidadeDaSessao,
+      );
       texto = r.texto;
       vagaFechadaAqui = r.vaga;
       caso = r.caso;
       duvidaNova = r.duvida;
+      cidadeNova = r.cidade;
     } else {
       texto = String(agente.echo_message ?? "").trim();
     }
@@ -606,6 +639,37 @@ export async function atender(
     }
   }
 
+  // ── A cidade confirmada, DEPOIS do envio ────────────────────────────────
+  //
+  // Mesma ordem da dúvida: a mensagem para a paciente vem primeiro, e uma falha
+  // de banco não pode deixá-la sem resposta.
+  //
+  // Sobrescreve quando muda, ao contrário da dúvida: a pessoa que diz "ah, na
+  // verdade eu estou em Porto Alegre agora" está CORRIGINDO, e manter a
+  // primeira cidade faria todos os horários seguintes saírem da errada.
+  if (cidadeNova && cidadeNova.id !== unidadeDaSessao) {
+    const { error } = await supabase
+      .from("ai_agent_sessions")
+      .update({
+        unidade_id: cidadeNova.id,
+        unidade_em: agora.toISOString(),
+        updated_at: agora.toISOString(),
+      })
+      .eq("id", sessao.id);
+    if (error) {
+      // Coluna pendente de migration, ou banco instável. A resposta já saiu; o
+      // que se perde é a memória da cidade, e a Luna pergunta de novo na
+      // mensagem seguinte — chato, e muito melhor que estourar.
+      console.warn("[atendimento] cidade não ficou registrada:", error.message);
+    } else {
+      await registrar(supabase, ownerId, sessao.id, {
+        direction: "ignorada",
+        content: null,
+        skipped_reason: `cidade confirmada: ${cidadeNova.nome}`,
+      });
+    }
+  }
+
   // ── O agendamento, DEPOIS do envio ──────────────────────────────────────
   //
   // A ordem não é gosto. Se a criação viesse antes e falhasse, a paciente
@@ -669,6 +733,10 @@ export interface InstrucaoMontada {
    *  texto, e não é reconsultado depois, pelo mesmo motivo dos horários: a
    *  lista precisa ser a MESMA que montou a instrução. */
   casos: CasoComCodigo[];
+  /** As unidades com código (`U1`, `U2`), pelo mesmo motivo: é contra esta
+   *  lista que o código da cidade é validado, e remontá-la depois poderia
+   *  numerar diferente. */
+  unidades: UnidadeComCodigo[];
 }
 
 export async function instrucaoDaLuna(
@@ -685,6 +753,11 @@ export async function instrucaoDaLuna(
   /** A dúvida que já está com a equipe nesta conversa. Ver
    *  `secaoDaDuvidaEncaminhada`. */
   duvidaPendente?: string | null,
+  /** A unidade da cidade que a pessoa já confirmou nesta conversa, lida da
+   *  sessão. Nula enquanto ela não disse de onde é. */
+  unidadeConfirmadaId?: string | null,
+  /** O número dela, só para o palpite do DDD. Ausente na prévia da tela. */
+  telefone?: string | null,
 ): Promise<InstrucaoMontada> {
   const { data: playbook } = await supabase
     .from("ai_sales_playbooks")
@@ -716,19 +789,41 @@ export async function instrucaoDaLuna(
 
   // As unidades ATIVAS com endereço, e não só o nome da principal: é daqui que
   // sai a resposta para "onde vocês ficam?", que a Luna não sabia dar.
+  //
+  // O `id` entra na leitura desde 19/10: é dele que sai o catálogo de códigos
+  // (`U1`, `U2`) com que a Luna diz de que cidade a pessoa é, e é por ele que a
+  // agenda sabe quais horários pode oferecer.
   const { data: unidades } = await supabase
     .from("clinic_units")
-    .select("name, address, is_default")
+    .select("id, name, address, is_default")
     .eq("owner_id", ownerId)
     .eq("active", true)
     .order("is_default", { ascending: false });
   // deno-lint-ignore no-explicit-any
   const listaDeUnidades = (unidades ?? []).map((u: any) => ({
+    id: String(u.id ?? ""),
     nome: String(u.name ?? "").trim(),
     endereco: u.address ?? null,
     principal: u.is_default === true,
   }));
   const unidade = listaDeUnidades[0] ?? null;
+
+  // ── De que cidade é esta pessoa ─────────────────────────────────────────
+  //
+  // O catálogo é montado aqui e DEVOLVIDO junto da instrução, como os horários
+  // e os casos: é contra ele que o código que o modelo responde vai ser
+  // validado. Montar outro depois daria outra numeração se uma unidade tivesse
+  // sido desativada no meio da conversa, e `U2` passaria a ser outra cidade.
+  const catalogoDasUnidades = catalogoDeUnidades(listaDeUnidades);
+  const confirmada =
+    catalogoDasUnidades.find((u) => u.id === String(unidadeConfirmadaId ?? "")) ?? null;
+  const palpite = confirmada
+    ? null
+    : unidadePeloDdd(
+        telefone,
+        catalogoDasUnidades,
+        Object.fromEntries(listaDeUnidades.map((u) => [u.id, u.endereco])),
+      );
 
   // Os horários de verdade, ao lado das outras leituras de contexto. É o que
   // torna a regra dos dois horários possível — antes disto o agente não tinha
@@ -737,7 +832,16 @@ export async function instrucaoDaLuna(
   // Devolve `null` quando a agenda não pôde ser lida, e `null` na instrução
   // significa "não consultei", nunca "não há vaga". A diferença importa: um
   // banco instável não pode virar "estamos sem horário" para quem quer marcar.
-  const horarios = await horariosParaOferecer(supabase, ownerId, agora);
+  //
+  // Com a cidade confirmada, a agenda devolve só os horários DELA — e devolve
+  // lista vazia quando não há vaga lá, que é a resposta certa para quem está
+  // numa cidade sem viagem marcada. Ver `escolherMomentos`.
+  const horarios = await horariosParaOferecer(
+    supabase,
+    ownerId,
+    agora,
+    confirmada ? { id: confirmada.id, nome: confirmada.nome } : null,
+  );
 
   // ── A biblioteca de casos ───────────────────────────────────────────────
   //
@@ -787,6 +891,11 @@ export async function instrucaoDaLuna(
       categoria: p.category ?? null,
       aPartirDe: p.price_from === true,
     })),
+    cidade: {
+      catalogo: catalogoDasUnidades,
+      confirmada,
+      palpite,
+    },
     instrucaoBase: agente.instrucao_base ?? null,
     parcelamento: agente.parcelamento ?? null,
     pacienteModelo: {
@@ -809,7 +918,7 @@ export async function instrucaoDaLuna(
     duvidaPendente: duvidaPendente ?? null,
   });
 
-  return { texto, horarios, casos };
+  return { texto, horarios, casos, unidades: catalogoDasUnidades };
 }
 
 /**
@@ -849,12 +958,17 @@ async function responderComModelo(
   anuncio: Anuncio | null,
   sessaoId: string,
   duvidaPendente: string | null,
+  /** A unidade da cidade já confirmada nesta conversa, lida da sessão. */
+  unidadeConfirmadaId: string | null,
 ): Promise<{
   texto: string;
   vaga: VagaComCodigo | null;
   caso: CasoComCodigo | null;
   /** A dúvida que ela encaminhou nesta resposta. Vazio é o normal. */
   duvida: string;
+  /** A cidade que ela disse nesta mensagem, já validada contra o catálogo.
+   *  `null` é o normal: a cidade se diz uma vez por conversa. */
+  cidade: UnidadeComCodigo | null;
 }> {
   const { supabase, ownerId } = deps;
   const instrucao = await instrucaoDaLuna(
@@ -865,6 +979,8 @@ async function responderComModelo(
     agoraDoAtendimento(deps),
     sessaoId,
     duvidaPendente,
+    unidadeConfirmadaId,
+    entrada.telefone ?? null,
   );
 
   const anteriores = await deps.historico(entrada.conversationId);
@@ -900,7 +1016,12 @@ async function responderComModelo(
   // Mesma fronteira, para o arquivo: o código vira caso AQUI, contra a lista
   // que montou esta instrução. Código fora dela não manda imagem nenhuma.
   const caso = casoEscolhido({ codigo: resposta.casoEnviado }, instrucao.casos);
-  return { texto: resposta.texto, vaga, caso, duvida: resposta.duvidaEncaminhada };
+  // E a mesma fronteira para a cidade: o código vira unidade AQUI, contra o
+  // catálogo desta instrução. Daqui sai em que cidade a consulta será marcada e
+  // qual endereço a confirmação vai mandar — um código inventado não confirma
+  // nada, e a Luna pergunta de novo na mensagem seguinte.
+  const cidade = unidadeEscolhida({ codigo: resposta.cidadeConfirmada }, instrucao.unidades);
+  return { texto: resposta.texto, vaga, caso, duvida: resposta.duvidaEncaminhada, cidade };
 }
 
 /**

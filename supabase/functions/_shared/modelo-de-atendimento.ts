@@ -382,6 +382,15 @@ export interface RespostaAoPaciente {
    * nada sozinha.
    */
   duvidaEncaminhada: string;
+  /**
+   * A cidade que a pessoa acabou de dizer que é: `U1`, `U2`… ou vazio.
+   *
+   * Código, e não o nome da cidade, pelo mesmo motivo do horário e do caso:
+   * daqui sai em qual UNIDADE a consulta vai ser marcada, e casar "poa" ou
+   * "porto alegre " com o cadastro é a diferença entre a pessoa ser atendida e
+   * a pessoa viajar. Validado em `cidade-do-paciente.ts`, não aqui.
+   */
+  cidadeConfirmada: string;
 }
 
 /**
@@ -405,7 +414,13 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["resposta", "horarioFechado", "casoEnviado", "duvidaEncaminhada"],
+    required: [
+      "resposta",
+      "horarioFechado",
+      "casoEnviado",
+      "duvidaEncaminhada",
+      "cidadeConfirmada",
+    ],
     properties: {
       resposta: {
         type: "string",
@@ -425,6 +440,11 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
         type: "string",
         description:
           "A pergunta específica que você acabou de dizer que vai confirmar com a equipe, em uma frase curta. Vazio quando você respondeu tudo sozinha, que é o normal.",
+      },
+      cidadeConfirmada: {
+        type: "string",
+        description:
+          "O código da unidade da cidade que a pessoa acabou de dizer que é (U1, U2…), exatamente como está na lista. Vazio quando ela não disse a cidade nesta mensagem.",
       },
     },
   },
@@ -461,7 +481,13 @@ export async function responderPaciente(
  */
 export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
   const cru = String(bruto ?? "").trim();
-  const vazia = { texto: "", horarioFechado: "", casoEnviado: "", duvidaEncaminhada: "" };
+  const vazia = {
+    texto: "",
+    horarioFechado: "",
+    casoEnviado: "",
+    duvidaEncaminhada: "",
+    cidadeConfirmada: "",
+  };
   if (!cru) return vazia;
   try {
     const obj = JSON.parse(cru) as {
@@ -469,6 +495,7 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
       horarioFechado?: unknown;
       casoEnviado?: unknown;
       duvidaEncaminhada?: unknown;
+      cidadeConfirmada?: unknown;
     };
     if (!obj || typeof obj !== "object") return { ...vazia, texto: cru };
     const texto = typeof obj.resposta === "string" ? obj.resposta.trim() : "";
@@ -482,8 +509,15 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
     // JSON válido sem o campo `resposta` não é a resposta: é outro objeto. Cai
     // para o texto cru, que ao menos é algo que alguém escreveu — e sem caso
     // nenhum: num objeto que não entendemos, mandar foto é o pior palpite.
+    const cidade = typeof obj.cidadeConfirmada === "string" ? obj.cidadeConfirmada.trim() : "";
     return texto
-      ? { texto, horarioFechado: codigo, casoEnviado: caso, duvidaEncaminhada: duvida }
+      ? {
+          texto,
+          horarioFechado: codigo,
+          casoEnviado: caso,
+          duvidaEncaminhada: duvida,
+          cidadeConfirmada: cidade,
+        }
       : { ...vazia, texto: cru };
   } catch {
     return { ...vazia, texto: cru };

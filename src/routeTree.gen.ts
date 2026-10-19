@@ -31,6 +31,7 @@ import { Route as AtendimentosPipelineRouteImport } from './routes/atendimentos.
 import { Route as ConfiguracoesIndexRouteImport } from './routes/configuracoes.index'
 import { Route as ConfiguracoesCasosRouteImport } from './routes/configuracoes.casos'
 import { Route as ConfiguracoesContasRouteImport } from './routes/configuracoes.contas'
+import { Route as ConfiguracoesDiasDeViagemRouteImport } from './routes/configuracoes.dias-de-viagem'
 import { Route as ConfiguracoesGrupoDoFinanceiroRouteImport } from './routes/configuracoes.grupo-do-financeiro'
 import { Route as ConfiguracoesIntegracoesRouteImport } from './routes/configuracoes.integracoes'
 import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
@@ -151,6 +152,12 @@ const ConfiguracoesContasRoute = ConfiguracoesContasRouteImport.update({
   path: '/contas',
   getParentRoute: () => ConfiguracoesRoute,
 } as any)
+const ConfiguracoesDiasDeViagemRoute =
+  ConfiguracoesDiasDeViagemRouteImport.update({
+    id: '/dias-de-viagem',
+    path: '/dias-de-viagem',
+    getParentRoute: () => ConfiguracoesRoute,
+  } as any)
 const ConfiguracoesGrupoDoFinanceiroRoute =
   ConfiguracoesGrupoDoFinanceiroRouteImport.update({
     id: '/grupo-do-financeiro',
@@ -223,6 +230,7 @@ export interface FileRoutesByFullPath {
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/casos': typeof ConfiguracoesCasosRoute
   '/configuracoes/contas': typeof ConfiguracoesContasRoute
+  '/configuracoes/dias-de-viagem': typeof ConfiguracoesDiasDeViagemRoute
   '/configuracoes/grupo-do-financeiro': typeof ConfiguracoesGrupoDoFinanceiroRoute
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
@@ -251,6 +259,7 @@ export interface FileRoutesByTo {
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/casos': typeof ConfiguracoesCasosRoute
   '/configuracoes/contas': typeof ConfiguracoesContasRoute
+  '/configuracoes/dias-de-viagem': typeof ConfiguracoesDiasDeViagemRoute
   '/configuracoes/grupo-do-financeiro': typeof ConfiguracoesGrupoDoFinanceiroRoute
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
@@ -285,6 +294,7 @@ export interface FileRoutesById {
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/casos': typeof ConfiguracoesCasosRoute
   '/configuracoes/contas': typeof ConfiguracoesContasRoute
+  '/configuracoes/dias-de-viagem': typeof ConfiguracoesDiasDeViagemRoute
   '/configuracoes/grupo-do-financeiro': typeof ConfiguracoesGrupoDoFinanceiroRoute
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
@@ -320,6 +330,7 @@ export interface FileRouteTypes {
     | '/atendimentos/pipeline'
     | '/configuracoes/casos'
     | '/configuracoes/contas'
+    | '/configuracoes/dias-de-viagem'
     | '/configuracoes/grupo-do-financeiro'
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
@@ -348,6 +359,7 @@ export interface FileRouteTypes {
     | '/atendimentos/pipeline'
     | '/configuracoes/casos'
     | '/configuracoes/contas'
+    | '/configuracoes/dias-de-viagem'
     | '/configuracoes/grupo-do-financeiro'
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
@@ -381,6 +393,7 @@ export interface FileRouteTypes {
     | '/atendimentos/pipeline'
     | '/configuracoes/casos'
     | '/configuracoes/contas'
+    | '/configuracoes/dias-de-viagem'
     | '/configuracoes/grupo-do-financeiro'
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
@@ -567,6 +580,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfiguracoesContasRouteImport
       parentRoute: typeof ConfiguracoesRoute
     }
+    '/configuracoes/dias-de-viagem': {
+      id: '/configuracoes/dias-de-viagem'
+      path: '/dias-de-viagem'
+      fullPath: '/configuracoes/dias-de-viagem'
+      preLoaderRoute: typeof ConfiguracoesDiasDeViagemRouteImport
+      parentRoute: typeof ConfiguracoesRoute
+    }
     '/configuracoes/grupo-do-financeiro': {
       id: '/configuracoes/grupo-do-financeiro'
       path: '/grupo-do-financeiro'
@@ -688,6 +708,7 @@ const AtendimentosRouteWithChildren = AtendimentosRoute._addFileChildren(
 interface ConfiguracoesRouteChildren {
   ConfiguracoesCasosRoute: typeof ConfiguracoesCasosRoute
   ConfiguracoesContasRoute: typeof ConfiguracoesContasRoute
+  ConfiguracoesDiasDeViagemRoute: typeof ConfiguracoesDiasDeViagemRoute
   ConfiguracoesGrupoDoFinanceiroRoute: typeof ConfiguracoesGrupoDoFinanceiroRoute
   ConfiguracoesIntegracoesRoute: typeof ConfiguracoesIntegracoesRoute
   ConfiguracoesNotificacoesRoute: typeof ConfiguracoesNotificacoesRoute
@@ -698,6 +719,7 @@ interface ConfiguracoesRouteChildren {
 const ConfiguracoesRouteChildren: ConfiguracoesRouteChildren = {
   ConfiguracoesCasosRoute: ConfiguracoesCasosRoute,
   ConfiguracoesContasRoute: ConfiguracoesContasRoute,
+  ConfiguracoesDiasDeViagemRoute: ConfiguracoesDiasDeViagemRoute,
   ConfiguracoesGrupoDoFinanceiroRoute: ConfiguracoesGrupoDoFinanceiroRoute,
   ConfiguracoesIntegracoesRoute: ConfiguracoesIntegracoesRoute,
   ConfiguracoesNotificacoesRoute: ConfiguracoesNotificacoesRoute,

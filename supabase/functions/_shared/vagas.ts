@@ -112,6 +112,24 @@ export interface PedidoDeVagas {
    * "Tenho às 15h" mandado às 14h57 não é oferta, é armadilha.
    */
   antecedenciaMin?: number;
+  /**
+   * As datas em que uma unidade de VIAGEM atende: unidade → datas
+   * ("YYYY-MM-DD").
+   *
+   * Unidade ausente deste mapa atende pela jornada da semana, como sempre —
+   * é o caso da unidade principal. Unidade presente só atende nas datas que
+   * vierem aqui, e fora delas não tem vaga nenhuma, mesmo que
+   * `clinic_business_hours` diga "aberto".
+   *
+   * ── Por que isto não é um bloqueio ────────────────────────────────────
+   *
+   * A agenda de Porto Alegre está cadastrada aberta de segunda a sábado, com
+   * duas cadeiras, e a Dra. Mariane vai para lá de tempo em tempo. Cadastrar
+   * a ausência como bloqueio exigiria uma linha por dia em que ela NÃO está —
+   * centenas, para sempre, e um esquecimento vira uma consulta marcada numa
+   * cidade onde não há ninguém. O avesso é uma linha por viagem.
+   */
+  diasDaUnidade?: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
 export interface ResultadoDeVagas {
@@ -174,6 +192,13 @@ export function vagasLivres(p: PedidoDeVagas): ResultadoDeVagas {
     let algumaUnidadeSobConsulta = false;
 
     for (const sala of p.salas) {
+      // Unidade de viagem fora de um dia de viagem: nem vaga, nem "sob
+      // consulta". A conta vem ANTES da jornada da semana de propósito — um
+      // domingo em Porto Alegre num dia em que ninguém está lá não é "confirmar
+      // com a Dra.", é um dia em que aquela unidade não existe.
+      const datasDaUnidade = p.diasDaUnidade?.get(sala.unidadeId);
+      if (datasDaUnidade && !datasDaUnidade.has(date)) continue;
+
       const j = porUnidadeEDia.get(`${sala.unidadeId}|${wd}`);
       if (!j || j.modo === "fechado") continue;
       if (j.modo === "sob_consulta") {
@@ -374,6 +399,20 @@ export function escolherMomentos(
   agora: { date: string; hora: string },
   quantas = 2,
   naReserva = 10,
+  /**
+   * A unidade da cidade que a pessoa confirmou, quando ela já confirmou.
+   *
+   * Com ela, a oferta sai DESTA unidade e de nenhuma outra — mesmo que isso
+   * deixe a oferta vazia. Vazia é a resposta certa: quem está em Porto Alegre
+   * e não tem vaga em Porto Alegre precisa ouvir que a equipe confirma as
+   * próximas datas de lá, não receber um horário em Florianópolis porque a
+   * agenda de Florianópolis tinha vaga.
+   *
+   * Nula (a maioria das conversas, e toda a prévia da tela) mantém a escolha
+   * de sempre: a faixa mais próxima em que uma unidade sozinha tem o
+   * suficiente.
+   */
+  unidadePreferida: string | null = null,
 ): { paraOferecer: Momento[]; reserva: Momento[]; faixa: string | null } {
   const porMomento = new Map<string, Momento>();
   for (const v of vagas) {
@@ -402,6 +441,13 @@ export function escolherMomentos(
     .filter((m) => m.emMinutosDaqui >= 0)
     .sort((a, b) => a.emMinutosDaqui - b.emMinutosDaqui);
 
+  // Confirmada a cidade, só ela concorre à oferta. A lista completa continua
+  // viva em `momentos` — é dela que sai a reserva, e é a reserva que responde
+  // "na verdade eu estou na outra cidade".
+  const candidatos = unidadePreferida
+    ? momentos.filter((m) => m.unidadeId === unidadePreferida)
+    : momentos;
+
   // ── A faixa, e a unidade ────────────────────────────────────────────────
   //
   // A primeira faixa em que UMA unidade sozinha tem `quantas` opções. A
@@ -416,10 +462,14 @@ export function escolherMomentos(
   // Não havendo nenhuma em faixa nenhuma, vale a última faixa e a unidade do
   // horário mais próximo que existir: oferecer uma opção distante é melhor que
   // nenhuma, e era o que a versão anterior já fazia.
+  //
+  // Com a cidade confirmada, `candidatos` já é de uma unidade só e esta busca
+  // só decide a FAIXA. Sem nenhum momento naquela unidade, nenhuma faixa bate
+  // a conta e a oferta sai vazia — de propósito.
   let faixa: Faixa | null = null;
   let unidadeEscolhida: string | null = null;
   for (const f of FAIXAS) {
-    const naFaixa = momentos.filter((m) => m.emMinutosDaqui <= f.ateMinutos);
+    const naFaixa = candidatos.filter((m) => m.emMinutosDaqui <= f.ateMinutos);
     // `momentos` já está em ordem cronológica, então a primeira unidade a bater
     // a conta é a que tem o horário mais próximo entre as qualificadas.
     const porUnidade = new Map<string, number>();
@@ -439,8 +489,8 @@ export function escolherMomentos(
     }
   }
   const limite = faixa?.ateMinutos ?? FAIXAS[FAIXAS.length - 1].ateMinutos;
-  const dentro = momentos.filter((m) => m.emMinutosDaqui <= limite);
-  const unidade = unidadeEscolhida ?? dentro[0]?.unidadeId ?? null;
+  const dentro = candidatos.filter((m) => m.emMinutosDaqui <= limite);
+  const unidade = unidadePreferida ?? unidadeEscolhida ?? dentro[0]?.unidadeId ?? null;
 
   // Os dois para oferecer saem de UMA unidade só. É a trava: daqui não sai um
   // par de horários em cidades diferentes, nem com a agenda vazia de um lado.

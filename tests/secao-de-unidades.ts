@@ -149,6 +149,44 @@ conferir(
   );
 }
 
+// ── Quando a cidade da pessoa já está confirmada ────────────────────────
+//
+// A regra antiga — "a unidade do horário que vocês combinaram, e na falta dele
+// a principal" — existia porque não havia como saber a cidade. Agora há: a
+// pessoa disse, e está gravado na conversa. Perguntaram o endereço antes de
+// combinar horário? O endereço é o da cidade dela, e a principal não entra.
+{
+  const t = secaoDeUnidades([FLORIPA, POA], "NÓS Porto Alegre");
+  conferir("diz de qual unidade ela é", t.includes("Esta pessoa é de NÓS Porto Alegre"), true);
+  conferir("e que é esse e nenhum outro", t.includes("nenhum outro"), true);
+  // A regra do palpite sai de cena: mantê-la ao lado da certeza daria duas
+  // instruções para a mesma pergunta, e aí ninguém sabe qual valeu.
+  conferir(
+    "sem a regra da unidade principal",
+    t.includes("ainda não houver horário combinado"),
+    false,
+  );
+  // Os dois endereços continuam na lista: ela pode perguntar pelo outro, e
+  // esconder é como se chega a "vou confirmar com a equipe".
+  conferir("os dois endereços seguem listados", t.includes("Osvaldo Aranha"), true);
+  conferir("inclusive o da outra cidade", t.includes("José Brognoli"), true);
+  // E a ressalva da mentoria continua: ela não é sobre unidade, é sobre o
+  // evento acontecer em outro lugar.
+  conferir("a ressalva da mentoria fica", t.includes("vale para atendimento NA CLÍNICA"), true);
+}
+
+// Nome que não casa com nenhuma unidade (unidade renomeada, cidade removida do
+// cadastro) cai na regra antiga em vez de inventar.
+{
+  const t = secaoDeUnidades([FLORIPA, POA], "NÓS Curitiba");
+  conferir(
+    "nome desconhecido volta para a regra antiga",
+    t.includes("ainda não houver horário combinado"),
+    true,
+  );
+  conferir("e não afirma cidade nenhuma", t.includes("Esta pessoa é de"), false);
+}
+
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);
   for (const f of falhas) console.error("  - " + f);

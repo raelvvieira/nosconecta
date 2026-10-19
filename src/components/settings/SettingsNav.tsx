@@ -4,6 +4,7 @@ import { queryOptions, useQuery } from "@tanstack/react-query";
 import {
   Armchair,
   Bell,
+  CalendarRange,
   Tag as TagIcon,
   BriefcaseMedical,
   Building2,
@@ -128,6 +129,17 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
         description: "Acessos da equipe",
         icon: ShieldCheck,
         adminOnly: true,
+      },
+      {
+        // Ao lado de Unidades, e não em Cadastros: é sobre QUANDO cada unidade
+        // atende, e quem mexe nisso é quem mexe nas unidades. Rota própria
+        // porque a CRUD genérica grava campos de texto numa tabela, e aqui são
+        // duas (o modo na unidade, as datas na outra) com uma lista dentro.
+        kind: "link",
+        to: "/configuracoes/dias-de-viagem",
+        label: "Dias de viagem",
+        description: "Quando a outra unidade atende",
+        icon: CalendarRange,
       },
     ],
   },

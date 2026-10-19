@@ -580,6 +580,165 @@ function vagasEmPoa(date: string, horas: string[]): Vaga[] {
   );
 }
 
+// ── A unidade de viagem ─────────────────────────────────────────────────
+//
+// A agenda de Porto Alegre está cadastrada ABERTA de segunda a sábado, com
+// duas cadeiras, e a Dra. Mariane vai para lá de tempo em tempo. Sem os dias
+// de viagem, havia vaga livre em Porto Alegre em todo dia do calendário — e
+// uma pessoa de lá receberia "terça às 10h" num dia em que a sala está vazia.
+//
+// O que se exercita aqui é o avesso de um bloqueio: em vez de cadastrar as
+// centenas de dias em que ela NÃO está, cadastram-se os poucos em que está.
+
+const jornadaDePoa: Jornada[] = [1, 2, 3, 4, 5, 6].map((weekday) => ({
+  unidadeId: POA,
+  weekday,
+  modo: "aberto" as const,
+  abre: "08:00",
+  fecha: "19:00",
+}));
+const salaDePoa: Sala[] = [
+  { id: "poa-1", nome: "Cadeira 1", unidadeId: POA, unidadeNome: "NÓS Porto Alegre" },
+];
+const duasUnidades = {
+  ...base,
+  jornadas: [...jornadaDaNos, ...jornadaDePoa],
+  salas: [...umaSala, ...salaDePoa],
+  dias: 3, // segunda 28, terça 29, quarta 30
+  maximo: 500,
+};
+
+// Sem dias marcados, nada muda: é o estado de hoje, e as duas unidades abrem.
+{
+  const r = vagasLivres(duasUnidades);
+  conferir(
+    "sem dias marcados, as duas unidades têm vaga",
+    new Set(r.vagas.map((v) => v.unidadeId)),
+    new Set([UNIDADE, POA]),
+  );
+}
+
+// Porto Alegre marcada só na terça: quarta e segunda não existem para ela.
+{
+  const r = vagasLivres({
+    ...duasUnidades,
+    diasDaUnidade: new Map([[POA, new Set(["2026-09-29"])]]),
+  });
+  const diasDePoa = new Set(r.vagas.filter((v) => v.unidadeId === POA).map((v) => v.date));
+  conferir("Porto Alegre só no dia da viagem", diasDePoa, new Set(["2026-09-29"]));
+  // E o mais importante: Florianópolis não perde nada. A trava é por unidade.
+  const diasDeFloripa = new Set(r.vagas.filter((v) => v.unidadeId === UNIDADE).map((v) => v.date));
+  conferir(
+    "Florianópolis continua todos os dias",
+    diasDeFloripa,
+    new Set(["2026-09-28", "2026-09-29", "2026-09-30"]),
+  );
+}
+
+// Nenhuma data marcada para a unidade de viagem: ela simplesmente não tem
+// vaga. É o que acontece quando a próxima viagem ainda não foi cadastrada, e é
+// o lado seguro — a Luna diz que confirma as datas, em vez de oferecer um dia
+// em que ninguém está lá.
+{
+  const r = vagasLivres({
+    ...duasUnidades,
+    diasDaUnidade: new Map([[POA, new Set<string>()]]),
+  });
+  conferir(
+    "viagem sem data não rende vaga",
+    r.vagas.some((v) => v.unidadeId === POA),
+    false,
+  );
+  conferir(
+    "e Florianópolis segue inteira",
+    r.vagas.some((v) => v.unidadeId === UNIDADE),
+    true,
+  );
+}
+
+// Fora do dia de viagem, o domingo da unidade de viagem não é "sob consulta":
+// é um dia em que aquela unidade não existe. Virar sob consulta faria a Luna
+// dizer "confirmo com a Dra." sobre uma cidade onde não há viagem marcada.
+{
+  const r = vagasLivres({
+    ...duasUnidades,
+    jornadas: [
+      ...jornadaDaNos,
+      { unidadeId: POA, weekday: 0, modo: "sob_consulta", abre: null, fecha: null },
+    ],
+    de: "2026-09-27", // domingo
+    dias: 1,
+    diasDaUnidade: new Map([[POA, new Set(["2026-09-29"])]]),
+  });
+  conferir("domingo de Porto Alegre fora da viagem não é sob consulta", r.diasSobConsulta, [
+    "2026-09-27",
+  ]);
+}
+
+// ── A cidade confirmada escolhe a oferta ────────────────────────────────
+//
+// Confirmada a cidade, os dois horários saem DELA. Sem isto, a faixa mais
+// próxima decide — e a faixa mais próxima é quase sempre de Florianópolis,
+// que é a cidade onde a Dra. está todos os dias.
+
+// Porto Alegre tem o horário mais tarde, e ainda assim é o que sai.
+{
+  const r = escolherMomentos(
+    [...vagasEm("2026-09-28", ["15:00", "16:00"]), ...vagasEmPoa("2026-09-30", ["09:00", "10:00"])],
+    { date: "2026-09-28", hora: "14:00" },
+    2,
+    10,
+    POA,
+  );
+  conferir(
+    "a oferta é da cidade confirmada",
+    new Set(r.paraOferecer.map((m) => m.unidadeId)),
+    new Set([POA]),
+  );
+  conferir("e são dois", r.paraOferecer.length, 2);
+  // Os de Florianópolis não desaparecem: ficam na reserva, para quando a pessoa
+  // disser que na verdade está na outra cidade.
+  conferir(
+    "a outra cidade fica na reserva",
+    r.reserva.some((m) => m.unidadeId === UNIDADE),
+    true,
+  );
+}
+
+// E este é o caso que não pode falhar: a cidade confirmada não tem vaga. A
+// oferta sai VAZIA, de propósito. Oferecer Florianópolis para quem acabou de
+// dizer que está em Porto Alegre é marcar uma viagem de 470 km sem avisar.
+{
+  const r = escolherMomentos(
+    vagasEm("2026-09-28", ["15:00", "16:00"]),
+    { date: "2026-09-28", hora: "14:00" },
+    2,
+    10,
+    POA,
+  );
+  conferir("sem vaga na cidade confirmada, nada a oferecer", r.paraOferecer.length, 0);
+  conferir("e a faixa não é afirmada", r.faixa, null);
+  conferir(
+    "a outra cidade continua só na reserva",
+    r.reserva.every((m) => m.unidadeId === UNIDADE),
+    true,
+  );
+  conferir("a reserva não está vazia", r.reserva.length > 0, true);
+}
+
+// Cidade confirmada numa clínica de uma unidade só: a unidade confirmada É a
+// única, e nada muda.
+{
+  const r = escolherMomentos(
+    vagasEm("2026-09-28", ["15:00", "16:00"]),
+    { date: "2026-09-28", hora: "14:00" },
+    2,
+    10,
+    UNIDADE,
+  );
+  conferir("unidade única confirmada: duas opções", r.paraOferecer.length, 2);
+}
+
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);
   for (const f of falhas) console.error("  - " + f);

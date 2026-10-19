@@ -41,6 +41,11 @@ const ANTECEDENCIA_MIN = 60;
 /** Quantos horários a IA propõe de uma vez. Regra do manual: dois. */
 const QUANTOS_OFERECER = 2;
 
+/** Quantos ficam na reserva, para responder "nenhum desses serve" sem outra ida
+ *  ao banco no meio da conversa. É o padrão de `escolherMomentos`, nomeado aqui
+ *  porque agora há um argumento depois dele. */
+const QUANTOS_NA_RESERVA = 10;
+
 const TZ = "America/Sao_Paulo";
 
 /** Data e hora AGORA no fuso da clínica. `en-CA` porque seu formato de data já é
@@ -62,6 +67,67 @@ export function agoraNaClinica(quando: Date = new Date()): { date: string; hora:
 }
 
 /**
+ * Os dias em que cada unidade de VIAGEM atende, no intervalo olhado.
+ *
+ * Unidade `weekly` (o normal) não entra no mapa: ela atende pela jornada da
+ * semana. Unidade `by_date` entra sempre, mesmo sem data nenhuma — entrar com
+ * conjunto vazio é o que faz "a viagem ainda não foi marcada" virar "não há
+ * vaga lá", em vez de "há vaga todo dia".
+ *
+ * ── Por que esta leitura não derruba a agenda ──────────────────────────────
+ *
+ * A coluna `schedule_mode` e a tabela `clinic_unit_dates` nascem numa migration
+ * que o Lovable aplica em passo separado do deploy desta função, e nada garante
+ * a ordem. Com a leitura junto das outras quatro, um erro aqui devolveria
+ * `null` e a Luna ficaria sem agenda em TODA conversa até alguém aplicar a
+ * migration. Então erro aqui é mapa vazio: a clínica volta ao comportamento de
+ * antes desta obra, que é ruim de um jeito conhecido em vez de calar a agenda.
+ */
+async function diasPorUnidade(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  ownerId: string,
+  de: string,
+  ate: string,
+): Promise<Map<string, Set<string>>> {
+  const mapa = new Map<string, Set<string>>();
+  try {
+    const [unidades, datas] = await Promise.all([
+      supabase
+        .from("clinic_units")
+        .select("id, schedule_mode")
+        .eq("owner_id", ownerId)
+        .eq("active", true),
+      supabase
+        .from("clinic_unit_dates")
+        .select("unit_id, date")
+        .eq("owner_id", ownerId)
+        .gte("date", de)
+        .lte("date", ate),
+    ]);
+    const erro = unidades.error ?? datas.error;
+    if (erro) {
+      console.warn("[agenda-da-clinica] dias por unidade indisponíveis:", erro.message);
+      return mapa;
+    }
+    for (const u of unidades.data ?? []) {
+      if (String(u?.schedule_mode ?? "weekly") === "by_date") {
+        mapa.set(String(u.id), new Set<string>());
+      }
+    }
+    for (const d of datas.data ?? []) {
+      mapa.get(String(d?.unit_id))?.add(String(d?.date).slice(0, 10));
+    }
+  } catch (e) {
+    console.warn(
+      "[agenda-da-clinica] dias por unidade falharam:",
+      e instanceof Error ? e.message : e,
+    );
+  }
+  return mapa;
+}
+
+/**
  * Os horários que a IA pode oferecer nesta conversa.
  *
  * **Falha fechada.** Qualquer erro de leitura devolve `null`, e `null` na
@@ -74,6 +140,14 @@ export async function horariosParaOferecer(
   supabase: any,
   ownerId: string,
   quando: Date = new Date(),
+  /**
+   * A unidade da cidade que a pessoa confirmou, quando confirmou.
+   *
+   * Com ela, os horários a oferecer saem só dessa unidade — e a lista pode sair
+   * vazia, que é a resposta certa para quem está numa cidade sem viagem
+   * marcada. Sem ela, a escolha é a de sempre.
+   */
+  unidadeDoPaciente: { id: string; nome: string } | null = null,
 ): Promise<HorariosParaOferecer | null> {
   const agora = agoraNaClinica(quando);
   const ate = somarDias(agora.date, DIAS_A_FRENTE);
@@ -150,6 +224,7 @@ export async function horariosParaOferecer(
       jornadas,
       salas,
       ocupados,
+      diasDaUnidade: await diasPorUnidade(supabase, ownerId, agora.date, ate),
       duracaoMin: DURACAO_DA_AVALIACAO,
       de: agora.date,
       dias: DIAS_A_FRENTE,
@@ -161,7 +236,13 @@ export async function horariosParaOferecer(
       antecedenciaMin: ANTECEDENCIA_MIN,
     });
 
-    const escolha = escolherMomentos(vagas, agora, QUANTOS_OFERECER);
+    const escolha = escolherMomentos(
+      vagas,
+      agora,
+      QUANTOS_OFERECER,
+      QUANTOS_NA_RESERVA,
+      unidadeDoPaciente?.id ?? null,
+    );
 
     // A CADEIRA vai junto, e a unidade também.
     //
@@ -205,6 +286,7 @@ export async function horariosParaOferecer(
       reserva: escolha.reserva.map(simples),
       faixa: escolha.faixa,
       diasSobConsulta,
+      unidadeDoPaciente,
     };
   } catch (e) {
     console.warn("[agenda-da-clinica] falhou:", e instanceof Error ? e.message : e);

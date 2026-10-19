@@ -200,6 +200,9 @@ export async function deixarOAgenteResponder(
       // número: id que a IA guardou = eco dela; qualquer outro = uma pessoa.
       messageId: m.crmMessageId,
       anuncio,
+      // O número, só para o DDD sugerir de que cidade ela é. Palpite: a Luna
+      // pergunta a cidade de todo jeito antes de oferecer horário.
+      telefone: m.phone,
       // O fato para o filtro, calculado do mesmo anúncio. A partir da segunda
       // mensagem o marcador não vem mais e este fato é `false`; quem sustenta a
       // conversa daí em diante é o anúncio guardado na sessão, em `atender`.

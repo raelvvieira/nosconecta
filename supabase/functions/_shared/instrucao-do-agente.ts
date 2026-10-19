@@ -27,6 +27,7 @@
 import { secaoDoAnuncio, type Anuncio } from "./veio-de-anuncio.ts";
 import { catalogoDeVagas, comoReportarFechamento } from "./agendamento-da-ia.ts";
 import { comoUsarOsCasos, type CasoComCodigo } from "./casos-da-ia.ts";
+import { secaoDaCidade, type UnidadeComCodigo } from "./cidade-do-paciente.ts";
 
 export interface EtapaDaConversa {
   nome?: string | null;
@@ -149,6 +150,15 @@ export interface EntradaDaInstrucao {
   /** As unidades ativas, com endereço. Ver `secaoDeUnidades`. */
   unidades?: UnidadeDaClinica[] | null;
   /**
+   * De que cidade é esta pessoa — o que ela já confirmou, e o que o DDD
+   * sugere. Ver `cidade-do-paciente.ts`.
+   *
+   * Ausente (a prévia da tela, os testes antigos) não gera seção nenhuma, e a
+   * instrução fica como era. Numa clínica de uma unidade só também não gera: a
+   * pergunta não existe.
+   */
+  cidade?: CidadeDaConversa | null;
+  /**
    * A dúvida que já está com a equipe nesta conversa, se houver.
    *
    * Vazio é o normal. Quando vem, a seção muda de "como encaminhar" para "esta
@@ -163,6 +173,17 @@ export interface UnidadeDaClinica {
   nome: string;
   endereco: string | null;
   principal: boolean;
+}
+
+/** O que se sabe sobre a cidade da pessoa quando esta instrução é montada. */
+export interface CidadeDaConversa {
+  /** As unidades com código (`U1`, `U2`), as mesmas contra as quais a resposta
+   *  do modelo é validada depois. */
+  catalogo: UnidadeComCodigo[];
+  /** A que ela já disse, gravada na sessão. Nula = ainda não disse. */
+  confirmada: UnidadeComCodigo | null;
+  /** A que o DDD sugere. Palpite, nunca resposta. */
+  palpite: UnidadeComCodigo | null;
 }
 
 /**
@@ -181,7 +202,17 @@ export interface UnidadeDaClinica {
  * Endereço é o que separa "quero marcar" de "onde eu vou". Não dar é perder a
  * pessoa na última pergunta.
  */
-export function secaoDeUnidades(unidades: UnidadeDaClinica[] | null | undefined): string {
+export function secaoDeUnidades(
+  unidades: UnidadeDaClinica[] | null | undefined,
+  /**
+   * O nome da unidade da cidade que a pessoa confirmou, quando confirmou.
+   *
+   * Sem ela vale a regra antiga — a unidade do horário combinado, e na falta
+   * dele a principal. Com ela, a dúvida acaba: perguntaram o endereço antes de
+   * combinar horário, e a cidade já está dita.
+   */
+  unidadeDaConversa?: string | null,
+): string {
   const lista = (unidades ?? []).filter((u) => String(u.nome ?? "").trim());
   if (!lista.length) return "";
 
@@ -206,10 +237,17 @@ export function secaoDeUnidades(unidades: UnidadeDaClinica[] | null | undefined)
   // principal.
   if (comEndereco.length > 1) {
     const principal = comEndereco.find((u) => u.principal) ?? comEndereco[0];
+    const daConversa = comEndereco.find(
+      (u) => u.nome.trim() === String(unidadeDaConversa ?? "").trim(),
+    );
     partes.push(
       "",
-      "Responda com o endereço da unidade do horário que vocês combinaram. Se",
-      `ainda não houver horário combinado, a unidade é a ${principal.nome.trim()}.`,
+      ...(daConversa
+        ? [`Esta pessoa é de ${daConversa.nome.trim()}: o endereço dela é esse, e`, "nenhum outro."]
+        : [
+            "Responda com o endereço da unidade do horário que vocês combinaram. Se",
+            `ainda não houver horário combinado, a unidade é a ${principal.nome.trim()}.`,
+          ]),
       "",
       // Sem este limite a regra acima vale para TUDO, e foi ela que mandou a
       // Luna dar o endereço de Florianópolis numa conversa sobre uma mentoria
@@ -265,6 +303,16 @@ export interface HorariosParaOferecer {
   faixa: string | null;
   /** Dias que são "sob consulta com a Dra." — não oferecer, não negar. */
   diasSobConsulta: string[];
+  /**
+   * A unidade da cidade que a pessoa confirmou, quando confirmou.
+   *
+   * Presente, ela muda duas frases da seção: os horários passam a ser "os da
+   * cidade dela", e a ausência de vaga passa a ser "não há vaga EM PORTO
+   * ALEGRE" em vez de "não há vaga". A diferença é tudo: sem ela, a Luna
+   * responderia "não temos horário" a quem tem a agenda inteira de
+   * Florianópolis livre na lista de reserva — ou pior, ofereceria um desses.
+   */
+  unidadeDoPaciente?: { id: string; nome: string } | null;
 }
 
 const AUSENTE = "(a IA ainda não aprendeu isso — seja natural e, na dúvida, pergunte.)";
@@ -637,11 +685,28 @@ export function secaoDeHorarios(h: HorariosParaOferecer | null | undefined): str
 
   const partes = ["## Horários que existem de verdade na agenda"];
 
+  const dela = h.unidadeDoPaciente?.nome?.trim() || null;
+
   if (!h.paraOferecer.length) {
+    // Duas ausências diferentes. "Não há vaga" e "não há vaga NA CIDADE DELA"
+    // levam a respostas opostas: a segunda tem a agenda da outra cidade
+    // inteirinha na reserva logo abaixo, e sem esta distinção o modelo
+    // ofereceria um daqueles horários para quem acabou de dizer que está a 470
+    // km de lá.
     partes.push(
-      "A agenda foi consultada e NÃO há vaga nos próximos quinze dias. Não",
-      "ofereça horário e não invente. Diga que vai ver uma possibilidade com a",
-      "equipe e passe a conversa para uma pessoa.",
+      ...(dela
+        ? [
+            `A agenda foi consultada e NÃO há vaga na ${dela} nos próximos quinze`,
+            "dias. Esta pessoa é dessa cidade, então NÃO ofereça horário de outra",
+            "unidade — nem os que aparecerem mais abaixo nesta instrução. Diga que",
+            "vai confirmar com a equipe as próximas datas de atendimento nessa",
+            "cidade e passe a conversa para uma pessoa.",
+          ]
+        : [
+            "A agenda foi consultada e NÃO há vaga nos próximos quinze dias. Não",
+            "ofereça horário e não invente. Diga que vai ver uma possibilidade com a",
+            "equipe e passe a conversa para uma pessoa.",
+          ]),
     );
   } else {
     partes.push(
@@ -665,6 +730,18 @@ export function secaoDeHorarios(h: HorariosParaOferecer | null | undefined): str
         "",
         ...h.reserva.map(linha),
       );
+      // A reserva tem, de propósito, horários das OUTRAS cidades: é o que
+      // responde "na verdade eu estou na outra". Mas confirmada a cidade, eles
+      // deixam de ser alternativa e passam a ser engano à espera — cada linha
+      // diz a unidade, e esta é a frase que manda ler.
+      if (dela) {
+        partes.push(
+          "",
+          `Atenção: a lista acima pode ter horários de outra cidade. Esta pessoa é`,
+          `da ${dela} — ofereça só os que dizem ${dela}. Um horário de outra cidade`,
+          "só entra se ela própria disser que mudou de cidade.",
+        );
+      }
     }
   }
 
@@ -800,6 +877,7 @@ export function montarInstrucao({
   horarios,
   anuncio,
   unidades,
+  cidade,
   duvidaPendente,
 }: EntradaDaInstrucao): string {
   const daClinica = String(instrucaoBase ?? "").trim();
@@ -860,9 +938,19 @@ export function montarInstrucao({
   const deOndeVeio = secaoDoAnuncio(anuncio);
   if (deOndeVeio) partes.push("", deOndeVeio);
 
+  // A cidade vem ANTES dos endereços e dos horários, e não é ordem estética: a
+  // seção da cidade é a que diz "não ofereça horário antes de confirmar", e uma
+  // restrição lida depois da lista que ela restringe se perde.
+  const deOndeEla = secaoDaCidade(
+    cidade?.catalogo ?? [],
+    cidade?.confirmada ?? null,
+    cidade?.palpite ?? null,
+  );
+  if (deOndeEla) partes.push("", deOndeEla);
+
   // Depois dos horários é tarde: a pessoa pergunta o endereço logo depois de
   // ouvir o horário, e a seção que responde isso tem de estar junto.
-  const ondeFica = secaoDeUnidades(unidades);
+  const ondeFica = secaoDeUnidades(unidades, cidade?.confirmada?.nome ?? null);
   if (ondeFica) partes.push("", ondeFica);
 
   partes.push("", tabelaDePrecos(procedimentos, parcelamento));

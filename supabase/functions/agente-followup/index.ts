@@ -247,12 +247,36 @@ async function cuidarDaClinica(agente: {
     // follow-up nasceu desligado e nunca rodou: `bunx tsc` não alcança os
     // arquivos do Deno, e `checar-edge-functions` só pega identificador que não
     // existe. Achado em 16/10, implementando a Etapa 1.
+    // A cidade que a pessoa confirmou, quando confirmou: é ela que decide de
+    // qual unidade saem os horários da instrução. Leitura à parte, e tolerante,
+    // em vez de entrar no `select` da lista acima: a coluna nasce numa
+    // migration que o Lovable aplica em passo separado deste deploy, e um
+    // `select` com coluna inexistente derrubaria a rodada inteira de follow-up.
+    // Erro aqui é "não sei a cidade", e aí a Luna pergunta — que é o que ela
+    // faria mesmo.
+    let unidadeDaSessao: string | null = null;
+    try {
+      const { data: comCidade } = await supabase
+        .from("ai_agent_sessions")
+        .select("unidade_id")
+        .eq("id", s.id)
+        .maybeSingle();
+      unidadeDaSessao = comCidade?.unidade_id ? String(comCidade.unidade_id) : null;
+    } catch (e) {
+      console.warn("[followup] cidade da sessão indisponível:", e instanceof Error ? e.message : e);
+    }
+
     const { texto: instrucao } = await instrucaoDaLuna(
       supabase,
       ownerId,
       agente,
       (s.anuncio as Record<string, unknown> | null) ?? null,
       agora,
+      // Sessão e dúvida pendente seguem fora, como antes desta mudança: o que
+      // entrou aqui foi só a cidade.
+      null,
+      null,
+      unidadeDaSessao,
     );
 
     const horasDeSilencio = (agora.getTime() - new Date(s.last_outbound_at).getTime()) / 3_600_000;
