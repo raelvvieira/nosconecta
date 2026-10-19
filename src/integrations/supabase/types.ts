@@ -276,6 +276,8 @@ export type Database = {
           last_outbound_at: string | null
           owner_id: string
           ultimo_followup_em: string | null
+          unidade_em: string | null
+          unidade_id: string | null
           updated_at: string
         }
         Insert: {
@@ -294,6 +296,8 @@ export type Database = {
           last_outbound_at?: string | null
           owner_id: string
           ultimo_followup_em?: string | null
+          unidade_em?: string | null
+          unidade_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -312,6 +316,8 @@ export type Database = {
           last_outbound_at?: string | null
           owner_id?: string
           ultimo_followup_em?: string | null
+          unidade_em?: string | null
+          unidade_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -320,6 +326,13 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: false
             referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_sessions_unidade_id_fkey"
+            columns: ["unidade_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
             referencedColumns: ["id"]
           },
         ]
@@ -1497,6 +1510,44 @@ export type Database = {
         }
         Relationships: []
       }
+      clinic_unit_dates: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          note: string | null
+          owner_id: string
+          unit_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          note?: string | null
+          owner_id: string
+          unit_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          note?: string | null
+          owner_id?: string
+          unit_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_unit_dates_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_units: {
         Row: {
           active: boolean
@@ -1506,6 +1557,7 @@ export type Database = {
           is_default: boolean
           name: string
           owner_id: string
+          schedule_mode: string
           updated_at: string
         }
         Insert: {
@@ -1516,6 +1568,7 @@ export type Database = {
           is_default?: boolean
           name: string
           owner_id: string
+          schedule_mode?: string
           updated_at?: string
         }
         Update: {
@@ -1526,6 +1579,7 @@ export type Database = {
           is_default?: boolean
           name?: string
           owner_id?: string
+          schedule_mode?: string
           updated_at?: string
         }
         Relationships: []
