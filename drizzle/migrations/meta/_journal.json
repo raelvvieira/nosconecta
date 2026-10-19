@@ -8,6 +8,13 @@
       "when": 1791389907121,
       "tag": "0000_grant_update_ai_agents_sandbox",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792451995385,
+      "tag": "0001_cidade_e_dias_da_unidade",
+      "breakpoints": true
     }
   ]
 }
