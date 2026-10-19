@@ -53,7 +53,11 @@ const CHAVE = ["dias-das-unidades"];
 function DiasDeViagemPage() {
   const queryClient = useQueryClient();
   const buscar = useServerFn(listarDiasDasUnidades);
-  const unidadesQuery = useQuery({ queryKey: CHAVE, queryFn: () => buscar() });
+  // `retry: false` de propósito: a falha esperada aqui é a tabela ainda não
+  // existir, e nenhuma tentativa a mais resolve isso. Com as três tentativas
+  // padrão a tela fica dez segundos em "Carregando…" para só então dizer o que
+  // está errado — foi o que a clínica viu antes de a migration ser aplicada.
+  const unidadesQuery = useQuery({ queryKey: CHAVE, queryFn: () => buscar(), retry: false });
   const unidades = unidadesQuery.data ?? SEM_UNIDADES;
 
   return (
@@ -81,6 +85,23 @@ function DiasDeViagemPage() {
 
       {unidadesQuery.isPending ? (
         <p className="mt-8 text-sm text-muted-foreground">Carregando…</p>
+      ) : unidadesQuery.isError ? (
+        // A falha esperada é uma só: a migration que cria a tabela dos dias e a
+        // coluna do modo ainda não foi aplicada — o Lovable aplica isso num
+        // passo manual, depois do push. Dizer "nenhuma unidade cadastrada" aqui
+        // seria mentir sobre um cadastro que existe.
+        <div className="mt-8 rounded-2xl border border-dashed border-border px-6 py-10 text-center">
+          <CalendarRange className="mx-auto h-8 w-8 text-muted-foreground" strokeWidth={1.5} />
+          <p className="mt-3 text-sm font-medium">Esta tela ainda não está pronta para uso</p>
+          <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-muted-foreground">
+            Ela depende de uma atualização do banco que ainda não foi aplicada. No Lovable, mande{" "}
+            <span className="font-medium text-foreground">“Apply pending Supabase migrations”</span>{" "}
+            e recarregue esta página.
+          </p>
+          <p className="mx-auto mt-3 max-w-md break-words text-2xs text-muted-foreground/70">
+            {(unidadesQuery.error as Error)?.message}
+          </p>
+        </div>
       ) : unidades.length === 0 ? (
         <p className="mt-8 text-sm text-muted-foreground">Nenhuma unidade ativa cadastrada.</p>
       ) : (
