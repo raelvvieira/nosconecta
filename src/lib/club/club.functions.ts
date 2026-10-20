@@ -629,6 +629,16 @@ export const salvarConfigDoClub = createServerFn({ method: "POST" })
       if (!Number.isFinite(por) || por < 0) throw new Error("Valor por indicação inválido.");
       if (!Number.isFinite(boas) || boas < 0) throw new Error("Valor de boas-vindas inválido.");
 
+      // NÃO MANDAR o campo é diferente de mandar vazio.
+      //
+      // `undefined` significa "não mexe no endereço" — é o que o formulário dos
+      // valores manda, e ele não sabe nada de endereço. Antes daqui, ele mandava
+      // a linha inteira e o `?? ""` virava `null`: salvar os R$ 100 APAGAVA o
+      // endereço do cartão em silêncio, e o QR voltava a apontar para o
+      // endereço de prévia. Vazio de verdade (string "") continua limpando,
+      // porque é o que a pessoa faz quando esvazia o campo de propósito.
+      const mexeNoLink = input.linkDoCartao !== undefined;
+
       // Sem barra no fim e sem caminho: o que vai guardado é o ENDEREÇO do
       // site, e o `/club` é somado por quem monta o link. Guardar
       // "site.com/club/" faria o QR apontar para "site.com/club//club".
@@ -642,7 +652,11 @@ export const salvarConfigDoClub = createServerFn({ method: "POST" })
           throw new Error("Endereço inválido. Algo como https://club.suaclinica.com.br");
         }
       }
-      return { creditoPorIndicacao: por, creditoBoasVindas: boas, linkDoCartao: link };
+      return {
+        creditoPorIndicacao: por,
+        creditoBoasVindas: boas,
+        linkDoCartao: mexeNoLink ? link : undefined,
+      };
     },
   )
   .handler(async ({ data, context }) => {
@@ -652,8 +666,11 @@ export const salvarConfigDoClub = createServerFn({ method: "POST" })
       owner_id: context.ownerId,
       credito_por_indicacao: data.creditoPorIndicacao,
       credito_boas_vindas: data.creditoBoasVindas,
-      link_do_cartao: data.linkDoCartao || null,
       updated_at: new Date().toISOString(),
+      // A coluna só entra no upsert quando esta gravação é sobre ela. Coluna
+      // fora do payload não entra no `DO UPDATE SET`, e a linha mantém o
+      // endereço que já estava gravado.
+      ...(data.linkDoCartao === undefined ? {} : { link_do_cartao: data.linkDoCartao || null }),
     };
 
     // Duas migrations criam o que esta gravação usa: uma faz a tabela, a outra
