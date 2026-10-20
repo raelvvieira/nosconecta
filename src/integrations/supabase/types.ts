@@ -2962,6 +2962,7 @@ export type Database = {
           owner_id: string | null
           phone: string | null
           registration_number: string | null
+          specialties: string[]
           specialty: string | null
           unit_id: string
           updated_at: string
@@ -2978,6 +2979,7 @@ export type Database = {
           owner_id?: string | null
           phone?: string | null
           registration_number?: string | null
+          specialties?: string[]
           specialty?: string | null
           unit_id: string
           updated_at?: string
@@ -2994,6 +2996,7 @@ export type Database = {
           owner_id?: string | null
           phone?: string | null
           registration_number?: string | null
+          specialties?: string[]
           specialty?: string | null
           unit_id?: string
           updated_at?: string
@@ -3801,6 +3804,10 @@ export type Database = {
       accept_invitation: { Args: { _token: string }; Returns: boolean }
       aceitar_convite: {
         Args: {
+          _atende?: boolean
+          _cor?: string
+          _cro?: string
+          _especialidades?: string[]
           _nome: string
           _telefone: string
           _token: string
