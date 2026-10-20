@@ -688,7 +688,7 @@ const duasUnidades = {
     { date: "2026-09-28", hora: "14:00" },
     2,
     10,
-    POA,
+    { unidadeId: POA, exigir: true },
   );
   conferir(
     "a oferta é da cidade confirmada",
@@ -714,7 +714,7 @@ const duasUnidades = {
     { date: "2026-09-28", hora: "14:00" },
     2,
     10,
-    POA,
+    { unidadeId: POA, exigir: true },
   );
   conferir("sem vaga na cidade confirmada, nada a oferecer", r.paraOferecer.length, 0);
   conferir("e a faixa não é afirmada", r.faixa, null);
@@ -734,9 +734,51 @@ const duasUnidades = {
     { date: "2026-09-28", hora: "14:00" },
     2,
     10,
-    UNIDADE,
+    { unidadeId: UNIDADE, exigir: true },
   );
   conferir("unidade única confirmada: duas opções", r.paraOferecer.length, 2);
+}
+
+// ── O palpite do DDD, que cede ──────────────────────────────────────────
+//
+// A cidade confirmada manda mesmo quando dói. O palpite, não: ele acerta
+// quase sempre, e no dia em que errar não pode ser ele a deixar a conversa
+// sem horário nenhum. Então vale enquanto houver vaga naquela unidade, e some
+// quando não houver.
+
+// Havendo vaga na unidade do palpite, ele vale igual à confirmação.
+{
+  const r = escolherMomentos(
+    [...vagasEm("2026-09-28", ["15:00", "16:00"]), ...vagasEmPoa("2026-09-30", ["09:00", "10:00"])],
+    { date: "2026-09-28", hora: "14:00" },
+    2,
+    10,
+    { unidadeId: POA, exigir: false },
+  );
+  conferir(
+    "o palpite escolhe a unidade",
+    new Set(r.paraOferecer.map((m) => m.unidadeId)),
+    new Set([POA]),
+  );
+}
+
+// Não havendo, ele se desfaz — e a oferta volta a ser a de sempre, em vez de
+// vazia. É a diferença que separa palpite de confirmação.
+{
+  const r = escolherMomentos(
+    vagasEm("2026-09-28", ["15:00", "16:00"]),
+    { date: "2026-09-28", hora: "14:00" },
+    2,
+    10,
+    { unidadeId: POA, exigir: false },
+  );
+  conferir("palpite sem vaga não cala a conversa", r.paraOferecer.length, 2);
+  conferir(
+    "e a oferta vem da unidade que tem vaga",
+    new Set(r.paraOferecer.map((m) => m.unidadeId)),
+    new Set([UNIDADE]),
+  );
+  conferir("com a faixa afirmada", r.faixa, "nas próximas 3 horas");
 }
 
 if (falhas.length) {

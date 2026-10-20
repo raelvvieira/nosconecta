@@ -141,13 +141,17 @@ export async function horariosParaOferecer(
   ownerId: string,
   quando: Date = new Date(),
   /**
-   * A unidade da cidade que a pessoa confirmou, quando confirmou.
+   * De que cidade a pessoa é.
    *
-   * Com ela, os horários a oferecer saem só dessa unidade — e a lista pode sair
-   * vazia, que é a resposta certa para quem está numa cidade sem viagem
-   * marcada. Sem ela, a escolha é a de sempre.
+   * `confirmada: true` — ela disse: os horários saem só dessa unidade, e a
+   * lista pode sair vazia, que é a resposta certa para quem está numa cidade
+   * sem viagem marcada.
+   *
+   * `confirmada: false` — é o palpite do DDD: vale enquanto houver horário
+   * lá, e cede quando não houver, para um palpite nunca deixar a conversa sem
+   * horário nenhum.
    */
-  unidadeDoPaciente: { id: string; nome: string } | null = null,
+  cidade: { id: string; nome: string; confirmada: boolean } | null = null,
 ): Promise<HorariosParaOferecer | null> {
   const agora = agoraNaClinica(quando);
   const ate = somarDias(agora.date, DIAS_A_FRENTE);
@@ -241,7 +245,7 @@ export async function horariosParaOferecer(
       agora,
       QUANTOS_OFERECER,
       QUANTOS_NA_RESERVA,
-      unidadeDoPaciente?.id ?? null,
+      cidade ? { unidadeId: cidade.id, exigir: cidade.confirmada } : null,
     );
 
     // A CADEIRA vai junto, e a unidade também.
@@ -286,7 +290,10 @@ export async function horariosParaOferecer(
       reserva: escolha.reserva.map(simples),
       faixa: escolha.faixa,
       diasSobConsulta,
-      unidadeDoPaciente,
+      // Só a cidade CONFIRMADA entra aqui. É este campo que faz a instrução
+      // dizer "ela é de Porto Alegre, não ofereça outra" — uma frase que um
+      // palpite do DDD não autoriza ninguém a escrever.
+      unidadeDoPaciente: cidade?.confirmada ? { id: cidade.id, nome: cidade.nome } : null,
     };
   } catch (e) {
     console.warn("[agenda-da-clinica] falhou:", e instanceof Error ? e.message : e);

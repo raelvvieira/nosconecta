@@ -37,6 +37,9 @@ export interface UnidadeComDias {
   id: string;
   nome: string;
   endereco: string;
+  /** A unidade padrão da clínica — a que atende todos os dias. A tela não
+   *  mostra calendário para ela: o que não estiver marcado nas outras é dela. */
+  principal: boolean;
   /** `true` = só atende nas datas abaixo (`schedule_mode = 'by_date'`). */
   porData: boolean;
   /** As datas de hoje para a frente, em ordem. As passadas não entram: a tela é
@@ -90,6 +93,7 @@ export const listarDiasDasUnidades = createServerFn({ method: "GET" })
       id: String(u.id),
       nome: String(u.name ?? "").trim(),
       endereco: u.address ?? "",
+      principal: u.is_default === true,
       porData: String(u.schedule_mode ?? "weekly") === "by_date",
       dias: ((datas.data ?? []) as Record<string, unknown>[])
         .filter((d) => String(d.unit_id) === String(u.id))
@@ -101,80 +105,95 @@ export const listarDiasDasUnidades = createServerFn({ method: "GET" })
     }));
   });
 
-export const definirModoDaUnidade = createServerFn({ method: "POST" })
+/** Teto de dias guardados por unidade. Uma viagem tem alguns dias; mil linhas
+ *  aqui seria um clique preso ou um engano, e os dois acabam na mesma tela
+ *  ilegível. */
+const MAXIMO_DE_DIAS = 400;
+
+/**
+ * Troca os dias de atendimento de uma unidade pelos que vieram.
+ *
+ * ── Por que o conjunto inteiro, e não "adiciona" e "remove" ───────────────
+ *
+ * Porque o que a tela tem é um calendário, e um calendário tem um conjunto de
+ * dias selecionados. Mandar o conjunto faz a tela e o banco dizerem a mesma
+ * coisa depois de cada clique; mandar diferenças faria dois cliques rápidos
+ * chegarem fora de ordem e deixarem um dia marcado que ninguém marcou.
+ *
+ * Só os dias de HOJE para a frente são trocados. Os que já passaram ficam como
+ * estão: são o registro de uma viagem que aconteceu, e a agenda não os olha.
+ */
+export const definirDiasDaUnidade = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
-  .inputValidator((input: { unitId: string; porData: boolean }) => {
+  .inputValidator((input: { unitId: string; dates: string[] }) => {
     if (!input.unitId?.trim()) throw new Error("Unidade inválida.");
-    return { unitId: input.unitId.trim(), porData: input.porData === true };
+    const hoje = hojeNaClinica();
+    const dates = [...new Set((input.dates ?? []).map((d) => String(d ?? "").trim()))]
+      .filter((d) => PADRAO_DE_DATA.test(d))
+      // Dia que já passou não entra: a agenda só olha para a frente, e a linha
+      // ficaria na tabela sem efeito nenhum.
+      .filter((d) => d >= hoje)
+      .sort();
+    if (dates.length > MAXIMO_DE_DIAS) throw new Error("Dias demais marcados de uma vez.");
+    return { unitId: input.unitId.trim(), dates };
   })
   .handler(async ({ data, context }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase: any = context.supabase;
-    const { error } = await supabase
+    const hoje = hojeNaClinica();
+
+    // Marcar dia é o que DEFINE a unidade como de viagem. Sem esta linha, uma
+    // unidade cadastrada aberta de segunda a sábado continuaria com vaga em
+    // todo dia do calendário, e os dias marcados não teriam efeito nenhum —
+    // que é exatamente o defeito que esta tela existe para fechar.
+    const modo = await supabase
       .from("clinic_units")
-      .update({
-        schedule_mode: data.porData ? "by_date" : "weekly",
-        updated_at: new Date().toISOString(),
-      })
+      .update({ schedule_mode: "by_date", updated_at: new Date().toISOString() })
       .eq("id", data.unitId)
       .eq("owner_id", context.ownerId);
-    if (error) throw new Error(error.message);
-    return { ok: true };
-  });
+    if (modo.error) throw new Error(modo.error.message);
 
-export const adicionarDiaDaUnidade = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
-  .inputValidator((input: { unitId: string; date: string; note?: string | null }) => {
-    if (!input.unitId?.trim()) throw new Error("Unidade inválida.");
-    const date = String(input.date ?? "").trim();
-    if (!PADRAO_DE_DATA.test(date)) throw new Error("Escolha uma data.");
-    // Marcar um dia que já passou não faz nada acontecer: a agenda só olha de
-    // hoje para a frente. Recusar aqui evita a linha que ninguém entende depois.
-    if (date < hojeNaClinica()) throw new Error("Essa data já passou.");
-    return {
-      unitId: input.unitId.trim(),
-      date,
-      note: String(input.note ?? "")
-        .trim()
-        .slice(0, 120),
-    };
-  })
-  .handler(async ({ data, context }) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase: any = context.supabase;
-    const { error } = await supabase.from("clinic_unit_dates").insert({
-      owner_id: context.ownerId,
-      unit_id: data.unitId,
-      date: data.date,
-      note: data.note || null,
-    });
-    if (error) {
-      const { ehChaveDuplicada } = await import("@/lib/finance/erro-do-banco");
-      // O índice único existe para a mesma data não virar duas linhas iguais na
-      // tela. Quem clicou duas vezes não fez nada de errado.
-      if (ehChaveDuplicada(error)) throw new Error("Esse dia já está marcado.");
-      throw new Error(error.message);
-    }
-    return { ok: true };
-  });
-
-export const removerDiaDaUnidade = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
-  .inputValidator((input: { id: string }) => {
-    if (!input.id?.trim()) throw new Error("Dia inválido.");
-    return { id: input.id.trim() };
-  })
-  .handler(async ({ data, context }) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase: any = context.supabase;
-    // A consulta já marcada naquele dia NÃO sai junto: ela existe, a paciente
-    // foi avisada, e apagar o dia da viagem não desmarca ninguém. O que muda é
-    // a Luna parar de oferecer horário novo ali.
-    const { error } = await supabase
+    const atuais = await supabase
       .from("clinic_unit_dates")
-      .delete()
-      .eq("id", data.id)
-      .eq("owner_id", context.ownerId);
-    if (error) throw new Error(error.message);
-    return { ok: true };
+      .select("id, date")
+      .eq("owner_id", context.ownerId)
+      .eq("unit_id", data.unitId)
+      .gte("date", hoje);
+    if (atuais.error) throw new Error(atuais.error.message);
+
+    const tem = new Map<string, string>(
+      ((atuais.data ?? []) as Record<string, unknown>[]).map((r) => [
+        String(r.date).slice(0, 10),
+        String(r.id),
+      ]),
+    );
+    const querem = new Set(data.dates);
+
+    const sair = [...tem.entries()].filter(([date]) => !querem.has(date)).map(([, id]) => id);
+    const entrar = data.dates.filter((date) => !tem.has(date));
+
+    if (sair.length) {
+      // A consulta já marcada naquele dia NÃO sai junto: ela existe, a paciente
+      // foi avisada, e desmarcar o dia da viagem não desmarca ninguém. O que
+      // muda é a Luna parar de oferecer horário novo ali.
+      const { error } = await supabase
+        .from("clinic_unit_dates")
+        .delete()
+        .eq("owner_id", context.ownerId)
+        .in("id", sair);
+      if (error) throw new Error(error.message);
+    }
+
+    if (entrar.length) {
+      const { error } = await supabase.from("clinic_unit_dates").insert(
+        entrar.map((date) => ({
+          owner_id: context.ownerId,
+          unit_id: data.unitId,
+          date,
+        })),
+      );
+      if (error) throw new Error(error.message);
+    }
+
+    return { ok: true, marcados: data.dates.length };
   });

@@ -945,6 +945,15 @@ export function montarInstrucao({
     cidade?.catalogo ?? [],
     cidade?.confirmada ?? null,
     cidade?.palpite ?? null,
+    // De que unidade saíram os horários logo abaixo. É o que deixa a seção
+    // dizer "os horários que você tem são de X" — sem isso, a única saída
+    // honesta seria mandar a Luna calar até a pessoa dizer a cidade.
+    horarios?.paraOferecer[0]?.unidadeId
+      ? {
+          id: String(horarios.paraOferecer[0].unidadeId),
+          nome: horarios.paraOferecer[0].unidadeNome,
+        }
+      : null,
   );
   if (deOndeEla) partes.push("", deOndeEla);
 

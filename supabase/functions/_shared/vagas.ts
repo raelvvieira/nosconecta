@@ -400,19 +400,24 @@ export function escolherMomentos(
   quantas = 2,
   naReserva = 10,
   /**
-   * A unidade da cidade que a pessoa confirmou, quando ela já confirmou.
+   * De que cidade a pessoa é, e com que força isso vale.
    *
-   * Com ela, a oferta sai DESTA unidade e de nenhuma outra — mesmo que isso
-   * deixe a oferta vazia. Vazia é a resposta certa: quem está em Porto Alegre
-   * e não tem vaga em Porto Alegre precisa ouvir que a equipe confirma as
-   * próximas datas de lá, não receber um horário em Florianópolis porque a
-   * agenda de Florianópolis tinha vaga.
+   * `exigir: true` é a cidade que ela CONFIRMOU: a oferta sai desta unidade e
+   * de nenhuma outra, mesmo que isso deixe a oferta vazia. Vazia é a resposta
+   * certa — quem está em Porto Alegre e não tem vaga em Porto Alegre precisa
+   * ouvir que a equipe confirma as próximas datas de lá, não receber um
+   * horário em Florianópolis porque a agenda de Florianópolis tinha vaga.
    *
-   * Nula (a maioria das conversas, e toda a prévia da tela) mantém a escolha
-   * de sempre: a faixa mais próxima em que uma unidade sozinha tem o
-   * suficiente.
+   * `exigir: false` é o PALPITE do DDD: vale enquanto houver horário naquela
+   * unidade, e some quando não houver. Um palpite não pode produzir uma
+   * conversa sem horário nenhum — ele acerta quase sempre, e no dia em que
+   * errar o custo de calar seria maior que o de oferecer a cidade de sempre e
+   * confirmar durante a conversa.
+   *
+   * Nula (clínica de uma unidade, prévia da tela) mantém a escolha de sempre:
+   * a faixa mais próxima em que uma unidade sozinha tem o suficiente.
    */
-  unidadePreferida: string | null = null,
+  preferencia: { unidadeId: string; exigir: boolean } | null = null,
 ): { paraOferecer: Momento[]; reserva: Momento[]; faixa: string | null } {
   const porMomento = new Map<string, Momento>();
   for (const v of vagas) {
@@ -444,9 +449,14 @@ export function escolherMomentos(
   // Confirmada a cidade, só ela concorre à oferta. A lista completa continua
   // viva em `momentos` — é dela que sai a reserva, e é a reserva que responde
   // "na verdade eu estou na outra cidade".
-  const candidatos = unidadePreferida
-    ? momentos.filter((m) => m.unidadeId === unidadePreferida)
-    : momentos;
+  //
+  // Sendo palpite, ela concorre sozinha SE tiver com o que concorrer: lista
+  // vazia aqui faz o palpite se desfazer e a escolha voltar a ser a de sempre.
+  const daUnidade = preferencia
+    ? momentos.filter((m) => m.unidadeId === preferencia.unidadeId)
+    : [];
+  const valeAUnidade = !!preferencia && (preferencia.exigir || daUnidade.length > 0);
+  const candidatos = valeAUnidade ? daUnidade : momentos;
 
   // ── A faixa, e a unidade ────────────────────────────────────────────────
   //
@@ -463,9 +473,10 @@ export function escolherMomentos(
   // horário mais próximo que existir: oferecer uma opção distante é melhor que
   // nenhuma, e era o que a versão anterior já fazia.
   //
-  // Com a cidade confirmada, `candidatos` já é de uma unidade só e esta busca
-  // só decide a FAIXA. Sem nenhum momento naquela unidade, nenhuma faixa bate
-  // a conta e a oferta sai vazia — de propósito.
+  // Com a cidade em mãos, `candidatos` já é de uma unidade só e esta busca só
+  // decide a FAIXA. Sem nenhum momento na unidade CONFIRMADA, nenhuma faixa
+  // bate a conta e a oferta sai vazia — de propósito. Com o palpite não há
+  // esse caso: sem horário lá, ele já se desfez acima.
   let faixa: Faixa | null = null;
   let unidadeEscolhida: string | null = null;
   for (const f of FAIXAS) {
@@ -490,7 +501,11 @@ export function escolherMomentos(
   }
   const limite = faixa?.ateMinutos ?? FAIXAS[FAIXAS.length - 1].ateMinutos;
   const dentro = candidatos.filter((m) => m.emMinutosDaqui <= limite);
-  const unidade = unidadePreferida ?? unidadeEscolhida ?? dentro[0]?.unidadeId ?? null;
+  const unidade =
+    (valeAUnidade ? preferencia?.unidadeId : null) ??
+    unidadeEscolhida ??
+    dentro[0]?.unidadeId ??
+    null;
 
   // Os dois para oferecer saem de UMA unidade só. É a trava: daqui não sai um
   // par de horários em cidades diferentes, nem com a agenda vazia de um lado.

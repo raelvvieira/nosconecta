@@ -261,14 +261,52 @@ export function unidadePeloDdd(
  * seção pedindo para confirmar a cidade de quem só tem uma opção é ruído que o
  * modelo tenta obedecer.
  */
+/** "NÓS Porto Alegre" → "Porto Alegre". A pergunta é sobre a CIDADE da pessoa,
+ *  e "você é de NÓS Porto Alegre?" não é português. */
+function semONos(nome: string): string {
+  return (
+    String(nome ?? "")
+      .replace(/^N[ÓO]S\s+/i, "")
+      .trim() || String(nome ?? "").trim()
+  );
+}
+
 export function secaoDaCidade(
   catalogo: readonly UnidadeComCodigo[],
   confirmada: UnidadeComCodigo | null,
   palpite: UnidadeComCodigo | null,
+  /**
+   * A unidade de onde saíram os horários a oferecer NESTA instrução.
+   *
+   * É o que permite escrever "os horários que você tem são de X" em vez de
+   * mandar o modelo deduzir isso lendo a lista — e é por isso que a seção pode
+   * deixar a Luna oferecer antes de a pessoa confirmar a cidade.
+   *
+   * Nem sempre é a unidade do palpite: o palpite cede quando não há vaga lá
+   * (ver `escolherMomentos`), e aí os horários são de outra cidade. É esta
+   * comparação que impede a instrução de afirmar o contrário.
+   */
+  unidadeDosHorarios?: { id: string; nome: string } | null,
 ): string {
   if (catalogo.length < 2) return "";
 
   const lista = catalogo.map((u) => `- ${u.codigo} = ${u.nome}`);
+  const dosHorarios = String(unidadeDosHorarios?.nome ?? "").trim();
+  const horariosSaoDo = (u: UnidadeComCodigo) =>
+    !!unidadeDosHorarios?.id && unidadeDosHorarios.id === u.id;
+
+  // Como corrigir o rumo quando a cidade vier diferente do que estes horários
+  // supõem. Serve aos três casos — confirmada, palpite e sem pista —, porque
+  // em todos eles a pessoa pode dizer outra coisa na mensagem seguinte.
+  const seForOutra = [
+    "Se ela disser que é de outra cidade, preencha `cidadeConfirmada` com o",
+    "código dela e ofereça dois horários DAQUELA cidade, tirados da lista de",
+    "alternativas da seção de horários — cada linha diz a unidade. Não havendo",
+    "nenhum lá, diga que vai confirmar as próximas datas de atendimento naquela",
+    "cidade com a equipe. Nunca ofereça o horário de uma cidade para quem disse",
+    "que está na outra: é mandar a pessoa viajar para outro estado, ou chegar a",
+    "uma sala onde não há ninguém.",
+  ];
 
   if (confirmada) {
     return [
@@ -279,8 +317,9 @@ export function secaoDaCidade(
       "automação. Todos os horários que você tem para oferecer já são dessa",
       "unidade.",
       "",
-      "Se em algum momento ela disser que na verdade é da outra cidade, preencha",
-      "`cidadeConfirmada` com o código da nova:",
+      ...seForOutra,
+      "",
+      "As unidades e seus códigos:",
       "",
       ...lista,
     ].join("\n");
@@ -292,52 +331,73 @@ export function secaoDaCidade(
     "A clínica atende em mais de uma cidade, e cada uma tem a sua agenda:",
     "",
     ...lista,
-    "",
-    "ANTES de oferecer qualquer horário, confirme de onde ela fala. Uma pergunta",
-    'curta, dentro da conversa, não um formulário: "você é de Porto Alegre?",',
-    '"você está aqui em Florianópolis?". Pode ser na mesma mensagem em que você',
-    "responde o que ela perguntou.",
   ];
 
-  if (palpite) {
-    // Sem o "NÓS" na frente: a pergunta é sobre a CIDADE da pessoa, e "você é
-    // de NÓS Porto Alegre?" não é português.
-    const cidade = palpite.nome.replace(/^N[ÓO]S\s+/i, "").trim() || palpite.nome;
+  if (palpite && !horariosSaoDo(palpite)) {
+    // O DDD sugere uma cidade e não há horário nela — viagem sem data marcada,
+    // ou agenda cheia. Os horários abaixo são de outra, e dizer "já são dessa
+    // unidade" seria uma frase falsa dentro da instrução. Então o palpite vira
+    // motivo para perguntar ANTES de oferecer, que é o único caso em que isso
+    // ainda acontece.
+    const cidade = semONos(palpite.nome);
     partes.push(
       "",
-      // O DDD entra como JEITO DE PERGUNTAR, nunca como resposta: ele diz onde
-      // a linha foi habilitada, e um em cada cinco números é de outro estado.
-      `O DDD do número dela costuma ser de ${palpite.nome} (${palpite.codigo}). Use isso`,
-      `só para perguntar do jeito mais provável — "você é de ${cidade}, né?" — e`,
-      "NÃO para afirmar: o DDD é de onde o número foi feito, não de onde a pessoa",
-      "está hoje.",
+      `O DDD do número dela é de ${cidade}, e não há horário em ${palpite.nome}`,
+      ...(dosHorarios
+        ? [`nos próximos quinze dias — os que você tem para oferecer são da`, `${dosHorarios}.`]
+        : ["nos próximos quinze dias."]),
+      "",
+      `Confirme a cidade antes de oferecer: "você é de ${cidade}, né?". Se ela`,
+      `disser que sim, NÃO ofereça os horários da outra cidade — diga que vai`,
+      `confirmar com a equipe as próximas datas de atendimento em ${cidade} e`,
+      "preencha `cidadeConfirmada` com o código dela. Se ela disser que é da",
+      "outra, ofereça os horários normalmente.",
+    );
+  } else if (palpite) {
+    const cidade = semONos(palpite.nome);
+    partes.push(
+      "",
+      // ── Por que o palpite basta para oferecer ────────────────────────────
+      //
+      // Ele erra pouco: entre quem veio dos anúncios de Porto Alegre, 35
+      // números com DDD 51 e 1 com 48. E a conversa não fica refém dele —
+      // cada horário oferecido diz a cidade, então a pessoa corrige na hora,
+      // e aí a correção vale.
+      `O DDD do número dela é de ${cidade}, e os horários que você tem para`,
+      "oferecer já são dessa unidade. Pode oferecer por eles, sem esperar ela",
+      "dizer nada.",
+      "",
+      "Ainda assim, confirme a cidade de um jeito natural no meio da conversa —",
+      `"você é de ${cidade}, né?" — porque o DDD é de onde o NÚMERO foi feito, e`,
+      "não de onde a pessoa está. Quando ela responder, preencha",
+      "`cidadeConfirmada` com o código: é o que faz a consulta ser marcada na",
+      "cidade certa e o endereço da confirmação sair correto.",
+    );
+  } else {
+    partes.push(
+      "",
+      // Sem palpite nenhum (DDD de outro estado, ou conversa sem número) os
+      // horários são os da escolha de sempre. Calar aqui seria pior: a pessoa
+      // perguntou de horário e receberia uma pergunta de volta.
+      ...(dosHorarios
+        ? [
+            `O número dela não diz a cidade. Os horários que você tem para oferecer`,
+            `são da ${dosHorarios}.`,
+          ]
+        : ["O número dela não diz a cidade."]),
+      "",
+      "Pergunte de onde ela fala em algum momento da conversa — uma pergunta",
+      // O exemplo sai do catálogo, e não escrito à mão: a primeira unidade é a
+      // principal (a leitura vem ordenada por `is_default`), e uma pergunta de
+      // exemplo com o nome de uma cidade que a clínica não tem mais seria uma
+      // instrução envelhecida calada.
+      `curta, não um formulário: "você é aí de ${semONos(catalogo[0].nome)}?". Pode`,
+      "ser na mesma mensagem em que você oferece o horário. Quando ela responder,",
+      "preencha `cidadeConfirmada` com o código dela.",
     );
   }
 
-  partes.push(
-    "",
-    "Quando ela responder, preencha `cidadeConfirmada` com o código da unidade",
-    "dela. É isso que faz a consulta ser marcada na cidade certa e o endereço da",
-    "confirmação sair correto.",
-    "",
-    // ── A mensagem em que ela acabou de dizer a cidade ───────────────────
-    //
-    // Os dois horários da seção de horários foram escolhidos antes desta
-    // mensagem, quando a cidade ainda era desconhecida — podem ser de outra
-    // cidade. A lista de alternativas, não: ela traz as duas cidades, cada
-    // linha com a sua unidade. Sem esta instrução, o modelo ou ofereceria os
-    // dois primeiros (cidade errada) ou não ofereceria nada depois de a pessoa
-    // ter respondido o que ele perguntou.
-    "Se ela disser a cidade NESTA mensagem e você for oferecer horário em",
-    "seguida, use a lista de alternativas da seção de horários: cada linha diz a",
-    "unidade, e você oferece dois da cidade dela. Não havendo nenhum da cidade",
-    "dela, diga que vai confirmar as próximas datas de atendimento lá com a",
-    "equipe — nunca ofereça um horário da outra cidade.",
-    "",
-    "Enquanto ela não disser a cidade, NÃO ofereça horário e NÃO preencha",
-    "`horarioFechado`. Marcar na cidade errada faz a pessoa viajar para outro",
-    "estado, ou chegar a uma sala onde não há ninguém.",
-  );
+  partes.push("", ...seForOutra);
 
   return partes.join("\n");
 }

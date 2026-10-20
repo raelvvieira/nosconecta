@@ -130,39 +130,109 @@ conferir("o nome basta", unidadePeloDdd("5551999887766", cat)?.codigo, "U2");
   conferir("clínica de uma cidade não ganha seção", secaoDaCidade(uma, null, null), "");
 }
 
-// Sem confirmação: manda perguntar e proíbe oferecer.
+// Sem confirmação e sem palpite: ela oferece os horários que tem e pergunta a
+// cidade no caminho. NÃO cala — calar faria quem perguntou de horário receber
+// uma pergunta de volta, e a clínica foi explícita: "não precisamos travar".
 {
-  const texto = secaoDaCidade(cat, null, null);
+  const texto = secaoDaCidade(cat, null, null, { id: UNIDADES[0].id, nome: "NÓS Florianópolis" });
   conferir("lista os códigos", texto.includes("U2 = NÓS Porto Alegre"), true);
-  conferir("manda confirmar antes", texto.includes("ANTES de oferecer qualquer horário"), true);
+  conferir("diz de onde são os horários", texto.includes("são da NÓS Florianópolis"), true);
+  conferir("manda perguntar a cidade", texto.includes("Pergunte de onde ela fala"), true);
   conferir("ensina o campo", texto.includes("cidadeConfirmada"), true);
-  conferir("proíbe oferecer sem saber", texto.includes("NÃO ofereça horário"), true);
-  conferir("proíbe fechar sem saber", texto.includes("horarioFechado"), true);
+  // A trava que saiu. Se esta frase voltar, a Luna emudece diante de "tem
+  // horário amanhã?" até a pessoa dizer onde mora.
+  conferir("não proíbe oferecer", texto.includes("NÃO ofereça horário"), false);
+  conferir("nem proíbe fechar", texto.includes("NÃO preencha `horarioFechado`"), false);
   conferir("sem palpite, não cita DDD", texto.includes("DDD"), false);
 }
 
-// Com palpite: o DDD entra como jeito de perguntar, e dito como palpite.
+// Com palpite: o DDD escolheu os horários, e ela pode seguir por eles. A
+// confirmação continua pedida, só não é mais condição para falar.
 {
-  const texto = secaoDaCidade(cat, null, cat[1]);
-  conferir("cita a cidade provável", texto.includes("costuma ser de NÓS Porto Alegre"), true);
+  const texto = secaoDaCidade(cat, null, cat[1], { id: UNIDADES[1].id, nome: "NÓS Porto Alegre" });
+  conferir(
+    "diz de que cidade é o DDD",
+    texto.includes("O DDD do número dela é de Porto Alegre"),
+    true,
+  );
+  conferir("libera oferecer por ele", texto.includes("sem esperar ela"), true);
   conferir("tira o NÓS da pergunta", texto.includes('"você é de Porto Alegre, né?"'), true);
-  conferir("diz que não é para afirmar", texto.includes("NÃO para afirmar"), true);
-  conferir("ainda manda confirmar", texto.includes("ANTES de oferecer qualquer horário"), true);
+  conferir("lembra que o DDD é do número", texto.includes("onde o NÚMERO foi feito"), true);
+  conferir("não proíbe oferecer", texto.includes("NÃO ofereça horário"), false);
 }
 
 // Já confirmada: não pergunta de novo, e abre a porta para a correção.
 {
-  const texto = secaoDaCidade(cat, cat[1], cat[1]);
+  const texto = secaoDaCidade(cat, cat[1], cat[1], {
+    id: UNIDADES[1].id,
+    nome: "NÓS Porto Alegre",
+  });
   conferir("diz que já sabe", texto.includes("já disse que é de NÓS Porto Alegre"), true);
   conferir("proíbe perguntar de novo", texto.includes("NÃO pergunte"), true);
-  conferir("deixa corrigir", texto.includes("na verdade é da outra cidade"), true);
-  conferir("não manda perguntar antes de oferecer", texto.includes("ANTES de oferecer"), false);
+  conferir("não manda perguntar a cidade", texto.includes("Pergunte de onde ela fala"), false);
+}
+
+// A correção vale nos três casos: é a única frase que impede o horário da
+// cidade errada agora que nada mais impede.
+for (const [nome, texto] of [
+  ["sem pista", secaoDaCidade(cat, null, null, { id: UNIDADES[0].id, nome: "NÓS Florianópolis" })],
+  [
+    "com palpite",
+    secaoDaCidade(cat, null, cat[1], { id: UNIDADES[1].id, nome: "NÓS Porto Alegre" }),
+  ],
+  [
+    "confirmada",
+    secaoDaCidade(cat, cat[1], cat[1], { id: UNIDADES[1].id, nome: "NÓS Porto Alegre" }),
+  ],
+] as const) {
+  conferir(`${nome}: deixa corrigir`, texto.includes("Se ela disser que é de outra cidade"), true);
+  conferir(
+    `${nome}: manda tirar da lista de alternativas`,
+    texto.includes("alternativas da seção de horários"),
+    true,
+  );
+  conferir(
+    `${nome}: proíbe o horário da cidade errada`,
+    texto.includes("Nunca ofereça o horário de uma cidade para quem disse"),
+    true,
+  );
+}
+
+// O palpite do DDD e os horários podem discordar: a unidade sugerida não tem
+// vaga, o palpite cedeu, e os horários são de outra cidade. Dizer "os horários
+// já são dessa unidade" ali seria uma frase falsa dentro da instrução.
+{
+  const texto = secaoDaCidade(cat, null, cat[1], {
+    id: UNIDADES[0].id,
+    nome: "NÓS Florianópolis",
+  });
+  conferir(
+    "diz que não há horário na cidade do DDD",
+    texto.includes("não há horário em NÓS Porto Alegre"),
+    true,
+  );
+  conferir("e de onde são os que há", texto.includes("são da\nNÓS Florianópolis"), true);
+  conferir(
+    "manda confirmar antes de oferecer",
+    texto.includes("Confirme a cidade antes de oferecer"),
+    true,
+  );
+  conferir(
+    "e proíbe oferecer a outra se ela confirmar",
+    texto.includes("NÃO ofereça os horários da outra cidade"),
+    true,
+  );
+  // A frase do caso bom não pode aparecer aqui: ela afirma o contrário.
+  conferir("sem a frase de 'já são dessa unidade'", texto.includes("já são dessa unidade"), false);
 }
 
 // O id da unidade não aparece em lugar nenhum da instrução — o modelo trabalha
 // com código, e um uuid na instrução é um uuid que ele pode inventar parecido.
 for (const confirmada of [null, cat[0], cat[1]]) {
-  const texto = secaoDaCidade(cat, confirmada, cat[1]);
+  const texto = secaoDaCidade(cat, confirmada, cat[1], {
+    id: UNIDADES[1].id,
+    nome: "NÓS Porto Alegre",
+  });
   conferir(
     `uuid fora da instrução (${confirmada?.codigo ?? "sem cidade"})`,
     texto.includes(UNIDADES[0].id) || texto.includes(UNIDADES[1].id),

@@ -835,13 +835,15 @@ export async function instrucaoDaLuna(
   //
   // Com a cidade confirmada, a agenda devolve só os horários DELA — e devolve
   // lista vazia quando não há vaga lá, que é a resposta certa para quem está
-  // numa cidade sem viagem marcada. Ver `escolherMomentos`.
-  const horarios = await horariosParaOferecer(
-    supabase,
-    ownerId,
-    agora,
-    confirmada ? { id: confirmada.id, nome: confirmada.nome } : null,
-  );
+  // numa cidade sem viagem marcada. Com o palpite do DDD, ela tenta a unidade
+  // sugerida e cede se não houver vaga: um palpite não pode calar a conversa.
+  // Ver `escolherMomentos`.
+  const cidadeDaAgenda = confirmada
+    ? { id: confirmada.id, nome: confirmada.nome, confirmada: true }
+    : palpite
+      ? { id: palpite.id, nome: palpite.nome, confirmada: false }
+      : null;
+  const horarios = await horariosParaOferecer(supabase, ownerId, agora, cidadeDaAgenda);
 
   // ── A biblioteca de casos ───────────────────────────────────────────────
   //
