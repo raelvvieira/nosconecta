@@ -1678,6 +1678,188 @@ export type Database = {
         }
         Relationships: []
       }
+      club_creditos: {
+        Row: {
+          appointment_id: string | null
+          created_at: string
+          created_by: string | null
+          descricao: string
+          id: string
+          nivel_id: string | null
+          owner_id: string
+          patient_id: string
+          tipo: string
+          valor: number
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao: string
+          id?: string
+          nivel_id?: string | null
+          owner_id: string
+          patient_id: string
+          tipo: string
+          valor: number
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string
+          id?: string
+          nivel_id?: string | null
+          owner_id?: string
+          patient_id?: string
+          tipo?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_creditos_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_creditos_nivel_id_fkey"
+            columns: ["nivel_id"]
+            isOneToOne: false
+            referencedRelation: "club_niveis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_creditos_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "club_creditos_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_indicacoes: {
+        Row: {
+          appointment_id: string | null
+          confirmada_em: string | null
+          created_at: string
+          id: string
+          indicado_id: string | null
+          indicado_nome: string
+          indicador_id: string
+          observacao: string | null
+          owner_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          confirmada_em?: string | null
+          created_at?: string
+          id?: string
+          indicado_id?: string | null
+          indicado_nome: string
+          indicador_id: string
+          observacao?: string | null
+          owner_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string | null
+          confirmada_em?: string | null
+          created_at?: string
+          id?: string
+          indicado_id?: string | null
+          indicado_nome?: string
+          indicador_id?: string
+          observacao?: string | null
+          owner_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_indicacoes_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_indicacoes_indicado_id_fkey"
+            columns: ["indicado_id"]
+            isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "club_indicacoes_indicado_id_fkey"
+            columns: ["indicado_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_indicacoes_indicador_id_fkey"
+            columns: ["indicador_id"]
+            isOneToOne: false
+            referencedRelation: "patient_funnel_signals"
+            referencedColumns: ["patient_id"]
+          },
+          {
+            foreignKeyName: "club_indicacoes_indicador_id_fkey"
+            columns: ["indicador_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      club_niveis: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          credito: number
+          id: string
+          indicacoes: number
+          nome: string
+          ordem: number
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          credito?: number
+          id?: string
+          indicacoes: number
+          nome: string
+          ordem?: number
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          credito?: number
+          id?: string
+          indicacoes?: number
+          nome?: string
+          ordem?: number
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       contact_tags: {
         Row: {
           created_at: string
@@ -2780,6 +2962,7 @@ export type Database = {
           allergy_notes: string | null
           birth_date: string | null
           city: string | null
+          club_desde: string | null
           company_id: string | null
           cpf: string | null
           created_at: string
@@ -2811,6 +2994,7 @@ export type Database = {
           allergy_notes?: string | null
           birth_date?: string | null
           city?: string | null
+          club_desde?: string | null
           company_id?: string | null
           cpf?: string | null
           created_at?: string
@@ -2842,6 +3026,7 @@ export type Database = {
           allergy_notes?: string | null
           birth_date?: string | null
           city?: string | null
+          club_desde?: string | null
           company_id?: string | null
           cpf?: string | null
           created_at?: string

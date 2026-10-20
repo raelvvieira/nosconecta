@@ -36,6 +36,13 @@
       "when": 1792512335605,
       "tag": "0004_especialidades_e_ficha_no_convite",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792516035304,
+      "tag": "0005_nos_club",
+      "breakpoints": true
     }
   ]
 }
