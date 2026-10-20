@@ -16,12 +16,12 @@
      o cartão embaixo dele tinha 24px, e o app inteiro usava 17 raios
      diferentes. Os nomes do Tailwind continuam os mesmos; o que muda é para
      onde apontam. */
-  --radius-sm: var(--radius-chip);          /* 10px — pílula pequena, etiqueta */
-  --radius-md: var(--radius-control);       /* 12px — campo, botão */
-  --radius-lg: var(--radius-control-lg);    /* 14px — controle grande */
-  --radius-xl: var(--radius-card);          /* 16px — cartão de dado */
-  --radius-2xl: var(--radius-feature);      /* 20px — cartão de destaque */
-  --radius-3xl: var(--radius-island);       /* 26px — ilha, diálogo, gaveta */
+  --radius-sm: var(--radius-chip); /* 10px — pílula pequena, etiqueta */
+  --radius-md: var(--radius-control); /* 12px — campo, botão */
+  --radius-lg: var(--radius-control-lg); /* 14px — controle grande */
+  --radius-xl: var(--radius-card); /* 16px — cartão de dado */
+  --radius-2xl: var(--radius-feature); /* 20px — cartão de destaque */
+  --radius-3xl: var(--radius-island); /* 26px — ilha, diálogo, gaveta */
   --radius-4xl: 32px;
 
   --color-background: var(--background);
@@ -75,7 +75,6 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-
 
   --font-sans: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -139,9 +138,11 @@
      e sombra preta sobre uma paleta quente cinza-suja a superfície. */
   --shadow-1: 0 1px 2px rgba(24, 24, 30, 0.045);
   --shadow-2: 0 8px 24px rgba(24, 24, 30, 0.06), 0 1px 2px rgba(24, 24, 30, 0.03);
-  --shadow-3: 0 16px 45px rgba(24, 24, 30, 0.10), 0 2px 8px rgba(24, 24, 30, 0.04),
+  --shadow-3:
+    0 16px 45px rgba(24, 24, 30, 0.1), 0 2px 8px rgba(24, 24, 30, 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  --shadow-4: 0 28px 70px rgba(24, 24, 30, 0.16), 0 4px 12px rgba(24, 24, 30, 0.06),
+  --shadow-4:
+    0 28px 70px rgba(24, 24, 30, 0.16), 0 4px 12px rgba(24, 24, 30, 0.06),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 
   /* Um nome por degrau. Antes `shadow-lg` e `shadow-xl` desenhavam exatamente
@@ -169,13 +170,103 @@
      continua no easing padrão de propósito. */
 
   /* ζ = 1,0 · response 0,4s — criticamente amortecida, sem ultrapassar. Padrão. */
-  --ease-spring: linear(0, 0.02, 0.0697, 0.1367, 0.2126, 0.2914, 0.3692, 0.4434, 0.5124, 0.5756, 0.6326, 0.6834, 0.7283, 0.7676, 0.8019, 0.8316, 0.8573, 0.8793, 0.8981, 0.9142, 0.9278, 0.9394, 0.9492, 0.9575, 0.9645, 0.9704, 0.9753, 0.9794, 0.9829, 0.9858, 0.9882, 0.9902, 0.9919, 0.9932, 0.9944, 0.9954, 0.9962, 0.9968, 0.9974, 0.9978, 0.9982, 0.9985, 0.9988, 1);
+  --ease-spring: linear(
+    0,
+    0.02,
+    0.0697,
+    0.1367,
+    0.2126,
+    0.2914,
+    0.3692,
+    0.4434,
+    0.5124,
+    0.5756,
+    0.6326,
+    0.6834,
+    0.7283,
+    0.7676,
+    0.8019,
+    0.8316,
+    0.8573,
+    0.8793,
+    0.8981,
+    0.9142,
+    0.9278,
+    0.9394,
+    0.9492,
+    0.9575,
+    0.9645,
+    0.9704,
+    0.9753,
+    0.9794,
+    0.9829,
+    0.9858,
+    0.9882,
+    0.9902,
+    0.9919,
+    0.9932,
+    0.9944,
+    0.9954,
+    0.9962,
+    0.9968,
+    0.9974,
+    0.9978,
+    0.9982,
+    0.9985,
+    0.9988,
+    1
+  );
   --duration-spring: 588ms;
 
   /* ζ = 0,8 · response 0,35s — ultrapassa 1,5% e volta. Só onde o gesto trazia
      inércia: soltar um card, um painel que veio de um arremesso. Overshoot num
      menu que só apareceu fica errado. */
-  --ease-spring-bounce: linear(0, 0.0176, 0.0633, 0.1279, 0.2042, 0.2864, 0.3702, 0.4523, 0.5304, 0.6031, 0.6693, 0.7286, 0.7809, 0.8263, 0.8652, 0.8981, 0.9254, 0.9479, 0.9659, 0.9803, 0.9913, 0.9997, 1.0058, 1.0101, 1.0128, 1.0144, 1.0151, 1.0151, 1.0146, 1.0137, 1.0126, 1.0114, 1.0101, 1.0089, 1.0077, 1.0065, 1.0055, 1.0045, 1.0037, 1.0029, 1.0023, 1.0018, 1.0013, 1);
+  --ease-spring-bounce: linear(
+    0,
+    0.0176,
+    0.0633,
+    0.1279,
+    0.2042,
+    0.2864,
+    0.3702,
+    0.4523,
+    0.5304,
+    0.6031,
+    0.6693,
+    0.7286,
+    0.7809,
+    0.8263,
+    0.8652,
+    0.8981,
+    0.9254,
+    0.9479,
+    0.9659,
+    0.9803,
+    0.9913,
+    0.9997,
+    1.0058,
+    1.0101,
+    1.0128,
+    1.0144,
+    1.0151,
+    1.0151,
+    1.0146,
+    1.0137,
+    1.0126,
+    1.0114,
+    1.0101,
+    1.0089,
+    1.0077,
+    1.0065,
+    1.0055,
+    1.0045,
+    1.0037,
+    1.0029,
+    1.0023,
+    1.0018,
+    1.0013,
+    1
+  );
   --duration-spring-bounce: 474ms;
 }
 
@@ -202,21 +293,21 @@
      isso lia como dois produtos. Fica esta por dois motivos: é a que o
      financeiro, pacientes e configurações já usam, e cinza azulado briga com
      uma marca rosa-laranja — o quente e o frio se anulam. */
-  --background: #F6F6F7;
-  --foreground: #1B1B1F;
+  --background: #f6f6f7;
+  --foreground: #1b1b1f;
 
   /* Degraus de texto abaixo de --foreground. --muted-foreground fica no meio;
      estes dois fecham as pontas que a agenda vinha resolvendo com HEX. */
-  --foreground-secondary: #3A3A42;
-  --foreground-subtle: #9A9AA1;
+  --foreground-secondary: #3a3a42;
+  --foreground-subtle: #9a9aa1;
 
   /* Superfícies entre o fundo da página e o cartão branco. */
-  --surface: #F8F8FA;
-  --surface-subtle: #FAFAFA;
-  --surface-muted: #EFEFF2;
+  --surface: #f8f8fa;
+  --surface-subtle: #fafafa;
+  --surface-muted: #efeff2;
 
   /* Divisor mais firme que --border, para separar blocos e não só linhas. */
-  --divider: #E4E4E8;
+  --divider: #e4e4e8;
 
   /* Barra de rolagem. Uma medida e uma cor para o app inteiro — a regra de
      base e a utility `custom-scroll` leem daqui, então não há dois desenhos
@@ -226,60 +317,59 @@
   --scrollbar-thumb-hover: color-mix(in oklab, var(--foreground) 22%, transparent);
 
   /* Estados do botão escuro. */
-  --foreground-hover: #26262B;
-  --foreground-active: #33333A;
+  --foreground-hover: #26262b;
+  --foreground-active: #33333a;
 
-  --card: #FFFFFF;
-  --card-foreground: #1B1B1F;
+  --card: #ffffff;
+  --card-foreground: #1b1b1f;
 
-  --popover: #FFFFFF;
-  --popover-foreground: #1B1B1F;
+  --popover: #ffffff;
+  --popover-foreground: #1b1b1f;
 
   /* Brand */
-  --primary: #FF7A59;            /* coral */
-  --primary-foreground: #FFFFFF;
-  --coral: #FF7A59;
-  --coral-soft: #FFF2EC;
-  --pink: #F55F95;
-  --pink-soft: #FFE7F0;
-  --peach: #FFB086;
-  --cream: #FFF2EC;
+  --primary: #ff7a59; /* coral */
+  --primary-foreground: #ffffff;
+  --coral: #ff7a59;
+  --coral-soft: #fff2ec;
+  --pink: #f55f95;
+  --pink-soft: #ffe7f0;
+  --peach: #ffb086;
+  --cream: #fff2ec;
 
-  --secondary: #F2F2F4;
-  --secondary-foreground: #1B1B1F;
+  --secondary: #f2f2f4;
+  --secondary-foreground: #1b1b1f;
 
-  --muted: #F2F2F4;
-  --muted-foreground: #6B6B72;
+  --muted: #f2f2f4;
+  --muted-foreground: #6b6b72;
 
-  --accent: #FFF2EC;
-  --accent-foreground: #FF7A59;
+  --accent: #fff2ec;
+  --accent-foreground: #ff7a59;
 
-  --destructive: #E5484D;
-  --destructive-foreground: #FFFFFF;
+  --destructive: #e5484d;
+  --destructive-foreground: #ffffff;
 
-  --border: #F0F0F2;
-  --input: #ECECEC;
-  --ring: #FF7A59;
+  --border: #f0f0f2;
+  --input: #ececec;
+  --ring: #ff7a59;
 
   /* Semantic — soft */
-  --success: #1F9D55;
-  --success-soft: #E4F6EB;
-  --danger: #E5484D;
-  --danger-soft: #FDE9EA;
-  --warning: #C7821F;
-  --warning-soft: #FBEFD9;
-  --info: #2F6FE0;
-  --info-soft: #E5EEFB;
-  --violet: #7C5CFA;
-  --violet-soft: #ECE7FE;
+  --success: #1f9d55;
+  --success-soft: #e4f6eb;
+  --danger: #e5484d;
+  --danger-soft: #fde9ea;
+  --warning: #c7821f;
+  --warning-soft: #fbefd9;
+  --info: #2f6fe0;
+  --info-soft: #e5eefb;
+  --violet: #7c5cfa;
+  --violet-soft: #ece7fe;
 
   /* Charts — paleta corporativa premium */
-  --chart-1: #FF7A59;
-  --chart-2: #F55F95;
-  --chart-3: #FFB086;
-  --chart-4: #7C5CFA;
-  --chart-5: #1F9D55;
-
+  --chart-1: #ff7a59;
+  --chart-2: #f55f95;
+  --chart-3: #ffb086;
+  --chart-4: #7c5cfa;
+  --chart-5: #1f9d55;
 
   /* Elevação: os quatro degraus vivem no @theme acima, para que os utilitários
      do Tailwind caiam neles também. Aqui ficam só os derivados.
@@ -292,7 +382,7 @@
      escala em vez de terem valor próprio. */
   --shadow-soft: var(--shadow-1);
   --shadow-elev: var(--shadow-2);
-  --gradient-primary: linear-gradient(135deg, #F55F95 0%, #FF7A59 50%, #FFB086 100%);
+  --gradient-primary: linear-gradient(135deg, #f55f95 0%, #ff7a59 50%, #ffb086 100%);
 }
 
 @layer base {
@@ -300,7 +390,8 @@
     border-color: var(--color-border);
   }
 
-  html, body {
+  html,
+  body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
@@ -367,7 +458,11 @@
 
   /* Tira o atraso de ~300ms que o navegador guarda esperando um duplo toque
      em qualquer coisa clicável. */
-  button, a, [role="button"], label, summary {
+  button,
+  a,
+  [role="button"],
+  label,
+  summary {
     touch-action: manipulation;
   }
 
@@ -382,7 +477,14 @@
      teto. Qualquer componente que declare o próprio foco continua ganhando —
      inclusive os que pedem `focus-visible:outline-none` para desenhar um anel
      em vez do contorno. O que muda é que agora ninguém fica sem nada. */
-  :where(button, a[href], [role="button"], [role="tab"], summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  :where(
+    button,
+    a[href],
+    [role="button"],
+    [role="tab"],
+    summary,
+    [tabindex]:not([tabindex="-1"])
+  ):focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
@@ -453,9 +555,9 @@
      Bordas de 1px em #F0F0F2 desaparecem para quem pede contraste. */
   @media (prefers-contrast: more) {
     :root {
-      --border: #C9C9CE;
-      --input: #B4B4BA;
-      --muted-foreground: #4A4A50;
+      --border: #c9c9ce;
+      --input: #b4b4ba;
+      --muted-foreground: #4a4a50;
     }
   }
 }
@@ -590,12 +692,16 @@
   /* A volta assenta como mola; a cor acompanha no easing normal, porque cor
      não tem inércia. Duração menor que --duration-spring de propósito: a
      curva é a mesma forma, só que uma mola mais rápida. */
-  transition: transform 260ms var(--ease-spring), background-color 200ms ease-out;
+  transition:
+    transform 260ms var(--ease-spring),
+    background-color 200ms ease-out;
 
   &:active {
     transform: scale(0.985);
     /* Entrar é resposta a um toque, não movimento físico: direto e curto. */
-    transition: transform 75ms ease-out, background-color 75ms ease-out;
+    transition:
+      transform 75ms ease-out,
+      background-color 75ms ease-out;
   }
 }
 
@@ -616,7 +722,10 @@
        da superfície, e é a sombra que conta isso. Sem ela, o botão só ficava
        menor — o que o olho lê como "afastou", não como "afundou". */
     box-shadow: var(--shadow-1);
-    transition: transform 75ms ease-out, box-shadow 75ms ease-out, opacity 75ms ease-out;
+    transition:
+      transform 75ms ease-out,
+      box-shadow 75ms ease-out,
+      opacity 75ms ease-out;
   }
 }
 
@@ -862,10 +971,13 @@
    sobre um fundo que não compete com ele. Os dois halos continuam, bem mais
    suaves: é o que separa "app premium" de "folha branca". */
 .club-fundo {
+  /* Branco. Os halos de cor ficaram, bem mais fracos e só no topo — na
+     primeira versão eles pintavam a tela inteira de rosa, e o cartão (que é o
+     objeto colorido da página) perdia o contraste contra o próprio fundo.
+     Aqui eles só tiram o branco de ser chapado. */
   background:
-    radial-gradient(65% 45% at 12% 0%, rgba(236, 72, 153, 0.13), transparent 72%),
-    radial-gradient(60% 50% at 92% 12%, rgba(139, 92, 246, 0.12), transparent 72%),
-    linear-gradient(180deg, #fbf9fb 0%, #f6f4f8 55%, #f2f0f5 100%);
+    radial-gradient(70% 30% at 10% 0%, rgba(236, 72, 153, 0.05), transparent 70%),
+    radial-gradient(60% 28% at 95% 0%, rgba(139, 92, 246, 0.045), transparent 70%), #ffffff;
   background-attachment: fixed;
 }
 
@@ -992,32 +1104,30 @@
 /* Prata e ouro: faixas claras e escuras em diagonal, que é como metal escovado
    devolve a luz. A diferença entre os dois é só a cor das faixas. */
 .cartao-prata {
-  background-image:
-    linear-gradient(
-      100deg,
-      #8e97a3 0%,
-      #eef2f6 18%,
-      #aeb7c2 34%,
-      #f7fafc 52%,
-      #9aa3af 70%,
-      #e6ebf0 86%,
-      #8e97a3 100%
-    );
+  background-image: linear-gradient(
+    100deg,
+    #8e97a3 0%,
+    #eef2f6 18%,
+    #aeb7c2 34%,
+    #f7fafc 52%,
+    #9aa3af 70%,
+    #e6ebf0 86%,
+    #8e97a3 100%
+  );
   color: #2b3038;
 }
 
 .cartao-ouro {
-  background-image:
-    linear-gradient(
-      100deg,
-      #a9802f 0%,
-      #f6e3a8 18%,
-      #d2a94f 34%,
-      #fff4cf 52%,
-      #c79a3e 70%,
-      #f0dca2 86%,
-      #a9802f 100%
-    );
+  background-image: linear-gradient(
+    100deg,
+    #a9802f 0%,
+    #f6e3a8 18%,
+    #d2a94f 34%,
+    #fff4cf 52%,
+    #c79a3e 70%,
+    #f0dca2 86%,
+    #a9802f 100%
+  );
   color: #3a2a06;
 }
 
@@ -1069,9 +1179,24 @@
   }
 }
 
-/* Quem ainda não chegou ao primeiro nível: o cartão existe, fosco, esperando
-   o material. */
+/* Quem ainda não chegou ao primeiro nível usa o MESMO veludo do primeiro.
+   A versão anterior dava a essa pessoa um cartão cinza fosco, e ela lia aquilo
+   como "o cartão do Start é prateado" — o cinza da espera parecia o material
+   do nível. Quem tem o cartão na mão já é do Club: o material de entrada é o
+   bege, e o que muda ao chegar no Start é o nome escrito nele. */
 .cartao-sem-nivel {
-  background-image: linear-gradient(135deg, #f3f1f6 0%, #e8e5ee 55%, #ded9e8 100%);
-  color: #3a3545;
+  background-color: #cbb79a;
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.14) 0 2px,
+      rgba(120, 94, 63, 0.1) 2px 4px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.1) 0 2px,
+      rgba(120, 94, 63, 0.08) 2px 4px
+    ),
+    radial-gradient(120% 100% at 20% 0%, #e4d5bd 0%, #c6ae8c 55%, #a98f6c 100%);
+  color: #3b2f20;
 }

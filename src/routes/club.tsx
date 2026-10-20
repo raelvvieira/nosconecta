@@ -382,8 +382,9 @@ function SemCadastro({ motivo }: { motivo: string }) {
  */
 const MATERIAIS = ["cartao-velvet", "cartao-prata", "cartao-ouro", "cartao-holo"];
 
-/** Quem ainda não chegou ao primeiro nível tem cartão, fosco. Ele existe
- *  esperando o material — é o que dá vontade do próximo. */
+/** Antes do primeiro nível, o mesmo veludo do primeiro: quem está com o cartão
+ *  na mão já é do Club. O que muda ao chegar no Start é o nome escrito nele —
+ *  um cartão cinza de espera fazia a pessoa achar que o Start é que era cinza. */
 const SEM_NIVEL = "cartao-sem-nivel";
 
 function Painel({ dados }: { dados: PainelDoPaciente }) {

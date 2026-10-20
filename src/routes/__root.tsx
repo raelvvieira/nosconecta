@@ -146,6 +146,21 @@ function RootComponent() {
   );
 }
 
+/**
+ * Estamos no endereço do cartão?
+ *
+ * A regra é a primeira parte do domínio ser `club` — uma convenção que a
+ * clínica controla pelo DNS, sem nada para configurar no sistema. Serve para
+ * o cartão poder trazer só `club.suaclinica.com.br`, sem caminho depois.
+ *
+ * Fora do navegador (prerender) devolve `false`: ali não há domínio nenhum, e
+ * o desvio é de interface.
+ */
+function ehDominioDoClube(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.location.hostname.toLowerCase().split(".")[0] === "club";
+}
+
 function AuthGate({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -203,7 +218,10 @@ function AuthGate({ children }: { children: ReactNode }) {
     );
   }
   const isPublicRoute =
-    pathname.startsWith("/auth") || pathname.startsWith("/convite") || pathname.startsWith("/club");
+    pathname.startsWith("/auth") ||
+    pathname.startsWith("/convite") ||
+    pathname.startsWith("/club") ||
+    (pathname === "/" && ehDominioDoClube());
   if (!authed && !isPublicRoute) return null;
   return <>{children}</>;
 }
