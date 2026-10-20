@@ -15,6 +15,13 @@
       "when": 1792451995385,
       "tag": "0001_cidade_e_dias_da_unidade",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792502602290,
+      "tag": "0002_unidade_secundaria_e_de_viagem",
+      "breakpoints": true
     }
   ]
 }
