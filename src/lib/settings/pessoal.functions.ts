@@ -238,27 +238,115 @@ export const definirSituacao = createServerFn({ method: "POST" })
   });
 
 /**
- * Apaga um cadastro de acesso que nunca virou conta.
+ * Quanto histórico clínico e financeiro aponta para uma ficha.
  *
- * Só linhas SEM login: é a limpeza das duplicatas que sobraram de cadastros
- * antigos (foi uma delas que escondeu a dona da clínica sem acesso). Uma linha
- * com login não sai por aqui — para essa existe desativar, que preserva o
- * histórico de quem fez o quê.
+ * As seis tabelas que guardam `professional_id` apagam a ligação em silêncio
+ * quando a ficha some (`ON DELETE SET NULL`). Numa clínica com 100 consultas
+ * marcadas, apagar a ficha da dentista não dá erro nenhum: as consultas
+ * continuam lá, com o nome gravado em texto, e sem nenhuma ligação com quem
+ * atendeu. Comissão por profissional, filtro da agenda e prontuário deixam de
+ * fechar, e ninguém descobre no dia.
+ *
+ * Por isso a conta acontece ANTES de apagar, e é ela que decide entre apagar e
+ * desativar.
  */
-export const removerCadastroSemLogin = createServerFn({ method: "POST" })
+async function historicoDaFicha(
+  supabase: any,
+  ownerId: string,
+  professionalId: string,
+): Promise<number> {
+  const tabelas = [
+    "appointments",
+    "financial_transactions",
+    "treatment_plans",
+    "patient_notes",
+    "patient_anamnesis",
+  ];
+  let total = 0;
+  for (const tabela of tabelas) {
+    const { count, error } = await supabase
+      .from(tabela)
+      .select("id", { count: "exact", head: true })
+      .eq("owner_id", ownerId)
+      .eq("professional_id", professionalId);
+    // Erro de leitura conta como "tem histórico": entre deixar uma ficha a
+    // mais no cadastro e desligar 100 consultas de quem as atendeu, o lado
+    // seguro não tem dúvida.
+    if (error) return 1;
+    total += count ?? 0;
+  }
+  return total;
+}
+
+export interface ResultadoDaExclusao {
+  ok: true;
+  /** A ficha clínica foi preservada (e desativada) por ter histórico. */
+  fichaMantida: boolean;
+  /** Quantos registros apontavam para a ficha. Zero quando não havia ficha. */
+  historico: number;
+}
+
+/**
+ * Tira uma pessoa do sistema.
+ *
+ * O acesso sai inteiro: a linha de `clinic_members` é apagada, e com ela o
+ * nível e as unidades. A conta de login em si continua existindo no Supabase
+ * — não dá para apagá-la daqui, e não faria diferença: sem linha na clínica,
+ * ela entra e vê "sua conta não está vinculada a nenhuma clínica".
+ *
+ * A ficha clínica é outra história, e é onde mora o cuidado. Sem histórico,
+ * ela sai junto. Com histórico, ela é DESATIVADA: some da agenda e das
+ * escolhas de profissional, e as consultas, lançamentos e prontuários antigos
+ * continuam ligados a quem os atendeu. O chamador recebe qual dos dois
+ * aconteceu, para dizer isso a quem clicou.
+ */
+export const excluirPessoa = createServerFn({ method: "POST" })
   .middleware([exigeConfiguracoes])
-  .inputValidator((input: { memberId: string }) => input)
-  .handler(async ({ data, context }) => {
+  .inputValidator((input: { memberId: string | null; professionalId: string | null }) => ({
+    memberId: input.memberId?.trim() || null,
+    professionalId: input.professionalId?.trim() || null,
+  }))
+  .handler(async ({ data, context }): Promise<ResultadoDaExclusao> => {
     assertAdmin(context);
     const supabase: any = context.supabase;
-    const { error } = await supabase
-      .from("clinic_members")
-      .delete()
-      .eq("id", data.memberId)
-      .eq("owner_id", context.ownerId)
-      .is("user_id", null);
-    if (error) throw new Error(error.message);
-    return { ok: true };
+    if (!data.memberId && !data.professionalId) throw new Error("Pessoa inválida.");
+    if (data.memberId) {
+      await assertNaoEhVoce(supabase, data.memberId, context.ownerId, context.userId);
+    }
+
+    let fichaMantida = false;
+    let historico = 0;
+
+    if (data.professionalId) {
+      historico = await historicoDaFicha(supabase, context.ownerId, data.professionalId);
+      if (historico > 0) {
+        fichaMantida = true;
+        const { error } = await supabase
+          .from("professionals")
+          .update({ active: false, updated_at: new Date().toISOString() })
+          .eq("id", data.professionalId)
+          .eq("owner_id", context.ownerId);
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await supabase
+          .from("professionals")
+          .delete()
+          .eq("id", data.professionalId)
+          .eq("owner_id", context.ownerId);
+        if (error) throw new Error(error.message);
+      }
+    }
+
+    if (data.memberId) {
+      const { error } = await supabase
+        .from("clinic_members")
+        .delete()
+        .eq("id", data.memberId)
+        .eq("owner_id", context.ownerId);
+      if (error) throw new Error(error.message);
+    }
+
+    return { ok: true, fichaMantida, historico };
   });
 
 /** Liga (ou desliga) a ficha clínica de uma pessoa com acesso. */

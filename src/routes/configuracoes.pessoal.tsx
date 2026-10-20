@@ -18,6 +18,16 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -30,9 +40,9 @@ import { getSettings, saveSetting, type UnitSetting } from "@/lib/settings/setti
 import {
   criarConvite,
   definirSituacao,
+  excluirPessoa,
   listarConvites,
   listarPessoal,
-  removerCadastroSemLogin,
   revogarConvite,
   salvarAcesso,
   vincularFicha,
@@ -239,7 +249,8 @@ function CartaoDaPessoa({
   onEditarFicha: () => void;
 }) {
   const doSituacao = useServerFn(definirSituacao);
-  const doRemover = useServerFn(removerCadastroSemLogin);
+  const doExcluir = useServerFn(excluirPessoa);
+  const [confirmando, setConfirmando] = useState(false);
 
   const situacao = useMutation({
     mutationFn: (desativado: boolean) =>
@@ -251,10 +262,21 @@ function CartaoDaPessoa({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const remover = useMutation({
-    mutationFn: () => doRemover({ data: { memberId: pessoa.memberId! } }),
-    onSuccess: () => {
-      toast.success("Cadastro removido.");
+  const excluir = useMutation({
+    mutationFn: () =>
+      doExcluir({
+        data: { memberId: pessoa.memberId, professionalId: pessoa.professionalId },
+      }),
+    onSuccess: (r) => {
+      // O aviso diz o que de fato aconteceu com a ficha, e não um "pronto"
+      // genérico: desativar em vez de apagar é uma decisão do servidor, e
+      // quem clicou precisa saber que ela foi tomada.
+      toast.success(
+        r.fichaMantida
+          ? "Acesso excluído. A ficha clínica foi desativada em vez de apagada — ela tem histórico na agenda."
+          : "Pessoa excluída do sistema.",
+      );
+      setConfirmando(false);
       invalidar();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -324,18 +346,56 @@ function CartaoDaPessoa({
               )}
             </Button>
           ) : null}
-          {pessoa.memberId && !pessoa.temLogin ? (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={remover.isPending}
-              onClick={() => remover.mutate()}
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Remover
-            </Button>
-          ) : null}
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-danger hover:bg-danger-soft hover:text-danger"
+            onClick={() => setConfirmando(true)}
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Excluir
+          </Button>
         </div>
       </div>
+
+      <AlertDialog open={confirmando} onOpenChange={setConfirmando}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {pessoa.nome} do sistema?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-left">
+                {pessoa.memberId ? (
+                  <p>
+                    O acesso é apagado: nível, unidades e a permissão de entrar. Se essa pessoa
+                    tiver login, ela continua conseguindo digitar a senha, mas não entra mais na
+                    clínica.
+                  </p>
+                ) : null}
+                {pessoa.professionalId ? (
+                  <p>
+                    A ficha clínica some da agenda. Se houver consulta, lançamento ou prontuário
+                    ligado a ela, a ficha é <strong>desativada</strong> em vez de apagada — apagar
+                    desligaria esse histórico de quem atendeu, sem erro nenhum e sem volta.
+                  </p>
+                ) : null}
+                <p>Não dá para desfazer.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-danger text-white hover:bg-danger/90"
+              disabled={excluir.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                excluir.mutate();
+              }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </article>
   );
 }
