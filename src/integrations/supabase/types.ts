@@ -1682,18 +1682,21 @@ export type Database = {
         Row: {
           credito_boas_vindas: number
           credito_por_indicacao: number
+          link_do_cartao: string | null
           owner_id: string
           updated_at: string
         }
         Insert: {
           credito_boas_vindas?: number
           credito_por_indicacao?: number
+          link_do_cartao?: string | null
           owner_id: string
           updated_at?: string
         }
         Update: {
           credito_boas_vindas?: number
           credito_por_indicacao?: number
+          link_do_cartao?: string | null
           owner_id?: string
           updated_at?: string
         }
