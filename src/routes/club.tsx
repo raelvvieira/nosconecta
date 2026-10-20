@@ -94,9 +94,11 @@ function ClubPage() {
       </Fundo>
     );
   }
-  if (painel.isError || !painel.data?.ok) {
-    return <SemCadastro motivo={painel.data?.motivo ?? "erro"} />;
-  }
+  // Erro de CHAMADA e recusa da função são coisas diferentes, e misturá-las
+  // dizia "não encontramos seu cadastro" quando o que faltava era a migration
+  // — mandando a pessoa falar com a recepção sobre um problema que é nosso.
+  if (painel.isError) return <AindaNaoPronto />;
+  if (!painel.data?.ok) return <SemCadastro motivo={painel.data?.motivo ?? "erro"} />;
   return <Painel dados={painel.data} />;
 }
 
@@ -296,6 +298,38 @@ const MOTIVOS: Record<string, string> = {
   email_em_uso: "Este e-mail já tem conta. Use a opção de entrar.",
   falhou: "Não deu para criar sua conta agora. Tente de novo em instantes.",
 };
+
+/**
+ * A função do painel não existe (ainda).
+ *
+ * Acontece na janela entre o deploy e a migration — o Lovable aplica as duas
+ * em passos separados. Dizer isso em voz alta é melhor que a tela genérica:
+ * quem abre é a própria clínica, testando.
+ */
+function AindaNaoPronto() {
+  return (
+    <Fundo>
+      <Marca />
+      <div
+        className="club-entra glass-escuro mt-8 p-6 text-center"
+        style={{ animationDelay: "80ms" }}
+      >
+        <Sparkles className="mx-auto h-7 w-7 text-white/70" strokeWidth={1.5} />
+        <p className="mt-3 font-medium">O Club está quase pronto</p>
+        <p className="mt-1 text-sm text-white/60">
+          Estamos terminando de preparar sua área. Tente de novo em alguns minutos.
+        </p>
+        <Button
+          variant="ghost"
+          className="mt-4 text-white/60 hover:bg-white/10 hover:text-white"
+          onClick={() => supabase.auth.signOut()}
+        >
+          <LogOut className="h-4 w-4" /> Sair
+        </Button>
+      </div>
+    </Fundo>
+  );
+}
 
 function SemCadastro({ motivo }: { motivo: string }) {
   const texto =
