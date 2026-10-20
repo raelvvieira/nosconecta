@@ -1306,6 +1306,90 @@ export type Database = {
         }
         Relationships: []
       }
+      clinic_invites: {
+        Row: {
+          convidado_email: string | null
+          convidado_nome: string | null
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          owner_id: string
+          revoked_at: string | null
+          role: string
+          token: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          convidado_email?: string | null
+          convidado_nome?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          owner_id: string
+          revoked_at?: string | null
+          role: string
+          token: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          convidado_email?: string | null
+          convidado_nome?: string | null
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          owner_id?: string
+          revoked_at?: string | null
+          role?: string
+          token?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: []
+      }
+      clinic_member_units: {
+        Row: {
+          created_at: string
+          id: string
+          member_id: string
+          owner_id: string
+          unit_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          member_id: string
+          owner_id: string
+          unit_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          member_id?: string
+          owner_id?: string
+          unit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_member_units_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinic_member_units_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "clinic_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinic_members: {
         Row: {
           active: boolean
@@ -1318,6 +1402,7 @@ export type Database = {
           owner_id: string
           permissions: Json
           phone: string | null
+          professional_id: string | null
           rejected_reason: string | null
           requested_at: string
           role: string | null
@@ -1337,6 +1422,7 @@ export type Database = {
           owner_id: string
           permissions?: Json
           phone?: string | null
+          professional_id?: string | null
           rejected_reason?: string | null
           requested_at?: string
           role?: string | null
@@ -1356,6 +1442,7 @@ export type Database = {
           owner_id?: string
           permissions?: Json
           phone?: string | null
+          professional_id?: string | null
           rejected_reason?: string | null
           requested_at?: string
           role?: string | null
@@ -1365,6 +1452,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "clinic_members_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "clinic_members_unit_id_fkey"
             columns: ["unit_id"]
@@ -3705,6 +3799,15 @@ export type Database = {
     }
     Functions: {
       accept_invitation: { Args: { _token: string }; Returns: boolean }
+      aceitar_convite: {
+        Args: {
+          _nome: string
+          _telefone: string
+          _token: string
+          _unidades: string[]
+        }
+        Returns: Json
+      }
       agendamento_criado_apos: {
         Args: { _desde: string; _owner: string; _variantes: string[] }
         Returns: {
@@ -3740,6 +3843,7 @@ export type Database = {
         Args: { p_invoice_id: string }
         Returns: undefined
       }
+      convite_para_mostrar: { Args: { _token: string }; Returns: Json }
       current_owner_id: { Args: never; Returns: string }
       current_unit_id: { Args: never; Returns: string }
       finance_cash_flow_series: {
