@@ -578,3 +578,157 @@ export const salvarNivel = createServerFn({ method: "POST" })
     }
     return { ok: true };
   });
+
+// ── A conta do paciente, a partir do cartão ───────────────────────────────
+
+/** Sem acento, sem pontuação, em minúsculas. É assim que "José da Silva" e
+ *  "jose silva" viram a mesma pessoa na hora de conferir o nome. */
+function comparavelNome(texto: string): string {
+  return String(texto ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * O nome que a pessoa digitou bate com o da ficha?
+ *
+ * Primeiro nome igual, e mais um pedaço qualquer em comum quando a ficha tem
+ * sobrenome. Não é exigir o nome completo escrito igual — "Ana Paula Souza"
+ * na ficha e "Ana Souza" no cartão é a mesma pessoa, e recusar isso seria
+ * mandar embora quem tem o cartão na mão.
+ *
+ * Também não é aceitar só o primeiro nome: numa base com duas "Ana" o
+ * primeiro nome sozinho não distingue ninguém.
+ */
+export function nomeConfere(digitado: string, daFicha: string): boolean {
+  const a = comparavelNome(digitado).split(" ").filter(Boolean);
+  const b = comparavelNome(daFicha).split(" ").filter(Boolean);
+  if (!a.length || !b.length) return false;
+  if (a[0] !== b[0]) return false;
+  if (b.length === 1 || a.length === 1) return true;
+  const resto = new Set(b.slice(1));
+  return a.slice(1).some((parte) => resto.has(parte));
+}
+
+export interface ResultadoDaContaDoClub {
+  ok: boolean;
+  motivo?: "sem_cadastro" | "ja_tem_conta" | "email_em_uso" | "falhou";
+}
+
+/**
+ * Cria a conta do paciente pelo cartão — já confirmada, para ele entrar na
+ * mesma tela.
+ *
+ * ── Por que não é o cadastro comum do Supabase ────────────────────────────
+ *
+ * Porque aquele manda um e-mail de confirmação e devolve a pessoa para a
+ * caixa de entrada. Para quem está com um cartão na mão, encostado no balcão
+ * ou na sala de espera, isso é onde a história acaba.
+ *
+ * O que substitui a confirmação por e-mail como prova de identidade é o
+ * CRUZAMENTO com a base: telefone (nas duas formas que o sistema já usa para
+ * casar paciente com conversa) e nome. Quem não está na base da clínica não
+ * cria conta nenhuma — e é por isso que esta função não cria paciente: ela só
+ * reconhece quem já é.
+ *
+ * A chave de serviço é usada aqui e só aqui no caminho do paciente, para
+ * criar o login com `email_confirm`. Nada do que a pessoa digita vira consulta
+ * livre: o telefone vira variantes conhecidas, o nome é só comparado.
+ */
+export const criarContaDoClub = createServerFn({ method: "POST" })
+  .inputValidator((input: { nome: string; telefone: string; email: string; senha: string }) => {
+    const nome = String(input.nome ?? "").trim();
+    const email = String(input.email ?? "")
+      .trim()
+      .toLowerCase();
+    if (!nome) throw new Error("Diga seu nome completo.");
+    if (!email.includes("@")) throw new Error("E-mail inválido.");
+    if (String(input.senha ?? "").length < 8) {
+      throw new Error("A senha precisa ter pelo menos 8 caracteres.");
+    }
+    return {
+      nome: nome.slice(0, 120),
+      telefone: String(input.telefone ?? "").trim(),
+      email,
+      senha: String(input.senha),
+    };
+  })
+  .handler(async ({ data }): Promise<ResultadoDaContaDoClub> => {
+    const { variantesDoNumero } = await import("@/lib/atendimentos/phone");
+    const formas = variantesDoNumero(data.telefone);
+    if (!formas.length) return { ok: false, motivo: "sem_cadastro" };
+
+    const url = process.env.SUPABASE_URL;
+    const chave = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !chave) {
+      console.error("[club] SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
+      return { ok: false, motivo: "falhou" };
+    }
+    const { createClient } = await import("@supabase/supabase-js");
+    const admin: any = createClient(url, chave, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    // A ficha, pelo telefone. Sem filtro de dono: o paciente não sabe o que é
+    // uma clínica dentro do sistema, e a base é de uma só — o `owner_id` da
+    // ficha encontrada é que manda daqui para a frente.
+    const { data: achados, error } = await admin
+      .from("patients")
+      .select("id, name, email, club_user_id, club_desde")
+      .in("phone", formas)
+      .limit(5);
+    if (error) {
+      console.error("[club] busca de paciente falhou", error.message);
+      return { ok: false, motivo: "falhou" };
+    }
+    const lista = (achados ?? []) as any[];
+    if (!lista.length) return { ok: false, motivo: "sem_cadastro" };
+
+    // Nome que não bate devolve a MESMA recusa de telefone que não existe, e de
+    // propósito: respostas diferentes para os dois casos transformam este
+    // endereço — que é público, porque quem chega aqui ainda não tem conta —
+    // num jeito de descobrir quais telefones são de pacientes da clínica.
+    const ficha = lista.find((p) => nomeConfere(data.nome, String(p.name ?? "")));
+    if (!ficha) return { ok: false, motivo: "sem_cadastro" };
+    if (ficha.club_user_id) return { ok: false, motivo: "ja_tem_conta" };
+
+    // A conta nasce confirmada: a prova de identidade aqui foi o cruzamento
+    // acima, não a caixa de entrada.
+    const { data: criado, error: erroConta } = await admin.auth.admin.createUser({
+      email: data.email,
+      password: data.senha,
+      email_confirm: true,
+      user_metadata: { full_name: data.nome, club: true },
+    });
+    if (erroConta || !criado?.user?.id) {
+      const texto = String(erroConta?.message ?? "");
+      if (/already|registered|exists/i.test(texto)) return { ok: false, motivo: "email_em_uso" };
+      console.error("[club] conta não criada", texto);
+      return { ok: false, motivo: "falhou" };
+    }
+
+    const agora = new Date().toISOString();
+    const { error: erroVinculo } = await admin
+      .from("patients")
+      .update({
+        club_user_id: criado.user.id,
+        club_desde: ficha.club_desde ?? agora,
+        // O e-mail do Club entra na ficha quando ela não tinha nenhum: é o
+        // contato que a própria pessoa acabou de confirmar que é dela.
+        email: ficha.email || data.email,
+        updated_at: agora,
+      })
+      .eq("id", ficha.id)
+      // Ninguém mais pode ter pego esta ficha enquanto isto rodava.
+      .is("club_user_id", null);
+    if (erroVinculo) {
+      console.error("[club] vínculo falhou", erroVinculo.message);
+      return { ok: false, motivo: "falhou" };
+    }
+
+    return { ok: true };
+  });

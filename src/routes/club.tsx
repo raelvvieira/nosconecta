@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { ArrowRight, Check, Clock, Gift, LogOut, Share2, Sparkles, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
 import { situacaoNoClub, type NivelDoClub } from "@/lib/club/niveis-do-club";
+import { criarContaDoClub } from "@/lib/club/club.functions";
 
 /**
  * A área do paciente — o destino do QR Code do cartão.
@@ -123,52 +125,52 @@ function Marca({ legenda }: { legenda?: string }) {
 // ── Entrar ────────────────────────────────────────────────────────────────
 
 function Entrada() {
+  const criarConta = useServerFn(criarContaDoClub);
   const [modo, setModo] = useState<"entrar" | "criar">("entrar");
+  const [nome, setNome] = useState("");
+  const [telefone, setTelefone] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [carregando, setCarregando] = useState(false);
-  const [confirmeEmail, setConfirmeEmail] = useState(false);
 
+  /**
+   * Criar conta e entrar são UMA ação.
+   *
+   * A conta nasce já confirmada no servidor — a prova de identidade foi o
+   * cruzamento com a base da clínica, não a caixa de entrada —, então aqui é
+   * só entrar na sequência. Quem está com o cartão na mão vai do formulário
+   * ao painel sem sair da tela.
+   */
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
     if (senha.length < 8) return toast.error("A senha precisa ter pelo menos 8 caracteres.");
     setCarregando(true);
-    const r =
-      modo === "entrar"
-        ? await supabase.auth.signInWithPassword({ email, password: senha })
-        : await supabase.auth.signUp({ email, password: senha });
-    setCarregando(false);
 
-    if (r.error) {
-      toast.error(
-        r.error.message === "Invalid login credentials"
-          ? "E-mail ou senha não conferem."
-          : r.error.message === "User already registered"
-            ? "Você já tem conta. Use a opção de entrar."
-            : r.error.message,
-      );
-      return;
+    if (modo === "criar") {
+      try {
+        const r = await criarConta({ data: { nome, telefone, email, senha } });
+        if (!r.ok) {
+          setCarregando(false);
+          toast.error(MOTIVOS[r.motivo ?? "falhou"]);
+          return;
+        }
+      } catch (erro) {
+        setCarregando(false);
+        toast.error(erro instanceof Error ? erro.message : "Não deu para criar sua conta.");
+        return;
+      }
     }
-    if (modo === "criar" && !r.data.session) setConfirmeEmail(true);
-  }
 
-  if (confirmeEmail) {
-    return (
-      <Fundo>
-        <Marca />
-        <div
-          className="club-entra glass-escuro mt-8 p-6 text-center"
-          style={{ animationDelay: "80ms" }}
-        >
-          <Check className="mx-auto h-7 w-7 text-emerald-300" />
-          <p className="mt-3 font-medium">Confirme seu e-mail</p>
-          <p className="mt-1 text-sm text-white/60">
-            Mandamos um link para <strong className="text-white/80">{email}</strong>. Confirme e
-            volte a ler o QR Code do seu cartão.
-          </p>
-        </div>
-      </Fundo>
-    );
+    const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+    setCarregando(false);
+    if (error) {
+      toast.error(
+        error.message === "Invalid login credentials"
+          ? "E-mail ou senha não conferem."
+          : error.message,
+      );
+    }
+    // Com sessão, o `onAuthStateChange` lá em cima troca a tela sozinho.
   }
 
   return (
@@ -198,6 +200,43 @@ function Entrada() {
           ))}
         </div>
 
+        {/* Nome e telefone só no cadastro: é por eles que o sistema reconhece
+            quem já é paciente da NÓS. Depois, entrar é e-mail e senha. */}
+        {modo === "criar" ? (
+          <>
+            <div className="club-entra">
+              <Label htmlFor="club-nome" className="text-white/70">
+                Seu nome
+              </Label>
+              <Input
+                id="club-nome"
+                required
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Como está na clínica"
+                className="mt-1 border-white/15 bg-white/5 text-white placeholder:text-white/30"
+              />
+            </div>
+            <div className="club-entra">
+              <Label htmlFor="club-telefone" className="text-white/70">
+                Seu telefone
+              </Label>
+              <Input
+                id="club-telefone"
+                required
+                inputMode="tel"
+                value={telefone}
+                onChange={(e) => setTelefone(e.target.value)}
+                placeholder="(48) 99999-0000"
+                className="mt-1 border-white/15 bg-white/5 text-white placeholder:text-white/30"
+              />
+              <p className="mt-1.5 text-xs text-white/50">
+                O mesmo que você deu na clínica — é por ele que a gente encontra seu cadastro.
+              </p>
+            </div>
+          </>
+        ) : null}
+
         <div>
           <Label htmlFor="club-email" className="text-white/70">
             E-mail
@@ -211,12 +250,6 @@ function Entrada() {
             className="mt-1 border-white/15 bg-white/5 text-white placeholder:text-white/30"
             placeholder="voce@email.com"
           />
-          {modo === "criar" ? (
-            <p className="mt-1.5 text-xs text-white/50">
-              Use o mesmo e-mail que você deu na clínica — é por ele que a gente encontra o seu
-              cadastro.
-            </p>
-          ) : null}
         </div>
 
         <div>
@@ -238,7 +271,7 @@ function Entrada() {
           disabled={carregando}
           className="h-12 w-full rounded-2xl bg-white text-base font-semibold text-neutral-900 hover:bg-white/90"
         >
-          {carregando ? "Um instante…" : modo === "entrar" ? "Entrar" : "Criar minha conta"}
+          {carregando ? "Um instante…" : modo === "entrar" ? "Entrar" : "Entrar no Club"}
           <ArrowRight className="h-4 w-4" />
         </Button>
       </form>
@@ -252,6 +285,17 @@ function Entrada() {
     </Fundo>
   );
 }
+
+/** O que cada recusa do servidor quer dizer para quem está com o cartão na
+ *  mão. Nenhuma delas entrega informação sobre a base: "não achei" é igual
+ *  para quem não é paciente e para quem errou o telefone. */
+const MOTIVOS: Record<string, string> = {
+  sem_cadastro:
+    "Não encontramos seu cadastro com esse nome e telefone. Confira os dois, ou fale com a recepção da NÓS.",
+  ja_tem_conta: "Já existe uma conta para este cadastro. Use a opção de entrar.",
+  email_em_uso: "Este e-mail já tem conta. Use a opção de entrar.",
+  falhou: "Não deu para criar sua conta agora. Tente de novo em instantes.",
+};
 
 function SemCadastro({ motivo }: { motivo: string }) {
   const texto =
