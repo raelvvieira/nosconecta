@@ -1082,22 +1082,25 @@
    Em gradiente e não em imagem: a página abre no 4G de uma sala de espera, e
    quatro texturas em PNG pesariam mais que o resto da página inteira. */
 
-/* Veludo: a trama vem de dois gradientes repetidos, cruzados em 45° e -45°,
-   por cima do bege. De perto lê como tecido; de longe, como um bege quente. */
+/* Bege: um degradê, sem textura nenhuma.
+ *
+ * Duas tentativas ficaram pelo caminho e ensinaram a mesma coisa. A trama
+ * desenhada com gradientes cruzados em 45° lia como xadrez de toalha — fibra
+ * de veludo não tem linha reta. Uma fotografia de veludo resolvia o desenho ao
+ * custo de uma imagem na página, que abre no 4G de uma sala de espera.
+ *
+ * O que ficou é a mesma ideia dos outros três materiais: faixas diagonais de
+ * claro e escuro, que é como uma superfície lisa devolve a luz. Do bege quente
+ * a quase branco e de volta, com a parte clara passando pelo meio. */
 .cartao-velvet {
-  background-color: #cbb79a;
-  background-image:
-    repeating-linear-gradient(
-      45deg,
-      rgba(255, 255, 255, 0.14) 0 2px,
-      rgba(120, 94, 63, 0.1) 2px 4px
-    ),
-    repeating-linear-gradient(
-      -45deg,
-      rgba(255, 255, 255, 0.1) 0 2px,
-      rgba(120, 94, 63, 0.08) 2px 4px
-    ),
-    radial-gradient(120% 100% at 20% 0%, #e4d5bd 0%, #c6ae8c 55%, #a98f6c 100%);
+  background-image: linear-gradient(
+    115deg,
+    #cdb390 0%,
+    #e6d6bd 22%,
+    #fdfaf4 48%,
+    #e2d0b4 72%,
+    #c9ae89 100%
+  );
   color: #3b2f20;
 }
 
@@ -1185,18 +1188,13 @@
    do nível. Quem tem o cartão na mão já é do Club: o material de entrada é o
    bege, e o que muda ao chegar no Start é o nome escrito nele. */
 .cartao-sem-nivel {
-  background-color: #cbb79a;
-  background-image:
-    repeating-linear-gradient(
-      45deg,
-      rgba(255, 255, 255, 0.14) 0 2px,
-      rgba(120, 94, 63, 0.1) 2px 4px
-    ),
-    repeating-linear-gradient(
-      -45deg,
-      rgba(255, 255, 255, 0.1) 0 2px,
-      rgba(120, 94, 63, 0.08) 2px 4px
-    ),
-    radial-gradient(120% 100% at 20% 0%, #e4d5bd 0%, #c6ae8c 55%, #a98f6c 100%);
+  background-image: linear-gradient(
+    115deg,
+    #cdb390 0%,
+    #e6d6bd 22%,
+    #fdfaf4 48%,
+    #e2d0b4 72%,
+    #c9ae89 100%
+  );
   color: #3b2f20;
 }
