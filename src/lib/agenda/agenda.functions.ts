@@ -410,6 +410,14 @@ const appointmentInput = (input: {
   /** Como foi pago, e em quantas vezes. Ver `forma-de-pagamento.ts`. */
   forma?: string | null;
   parcelas?: number | null;
+  /**
+   * Quem indicou este paciente, quando ele veio pelo NÓS Club.
+   *
+   * O id do paciente que indicou. A indicação nasce PENDENTE junto com o
+   * agendamento e se confirma sozinha quando este mesmo agendamento for
+   * concluído — ver `club.functions.ts`.
+   */
+  indicadoPor?: string | null;
 }) => {
   const recusaPagamento = recusaDoPagamento(input.forma, input.parcelas);
   if (recusaPagamento) throw new Error(recusaPagamento.mensagem);
@@ -468,6 +476,7 @@ const appointmentInput = (input: {
     __pagamentoRecebido: input.pagamentoRecebido ?? true,
     __forma: input.forma ?? null,
     __parcelas: input.parcelas ?? null,
+    __indicadoPor: input.indicadoPor ?? null,
   };
 };
 
@@ -551,6 +560,8 @@ export async function criarAgendamento(
     /** Como foi pago, e em quantas vezes. Ausente = ninguém informou. */
     forma?: string | null;
     parcelas?: number | null;
+    /** O paciente que indicou este, quando veio pelo NÓS Club. */
+    indicadoPor?: string | null;
   } = {},
 ): Promise<{ id: string }> {
   // `__procedures` orienta este handler e NÃO é coluna — sai do payload antes
@@ -650,6 +661,25 @@ export async function criarAgendamento(
       },
     });
 
+  // ── A indicação do NÓS Club ─────────────────────────────────────────────
+  //
+  // Nasce PENDENTE, presa a este agendamento. Quem a confirma é a conclusão do
+  // atendimento, lá embaixo em `onStatusTransition` — o mesmo clique que a
+  // recepção já dá, sem uma segunda tela perguntando a mesma coisa.
+  //
+  // Antes da conclusão de propósito: um agendamento que nasce `completed`
+  // (registro retroativo, Ganho do funil) precisa da indicação já existindo
+  // para a confirmação logo abaixo encontrá-la.
+  if (opcoes.indicadoPor) {
+    const { registrarIndicacaoDoAgendamento } = await import("@/lib/club/club.functions");
+    await registrarIndicacaoDoAgendamento(supabase, ownerId, {
+      indicadorId: opcoes.indicadoPor,
+      appointmentId: inserted.id,
+      indicadoId: colunas.patient_id ?? null,
+      indicadoNome: String(colunas.patient_name ?? ""),
+    });
+  }
+
   // Nascendo já concluído (registro retroativo pela agenda, ou um Ganho do
   // funil), a conversão e o recebimento saem do mesmo lugar que qualquer outra
   // conclusão — `statusAnterior` nulo conta como transição.
@@ -687,6 +717,7 @@ export const createAppointment = createServerFn({ method: "POST" })
       __pagamentoRecebido: pagamentoRecebido,
       __forma: forma,
       __parcelas: parcelas,
+      __indicadoPor: indicadoPor,
       unitId: rawUnitId,
       ...row
     } = data;
@@ -704,6 +735,7 @@ export const createAppointment = createServerFn({ method: "POST" })
         pagamentoRecebido,
         forma,
         parcelas,
+        indicadoPor,
       },
     );
   });
@@ -842,6 +874,27 @@ async function onStatusTransition(
     }
   }
 
+  // ── O NÓS Club ──────────────────────────────────────────────────────────
+  //
+  // "A confirmação de que um agendamento aconteceu já é a confirmação de que a
+  // indicação validou", nas palavras da clínica. É literalmente isto: o
+  // programa inteiro de indicação não tem tela de validar nada — ele acontece
+  // aqui, no clique que a recepção já dava antes de o Club existir.
+  //
+  // Best-effort como o recebimento acima: o atendimento aconteceu no mundo
+  // real, e nada do Club pode desfazer isso.
+  if (row.status === "completed" || row.status === "cancelled") {
+    const club = await import("@/lib/club/club.functions");
+    if (row.status === "completed") {
+      const r = await club.confirmarPeloAtendimento(supabase, ownerId, id);
+      if (r.niveis.length) console.log(`[club] ${row.patient_name} desbloqueou: ${r.niveis}`);
+    } else {
+      // Agendamento cancelado derruba a indicação pendente. O crédito já pago
+      // NÃO volta — ver o comentário em `cancelarPeloAtendimento`.
+      await club.cancelarPeloAtendimento(supabase, ownerId, id);
+    }
+  }
+
   // Retorno pré-agendado. Mora aqui, e não no cliente, porque são dois
   // caminhos que concluem um atendimento — o formulário e o botão do celular —
   // e os dois passam por esta função. Duplicar no cliente sairia do ar.
@@ -923,6 +976,11 @@ export const updateAppointment = createServerFn({ method: "POST" })
       __pagamentoRecebido: pagamentoRecebido,
       __forma: forma,
       __parcelas: parcelas,
+      // Não é coluna, e não vira indicação numa edição: a indicação nasce com
+      // o agendamento. Editar um agendamento antigo para dizer "ah, foi
+      // indicação" é um caso que a tela do membro cobre melhor, com o botão de
+      // adicionar indicação.
+      __indicadoPor: _semIndicacaoNoUpdate,
       __procedures: procedimentos,
       ...row
     } = data;

@@ -1062,6 +1062,7 @@ function ChatPage() {
               nome: opcoes?.nome,
               retornoEm: opcoes?.retornoEm,
               pagamentoRecebido: opcoes?.pagamentoRecebido,
+              indicadoPor: opcoes?.indicadoPor,
             })
           }
         />

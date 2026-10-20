@@ -176,6 +176,7 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       pagamentoRecebido,
       forma,
       parcelas,
+      indicadoPor,
     }: {
       data: Partial<Appointment>;
       existingId?: string;
@@ -191,6 +192,9 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
        *  sobre o `retornoEm` que faltava só ali. */
       forma?: string | null;
       parcelas?: number | null;
+      /** Quem indicou este paciente, quando a recepção marcou "veio pelo NÓS
+       *  Club". Só na CRIAÇÃO: a indicação nasce com o agendamento. */
+      indicadoPor?: string | null;
     }) => {
       // Só ao criar: editar um agendamento existente não deve inventar paciente.
       //
@@ -241,6 +245,7 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
               pagamentoRecebido,
               forma,
               parcelas,
+              indicadoPor,
               unitId: unidadeDaCadeira(data.roomId) ?? selectedUnitId ?? undefined,
             },
           });

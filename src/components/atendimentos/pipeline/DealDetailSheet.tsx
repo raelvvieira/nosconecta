@@ -532,6 +532,7 @@ export function DealDetailSheet({
               nome: opcoes?.nome,
               retornoEm: opcoes?.retornoEm,
               pagamentoRecebido: opcoes?.pagamentoRecebido,
+              indicadoPor: opcoes?.indicadoPor,
             })
           }
         />

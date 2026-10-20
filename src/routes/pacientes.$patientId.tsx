@@ -28,6 +28,7 @@ import { ConversaDoPaciente } from "@/components/patients/ConversaDoPaciente";
 import { Prontuario } from "@/components/patients/Prontuario";
 import { Tratamentos } from "@/components/patients/Tratamentos";
 import { ArquivosDoPaciente } from "@/components/patients/ArquivosDoPaciente";
+import { NosClub } from "@/components/patients/NosClub";
 import { FotoDoRosto } from "@/components/patients/FotoDoRosto";
 
 import { Button } from "@/components/ui/button";
@@ -46,7 +47,7 @@ import {
 // como mandar a alguém o link do financeiro de um paciente. `validateSearch`
 // com zod é o mesmo padrão da lista de pacientes e do resto das rotas.
 const searchSchema = z.object({
-  aba: z.enum(["resumo", "clinico", "financeiro", "arquivos"]).default("resumo"),
+  aba: z.enum(["resumo", "clinico", "financeiro", "club", "arquivos"]).default("resumo"),
 });
 
 type DetailFetcher = (args: { data: { patientId: string } }) => Promise<PatientDetail>;
@@ -256,7 +257,7 @@ function PatientDetailPage() {
             técnica, não de uso. Orçamentos e tratamentos moram dentro de
             Clínico, porque orçar, tratar e evoluir é uma narrativa só. */}
         <nav
-          className="surface-card mt-5 grid grid-cols-4 overflow-hidden p-1"
+          className="surface-card mt-5 grid grid-cols-5 overflow-hidden p-1"
           aria-label="Seções do paciente"
         >
           <TabButton label="Resumo" active={aba === "resumo"} onClick={() => irParaAba("resumo")} />
@@ -270,6 +271,7 @@ function PatientDetailPage() {
             active={aba === "financeiro"}
             onClick={() => irParaAba("financeiro")}
           />
+          <TabButton label="Club" active={aba === "club"} onClick={() => irParaAba("club")} />
           <TabButton
             label="Arquivos"
             active={aba === "arquivos"}
@@ -280,6 +282,7 @@ function PatientDetailPage() {
         {aba === "resumo" && <Overview patient={patient} onSchedule={schedule} />}
         {aba === "clinico" && <Clinico patient={patient} />}
         {aba === "financeiro" && <Finance patient={patient} onReceive={receive} />}
+        {aba === "club" && <NosClub patientId={patient.id} />}
         {aba === "arquivos" && <ArquivosDoPaciente patientId={patient.id} />}
       </main>
 

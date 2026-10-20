@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PatientCombobox } from "@/components/patients/PatientCombobox";
+import { Switch } from "@/components/ui/switch";
 import { Combobox } from "@/components/finance/Combobox";
 import type {
   Appointment,
@@ -61,6 +62,8 @@ export interface OpcoesDoSave {
   forma?: string | null;
   /** Em quantas vezes, quando foi cartão parcelado. */
   parcelas?: number | null;
+  /** O paciente que indicou este, quando veio pelo NÓS Club. Só na criação. */
+  indicadoPor?: string | null;
 }
 
 interface Props {
@@ -160,6 +163,16 @@ export function AppointmentDrawer({
   // Quem clicou em "vincular a um paciente existente" quer o combobox de volta,
   // mesmo sem ter escolhido ninguém ainda.
   const [buscandoPaciente, setBuscandoPaciente] = useState(false);
+
+  // ── O NÓS Club ────────────────────────────────────────────────────────
+  //
+  // A única pergunta nova que a recepção responde. O resto do programa —
+  // confirmar a indicação, contar, subir de nível, liberar crédito — acontece
+  // sozinho quando este atendimento for concluído.
+  //
+  // Só ao CRIAR: a indicação nasce com o agendamento, e editar um antigo para
+  // dizer "ah, foi indicação" é o caso que a tela do membro cobre melhor.
+  const [indicadoPor, setIndicadoPor] = useState<{ id: string | null; nome: string } | null>(null);
 
   /**
    * Abrir um agendamento que existe mostra o que ele É; editar é um pedido.
@@ -450,7 +463,7 @@ export function AppointmentDrawer({
   const handleSave = () => {
     const nome = conferirPaciente();
     if (nome === false) return;
-    onSave(form, { nome });
+    onSave(form, { nome, indicadoPor: indicadoPor?.id ?? null });
   };
 
   /**
@@ -682,6 +695,39 @@ export function AppointmentDrawer({
                       />
                     )}
                   </div>
+
+                  {/* NÓS Club: a pergunta que a clínica faz no balcão.
+                      Só ao criar — ver o comentário em `indicadoPor`. */}
+                  {!isEdit && (
+                    <div className="space-y-2 rounded-xl border border-border p-3">
+                      <label className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-medium">Veio por indicação do NÓS Club?</span>
+                        <Switch
+                          checked={indicadoPor !== null}
+                          onCheckedChange={(v: boolean) =>
+                            setIndicadoPor(v ? { id: null, nome: "" } : null)
+                          }
+                        />
+                      </label>
+                      {indicadoPor !== null && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-foreground-secondary">Quem indicou?</Label>
+                          <PatientCombobox
+                            value={indicadoPor.nome}
+                            patientId={indicadoPor.id ?? undefined}
+                            onChange={({ id, name }) =>
+                              setIndicadoPor({ id: id ?? null, nome: name })
+                            }
+                            className="rounded-xl border-border"
+                          />
+                          <p className="text-2xs text-muted-foreground">
+                            A indicação fica pendente e se confirma sozinha quando este atendimento
+                            for concluído.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Paciente novo: a ficha nasce daqui, então os dados que a Meta
                 usa para casar a conversão são pedidos AGORA — depois ninguém

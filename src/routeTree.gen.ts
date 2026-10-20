@@ -17,6 +17,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as FinanceiroRouteImport } from './routes/financeiro'
 import { Route as InicioRouteImport } from './routes/inicio'
+import { Route as NosClubRouteImport } from './routes/nos-club'
 import { Route as PacientesRouteImport } from './routes/pacientes'
 import { Route as PagamentosRouteImport } from './routes/pagamentos'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
@@ -81,6 +82,11 @@ const FinanceiroRoute = FinanceiroRouteImport.update({
 const InicioRoute = InicioRouteImport.update({
   id: '/inicio',
   path: '/inicio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NosClubRoute = NosClubRouteImport.update({
+  id: '/nos-club',
+  path: '/nos-club',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PacientesRoute = PacientesRouteImport.update({
@@ -225,6 +231,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
+  '/nos-club': typeof NosClubRoute
   '/pacientes': typeof PacientesRouteWithChildren
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -257,6 +264,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
+  '/nos-club': typeof NosClubRoute
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
   '/recebimentos': typeof RecebimentosRoute
@@ -291,6 +299,7 @@ export interface FileRoutesById {
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
+  '/nos-club': typeof NosClubRoute
   '/pacientes': typeof PacientesRouteWithChildren
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -328,6 +337,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/financeiro'
     | '/inicio'
+    | '/nos-club'
     | '/pacientes'
     | '/pagamentos'
     | '/planejamento'
@@ -360,6 +370,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/financeiro'
     | '/inicio'
+    | '/nos-club'
     | '/pagamentos'
     | '/planejamento'
     | '/recebimentos'
@@ -393,6 +404,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/financeiro'
     | '/inicio'
+    | '/nos-club'
     | '/pacientes'
     | '/pagamentos'
     | '/planejamento'
@@ -429,6 +441,7 @@ export interface RootRouteChildren {
   ConfiguracoesRoute: typeof ConfiguracoesRouteWithChildren
   FinanceiroRoute: typeof FinanceiroRoute
   InicioRoute: typeof InicioRoute
+  NosClubRoute: typeof NosClubRoute
   PacientesRoute: typeof PacientesRouteWithChildren
   PagamentosRoute: typeof PagamentosRoute
   PlanejamentoRoute: typeof PlanejamentoRoute
@@ -492,6 +505,13 @@ declare module '@tanstack/react-router' {
       path: '/inicio'
       fullPath: '/inicio'
       preLoaderRoute: typeof InicioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/nos-club': {
+      id: '/nos-club'
+      path: '/nos-club'
+      fullPath: '/nos-club'
+      preLoaderRoute: typeof NosClubRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pacientes': {
@@ -775,6 +795,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConfiguracoesRoute: ConfiguracoesRouteWithChildren,
   FinanceiroRoute: FinanceiroRoute,
   InicioRoute: InicioRoute,
+  NosClubRoute: NosClubRoute,
   PacientesRoute: PacientesRouteWithChildren,
   PagamentosRoute: PagamentosRoute,
   PlanejamentoRoute: PlanejamentoRoute,

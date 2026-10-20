@@ -235,6 +235,7 @@ function AgendaPage() {
       pagamentoRecebido: opcoes?.pagamentoRecebido,
       forma: opcoes?.forma,
       parcelas: opcoes?.parcelas,
+      indicadoPor: opcoes?.indicadoPor,
     });
   const handleSaveBlock = (data: Partial<(typeof blocked)[number]>) =>
     saveBlockMutation.mutate(data);

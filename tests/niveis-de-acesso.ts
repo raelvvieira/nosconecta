@@ -34,11 +34,11 @@ function conferir(nome: string, obtido: unknown, esperado: unknown) {
 
 // ── O combinado com a clínica, linha por linha ──────────────────────────
 
-conferir("administrador vê as sete áreas", AREAS_DO_NIVEL.admin.length, 7);
+conferir("administrador vê as oito áreas", AREAS_DO_NIVEL.admin.length, 8);
 conferir(
-  "recepção vê quatro",
+  "recepção vê cinco",
   [...AREAS_DO_NIVEL.reception],
-  ["inicio", "agenda", "pacientes", "atendimentos"],
+  ["inicio", "agenda", "pacientes", "atendimentos", "club"],
 );
 conferir("dentista vê três", [...AREAS_DO_NIVEL.dentist], ["inicio", "agenda", "pacientes"]);
 conferir("financeiro vê duas", [...AREAS_DO_NIVEL.finance], ["inicio", "financeiro"]);
@@ -56,6 +56,8 @@ conferir("recepção não vê configurações", podeVerArea("reception", "config
 conferir("recepção não vê o agente de IA", podeVerArea("reception", "agente_ia"), false);
 conferir("dentista não vê as conversas", podeVerArea("dentist", "atendimentos"), false);
 conferir("dentista não vê o financeiro", podeVerArea("dentist", "financeiro"), false);
+conferir("dentista não vê o Club", podeVerArea("dentist", "club"), false);
+conferir("recepção vê o Club", podeVerArea("reception", "club"), true);
 conferir("financeiro não vê pacientes", podeVerArea("finance", "pacientes"), false);
 conferir("financeiro não vê a agenda", podeVerArea("finance", "agenda"), false);
 conferir("só administrador abre configurações", podeVerArea("admin", "configuracoes"), true);
@@ -88,6 +90,7 @@ const ROTAS: [string, AreaDoApp | null][] = [
   ["/atendimentos/chat", "atendimentos"],
   ["/atendimentos/automacoes/funil/novo", "atendimentos"],
   ["/agente-ia", "agente_ia"],
+  ["/nos-club", "club"],
   ["/configuracoes", "configuracoes"],
   ["/configuracoes/dias-de-viagem", "configuracoes"],
   // As quatro telas financeiras, e três delas não começam com "financeiro".

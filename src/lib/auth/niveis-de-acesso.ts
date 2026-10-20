@@ -36,6 +36,7 @@ export type AreaDoApp =
   | "atendimentos"
   | "financeiro"
   | "agente_ia"
+  | "club"
   | "configuracoes";
 
 export interface NivelNaTela {
@@ -83,9 +84,12 @@ export const AREAS_DO_NIVEL: Record<NivelDeAcesso, readonly AreaDoApp[]> = {
     "atendimentos",
     "financeiro",
     "agente_ia",
+    "club",
     "configuracoes",
   ],
-  reception: ["inicio", "agenda", "pacientes", "atendimentos"],
+  // A recepção entra no Club porque é ela que registra indicação e confere
+  // saldo no balcão — o programa morre se depender de administrador.
+  reception: ["inicio", "agenda", "pacientes", "atendimentos", "club"],
   dentist: ["inicio", "agenda", "pacientes"],
   finance: ["inicio", "financeiro"],
 };
@@ -117,6 +121,7 @@ export function areaDaRota(pathname: string): AreaDoApp | null {
   if (p === "/pacientes" || p.startsWith("/pacientes/")) return "pacientes";
   if (p === "/atendimentos" || p.startsWith("/atendimentos/")) return "atendimentos";
   if (p === "/agente-ia" || p.startsWith("/agente-ia/")) return "agente_ia";
+  if (p === "/nos-club" || p.startsWith("/nos-club/")) return "club";
   if (p === "/configuracoes" || p.startsWith("/configuracoes/")) return "configuracoes";
   if (
     p === "/financeiro" ||
