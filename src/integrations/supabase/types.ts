@@ -2963,6 +2963,7 @@ export type Database = {
           birth_date: string | null
           city: string | null
           club_desde: string | null
+          club_user_id: string | null
           company_id: string | null
           cpf: string | null
           created_at: string
@@ -2995,6 +2996,7 @@ export type Database = {
           birth_date?: string | null
           city?: string | null
           club_desde?: string | null
+          club_user_id?: string | null
           company_id?: string | null
           cpf?: string | null
           created_at?: string
@@ -3027,6 +3029,7 @@ export type Database = {
           birth_date?: string | null
           city?: string | null
           club_desde?: string | null
+          club_user_id?: string | null
           company_id?: string | null
           cpf?: string | null
           created_at?: string
@@ -4035,6 +4038,7 @@ export type Database = {
         Args: { p_invoice_id: string }
         Returns: undefined
       }
+      club_meu_painel: { Args: never; Returns: Json }
       convite_para_mostrar: { Args: { _token: string }; Returns: Json }
       current_owner_id: { Args: never; Returns: string }
       current_unit_id: { Args: never; Returns: string }
