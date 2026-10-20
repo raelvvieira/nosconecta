@@ -1,8 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Gift, Pencil, Plus, Sparkles, TrendingUp, Users, Wallet } from "lucide-react";
+import {
+  Download,
+  Gift,
+  Pencil,
+  Plus,
+  QrCode,
+  Sparkles,
+  TrendingUp,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -96,6 +106,8 @@ function NosClubPage() {
                 nota="o que a clínica ainda deve em créditos"
               />
             </div>
+
+            <CartaoComQr />
 
             <div className="mt-7 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
               <section className="surface-card p-5">
@@ -196,6 +208,95 @@ function NosClubPage() {
         aoSalvar={() => queryClient.invalidateQueries({ queryKey: CHAVE })}
       />
     </div>
+  );
+}
+
+/**
+ * O QR Code do cartão físico.
+ *
+ * ── Por que ele é um só, para sempre ──────────────────────────────────────
+ *
+ * O cartão é de plástico: o que for impresso nele não muda mais. Então o QR
+ * aponta para `/club` e nada além — sem id de paciente, sem token, sem nada
+ * que precise ser diferente por pessoa. Quem lê cai no login do Club e a
+ * própria conta diz quem é.
+ *
+ * O desenho é gerado AQUI, no navegador, e não por um serviço de QR na
+ * internet: um endereço de terceiro impresso em mil cartões é uma dependência
+ * que não dá para corrigir depois.
+ */
+function CartaoComQr() {
+  const [svg, setSvg] = useState<string | null>(null);
+  const url = typeof window === "undefined" ? "" : `${window.location.origin}/club`;
+
+  useEffect(() => {
+    if (!url) return;
+    let vivo = true;
+    // Import sob demanda: a biblioteca do QR só é baixada por quem abre esta
+    // página, e não por todo mundo que entra no sistema.
+    import("qrcode").then(async (QRCode) => {
+      const desenho = await QRCode.toString(url, {
+        type: "svg",
+        // Correção alta: um cartão vive no fundo da bolsa, e o QR precisa ler
+        // mesmo riscado.
+        errorCorrectionLevel: "H",
+        margin: 1,
+        width: 512,
+        color: { dark: "#17151c", light: "#ffffff" },
+      });
+      if (vivo) setSvg(desenho);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [url]);
+
+  const baixar = () => {
+    if (!svg) return;
+    const arquivo = new Blob([svg], { type: "image/svg+xml" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(arquivo);
+    link.download = "nos-club-qrcode.svg";
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  return (
+    <section className="surface-card mt-7 flex flex-wrap items-center gap-5 p-5">
+      <div
+        className="h-32 w-32 shrink-0 rounded-2xl bg-white p-2 ring-1 ring-border [&>svg]:h-full [&>svg]:w-full"
+        // O SVG vem da biblioteca de QR, com uma URL montada aqui — não há
+        // texto de usuário nenhum neste caminho.
+        dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
+      />
+      <div className="min-w-0 flex-1">
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <QrCode className="h-4 w-4 text-pink" /> O QR Code do cartão
+        </h2>
+        <p className="mt-1 max-w-prose text-xs leading-5 text-muted-foreground">
+          É o mesmo para todos os cartões e não muda nunca — quem lê cai na área do Club e entra com
+          o próprio e-mail. Baixe em SVG e mande para a gráfica; SVG não perde qualidade em nenhum
+          tamanho.
+        </p>
+        <p className="mt-2 break-all rounded-lg bg-muted px-2.5 py-1.5 text-2xs text-muted-foreground">
+          {url}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" disabled={!svg} onClick={baixar}>
+            <Download className="h-3.5 w-3.5" /> Baixar para a gráfica
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a href="/club" target="_blank" rel="noreferrer">
+              Ver como o paciente vê
+            </a>
+          </Button>
+        </div>
+        <p className="mt-2 text-2xs text-muted-foreground">
+          Para a pessoa entrar, o e-mail dela precisa estar na ficha — é por ele que o sistema
+          encontra o cadastro.
+        </p>
+      </div>
+    </section>
   );
 }
 

@@ -175,7 +175,11 @@ function AuthGate({ children }: { children: ReactNode }) {
     // ao contrário de /auth, ela NÃO redireciona para /inicio quando já há
     // sessão — a própria página trata o caso de quem já está logado (ver
     // `convite.$token.tsx`).
-    const isPublicRoute = isAuthRoute || pathname.startsWith("/convite");
+    // `/club` é a área do PACIENTE, aberta pelo QR Code do cartão: quem chega
+    // ali normalmente não tem sessão nenhuma, e mandá-lo para o login da
+    // equipe seria o fim do passeio.
+    const isPublicRoute =
+      isAuthRoute || pathname.startsWith("/convite") || pathname.startsWith("/club");
     if (!authed && !isPublicRoute) {
       router.navigate({
         to: "/auth",
@@ -198,7 +202,8 @@ function AuthGate({ children }: { children: ReactNode }) {
       </div>
     );
   }
-  const isPublicRoute = pathname.startsWith("/auth") || pathname.startsWith("/convite");
+  const isPublicRoute =
+    pathname.startsWith("/auth") || pathname.startsWith("/convite") || pathname.startsWith("/club");
   if (!authed && !isPublicRoute) return null;
   return <>{children}</>;
 }

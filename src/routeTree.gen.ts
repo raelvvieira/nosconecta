@@ -14,6 +14,7 @@ import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AgenteIaRouteImport } from './routes/agente-ia'
 import { Route as AtendimentosRouteImport } from './routes/atendimentos'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ClubRouteImport } from './routes/club'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as FinanceiroRouteImport } from './routes/financeiro'
 import { Route as InicioRouteImport } from './routes/inicio'
@@ -67,6 +68,11 @@ const AtendimentosRoute = AtendimentosRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClubRoute = ClubRouteImport.update({
+  id: '/club',
+  path: '/club',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
@@ -228,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/agente-ia': typeof AgenteIaRouteWithChildren
   '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
+  '/club': typeof ClubRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
@@ -262,6 +269,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
+  '/club': typeof ClubRoute
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
   '/nos-club': typeof NosClubRoute
@@ -296,6 +304,7 @@ export interface FileRoutesById {
   '/agente-ia': typeof AgenteIaRouteWithChildren
   '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
+  '/club': typeof ClubRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
@@ -334,6 +343,7 @@ export interface FileRouteTypes {
     | '/agente-ia'
     | '/atendimentos'
     | '/auth'
+    | '/club'
     | '/configuracoes'
     | '/financeiro'
     | '/inicio'
@@ -368,6 +378,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/auth'
+    | '/club'
     | '/financeiro'
     | '/inicio'
     | '/nos-club'
@@ -401,6 +412,7 @@ export interface FileRouteTypes {
     | '/agente-ia'
     | '/atendimentos'
     | '/auth'
+    | '/club'
     | '/configuracoes'
     | '/financeiro'
     | '/inicio'
@@ -438,6 +450,7 @@ export interface RootRouteChildren {
   AgenteIaRoute: typeof AgenteIaRouteWithChildren
   AtendimentosRoute: typeof AtendimentosRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ClubRoute: typeof ClubRoute
   ConfiguracoesRoute: typeof ConfiguracoesRouteWithChildren
   FinanceiroRoute: typeof FinanceiroRoute
   InicioRoute: typeof InicioRoute
@@ -484,6 +497,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/club': {
+      id: '/club'
+      path: '/club'
+      fullPath: '/club'
+      preLoaderRoute: typeof ClubRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/configuracoes': {
@@ -792,6 +812,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgenteIaRoute: AgenteIaRouteWithChildren,
   AtendimentosRoute: AtendimentosRouteWithChildren,
   AuthRoute: AuthRoute,
+  ClubRoute: ClubRoute,
   ConfiguracoesRoute: ConfiguracoesRouteWithChildren,
   FinanceiroRoute: FinanceiroRoute,
   InicioRoute: InicioRoute,

@@ -14,7 +14,9 @@ import { ROTA_INICIAL, podeAbrir } from "@/lib/auth/niveis-de-acesso";
  * pelo gate, mesmo autenticadas. `/auth` já é tratada pelo `AuthGate`; esta
  * lista cobre as que também precisam ficar de fora do `MembershipGate`.
  */
-const MEMBERSHIP_EXEMPT_PREFIXES = ["/auth", "/convite"];
+// `/club` entra aqui porque o paciente é exatamente o que este portão barra:
+// alguém autenticado que NÃO é da equipe. Ver o comentário em `club.tsx`.
+const MEMBERSHIP_EXEMPT_PREFIXES = ["/auth", "/convite", "/club"];
 
 export function MembershipGate({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
