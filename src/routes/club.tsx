@@ -38,15 +38,55 @@ import { criarContaDoClub } from "@/lib/club/club.functions";
  * longo na migration: `club_meu_painel()` devolve o painel montado, e é a
  * única porta que existe para ele.
  */
+/**
+ * O endereço ABSOLUTO do site, só para a prévia do link.
+ *
+ * Quem lê a prévia é o servidor do WhatsApp, de fora: "/og-club.jpg" não quer
+ * dizer nada para ele, precisa do endereço inteiro. Como a página é montada no
+ * servidor antes de existir navegador, não dá para perguntar por onde a pessoa
+ * entrou — fica escrito, como já estava a prévia do `__root`.
+ *
+ * É o mesmo endereço do QR do cartão. Mudando o domínio do sistema, esta linha
+ * muda junto, senão a prévia fica sem imagem.
+ */
+const ENDERECO_DA_PREVIA = "https://login.nosodontoesaude.com.br";
+
+/** A frase embaixo do link. É o convite em uma linha, não a descrição do sistema. */
+const PREVIA_TEXTO =
+  "Créditos que viram desconto na sua consulta. Indique quem você gosta e acumule mais.";
+
 export const Route = createFileRoute("/club")({
   ssr: false,
   head: () => ({
     meta: [
       { title: "NÓS Club" },
-      { name: "description", content: "Seu nível, suas indicações e seus créditos na NÓS." },
+      { name: "description", content: PREVIA_TEXTO },
       // O cartão é lido no celular, sempre. A cor da barra do navegador junto
       // do fundo escuro é o que faz a página parecer um app, e não um site.
       { name: "theme-color", content: "#fbf9fb" },
+
+      // A prévia do WhatsApp, só desta página.
+      //
+      // Quem manda o convite está mandando para um amigo, não para um colega
+      // de clínica — e o que aparecia embaixo do link era o print do painel
+      // financeiro com "Sistema de gestão financeira para clínicas
+      // odontológicas", que vem do `__root`. Estas linhas ficam mais fundas na
+      // árvore de rotas e substituem as de lá; todo o resto do sistema segue
+      // com a prévia antiga.
+      { property: "og:title", content: "NÓS Club" },
+      { property: "og:description", content: PREVIA_TEXTO },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: `${ENDERECO_DA_PREVIA}/club` },
+      { property: "og:image", content: `${ENDERECO_DA_PREVIA}/og-club.jpg` },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "Cartão do NÓS Club" },
+      // `summary_large_image` é o que pede a imagem grande em cima do link, em
+      // vez da miniatura quadrada ao lado.
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "NÓS Club" },
+      { name: "twitter:description", content: PREVIA_TEXTO },
+      { name: "twitter:image", content: `${ENDERECO_DA_PREVIA}/og-club.jpg` },
     ],
   }),
   component: ClubPage,
