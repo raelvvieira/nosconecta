@@ -112,7 +112,7 @@ function NosClubPage() {
               />
             </div>
 
-            <CartaoComQr />
+            <CartaoComQr config={painel.data.config} />
 
             <div className="mt-7 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
               <section className="surface-card p-5">
@@ -232,9 +232,34 @@ function NosClubPage() {
  * internet: um endereço de terceiro impresso em mil cartões é uma dependência
  * que não dá para corrigir depois.
  */
-function CartaoComQr() {
+function CartaoComQr({ config }: { config: ConfigDoClub }) {
+  const doSalvar = useServerFn(salvarConfigDoClub);
+  const queryClient = useQueryClient();
   const [svg, setSvg] = useState<string | null>(null);
-  const url = typeof window === "undefined" ? "" : `${window.location.origin}/club`;
+  const [endereco, setEndereco] = useState(config.linkDoCartao);
+
+  // O endereço GUARDADO manda. Só quando não há nenhum é que vale o endereço
+  // por onde o sistema foi aberto — que dentro do editor é um endereço de
+  // prévia, e prévia muda. Mil cartões com um endereço que morreu não têm
+  // conserto.
+  const base = config.linkDoCartao || (typeof window === "undefined" ? "" : window.location.origin);
+  const url = base ? `${base}/club` : "";
+
+  const salvar = useMutation({
+    mutationFn: () =>
+      doSalvar({
+        data: {
+          creditoPorIndicacao: config.creditoPorIndicacao,
+          creditoBoasVindas: config.creditoBoasVindas,
+          linkDoCartao: endereco,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Endereço do cartão salvo.");
+      queryClient.invalidateQueries({ queryKey: CHAVE });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   useEffect(() => {
     if (!url) return;
@@ -285,15 +310,47 @@ function CartaoComQr() {
           o próprio e-mail. Baixe em SVG e mande para a gráfica; SVG não perde qualidade em nenhum
           tamanho.
         </p>
-        <p className="mt-2 break-all rounded-lg bg-muted px-2.5 py-1.5 text-2xs text-muted-foreground">
-          {url}
-        </p>
+        <div className="mt-3">
+          <Label htmlFor="club-endereco" className="text-xs">
+            Endereço do site (o que vai no cartão)
+          </Label>
+          <div className="mt-1 flex flex-wrap gap-2">
+            <Input
+              id="club-endereco"
+              value={endereco}
+              onChange={(e) => setEndereco(e.target.value)}
+              placeholder={typeof window === "undefined" ? "" : window.location.origin}
+              className="min-w-[14rem] flex-1"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={salvar.isPending}
+              onClick={() => salvar.mutate()}
+            >
+              Salvar
+            </Button>
+          </div>
+          <p className="mt-1.5 text-2xs leading-4 text-muted-foreground">
+            {config.linkDoCartao ? (
+              <>
+                O QR aponta para <span className="font-medium text-foreground">{url}</span>.
+              </>
+            ) : (
+              <>
+                Sem um endereço salvo, o QR usa o endereço por onde você abriu o sistema — que
+                dentro do editor é um endereço de prévia e muda. Salve aqui o domínio definitivo
+                antes de mandar para a gráfica.
+              </>
+            )}
+          </p>
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button variant="outline" size="sm" disabled={!svg} onClick={baixar}>
             <Download className="h-3.5 w-3.5" /> Baixar para a gráfica
           </Button>
           <Button variant="outline" size="sm" asChild>
-            <a href="/club" target="_blank" rel="noreferrer">
+            <a href={url || "/club"} target="_blank" rel="noreferrer">
               Ver como o paciente vê
             </a>
           </Button>

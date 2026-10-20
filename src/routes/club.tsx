@@ -61,6 +61,9 @@ interface PainelDoPaciente {
   regua?: NivelDoClub[];
   indicacoes?: { nome: string; status: string; quando: string }[];
   extrato?: { valor: number; descricao: string; quando: string }[];
+  /** O endereço definitivo do cartão, quando a clínica já o salvou. A mensagem
+   *  de convite usa ele — e não o endereço por onde ESTA pessoa abriu. */
+  link_do_cartao?: string | null;
   /** Quanto vale cada indicação confirmada. Vem da configuração da clínica —
    *  cravar "100" aqui faria a explicação mentir no dia em que ela mudasse. */
   por_indicacao?: number;
@@ -395,7 +398,11 @@ function Painel({ dados }: { dados: PainelDoPaciente }) {
   const primeiroNome = String(dados.nome ?? "").split(" ")[0];
 
   const compartilhar = async () => {
-    const texto = convite({ deQuem: primeiroNome, valor: porIndicacao, link: linkDoClube() });
+    const texto = convite({
+      deQuem: primeiroNome,
+      valor: porIndicacao,
+      link: linkDoClube(dados.link_do_cartao),
+    });
     try {
       // `navigator.share` abre a folha do celular — com o WhatsApp em primeiro,
       // que é onde isto vai de fato. No computador não existe, e aí a mensagem
@@ -594,8 +601,15 @@ function ComoFunciona({
   );
 }
 
-/** O endereço do cartão, o mesmo do QR Code. Montado do endereço aberto para
- *  o link funcionar em qualquer domínio que a clínica use. */
-function linkDoClube(): string {
-  return typeof window === "undefined" ? "" : `${window.location.origin}/club`;
+/**
+ * O endereço do Club para mandar a alguém.
+ *
+ * O que a clínica salvou manda; só na falta dele vale o endereço por onde esta
+ * pessoa abriu. Importa porque a mensagem sai do celular dela para um
+ * desconhecido: um link de prévia ali é um convite que morre sozinho.
+ */
+function linkDoClube(doCartao?: string | null): string {
+  const base =
+    String(doCartao ?? "").trim() || (typeof window === "undefined" ? "" : window.location.origin);
+  return base ? `${base}/club` : "";
 }

@@ -67,6 +67,9 @@ export interface MembroDoClub {
 export interface ConfigDoClub {
   creditoPorIndicacao: number;
   creditoBoasVindas: number;
+  /** O endereço que vai impresso no QR Code do cartão. Vazio = o endereço por
+   *  onde o sistema foi aberto, que é a armadilha que esta coluna fecha. */
+  linkDoCartao: string;
 }
 
 /** Os valores em dinheiro que não são de nível. Ausentes (tabela ainda não
@@ -76,15 +79,16 @@ async function lerConfig(supabase: any, ownerId: string): Promise<ConfigDoClub> 
   try {
     const { data } = await supabase
       .from("club_config")
-      .select("credito_por_indicacao, credito_boas_vindas")
+      .select("credito_por_indicacao, credito_boas_vindas, link_do_cartao")
       .eq("owner_id", ownerId)
       .maybeSingle();
     return {
       creditoPorIndicacao: Number(data?.credito_por_indicacao ?? 100),
       creditoBoasVindas: Number(data?.credito_boas_vindas ?? 100),
+      linkDoCartao: String(data?.link_do_cartao ?? "").trim(),
     };
   } catch {
-    return { creditoPorIndicacao: 100, creditoBoasVindas: 100 };
+    return { creditoPorIndicacao: 100, creditoBoasVindas: 100, linkDoCartao: "" };
   }
 }
 
@@ -605,13 +609,29 @@ export const painelDoClub = createServerFn({ method: "GET" })
  *  quanto a clínica passa a dever por indicação. */
 export const salvarConfigDoClub = createServerFn({ method: "POST" })
   .middleware([exigeClub])
-  .inputValidator((input: { creditoPorIndicacao: number; creditoBoasVindas: number }) => {
-    const por = Number(input.creditoPorIndicacao);
-    const boas = Number(input.creditoBoasVindas);
-    if (!Number.isFinite(por) || por < 0) throw new Error("Valor por indicação inválido.");
-    if (!Number.isFinite(boas) || boas < 0) throw new Error("Valor de boas-vindas inválido.");
-    return { creditoPorIndicacao: por, creditoBoasVindas: boas };
-  })
+  .inputValidator(
+    (input: { creditoPorIndicacao: number; creditoBoasVindas: number; linkDoCartao?: string }) => {
+      const por = Number(input.creditoPorIndicacao);
+      const boas = Number(input.creditoBoasVindas);
+      if (!Number.isFinite(por) || por < 0) throw new Error("Valor por indicação inválido.");
+      if (!Number.isFinite(boas) || boas < 0) throw new Error("Valor de boas-vindas inválido.");
+
+      // Sem barra no fim e sem caminho: o que vai guardado é o ENDEREÇO do
+      // site, e o `/club` é somado por quem monta o link. Guardar
+      // "site.com/club/" faria o QR apontar para "site.com/club//club".
+      let link = String(input.linkDoCartao ?? "").trim();
+      if (link) {
+        if (!/^https?:\/\//i.test(link)) link = `https://${link}`;
+        try {
+          const u = new URL(link);
+          link = `${u.protocol}//${u.host}`;
+        } catch {
+          throw new Error("Endereço inválido. Algo como https://club.suaclinica.com.br");
+        }
+      }
+      return { creditoPorIndicacao: por, creditoBoasVindas: boas, linkDoCartao: link };
+    },
+  )
   .handler(async ({ data, context }) => {
     if (!context.isAdmin) throw new Error("Apenas administradores mudam os valores do Club.");
     const supabase: any = context.supabase;
@@ -620,6 +640,7 @@ export const salvarConfigDoClub = createServerFn({ method: "POST" })
         owner_id: context.ownerId,
         credito_por_indicacao: data.creditoPorIndicacao,
         credito_boas_vindas: data.creditoBoasVindas,
+        link_do_cartao: data.linkDoCartao || null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "owner_id" },
