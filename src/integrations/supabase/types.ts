@@ -1678,6 +1678,30 @@ export type Database = {
         }
         Relationships: []
       }
+      club_config: {
+        Row: {
+          credito_boas_vindas: number
+          credito_por_indicacao: number
+          link_do_cartao: string | null
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          credito_boas_vindas?: number
+          credito_por_indicacao?: number
+          link_do_cartao?: string | null
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          credito_boas_vindas?: number
+          credito_por_indicacao?: number
+          link_do_cartao?: string | null
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       club_creditos: {
         Row: {
           appointment_id: string | null
@@ -1685,6 +1709,7 @@ export type Database = {
           created_by: string | null
           descricao: string
           id: string
+          indicacao_id: string | null
           nivel_id: string | null
           owner_id: string
           patient_id: string
@@ -1697,6 +1722,7 @@ export type Database = {
           created_by?: string | null
           descricao: string
           id?: string
+          indicacao_id?: string | null
           nivel_id?: string | null
           owner_id: string
           patient_id: string
@@ -1709,6 +1735,7 @@ export type Database = {
           created_by?: string | null
           descricao?: string
           id?: string
+          indicacao_id?: string | null
           nivel_id?: string | null
           owner_id?: string
           patient_id?: string
@@ -1721,6 +1748,13 @@ export type Database = {
             columns: ["appointment_id"]
             isOneToOne: false
             referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_creditos_indicacao_id_fkey"
+            columns: ["indicacao_id"]
+            isOneToOne: false
+            referencedRelation: "club_indicacoes"
             referencedColumns: ["id"]
           },
           {
