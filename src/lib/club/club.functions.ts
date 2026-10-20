@@ -64,6 +64,30 @@ export interface MembroDoClub {
   regua: NivelDoClub[];
 }
 
+export interface ConfigDoClub {
+  creditoPorIndicacao: number;
+  creditoBoasVindas: number;
+}
+
+/** Os valores em dinheiro que não são de nível. Ausentes (tabela ainda não
+ *  criada, linha não semeada) caem nos R$ 100 que a clínica definiu — o mesmo
+ *  padrão da coluna. */
+async function lerConfig(supabase: any, ownerId: string): Promise<ConfigDoClub> {
+  try {
+    const { data } = await supabase
+      .from("club_config")
+      .select("credito_por_indicacao, credito_boas_vindas")
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    return {
+      creditoPorIndicacao: Number(data?.credito_por_indicacao ?? 100),
+      creditoBoasVindas: Number(data?.credito_boas_vindas ?? 100),
+    };
+  } catch {
+    return { creditoPorIndicacao: 100, creditoBoasVindas: 100 };
+  }
+}
+
 async function lerRegua(supabase: any, ownerId: string): Promise<NivelDoClub[]> {
   const { data, error } = await supabase
     .from("club_niveis")
@@ -116,6 +140,7 @@ export async function confirmarPeloAtendimento(
       .eq("status", "pendente");
     if (error) throw error;
 
+    await pagarPelaIndicacao(supabase, ownerId, String(indicacao.indicador_id), indicacao.id);
     const niveis = await liberarCreditoDeNivel(supabase, ownerId, String(indicacao.indicador_id));
     return { confirmou: true, niveis };
   } catch (e) {
@@ -142,6 +167,39 @@ export async function cancelarPeloAtendimento(
       .eq("status", "pendente");
   } catch (e) {
     console.error("[club] indicação não cancelou", e);
+  }
+}
+
+/**
+ * O crédito de cada indicação confirmada.
+ *
+ * Separado do crédito de nível porque são duas coisas: este entra TODA vez que
+ * alguém indicado comparece; aquele, uma vez por nível alcançado.
+ *
+ * A trava contra pagar duas vezes é o índice único sobre `indicacao_id` — a
+ * indicação que vai e volta de confirmada (correção de engano, atendimento
+ * reaberto) não pode render de novo. Por isso o erro do insert é ignorado em
+ * silêncio: ele é o índice funcionando.
+ */
+async function pagarPelaIndicacao(
+  supabase: any,
+  ownerId: string,
+  patientId: string,
+  indicacaoId: string,
+): Promise<void> {
+  try {
+    const { creditoPorIndicacao } = await lerConfig(supabase, ownerId);
+    if (creditoPorIndicacao <= 0) return;
+    await supabase.from("club_creditos").insert({
+      owner_id: ownerId,
+      patient_id: patientId,
+      valor: creditoPorIndicacao,
+      tipo: "indicacao",
+      indicacao_id: indicacaoId,
+      descricao: "Indicação confirmada",
+    });
+  } catch (e) {
+    console.error("[club] crédito da indicação", e);
   }
 }
 
@@ -383,6 +441,9 @@ export const mudarIndicacao = createServerFn({ method: "POST" })
       .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
 
+    if (data.status === "confirmada") {
+      await pagarPelaIndicacao(supabase, context.ownerId, String(antes.indicador_id), data.id);
+    }
     const niveis =
       data.status === "confirmada"
         ? await liberarCreditoDeNivel(supabase, context.ownerId, String(antes.indicador_id))
@@ -457,6 +518,7 @@ export interface PainelDoClub {
   porNivel: { nome: string; quantos: number }[];
   ranking: MembroNoPainel[];
   regua: NivelDoClub[];
+  config: ConfigDoClub;
 }
 
 export const painelDoClub = createServerFn({ method: "GET" })
@@ -467,7 +529,7 @@ export const painelDoClub = createServerFn({ method: "GET" })
     inicioDoMes.setDate(1);
     inicioDoMes.setHours(0, 0, 0, 0);
 
-    const [membros, indicacoes, creditos, regua] = await Promise.all([
+    const [membros, indicacoes, creditos, regua, config] = await Promise.all([
       supabase
         .from("patients")
         .select("id, name, club_desde")
@@ -479,6 +541,7 @@ export const painelDoClub = createServerFn({ method: "GET" })
         .eq("owner_id", context.ownerId),
       supabase.from("club_creditos").select("patient_id, valor").eq("owner_id", context.ownerId),
       lerRegua(supabase, context.ownerId),
+      lerConfig(supabase, context.ownerId),
     ]);
 
     const listaDeIndicacoes = (indicacoes.data ?? []) as any[];
@@ -534,7 +597,35 @@ export const painelDoClub = createServerFn({ method: "GET" })
       })),
       ranking: [...lista].sort((a, b) => b.confirmadas - a.confirmadas).slice(0, 10),
       regua,
+      config,
     };
+  });
+
+/** Os dois valores em dinheiro que não são de nível. Só administrador: é
+ *  quanto a clínica passa a dever por indicação. */
+export const salvarConfigDoClub = createServerFn({ method: "POST" })
+  .middleware([exigeClub])
+  .inputValidator((input: { creditoPorIndicacao: number; creditoBoasVindas: number }) => {
+    const por = Number(input.creditoPorIndicacao);
+    const boas = Number(input.creditoBoasVindas);
+    if (!Number.isFinite(por) || por < 0) throw new Error("Valor por indicação inválido.");
+    if (!Number.isFinite(boas) || boas < 0) throw new Error("Valor de boas-vindas inválido.");
+    return { creditoPorIndicacao: por, creditoBoasVindas: boas };
+  })
+  .handler(async ({ data, context }) => {
+    if (!context.isAdmin) throw new Error("Apenas administradores mudam os valores do Club.");
+    const supabase: any = context.supabase;
+    const { error } = await supabase.from("club_config").upsert(
+      {
+        owner_id: context.ownerId,
+        credito_por_indicacao: data.creditoPorIndicacao,
+        credito_boas_vindas: data.creditoBoasVindas,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "owner_id" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 /** A régua, editável. Quem mexe aqui muda quanto a clínica deve a quem indica
@@ -678,7 +769,7 @@ export const criarContaDoClub = createServerFn({ method: "POST" })
     // ficha encontrada é que manda daqui para a frente.
     const { data: achados, error } = await admin
       .from("patients")
-      .select("id, name, email, club_user_id, club_desde")
+      .select("id, name, email, club_user_id, club_desde, owner_id")
       .in("phone", formas)
       .limit(5);
     if (error) {
@@ -728,6 +819,24 @@ export const criarContaDoClub = createServerFn({ method: "POST" })
     if (erroVinculo) {
       console.error("[club] vínculo falhou", erroVinculo.message);
       return { ok: false, motivo: "falhou" };
+    }
+
+    // O crédito de boas-vindas. Índice único por paciente: quem sair e voltar
+    // não ganha de novo. Falha aqui não desfaz a conta — a pessoa já entrou, e
+    // um crédito que não entrou a clínica lança à mão.
+    try {
+      const { creditoBoasVindas } = await lerConfig(admin, ficha.owner_id);
+      if (creditoBoasVindas > 0) {
+        await admin.from("club_creditos").insert({
+          owner_id: ficha.owner_id,
+          patient_id: ficha.id,
+          valor: creditoBoasVindas,
+          tipo: "boas_vindas",
+          descricao: "Boas-vindas ao NÓS Club",
+        });
+      }
+    } catch (e) {
+      console.error("[club] crédito de boas-vindas", e);
     }
 
     return { ok: true };

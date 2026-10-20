@@ -28,7 +28,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { formatBRL } from "@/lib/finance/format";
-import { painelDoClub, salvarNivel } from "@/lib/club/club.functions";
+import {
+  painelDoClub,
+  salvarConfigDoClub,
+  salvarNivel,
+  type ConfigDoClub,
+} from "@/lib/club/club.functions";
 import type { NivelDoClub } from "@/lib/club/niveis-do-club";
 
 export const Route = createFileRoute("/nos-club")({
@@ -153,7 +158,9 @@ function NosClubPage() {
               </section>
 
               <section className="surface-card p-5">
-                <div className="flex items-center justify-between gap-2">
+                <ValoresDoClub config={painel.data.config} />
+
+                <div className="mt-5 flex items-center justify-between gap-2 border-t border-border pt-5">
                   <h2 className="text-sm font-semibold">A régua do Club</h2>
                   <Button variant="outline" size="sm" onClick={() => setEditando("novo")}>
                     <Plus className="h-3.5 w-3.5" /> Nível
@@ -297,6 +304,82 @@ function CartaoComQr() {
         </p>
       </div>
     </section>
+  );
+}
+
+/**
+ * Os dois valores que não são de nível.
+ *
+ * Ficam ao lado da régua porque são a mesma decisão: quanto a clínica passa a
+ * dever. Com R$ 100 por indicação e um nível que também paga, uma pessoa que
+ * confirma a primeira indicação recebe os dois — por isso o aviso embaixo,
+ * calculado do que está valendo, em vez de uma frase genérica.
+ */
+function ValoresDoClub({ config }: { config: ConfigDoClub }) {
+  const doSalvar = useServerFn(salvarConfigDoClub);
+  const queryClient = useQueryClient();
+  const [porIndicacao, setPorIndicacao] = useState(String(config.creditoPorIndicacao));
+  const [boasVindas, setBoasVindas] = useState(String(config.creditoBoasVindas));
+
+  const salvar = useMutation({
+    mutationFn: () =>
+      doSalvar({
+        data: {
+          creditoPorIndicacao: Number(porIndicacao.replace(/\./g, "").replace(",", ".")),
+          creditoBoasVindas: Number(boasVindas.replace(/\./g, "").replace(",", ".")),
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Valores atualizados.");
+      queryClient.invalidateQueries({ queryKey: CHAVE });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div>
+      <h2 className="text-sm font-semibold">Quanto vale cada coisa</h2>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="club-por-indicacao" className="text-xs">
+            Por indicação confirmada
+          </Label>
+          <Input
+            id="club-por-indicacao"
+            value={porIndicacao}
+            onChange={(e) => setPorIndicacao(e.target.value)}
+            inputMode="decimal"
+            className="mt-1"
+          />
+        </div>
+        <div>
+          <Label htmlFor="club-boas-vindas" className="text-xs">
+            Boas-vindas (ao criar a conta)
+          </Label>
+          <Input
+            id="club-boas-vindas"
+            value={boasVindas}
+            onChange={(e) => setBoasVindas(e.target.value)}
+            inputMode="decimal"
+            className="mt-1"
+          />
+        </div>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="mt-3"
+        disabled={salvar.isPending}
+        onClick={() => salvar.mutate()}
+      >
+        Salvar valores
+      </Button>
+      <p className="mt-2 text-2xs leading-4 text-muted-foreground">
+        Estes créditos somam com o bônus de cada nível. Hoje, quem confirma a primeira indicação
+        recebe {formatBRL(config.creditoPorIndicacao)} por ela, mais o bônus do primeiro nível da
+        régua abaixo.
+      </p>
+    </div>
   );
 }
 

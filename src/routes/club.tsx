@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
 import { situacaoNoClub, type NivelDoClub } from "@/lib/club/niveis-do-club";
+import { convite } from "@/lib/club/convite";
 import { criarContaDoClub } from "@/lib/club/club.functions";
 
 /**
@@ -45,7 +46,7 @@ export const Route = createFileRoute("/club")({
       { name: "description", content: "Seu nível, suas indicações e seus créditos na NÓS." },
       // O cartão é lido no celular, sempre. A cor da barra do navegador junto
       // do fundo escuro é o que faz a página parecer um app, e não um site.
-      { name: "theme-color", content: "#17151c" },
+      { name: "theme-color", content: "#fbf9fb" },
     ],
   }),
   component: ClubPage,
@@ -60,6 +61,9 @@ interface PainelDoPaciente {
   regua?: NivelDoClub[];
   indicacoes?: { nome: string; status: string; quando: string }[];
   extrato?: { valor: number; descricao: string; quando: string }[];
+  /** Quanto vale cada indicação confirmada. Vem da configuração da clínica —
+   *  cravar "100" aqui faria a explicação mentir no dia em que ela mudasse. */
+  por_indicacao?: number;
 }
 
 function ClubPage() {
@@ -90,7 +94,7 @@ function ClubPage() {
   if (painel.isPending) {
     return (
       <Fundo>
-        <p className="text-sm text-white/60">Abrindo seu Club…</p>
+        <p className="text-sm text-neutral-500">Abrindo seu Club…</p>
       </Fundo>
     );
   }
@@ -106,7 +110,7 @@ function ClubPage() {
  *  cartão, e não uma tela de sistema. */
 function Fundo({ children }: { children: React.ReactNode }) {
   return (
-    <div className="club-fundo min-h-dvh w-full px-5 py-8 text-white">
+    <div className="club-fundo min-h-dvh w-full px-5 py-8 text-neutral-900">
       <div className="mx-auto w-full max-w-[460px]">{children}</div>
     </div>
   );
@@ -115,11 +119,11 @@ function Fundo({ children }: { children: React.ReactNode }) {
 function Marca({ legenda }: { legenda?: string }) {
   return (
     <div className="club-entra flex flex-col items-center text-center">
-      <span className="grid h-14 w-14 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/20 backdrop-blur">
+      <span className="grid h-14 w-14 place-items-center rounded-2xl bg-neutral-900 text-white shadow-lg">
         <Sparkles className="h-6 w-6" strokeWidth={1.5} />
       </span>
       <h1 className="mt-4 text-[1.75rem] font-semibold tracking-tight">NÓS Club</h1>
-      {legenda ? <p className="mt-1 text-sm text-white/60">{legenda}</p> : null}
+      {legenda ? <p className="mt-1 text-sm text-neutral-500">{legenda}</p> : null}
     </div>
   );
 }
@@ -183,10 +187,10 @@ function Entrada() {
 
       <form
         onSubmit={enviar}
-        className="club-entra glass-escuro mt-8 space-y-4 p-6"
+        className="club-entra glass-claro mt-8 space-y-4 p-6"
         style={{ animationDelay: "80ms" }}
       >
-        <div className="flex gap-1 rounded-2xl bg-white/5 p-1">
+        <div className="flex gap-1 rounded-2xl bg-neutral-100 p-1">
           {(["entrar", "criar"] as const).map((m) => (
             <button
               key={m}
@@ -194,7 +198,9 @@ function Entrada() {
               onClick={() => setModo(m)}
               className={cn(
                 "flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-                modo === m ? "bg-white text-neutral-900" : "text-white/60 hover:text-white",
+                modo === m
+                  ? "bg-white text-neutral-900 shadow-sm"
+                  : "text-neutral-500 hover:text-neutral-900",
               )}
             >
               {m === "entrar" ? "Já tenho conta" : "Criar conta"}
@@ -207,7 +213,7 @@ function Entrada() {
         {modo === "criar" ? (
           <>
             <div className="club-entra">
-              <Label htmlFor="club-nome" className="text-white/70">
+              <Label htmlFor="club-nome" className="text-neutral-600">
                 Seu nome
               </Label>
               <Input
@@ -216,11 +222,11 @@ function Entrada() {
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 placeholder="Como está na clínica"
-                className="mt-1 border-white/15 bg-white/5 text-white placeholder:text-white/30"
+                className="mt-1 border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-300"
               />
             </div>
             <div className="club-entra">
-              <Label htmlFor="club-telefone" className="text-white/70">
+              <Label htmlFor="club-telefone" className="text-neutral-600">
                 Seu telefone
               </Label>
               <Input
@@ -230,9 +236,9 @@ function Entrada() {
                 value={telefone}
                 onChange={(e) => setTelefone(e.target.value)}
                 placeholder="(48) 99999-0000"
-                className="mt-1 border-white/15 bg-white/5 text-white placeholder:text-white/30"
+                className="mt-1 border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-300"
               />
-              <p className="mt-1.5 text-xs text-white/50">
+              <p className="mt-1.5 text-xs text-neutral-500">
                 O mesmo que você deu na clínica — é por ele que a gente encontra seu cadastro.
               </p>
             </div>
@@ -240,7 +246,7 @@ function Entrada() {
         ) : null}
 
         <div>
-          <Label htmlFor="club-email" className="text-white/70">
+          <Label htmlFor="club-email" className="text-neutral-600">
             E-mail
           </Label>
           <Input
@@ -249,13 +255,13 @@ function Entrada() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 border-white/15 bg-white/5 text-white placeholder:text-white/30"
+            className="mt-1 border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-300"
             placeholder="voce@email.com"
           />
         </div>
 
         <div>
-          <Label htmlFor="club-senha" className="text-white/70">
+          <Label htmlFor="club-senha" className="text-neutral-600">
             Senha
           </Label>
           <Input
@@ -264,14 +270,14 @@ function Entrada() {
             required
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
-            className="mt-1 border-white/15 bg-white/5 text-white"
+            className="mt-1 border-neutral-200 bg-white text-neutral-900"
           />
         </div>
 
         <Button
           type="submit"
           disabled={carregando}
-          className="h-12 w-full rounded-2xl bg-white text-base font-semibold text-neutral-900 hover:bg-white/90"
+          className="h-12 w-full rounded-2xl bg-neutral-900 text-base font-semibold text-white hover:bg-neutral-800"
         >
           {carregando ? "Um instante…" : modo === "entrar" ? "Entrar" : "Entrar no Club"}
           <ArrowRight className="h-4 w-4" />
@@ -279,7 +285,7 @@ function Entrada() {
       </form>
 
       <p
-        className="club-entra mt-6 text-center text-xs text-white/40"
+        className="club-entra mt-6 text-center text-xs text-neutral-400"
         style={{ animationDelay: "160ms" }}
       >
         Seus créditos, suas indicações e seu nível, sempre à mão.
@@ -311,17 +317,17 @@ function AindaNaoPronto() {
     <Fundo>
       <Marca />
       <div
-        className="club-entra glass-escuro mt-8 p-6 text-center"
+        className="club-entra glass-claro mt-8 p-6 text-center"
         style={{ animationDelay: "80ms" }}
       >
-        <Sparkles className="mx-auto h-7 w-7 text-white/70" strokeWidth={1.5} />
+        <Sparkles className="mx-auto h-7 w-7 text-neutral-600" strokeWidth={1.5} />
         <p className="mt-3 font-medium">O Club está quase pronto</p>
-        <p className="mt-1 text-sm text-white/60">
+        <p className="mt-1 text-sm text-neutral-500">
           Estamos terminando de preparar sua área. Tente de novo em alguns minutos.
         </p>
         <Button
           variant="ghost"
-          className="mt-4 text-white/60 hover:bg-white/10 hover:text-white"
+          className="mt-4 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
           onClick={() => supabase.auth.signOut()}
         >
           <LogOut className="h-4 w-4" /> Sair
@@ -340,15 +346,15 @@ function SemCadastro({ motivo }: { motivo: string }) {
     <Fundo>
       <Marca />
       <div
-        className="club-entra glass-escuro mt-8 p-6 text-center"
+        className="club-entra glass-claro mt-8 p-6 text-center"
         style={{ animationDelay: "80ms" }}
       >
-        <Gift className="mx-auto h-7 w-7 text-white/70" strokeWidth={1.5} />
+        <Gift className="mx-auto h-7 w-7 text-neutral-600" strokeWidth={1.5} />
         <p className="mt-3 font-medium">Falta ligar seu cadastro</p>
-        <p className="mt-1 text-sm text-white/60">{texto}</p>
+        <p className="mt-1 text-sm text-neutral-500">{texto}</p>
         <Button
           variant="ghost"
-          className="mt-4 text-white/60 hover:bg-white/10 hover:text-white"
+          className="mt-4 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
           onClick={() => supabase.auth.signOut()}
         >
           <LogOut className="h-4 w-4" /> Sair
@@ -360,33 +366,44 @@ function SemCadastro({ motivo }: { motivo: string }) {
 
 // ── O painel ──────────────────────────────────────────────────────────────
 
-/** Uma cor por posição na régua, não por nome: um nível renomeado continua
- *  bonito, e um quinto nível não fica sem cor. */
-const CORES = [
-  "from-sky-400/80 to-blue-600/80",
-  "from-fuchsia-400/80 to-purple-600/80",
-  "from-amber-300/80 to-orange-500/80",
-  "from-cyan-200/80 to-indigo-400/80",
-];
+/**
+ * O material do cartão, por POSIÇÃO na régua — não por nome.
+ *
+ * A clínica pediu assim: o primeiro é bege com textura de veludo, o segundo
+ * prateado, o terceiro dourado e o quarto holográfico leve.
+ *
+ * Por posição porque a régua é editável: renomear "Premium" para "Platinum"
+ * não pode deixar o cartão sem material, e um quinto nível volta ao começo em
+ * vez de aparecer sem nada. As texturas estão em `styles.css`, em gradiente e
+ * não em imagem — a página abre no 4G de uma sala de espera.
+ */
+const MATERIAIS = ["cartao-velvet", "cartao-prata", "cartao-ouro", "cartao-holo"];
+
+/** Quem ainda não chegou ao primeiro nível tem cartão, fosco. Ele existe
+ *  esperando o material — é o que dá vontade do próximo. */
+const SEM_NIVEL = "cartao-sem-nivel";
 
 function Painel({ dados }: { dados: PainelDoPaciente }) {
   const regua = dados.regua ?? [];
   const s = situacaoNoClub(dados.confirmadas ?? 0, regua);
-  const indice = Math.max(
-    0,
-    regua.findIndex((n) => n.id === s.nivel?.id),
-  );
+  // -1 enquanto ela não chega ao primeiro nível: o cartão existe e ainda não
+  // ganhou material.
+  const indice = regua.findIndex((n) => n.id === s.nivel?.id);
+  const material = indice < 0 ? SEM_NIVEL : MATERIAIS[indice % MATERIAIS.length];
+  const porIndicacao = Number(dados.por_indicacao ?? 100);
   const indicacoes = dados.indicacoes ?? [];
   const primeiroNome = String(dados.nome ?? "").split(" ")[0];
 
   const compartilhar = async () => {
-    const texto =
-      "Eu faço parte do NÓS Club, da NÓS Odontologia. Se você marcar uma avaliação, diz que fui eu que te indiquei. 😉";
+    const texto = convite({ deQuem: primeiroNome, valor: porIndicacao, link: linkDoClube() });
     try {
+      // `navigator.share` abre a folha do celular — com o WhatsApp em primeiro,
+      // que é onde isto vai de fato. No computador não existe, e aí a mensagem
+      // vai para a área de transferência.
       if (navigator.share) await navigator.share({ text: texto });
       else {
         await navigator.clipboard.writeText(texto);
-        toast.success("Mensagem copiada. É só mandar para quem você quer indicar.");
+        toast.success("Mensagem copiada. É só colar no WhatsApp de quem você quer indicar.");
       }
     } catch {
       /* a pessoa fechou a folha de compartilhamento */
@@ -397,14 +414,14 @@ function Painel({ dados }: { dados: PainelDoPaciente }) {
     <Fundo>
       <header className="club-entra flex items-center justify-between">
         <div className="min-w-0">
-          <p className="text-xs uppercase tracking-[0.18em] text-white/40">NÓS Club</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-neutral-400">NÓS Club</p>
           <h1 className="truncate text-xl font-semibold">Olá, {primeiroNome}</h1>
         </div>
         <button
           type="button"
           onClick={() => supabase.auth.signOut()}
           aria-label="Sair"
-          className="grid h-10 w-10 place-items-center rounded-full bg-white/5 text-white/50 ring-1 ring-white/10 hover:text-white"
+          className="grid h-10 w-10 place-items-center rounded-full bg-white text-neutral-400 shadow-sm ring-1 ring-neutral-200 hover:text-neutral-900"
         >
           <LogOut className="h-4 w-4" />
         </button>
@@ -414,23 +431,23 @@ function Painel({ dados }: { dados: PainelDoPaciente }) {
           quanto falta, e o saldo. */}
       <section
         className={cn(
-          "club-entra club-cartao relative mt-6 overflow-hidden rounded-[28px] bg-gradient-to-br p-6 ring-1 ring-white/20",
-          CORES[indice % CORES.length],
+          "club-entra club-cartao relative mt-6 overflow-hidden rounded-[28px] p-6",
+          material,
         )}
         style={{ animationDelay: "60ms" }}
       >
         <div className="relative z-10">
-          <p className="text-xs uppercase tracking-[0.18em] text-white/70">Seu nível</p>
+          <p className="text-xs uppercase tracking-[0.18em] opacity-70">Seu nível</p>
           <p className="mt-1 text-4xl font-semibold tracking-tight">{s.nivel?.nome ?? "Membro"}</p>
 
           <div className="mt-5">
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/25">
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/15">
               <div
-                className="club-barra h-full rounded-full bg-white"
+                className="club-barra h-full rounded-full bg-current opacity-85"
                 style={{ ["--ate" as string]: `${Math.round(s.progresso * 100)}%` }}
               />
             </div>
-            <p className="mt-2 text-sm text-white/80">
+            <p className="mt-2 text-sm opacity-80">
               {s.proximo ? (
                 <>
                   <strong>{s.confirmadas}</strong> de {s.proximo.indicacoes} — faltam{" "}
@@ -446,30 +463,57 @@ function Painel({ dados }: { dados: PainelDoPaciente }) {
       </section>
 
       <section
-        className="club-entra glass-escuro mt-4 flex items-center justify-between p-5"
+        className="club-entra glass-claro mt-4 flex items-center justify-between p-5"
         style={{ animationDelay: "120ms" }}
       >
         <div>
-          <p className="text-xs uppercase tracking-wider text-white/50">Créditos NÓS</p>
+          <p className="text-xs uppercase tracking-wider text-neutral-500">Créditos NÓS</p>
           <p className="mt-0.5 text-3xl font-semibold">{formatBRL(dados.saldo ?? 0)}</p>
-          <p className="mt-0.5 text-xs text-white/50">para usar nos seus procedimentos</p>
+          <p className="mt-0.5 text-xs text-neutral-500">para usar nos seus procedimentos</p>
         </div>
-        <Gift className="h-8 w-8 text-white/30" strokeWidth={1.25} />
+        <Gift className="h-8 w-8 text-neutral-300" strokeWidth={1.25} />
       </section>
 
       <button
         type="button"
         onClick={compartilhar}
-        className="club-entra club-pulsa mt-4 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-white text-base font-semibold text-neutral-900"
+        className="club-entra club-pulsa mt-4 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-neutral-900 text-base font-semibold text-white"
         style={{ animationDelay: "180ms" }}
       >
         <Share2 className="h-5 w-5" /> Indicar alguém
       </button>
 
+      <section className="club-entra glass-claro mt-4 p-5" style={{ animationDelay: "210ms" }}>
+        <h2 className="text-sm font-semibold">Como funciona</h2>
+        <ol className="mt-3 space-y-3">
+          <ComoFunciona numero="1" titulo={`Indique alguém e ganhe ${formatBRL(porIndicacao)}`}>
+            O crédito entra quando a pessoa que você indicou vem à clínica e é atendida.
+          </ComoFunciona>
+          <ComoFunciona numero="2" titulo="A cada indicação você sobe">
+            {regua.length ? (
+              <>
+                {regua.map((n, i) => (
+                  <span key={n.id}>
+                    {i > 0 ? ", " : ""}
+                    <strong>{n.indicacoes}</strong> = {n.nome}
+                  </span>
+                ))}
+                . Cada nível novo tem um cartão diferente aqui na sua tela.
+              </>
+            ) : (
+              <>Quanto mais indicações confirmadas, mais alto o seu nível.</>
+            )}
+          </ComoFunciona>
+          <ComoFunciona numero="3" titulo="Use quando quiser">
+            Seus Créditos NÓS valem em procedimentos de saúde e estética. É só avisar na recepção.
+          </ComoFunciona>
+        </ol>
+      </section>
+
       <section className="club-entra mt-8" style={{ animationDelay: "240ms" }}>
-        <h2 className="text-xs uppercase tracking-[0.18em] text-white/40">Minhas indicações</h2>
+        <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-400">Minhas indicações</h2>
         {indicacoes.length === 0 ? (
-          <p className="mt-3 text-sm text-white/50">
+          <p className="mt-3 text-sm text-neutral-500">
             Nenhuma ainda. Indique alguém e acompanhe por aqui.
           </p>
         ) : (
@@ -477,15 +521,15 @@ function Painel({ dados }: { dados: PainelDoPaciente }) {
             {indicacoes.map((i, idx) => (
               <li
                 key={`${i.nome}-${idx}`}
-                className="glass-escuro flex items-center justify-between gap-3 px-4 py-3"
+                className="glass-claro flex items-center justify-between gap-3 px-4 py-3"
               >
                 <span className="min-w-0 truncate text-sm">{i.nome}</span>
                 {i.status === "confirmada" ? (
-                  <span className="flex shrink-0 items-center gap-1.5 text-xs text-emerald-300">
+                  <span className="flex shrink-0 items-center gap-1.5 text-xs text-emerald-600">
                     <Check className="h-3.5 w-3.5" /> Já veio
                   </span>
                 ) : (
-                  <span className="flex shrink-0 items-center gap-1.5 text-xs text-amber-200/80">
+                  <span className="flex shrink-0 items-center gap-1.5 text-xs text-amber-600">
                     <Clock className="h-3.5 w-3.5" /> Aguardando
                   </span>
                 )}
@@ -497,18 +541,18 @@ function Painel({ dados }: { dados: PainelDoPaciente }) {
 
       {(dados.extrato ?? []).length > 0 ? (
         <section className="club-entra mt-8 pb-10" style={{ animationDelay: "300ms" }}>
-          <h2 className="text-xs uppercase tracking-[0.18em] text-white/40">Meus créditos</h2>
+          <h2 className="text-xs uppercase tracking-[0.18em] text-neutral-400">Meus créditos</h2>
           <ul className="mt-3 space-y-2">
             {(dados.extrato ?? []).map((l, idx) => (
               <li
                 key={`${l.descricao}-${idx}`}
                 className="flex items-center justify-between gap-3 px-1 py-1.5"
               >
-                <span className="min-w-0 truncate text-sm text-white/70">{l.descricao}</span>
+                <span className="min-w-0 truncate text-sm text-neutral-600">{l.descricao}</span>
                 <span
                   className={cn(
                     "shrink-0 text-sm font-semibold tabular-nums",
-                    Number(l.valor) > 0 ? "text-emerald-300" : "text-white/50",
+                    Number(l.valor) > 0 ? "text-emerald-600" : "text-neutral-500",
                   )}
                 >
                   {Number(l.valor) > 0 ? "+" : "−"}
@@ -520,10 +564,38 @@ function Painel({ dados }: { dados: PainelDoPaciente }) {
         </section>
       ) : null}
 
-      <div className="club-entra flex items-center justify-center gap-1.5 pb-10 pt-4 text-xs text-white/30">
+      <div className="club-entra flex items-center justify-center gap-1.5 pb-10 pt-4 text-xs text-neutral-300">
         <TrendingUp className="h-3.5 w-3.5" />
         Quanto mais NÓS, mais benefícios
       </div>
     </Fundo>
   );
+}
+
+function ComoFunciona({
+  numero,
+  titulo,
+  children,
+}: {
+  numero: string;
+  titulo: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <li className="flex gap-3">
+      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-neutral-900 text-2xs font-semibold text-white">
+        {numero}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium">{titulo}</span>
+        <span className="mt-0.5 block text-xs leading-5 text-neutral-500">{children}</span>
+      </span>
+    </li>
+  );
+}
+
+/** O endereço do cartão, o mesmo do QR Code. Montado do endereço aberto para
+ *  o link funcionar em qualquer domínio que a clínica use. */
+function linkDoClube(): string {
+  return typeof window === "undefined" ? "" : `${window.location.origin}/club`;
 }
