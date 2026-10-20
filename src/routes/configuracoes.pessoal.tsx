@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { NIVEIS, type NivelDeAcesso } from "@/lib/auth/niveis-de-acesso";
+import { ESPECIALIDADES } from "@/lib/settings/especialidades";
 import { getSettings, saveSetting, type UnitSetting } from "@/lib/settings/settings.functions";
 import {
   criarConvite,
@@ -400,6 +401,46 @@ function CartaoDaPessoa({
   );
 }
 
+/**
+ * As especialidades, para clicar.
+ *
+ * Etiquetas e não um seletor: são 24 opções e mais de uma vale ao mesmo tempo,
+ * e um `<select multiple>` no celular é a pior forma conhecida de escolher
+ * duas coisas de uma lista.
+ */
+function EscolhaDeEspecialidades({
+  escolhidas,
+  aoTrocar,
+}: {
+  escolhidas: string[];
+  aoTrocar: (lista: string[]) => void;
+}) {
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {ESPECIALIDADES.map((e) => {
+        const marcada = escolhidas.includes(e);
+        return (
+          <button
+            key={e}
+            type="button"
+            onClick={() =>
+              aoTrocar(marcada ? escolhidas.filter((x) => x !== e) : [...escolhidas, e])
+            }
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-xs transition-colors",
+              marcada
+                ? "border-transparent bg-foreground text-white"
+                : "border-border bg-white text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {e}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Etiqueta({
   tom,
   children,
@@ -710,14 +751,14 @@ function SheetDaFicha({
   const doSalvarSetting = useServerFn(saveSetting);
   const doVincular = useServerFn(vincularFicha);
   const [carregado, setCarregado] = useState<string | null>(null);
-  const [especialidade, setEspecialidade] = useState("");
+  const [especialidades, setEspecialidades] = useState<string[]>([]);
   const [registro, setRegistro] = useState("");
   const [comissao, setComissao] = useState("0");
   const [cor, setCor] = useState("#8B5CF6");
 
   if (pessoa && carregado !== pessoa.chave) {
     setCarregado(pessoa.chave);
-    setEspecialidade(pessoa.especialidade);
+    setEspecialidades(pessoa.especialidades);
     setRegistro(pessoa.registro);
     setComissao(String(pessoa.comissaoPct ?? 0));
     setCor(pessoa.cor);
@@ -739,7 +780,7 @@ function SheetDaFicha({
           item: {
             id,
             name: pessoa!.nome,
-            specialty: especialidade,
+            specialties: especialidades,
             registrationNumber: registro,
             phone: pessoa!.telefone ?? "",
             email: pessoa!.email,
@@ -784,14 +825,8 @@ function SheetDaFicha({
           }}
         >
           <div>
-            <Label htmlFor="ficha-especialidade">Especialidade</Label>
-            <Input
-              id="ficha-especialidade"
-              value={especialidade}
-              onChange={(e) => setEspecialidade(e.target.value)}
-              placeholder="Cirurgiã"
-              className="mt-1"
-            />
+            <Label>Especialidades</Label>
+            <EscolhaDeEspecialidades escolhidas={especialidades} aoTrocar={setEspecialidades} />
           </div>
           <div>
             <Label htmlFor="ficha-registro">Registro (CRO)</Label>
@@ -811,6 +846,11 @@ function SheetDaFicha({
               inputMode="decimal"
               className="mt-1"
             />
+            {/* A comissão fica SÓ aqui, e nunca no convite: é combinação
+                comercial da clínica, não dado de quem se cadastra. */}
+            <p className="mt-1 text-xs text-muted-foreground">
+              Só você define. Não aparece no cadastro que a pessoa preenche.
+            </p>
           </div>
           <div>
             <Label htmlFor="ficha-cor">Cor na agenda</Label>

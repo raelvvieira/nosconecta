@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { NIVEIS } from "@/lib/auth/niveis-de-acesso";
+import { ESPECIALIDADES } from "@/lib/settings/especialidades";
+import { cn } from "@/lib/utils";
 import { convitePublico } from "@/lib/settings/pessoal.functions";
 
 /**
@@ -52,10 +54,28 @@ function ConvitePage() {
   const [senha, setSenha] = useState("");
   const [confirmacao, setConfirmacao] = useState("");
   const [unidades, setUnidades] = useState<string[]>([]);
+  // A ficha clínica, preenchida pela própria pessoa. Decisão da clínica em
+  // 20/10: CRO, especialidades e cor são dados DELA. A comissão não entra
+  // aqui — é combinação comercial, e quem define é quem administra.
+  const [atende, setAtende] = useState(false);
+  const [cro, setCro] = useState("");
+  const [especialidades, setEspecialidades] = useState<string[]>([]);
+  const [cor, setCor] = useState("#8B5CF6");
   const [salvando, setSalvando] = useState(false);
+  const [marcouAtende, setMarcouAtende] = useState(false);
   const [aguardandoEmail, setAguardandoEmail] = useState(false);
 
   const nivel = NIVEIS.find((n) => n.valor === convite.data?.nivel);
+
+  // Convite de Dentista chega com "atendo pacientes" já marcado — é o que o
+  // nível quer dizer. Quem administra também pode atender (é o caso da Dra.
+  // Mariane), então a chave existe para todos e começa desligada nos outros.
+  // `marcouAtende` guarda se a pessoa já mexeu, para a resposta do convite
+  // chegando depois não desfazer a escolha dela.
+  if (!marcouAtende && convite.data?.nivel === "dentist" && !atende) {
+    setMarcouAtende(true);
+    setAtende(true);
+  }
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
@@ -110,6 +130,10 @@ function ConvitePage() {
       _nome: nomeCompleto,
       _telefone: telefone,
       _unidades: unidades,
+      _atende: atende,
+      _cro: cro,
+      _especialidades: especialidades,
+      _cor: cor,
     });
     setSalvando(false);
 
@@ -255,6 +279,78 @@ function ConvitePage() {
               </p>
             </div>
           )}
+
+          <div className="rounded-xl border border-border p-3">
+            <label className="flex items-center justify-between gap-3 text-sm font-medium">
+              Atendo pacientes
+              <Switch
+                checked={atende}
+                onCheckedChange={(v) => {
+                  setMarcouAtende(true);
+                  setAtende(v === true);
+                }}
+              />
+            </label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Ligue se você vai aparecer na agenda como profissional. Quem só usa o sistema deixa
+              desligado.
+            </p>
+
+            {atende ? (
+              <div className="mt-4 space-y-4 border-t border-border pt-4">
+                <div>
+                  <Label htmlFor="cro">Registro (CRO)</Label>
+                  <Input
+                    id="cro"
+                    value={cro}
+                    onChange={(e) => setCro(e.target.value)}
+                    placeholder="CRO-SC 12345"
+                    className="mt-1"
+                  />
+                </div>
+
+                <div>
+                  <Label>Especialidades</Label>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Pode marcar mais de uma.</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {ESPECIALIDADES.map((e) => {
+                      const marcada = especialidades.includes(e);
+                      return (
+                        <button
+                          key={e}
+                          type="button"
+                          onClick={() =>
+                            setEspecialidades((atual) =>
+                              marcada ? atual.filter((x) => x !== e) : [...atual, e],
+                            )
+                          }
+                          className={cn(
+                            "rounded-full border px-3 py-1.5 text-xs transition-colors",
+                            marcada
+                              ? "border-transparent bg-foreground text-white"
+                              : "border-border bg-white text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {e}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="cor">Sua cor na agenda</Label>
+                  <Input
+                    id="cor"
+                    type="color"
+                    value={cor}
+                    onChange={(e) => setCor(e.target.value)}
+                    className="mt-1 h-10 w-20 p-1"
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div>

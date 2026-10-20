@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership, type MemberRole } from "@/lib/auth/clinic-context.middleware";
 import { exigeConfiguracoes } from "@/lib/auth/area.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
+import { especialidadesEmTexto, especialidadesValidas } from "@/lib/settings/especialidades";
 
 // "members" e "professionals" saíram da navegação em 20/10: viraram a tela
 // Pessoal (src/lib/settings/pessoal.functions.ts), uma área só para as pessoas
@@ -14,7 +15,10 @@ export type SettingsSection = "professionals" | "chairs" | "procedures" | "units
 export interface ProfessionalSetting {
   id: string;
   name: string;
+  /** A linha pronta ("Dentística · Ortodontia"), para onde cabe uma linha só. */
   specialty: string;
+  /** As especialidades escolhidas. Ver `especialidades.ts`. */
+  specialties: string[];
   registrationNumber: string;
   phone: string;
   email: string;
@@ -101,6 +105,7 @@ export const getSettings = createServerFn({ method: "GET" })
         id: row.id,
         name: row.name,
         specialty: row.specialty ?? "",
+        specialties: Array.isArray(row.specialties) ? row.specialties : [],
         registrationNumber: row.registration_number ?? "",
         phone: row.phone ?? "",
         email: row.email ?? "",
@@ -165,11 +170,17 @@ export const saveSetting = createServerFn({ method: "POST" })
       };
     } else if (data.section === "professionals") {
       table = "professionals";
+      // As especialidades vão em DUAS colunas, escritas aqui e só aqui: a
+      // lista, que é o dado, e a linha de texto que a agenda e as listas
+      // mostram. Duas telas escrevendo cada uma a sua divergiriam na primeira
+      // edição — por isso a linha é derivada da lista, nunca digitada.
+      const especialidades = especialidadesValidas(item.specialties ?? null);
       row = {
         ...common,
         unit_id: await resolveUnitId(context, item.unitId ?? null),
         name: item.name,
-        specialty: item.specialty || null,
+        specialties: especialidades,
+        specialty: especialidadesEmTexto(especialidades) || item.specialty || null,
         registration_number: item.registrationNumber || null,
         phone: item.phone || null,
         email: item.email || null,

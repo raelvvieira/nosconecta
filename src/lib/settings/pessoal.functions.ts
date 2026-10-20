@@ -45,6 +45,7 @@ export interface PessoaDaClinica {
   unidadeIds: string[];
   /** Dados da ficha clínica, quando há. */
   especialidade: string;
+  especialidades: string[];
   registro: string;
   comissaoPct: number;
   cor: string;
@@ -97,7 +98,7 @@ export const listarPessoal = createServerFn({ method: "GET" })
       supabase
         .from("professionals")
         .select(
-          "id, name, email, phone, specialty, registration_number, commission_pct, color, active, unit_id",
+          "id, name, email, phone, specialty, specialties, registration_number, commission_pct, color, active, unit_id",
         )
         .eq("owner_id", context.ownerId)
         .order("name"),
@@ -137,6 +138,7 @@ export const listarPessoal = createServerFn({ method: "GET" })
         temLogin: !!m.user_id,
         unidadeIds: [...unidades],
         especialidade: ficha?.specialty ?? "",
+        especialidades: Array.isArray(ficha?.specialties) ? ficha.specialties : [],
         registro: ficha?.registration_number ?? "",
         comissaoPct: Number(ficha?.commission_pct ?? 0),
         cor: ficha?.color ?? "#8B5CF6",
@@ -159,6 +161,7 @@ export const listarPessoal = createServerFn({ method: "GET" })
         temLogin: false,
         unidadeIds: f.unit_id ? [String(f.unit_id)] : [],
         especialidade: f.specialty ?? "",
+        especialidades: Array.isArray(f.specialties) ? f.specialties : [],
         registro: f.registration_number ?? "",
         comissaoPct: Number(f.commission_pct ?? 0),
         cor: f.color ?? "#8B5CF6",
