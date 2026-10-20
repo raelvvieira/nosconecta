@@ -50,6 +50,13 @@
       "when": 1792521286143,
       "tag": "0006_club_do_paciente",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792528207841,
+      "tag": "0007_club_credito_por_indicacao",
+      "breakpoints": true
     }
   ]
 }
