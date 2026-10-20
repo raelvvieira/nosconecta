@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { GRUPOS_DO_MAIS, navegaveis } from "@/components/layout/destinos";
+import { GRUPOS_DO_MAIS, doNivel, navegaveis } from "@/components/layout/destinos";
+import { useUnitSelection } from "@/lib/settings/unit-context";
 import { PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,14 @@ import { cn } from "@/lib/utils";
  *  Sem cortina por cima do conteúdo, de propósito: isto não é uma tarefa que
  *  interrompe, é um menu. Tocar fora fecha. */
 export function IlhaDoMais({ pathname, aoNavegar }: { pathname: string; aoNavegar: () => void }) {
+  // A gaveta do celular esconde o mesmo que o menu lateral. Sem este filtro
+  // ela seria o caminho de volta para tudo que o nível fechou — e é a lista
+  // mais completa do app, justamente.
+  const { nivel } = useUnitSelection();
+  const grupos = GRUPOS_DO_MAIS.map((g) => ({ ...g, itens: doNivel(g.itens, nivel) })).filter(
+    (g) => g.itens.length > 0,
+  );
+
   return (
     <PopoverContent
       side="top"
@@ -43,7 +52,7 @@ export function IlhaDoMais({ pathname, aoNavegar }: { pathname: string; aoNavega
           item pela metade na borda arredondada lê como defeito. As pontas
           desbotam: é o que diz "tem mais aqui" sem gastar uma linha. */}
       <div className="custom-scroll max-h-[68dvh] space-y-4 overflow-y-auto overscroll-contain p-2 [mask-image:linear-gradient(to_bottom,transparent,black_10px,black_calc(100%-10px),transparent)]">
-        {GRUPOS_DO_MAIS.map((grupo, i) => (
+        {grupos.map((grupo, i) => (
           <div key={grupo.label} className="ilha-entra" style={{ animationDelay: `${i * 45}ms` }}>
             <p className="px-3 pb-1 pt-1 text-3xs font-semibold uppercase tracking-wider text-muted-foreground">
               {grupo.label}

@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { Navigate, createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { MoreHorizontal, Plus, Search, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
-import { MembersApprovalSection } from "@/components/settings/MembersApprovalSection";
 import { SettingsFormSheet } from "@/components/settings/SettingsFormSheet";
 import { settingsQuery } from "@/components/settings/SettingsNav";
 import {
@@ -47,7 +46,7 @@ import {
 // um SettingsSection de verdade — não tem CRUD genérico, é a tela de
 // aprovação (ver branch no componente abaixo).
 const searchSchema = z.object({
-  section: z.enum(["professionals", "chairs", "procedures", "units", "members"]).default("professionals"),
+  section: z.enum(["professionals", "chairs", "procedures", "units", "members"]).default("chairs"),
 });
 type PageSection = SettingsSection | "members";
 type SettingsFetcher = () => Promise<SettingsData>;
@@ -57,15 +56,16 @@ export const Route = createFileRoute("/configuracoes/")({
   validateSearch: searchSchema,
   // No SSR loader: getSettings requires auth which isn't available during prerender.
   errorComponent: ({ error }) => (
-    <ResponsiveRouteState error={error}
+    <ResponsiveRouteState
+      error={error}
       title="Não foi possível carregar os cadastros"
       description="Houve uma falha ao buscar os dados da clínica. Tente novamente em instantes."
       semSidebar
     />
   ),
-  notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound
-  semSidebar
-/>,
+  notFoundComponent: () => (
+    <ResponsiveRouteState title="Página não encontrada" notFound semSidebar />
+  ),
   component: SettingsRegistryPage,
 });
 
@@ -84,8 +84,14 @@ function SettingsRegistryPage() {
   const save = useServerFn(saveSetting);
   const remove = useServerFn(deleteSetting);
   const settingsResult = useQuery(settingsQuery(fetchSettings as unknown as SettingsFetcher));
-  const data: SettingsData =
-    settingsResult.data ?? { professionals: [], chairs: [], procedures: [], units: [], isAdmin: false };
+  const data: SettingsData = settingsResult.data ?? {
+    professionals: [],
+    chairs: [],
+    procedures: [],
+    units: [],
+    isAdmin: false,
+    nivel: null,
+  };
   const [query, setQuery] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<SettingsRecord | null>(null);
@@ -96,9 +102,14 @@ function SettingsRegistryPage() {
   // abaixo. Os hooks abaixo têm que rodar sempre, na mesma ordem, então o
   // desvio para "members"/acesso negado só acontece no retorno JSX no fim.
   const isGenericSection = section !== "members";
-  const items = isGenericSection ? ((data as unknown as Record<string, SettingsRecord[]>)[section] ?? []) : [];
+  const items = isGenericSection
+    ? ((data as unknown as Record<string, SettingsRecord[]>)[section] ?? [])
+    : [];
   const filtered = useMemo(
-    () => items.filter((item: SettingsRecord) => searchable(item).includes(query.toLocaleLowerCase("pt-BR"))),
+    () =>
+      items.filter((item: SettingsRecord) =>
+        searchable(item).includes(query.toLocaleLowerCase("pt-BR")),
+      ),
     [items, query],
   );
   const activeCount = items.filter((item: SettingsRecord) => item.active).length;
@@ -107,7 +118,9 @@ function SettingsRegistryPage() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["settings"] });
   const toggle = useMutation({
     mutationFn: (item: SettingsRecord) =>
-      save({ data: { section: section as SettingsSection, item: { ...item, active: !item.active } } }),
+      save({
+        data: { section: section as SettingsSection, item: { ...item, active: !item.active } },
+      }),
     onSuccess: () => {
       toast.success("Situação atualizada");
       refresh();
@@ -115,7 +128,8 @@ function SettingsRegistryPage() {
     onError: (error: Error) => toast.error(error.message),
   });
   const deletion = useMutation({
-    mutationFn: (item: SettingsRecord) => remove({ data: { section: section as SettingsSection, id: item.id } }),
+    mutationFn: (item: SettingsRecord) =>
+      remove({ data: { section: section as SettingsSection, id: item.id } }),
     onSuccess: () => {
       toast.success("Cadastro excluído");
       setPendingDelete(null);
@@ -148,8 +162,11 @@ function SettingsRegistryPage() {
     );
   }
 
-  if (section === "members") {
-    return <MembersApprovalSection units={data.units} />;
+  // As duas seções que viraram a tela Pessoal. A URL antiga continua existindo
+  // (link salvo, aba aberta desde ontem) e leva para o lugar novo, em vez de
+  // abrir uma segunda lista das mesmas pessoas.
+  if (section === "members" || section === "professionals") {
+    return <Navigate to="/configuracoes/pessoal" replace />;
   }
 
   return (
@@ -199,7 +216,9 @@ function SettingsRegistryPage() {
                 <Search className="h-5 w-5" />
               </span>
               <h3 className="mt-4 font-semibold">
-                {query ? "Nenhum cadastro encontrado" : `Nenhum ${singular(section as SettingsSection)} cadastrado`}
+                {query
+                  ? "Nenhum cadastro encontrado"
+                  : `Nenhum ${singular(section as SettingsSection)} cadastrado`}
               </h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 {query

@@ -1,7 +1,12 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { getSettings, type SettingsData, type UnitSetting } from "@/lib/settings/settings.functions";
+import {
+  getSettings,
+  type SettingsData,
+  type UnitSetting,
+} from "@/lib/settings/settings.functions";
+import type { MemberRole } from "@/lib/auth/clinic-context.middleware";
 import { settingsQuery } from "@/components/settings/SettingsNav";
 
 type SettingsFetcher = () => Promise<SettingsData>;
@@ -10,6 +15,9 @@ const STORAGE_KEY = "nosconecta:selectedUnitId";
 
 interface UnitContextValue {
   isAdmin: boolean;
+  /** O nível de acesso de quem está logado. É daqui que o menu e as rotas
+   *  decidem o que mostrar — ver `niveis-de-acesso.ts`. */
+  nivel: MemberRole | null;
   units: UnitSetting[];
   /** Preferência de UI de qual unidade os próximos cadastros (paciente,
    *  agendamento, transação...) devem usar — só existe pra admin, que é
@@ -29,6 +37,10 @@ export function UnitProvider({ children }: { children: ReactNode }) {
   const settingsResult = useQuery(settingsQuery(fetchSettings as unknown as SettingsFetcher));
   const units = settingsResult.data?.units ?? [];
   const isAdmin = settingsResult.data?.isAdmin ?? false;
+  // `null` enquanto carrega: `podeVerArea` trata nível desconhecido como "só o
+  // Início", então o menu nasce curto e cresce — nunca o contrário, que seria
+  // mostrar o Financeiro por um quadro para quem não pode vê-lo.
+  const nivel = settingsResult.data?.nivel ?? null;
 
   const [selectedUnitId, setSelectedUnitIdState] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -58,7 +70,7 @@ export function UnitProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <UnitContext.Provider value={{ isAdmin, units, selectedUnitId, setSelectedUnitId }}>
+    <UnitContext.Provider value={{ isAdmin, nivel, units, selectedUnitId, setSelectedUnitId }}>
       {children}
     </UnitContext.Provider>
   );

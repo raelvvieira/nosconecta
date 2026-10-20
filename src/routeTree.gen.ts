@@ -14,7 +14,6 @@ import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AgenteIaRouteImport } from './routes/agente-ia'
 import { Route as AtendimentosRouteImport } from './routes/atendimentos'
 import { Route as AuthRouteImport } from './routes/auth'
-import { Route as CadastroEquipeRouteImport } from './routes/cadastro-equipe'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as FinanceiroRouteImport } from './routes/financeiro'
 import { Route as InicioRouteImport } from './routes/inicio'
@@ -35,7 +34,9 @@ import { Route as ConfiguracoesDiasDeViagemRouteImport } from './routes/configur
 import { Route as ConfiguracoesGrupoDoFinanceiroRouteImport } from './routes/configuracoes.grupo-do-financeiro'
 import { Route as ConfiguracoesIntegracoesRouteImport } from './routes/configuracoes.integracoes'
 import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
+import { Route as ConfiguracoesPessoalRouteImport } from './routes/configuracoes.pessoal'
 import { Route as ConfiguracoesTagsRouteImport } from './routes/configuracoes.tags'
+import { Route as ConviteTokenRouteImport } from './routes/convite.$token'
 import { Route as PacientesIndexRouteImport } from './routes/pacientes.index'
 import { Route as PacientesPatientIdRouteImport } from './routes/pacientes.$patientId'
 import { Route as AtendimentosAutomacoesIndexRouteImport } from './routes/atendimentos.automacoes.index'
@@ -65,11 +66,6 @@ const AtendimentosRoute = AtendimentosRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CadastroEquipeRoute = CadastroEquipeRouteImport.update({
-  id: '/cadastro-equipe',
-  path: '/cadastro-equipe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
@@ -176,10 +172,20 @@ const ConfiguracoesNotificacoesRoute =
     path: '/notificacoes',
     getParentRoute: () => ConfiguracoesRoute,
   } as any)
+const ConfiguracoesPessoalRoute = ConfiguracoesPessoalRouteImport.update({
+  id: '/pessoal',
+  path: '/pessoal',
+  getParentRoute: () => ConfiguracoesRoute,
+} as any)
 const ConfiguracoesTagsRoute = ConfiguracoesTagsRouteImport.update({
   id: '/tags',
   path: '/tags',
   getParentRoute: () => ConfiguracoesRoute,
+} as any)
+const ConviteTokenRoute = ConviteTokenRouteImport.update({
+  id: '/convite/$token',
+  path: '/convite/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const PacientesIndexRoute = PacientesIndexRouteImport.update({
   id: '/',
@@ -216,7 +222,6 @@ export interface FileRoutesByFullPath {
   '/agente-ia': typeof AgenteIaRouteWithChildren
   '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
-  '/cadastro-equipe': typeof CadastroEquipeRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
@@ -234,7 +239,9 @@ export interface FileRoutesByFullPath {
   '/configuracoes/grupo-do-financeiro': typeof ConfiguracoesGrupoDoFinanceiroRoute
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
+  '/configuracoes/pessoal': typeof ConfiguracoesPessoalRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
+  '/convite/$token': typeof ConviteTokenRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/agente-ia/': typeof AgenteIaIndexRoute
   '/atendimentos/': typeof AtendimentosIndexRoute
@@ -248,7 +255,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
-  '/cadastro-equipe': typeof CadastroEquipeRoute
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
   '/pagamentos': typeof PagamentosRoute
@@ -263,7 +269,9 @@ export interface FileRoutesByTo {
   '/configuracoes/grupo-do-financeiro': typeof ConfiguracoesGrupoDoFinanceiroRoute
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
+  '/configuracoes/pessoal': typeof ConfiguracoesPessoalRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
+  '/convite/$token': typeof ConviteTokenRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/agente-ia': typeof AgenteIaIndexRoute
   '/atendimentos': typeof AtendimentosIndexRoute
@@ -280,7 +288,6 @@ export interface FileRoutesById {
   '/agente-ia': typeof AgenteIaRouteWithChildren
   '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
-  '/cadastro-equipe': typeof CadastroEquipeRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
@@ -298,7 +305,9 @@ export interface FileRoutesById {
   '/configuracoes/grupo-do-financeiro': typeof ConfiguracoesGrupoDoFinanceiroRoute
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
+  '/configuracoes/pessoal': typeof ConfiguracoesPessoalRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
+  '/convite/$token': typeof ConviteTokenRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/agente-ia/': typeof AgenteIaIndexRoute
   '/atendimentos/': typeof AtendimentosIndexRoute
@@ -316,7 +325,6 @@ export interface FileRouteTypes {
     | '/agente-ia'
     | '/atendimentos'
     | '/auth'
-    | '/cadastro-equipe'
     | '/configuracoes'
     | '/financeiro'
     | '/inicio'
@@ -334,7 +342,9 @@ export interface FileRouteTypes {
     | '/configuracoes/grupo-do-financeiro'
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
+    | '/configuracoes/pessoal'
     | '/configuracoes/tags'
+    | '/convite/$token'
     | '/pacientes/$patientId'
     | '/agente-ia/'
     | '/atendimentos/'
@@ -348,7 +358,6 @@ export interface FileRouteTypes {
     | '/'
     | '/agenda'
     | '/auth'
-    | '/cadastro-equipe'
     | '/financeiro'
     | '/inicio'
     | '/pagamentos'
@@ -363,7 +372,9 @@ export interface FileRouteTypes {
     | '/configuracoes/grupo-do-financeiro'
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
+    | '/configuracoes/pessoal'
     | '/configuracoes/tags'
+    | '/convite/$token'
     | '/pacientes/$patientId'
     | '/agente-ia'
     | '/atendimentos'
@@ -379,7 +390,6 @@ export interface FileRouteTypes {
     | '/agente-ia'
     | '/atendimentos'
     | '/auth'
-    | '/cadastro-equipe'
     | '/configuracoes'
     | '/financeiro'
     | '/inicio'
@@ -397,7 +407,9 @@ export interface FileRouteTypes {
     | '/configuracoes/grupo-do-financeiro'
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
+    | '/configuracoes/pessoal'
     | '/configuracoes/tags'
+    | '/convite/$token'
     | '/pacientes/$patientId'
     | '/agente-ia/'
     | '/atendimentos/'
@@ -414,7 +426,6 @@ export interface RootRouteChildren {
   AgenteIaRoute: typeof AgenteIaRouteWithChildren
   AtendimentosRoute: typeof AtendimentosRouteWithChildren
   AuthRoute: typeof AuthRoute
-  CadastroEquipeRoute: typeof CadastroEquipeRoute
   ConfiguracoesRoute: typeof ConfiguracoesRouteWithChildren
   FinanceiroRoute: typeof FinanceiroRoute
   InicioRoute: typeof InicioRoute
@@ -422,6 +433,7 @@ export interface RootRouteChildren {
   PagamentosRoute: typeof PagamentosRoute
   PlanejamentoRoute: typeof PlanejamentoRoute
   RecebimentosRoute: typeof RecebimentosRoute
+  ConviteTokenRoute: typeof ConviteTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -459,13 +471,6 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cadastro-equipe': {
-      id: '/cadastro-equipe'
-      path: '/cadastro-equipe'
-      fullPath: '/cadastro-equipe'
-      preLoaderRoute: typeof CadastroEquipeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/configuracoes': {
@@ -608,12 +613,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfiguracoesNotificacoesRouteImport
       parentRoute: typeof ConfiguracoesRoute
     }
+    '/configuracoes/pessoal': {
+      id: '/configuracoes/pessoal'
+      path: '/pessoal'
+      fullPath: '/configuracoes/pessoal'
+      preLoaderRoute: typeof ConfiguracoesPessoalRouteImport
+      parentRoute: typeof ConfiguracoesRoute
+    }
     '/configuracoes/tags': {
       id: '/configuracoes/tags'
       path: '/tags'
       fullPath: '/configuracoes/tags'
       preLoaderRoute: typeof ConfiguracoesTagsRouteImport
       parentRoute: typeof ConfiguracoesRoute
+    }
+    '/convite/$token': {
+      id: '/convite/$token'
+      path: '/convite/$token'
+      fullPath: '/convite/$token'
+      preLoaderRoute: typeof ConviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/pacientes/': {
       id: '/pacientes/'
@@ -712,6 +731,7 @@ interface ConfiguracoesRouteChildren {
   ConfiguracoesGrupoDoFinanceiroRoute: typeof ConfiguracoesGrupoDoFinanceiroRoute
   ConfiguracoesIntegracoesRoute: typeof ConfiguracoesIntegracoesRoute
   ConfiguracoesNotificacoesRoute: typeof ConfiguracoesNotificacoesRoute
+  ConfiguracoesPessoalRoute: typeof ConfiguracoesPessoalRoute
   ConfiguracoesTagsRoute: typeof ConfiguracoesTagsRoute
   ConfiguracoesIndexRoute: typeof ConfiguracoesIndexRoute
 }
@@ -723,6 +743,7 @@ const ConfiguracoesRouteChildren: ConfiguracoesRouteChildren = {
   ConfiguracoesGrupoDoFinanceiroRoute: ConfiguracoesGrupoDoFinanceiroRoute,
   ConfiguracoesIntegracoesRoute: ConfiguracoesIntegracoesRoute,
   ConfiguracoesNotificacoesRoute: ConfiguracoesNotificacoesRoute,
+  ConfiguracoesPessoalRoute: ConfiguracoesPessoalRoute,
   ConfiguracoesTagsRoute: ConfiguracoesTagsRoute,
   ConfiguracoesIndexRoute: ConfiguracoesIndexRoute,
 }
@@ -751,7 +772,6 @@ const rootRouteChildren: RootRouteChildren = {
   AgenteIaRoute: AgenteIaRouteWithChildren,
   AtendimentosRoute: AtendimentosRouteWithChildren,
   AuthRoute: AuthRoute,
-  CadastroEquipeRoute: CadastroEquipeRoute,
   ConfiguracoesRoute: ConfiguracoesRouteWithChildren,
   FinanceiroRoute: FinanceiroRoute,
   InicioRoute: InicioRoute,
@@ -759,6 +779,7 @@ const rootRouteChildren: RootRouteChildren = {
   PagamentosRoute: PagamentosRoute,
   PlanejamentoRoute: PlanejamentoRoute,
   RecebimentosRoute: RecebimentosRoute,
+  ConviteTokenRoute: ConviteTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 import { tabelaDeCartaoAusente } from "./schema-cartao";
+import { exigeFinanceiro } from "@/lib/auth/area.middleware";
 
 type AccountType = "bank" | "cash" | "pix" | "credit";
 
 export const listAccounts = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator((input: { unitId?: string } | undefined) => ({ unitId: input?.unitId ?? null }))
   .handler(async ({ data, context }) => {
     // Conta bancária é por unidade — não-admin nunca escolhe, sempre a
@@ -37,7 +37,7 @@ export const listAccounts = createServerFn({ method: "GET" })
   });
 
 export const createAccount = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator(
     (input: { name: string; type?: AccountType; last_digits?: string | null; unitId?: string }) => {
       const name = input.name?.trim();
@@ -77,7 +77,7 @@ export const createAccount = createServerFn({ method: "POST" })
   });
 
 export const updateAccount = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator(
     (input: { id: string; name: string; type?: AccountType; last_digits?: string | null }) => {
       if (!input.id) throw new Error("Conta inválida");
@@ -144,7 +144,7 @@ export const updateAccount = createServerFn({ method: "POST" })
  * data em que olhou fica registrada — é ela que diz se o número ainda vale.
  */
 export const setAccountBalance = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator((input: { id: string; balance: number }) => {
     if (!input.id) throw new Error("Conta inválida");
     const balance = Number(input.balance);
@@ -168,7 +168,7 @@ export const setAccountBalance = createServerFn({ method: "POST" })
   });
 
 export const deleteAccount = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator((input: { id: string }) => {
     if (!input.id) throw new Error("Conta inválida");
     return { id: input.id };

@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
-import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { requireClinicMembership, type MemberRole } from "@/lib/auth/clinic-context.middleware";
+import { exigeConfiguracoes } from "@/lib/auth/area.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 
-// "members" saiu daqui — virou aprovação de verdade em
-// src/lib/settings/members.functions.ts (papel/unidade nascem só na
-// aprovação, não dá pra "criar membro" de improviso mais). "units" entrou:
+// "members" e "professionals" saíram da navegação em 20/10: viraram a tela
+// Pessoal (src/lib/settings/pessoal.functions.ts), uma área só para as pessoas
+// da clínica. O CRUD genérico de "professionals" continua aqui porque é ele
+// que a tela Pessoal usa para gravar a ficha clínica. "units" entrou:
 // é um CRUD simples como os outros três, cabe no mesmo mecanismo genérico.
 export type SettingsSection = "professionals" | "chairs" | "procedures" | "units";
 
@@ -64,6 +66,14 @@ export interface SettingsData {
    *  quem não é admin nem vê essas opções, mas o servidor também nunca
    *  confia só nisso (ver resolveUnitId/assertAdmin nos handlers). */
   isAdmin: boolean;
+  /**
+   * O nível de acesso de quem está olhando.
+   *
+   * Sai daqui, e não de uma consulta nova, porque esta função já é o que o
+   * app inteiro carrega uma vez (ver `unit-context.tsx`) — e é dela que o menu
+   * passa a saber quais módulos mostrar. Ver `niveis-de-acesso.ts`.
+   */
+  nivel: MemberRole | null;
 }
 
 export type SettingsRecord = ProfessionalSetting | ChairSetting | ProcedureSetting | UnitSetting;
@@ -125,11 +135,12 @@ export const getSettings = createServerFn({ method: "GET" })
         isDefault: row.is_default ?? false,
       })),
       isAdmin: context.isAdmin,
+      nivel: context.memberRole,
     };
   });
 
 export const saveSetting = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeConfiguracoes])
   .inputValidator((input: { section: SettingsSection; item: Record<string, unknown> }) => input)
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
@@ -146,7 +157,12 @@ export const saveSetting = createServerFn({ method: "POST" })
     if (data.section === "units") {
       if (!context.isAdmin) throw new Error("Apenas administradores podem gerenciar unidades.");
       table = "clinic_units";
-      row = { ...common, name: item.name, address: item.address || null, active: item.active ?? true };
+      row = {
+        ...common,
+        name: item.name,
+        address: item.address || null,
+        active: item.active ?? true,
+      };
     } else if (data.section === "professionals") {
       table = "professionals";
       row = {
@@ -191,7 +207,7 @@ export const saveSetting = createServerFn({ method: "POST" })
   });
 
 export const deleteSetting = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeConfiguracoes])
   .inputValidator((input: { section: SettingsSection; id: string }) => input)
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;

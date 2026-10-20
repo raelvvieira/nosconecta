@@ -1,11 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { soCaixa, soNatureza, temColunasDeCartao } from "./schema-cartao";
 import { localDateStr } from "@/lib/date";
 import { mesCorrente } from "./mes";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
+import { exigeFinanceiro } from "@/lib/auth/area.middleware";
 
 export type PayableStatus = "all" | "paid" | "pending" | "overdue";
 
@@ -131,7 +131,7 @@ export const getPayablesOverview = createServerFn({ method: "GET" })
       q: input.q?.trim() || undefined,
     }),
   )
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }): Promise<PayablesOverview> => {
     // types.ts ainda não conhece unit_id/company_id opcional.
     const supabase: any = context.supabase;
@@ -516,7 +516,7 @@ export const createPayable = createServerFn({ method: "POST" })
       };
     },
   )
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }) => {
     // types.ts ainda não conhece unit_id/company_id opcional.
     const supabase: any = context.supabase;
@@ -708,7 +708,7 @@ export const updatePayable = createServerFn({ method: "POST" })
       };
     },
   )
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }) => {
     // types.ts ainda não conhece unit_id/company_id opcional.
     const supabase: any = context.supabase;
@@ -757,7 +757,7 @@ export const markPayablePaid = createServerFn({ method: "POST" })
     id: input.id,
     paid_date: input.paid_date ?? todayStr(),
   }))
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }) => {
     // types.ts ainda não conhece unit_id/company_id opcional.
     const supabase: any = context.supabase;
@@ -801,7 +801,7 @@ export const markPayablePaid = createServerFn({ method: "POST" })
 
 export const deletePayable = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }) => {
     // types.ts ainda não conhece unit_id/company_id opcional.
     const supabase: any = context.supabase;

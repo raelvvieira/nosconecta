@@ -1,10 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { localDateStr } from "@/lib/date";
 import { mesCorrente } from "./mes";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
+import { exigeFinanceiro } from "@/lib/auth/area.middleware";
 
 export type ReceivableStatus =
   | "all"
@@ -146,7 +146,7 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
       q: input.q?.trim() || undefined,
     }),
   )
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }): Promise<ReceivablesOverview> => {
     // types.ts ainda não conhece unit_id/company_id opcional.
     const supabase: any = context.supabase;
@@ -547,7 +547,7 @@ export const createReceivable = createServerFn({ method: "POST" })
       };
     },
   )
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }) => {
     // types.ts ainda não conhece unit_id/company_id opcional.
     const supabase: any = context.supabase;
@@ -779,7 +779,7 @@ export const markReceivableReceived = createServerFn({ method: "POST" })
       payment_method: input.payment_method ?? undefined,
     }),
   )
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }) => {
     // types.ts ainda não conhece unit_id/company_id opcional.
     const supabase: any = context.supabase;
@@ -823,7 +823,7 @@ export const markReceivableReceived = createServerFn({ method: "POST" })
 
 export const cancelReceivable = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }) => {
     // types.ts ainda não conhece unit_id/company_id opcional.
     const supabase: any = context.supabase;
@@ -838,7 +838,7 @@ export const cancelReceivable = createServerFn({ method: "POST" })
 
 export const deleteReceivable = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }) => {
     // types.ts ainda não conhece unit_id/company_id opcional.
     const supabase: any = context.supabase;

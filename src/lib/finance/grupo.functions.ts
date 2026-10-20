@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { exigeFinanceiro } from "@/lib/auth/area.middleware";
 
 /**
  * Qual grupo de WhatsApp registra despesa, e o que ele já registrou.
@@ -34,7 +34,7 @@ export interface GrupoDoFinanceiro {
 }
 
 export const listarGruposConhecidos = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ context }): Promise<GrupoConhecido[]> => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase: any = context.supabase;
@@ -67,7 +67,7 @@ export const listarGruposConhecidos = createServerFn({ method: "GET" })
   });
 
 export const listarGruposDoFinanceiro = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ context }): Promise<GrupoDoFinanceiro[]> => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase: any = context.supabase;
@@ -89,7 +89,7 @@ export const listarGruposDoFinanceiro = createServerFn({ method: "GET" })
   });
 
 export const salvarGrupoDoFinanceiro = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator(
     (input: {
       id?: string | null;
@@ -138,7 +138,7 @@ export const salvarGrupoDoFinanceiro = createServerFn({ method: "POST" })
   });
 
 export const removerGrupoDoFinanceiro = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator((input: { id: string }) => {
     if (!input.id?.trim()) throw new Error("Grupo inválido");
     return { id: input.id.trim() };
@@ -169,7 +169,7 @@ export interface LancamentoDoGrupo {
 
 /** O que o robô fez ultimamente — é por aqui que se confere se ele acerta. */
 export const listarUltimosLancamentos = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ context }): Promise<LancamentoDoGrupo[]> => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase: any = context.supabase;

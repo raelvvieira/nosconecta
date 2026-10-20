@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useRouterState } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, LogOut, ShieldAlert, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { getMembershipStatus, registerPendingMembership } from "@/lib/auth/membership.functions";
+import { getMembershipStatus } from "@/lib/auth/membership.functions";
+import type { MemberRole } from "@/lib/auth/clinic-context.middleware";
+import { ROTA_INICIAL, podeAbrir } from "@/lib/auth/niveis-de-acesso";
 
 /**
  * Rotas que existem antes/fora de ter uma matrícula aprovada — nunca passam
  * pelo gate, mesmo autenticadas. `/auth` já é tratada pelo `AuthGate`; esta
  * lista cobre as que também precisam ficar de fora do `MembershipGate`.
  */
-const MEMBERSHIP_EXEMPT_PREFIXES = ["/auth", "/cadastro-equipe"];
+const MEMBERSHIP_EXEMPT_PREFIXES = ["/auth", "/convite"];
 
 export function MembershipGate({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -24,48 +26,15 @@ export function MembershipGate({ children }: { children: ReactNode }) {
 
 function MembershipCheck({ children }: { children: ReactNode }) {
   const fetchStatus = useServerFn(getMembershipStatus);
-  const registerPending = useServerFn(registerPendingMembership);
-  const [autoRegisterFailed, setAutoRegisterFailed] = useState(false);
-  const attemptedAutoRegister = useRef(false);
 
   const query = useQuery({
     queryKey: ["membership-status"],
     queryFn: () => fetchStatus(),
-    // Uma conta pendente pode virar aprovada a qualquer momento — sem
-    // recarregar a página o usuário ficaria preso na tela de espera mesmo
-    // depois de aprovado.
+    // Um acesso pode ser reativado a qualquer momento — sem isto a pessoa
+    // ficaria presa na tela de aviso mesmo depois de resolvido.
     refetchInterval: 15_000,
     retry: false,
   });
-
-  // Confirmação de e-mail ligada: a sessão só chega no primeiro login, não
-  // logo após o cadastro. É aqui, vendo `status === null` pela primeira vez,
-  // que criamos a linha pendente que o `cadastro-equipe.tsx` não conseguiu
-  // criar na hora — usando os dados que o próprio `signUp` guardou em
-  // `user_metadata`.
-  useEffect(() => {
-    if (query.data !== null || query.isLoading || attemptedAutoRegister.current) return;
-    attemptedAutoRegister.current = true;
-
-    (async () => {
-      const { data: userData } = await supabase.auth.getUser();
-      const meta = userData.user?.user_metadata as
-        | { full_name?: string; phone?: string; signup_source?: string }
-        | undefined;
-      if (meta?.signup_source !== "cadastro-equipe" || !userData.user?.email) {
-        setAutoRegisterFailed(true);
-        return;
-      }
-      try {
-        await registerPending({
-          data: { name: meta.full_name ?? "", email: userData.user.email, phone: meta.phone ?? null },
-        });
-        query.refetch();
-      } catch {
-        setAutoRegisterFailed(true);
-      }
-    })();
-  }, [query.data, query.isLoading]);
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -98,15 +67,15 @@ function MembershipCheck({ children }: { children: ReactNode }) {
     return <GateScreen icon={<Loader2 className="h-6 w-6 animate-spin" />} title="Carregando…" />;
   }
 
+  // Conta autenticada sem linha em `clinic_members`: desde 20/10 o acesso é só
+  // por convite, então isto quer dizer "criou conta por fora" — não há mais
+  // autocadastro para concluir.
   if (status === null) {
-    if (!autoRegisterFailed) {
-      return <GateScreen icon={<Loader2 className="h-6 w-6 animate-spin" />} title="Concluindo seu cadastro…" />;
-    }
     return (
       <GateScreen
         icon={<ShieldAlert className="h-6 w-6 text-destructive" />}
         title="Sua conta não está vinculada a nenhuma clínica"
-        description="Se você tentou se cadastrar pelo link da equipe, peça para o administrador verificar. Se chegou aqui por engano, saia e use o link de cadastro correto."
+        description="O acesso à NÓS Conecta é por convite: peça um link para quem administra a clínica. Se já recebeu um, abra o link de novo com esta conta."
         onSignOut={handleSignOut}
       />
     );
@@ -145,6 +114,35 @@ function MembershipCheck({ children }: { children: ReactNode }) {
     );
   }
 
+  // ── O nível, valendo também na rota ───────────────────────────────────
+  //
+  // Esconder o item no menu não impede ninguém de digitar `/pagamentos` na
+  // barra de endereço, nem de abrir um link antigo que alguém mandou. O
+  // servidor recusa a consulta (ver `area.middleware.ts`), mas o que a pessoa
+  // veria era uma tela de erro — e tela de erro, para quem só clicou num link,
+  // parece defeito do sistema.
+  //
+  // Então quem abre o que não é dele volta para o Início, sem alarde.
+  return <SoOQueENivelDela nivel={status.role}>{children}</SoOQueENivelDela>;
+}
+
+function SoOQueENivelDela({ nivel, children }: { nivel: MemberRole | null; children: ReactNode }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+  const liberado = podeAbrir(nivel, pathname);
+
+  useEffect(() => {
+    if (!liberado) navigate({ to: ROTA_INICIAL, replace: true });
+  }, [liberado, navigate]);
+
+  if (!liberado) {
+    return (
+      <GateScreen
+        icon={<Loader2 className="h-6 w-6 animate-spin" />}
+        title="Levando você para o Início…"
+      />
+    );
+  }
   return <>{children}</>;
 }
 
@@ -169,7 +167,12 @@ function GateScreen({
         {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
         {actions}
         {onSignOut ? (
-          <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground mt-2" onClick={onSignOut}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-muted-foreground mt-2"
+            onClick={onSignOut}
+          >
             <LogOut className="h-3.5 w-3.5" />
             Sair
           </Button>

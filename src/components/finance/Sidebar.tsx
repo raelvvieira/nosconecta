@@ -16,11 +16,11 @@ import { IlhaDoMais } from "@/components/layout/IlhaDoMais";
 import { Popover, PopoverTrigger } from "@/components/ui/popover";
 import {
   ACOES_DA_AGENDA,
-  GRUPOS_DO_MAIS,
   ITENS_ATENDIMENTOS,
   ITENS_FINANCEIRO,
   MODULOS,
   SUBMENUS,
+  doNivel,
   navegaveis,
   type ItemDoMenu,
 } from "@/components/layout/destinos";
@@ -63,7 +63,12 @@ export function Sidebar() {
   const fabCtx = useMobileFab();
   const fab = fabCtx?.fab ?? null;
   const handlers = fabCtx?.handlers ?? {};
-  const { isAdmin, units } = useUnitSelection();
+  const { isAdmin, nivel, units } = useUnitSelection();
+
+  // O menu passa a mostrar só o que o nível alcança. Até 20/10 todo mundo via
+  // tudo — a recepção abria o faturamento da clínica pelo menu lateral. Ver
+  // `niveis-de-acesso.ts`.
+  const modulos = useMemo(() => doNivel(MODULOS, nivel), [nivel]);
 
   const collapsed = !aberto;
 
@@ -89,7 +94,10 @@ export function Sidebar() {
   // que faz ele expirar sozinho ao navegar, sem nenhum efeito para limpá-lo.
   const [rotaDoDesvio, setRotaDoDesvio] = useState<string | null>(null);
   const setVoltouAosModulos = (v: boolean) => setRotaDoDesvio(v ? pathname : null);
-  const submenu = rotaDoDesvio === pathname || !secaoDaRota ? null : SUBMENUS[secaoDaRota];
+  const submenuDaRota = rotaDoDesvio === pathname || !secaoDaRota ? null : SUBMENUS[secaoDaRota];
+  const submenu = submenuDaRota
+    ? { ...submenuDaRota, itens: doNivel(submenuDaRota.itens, nivel) }
+    : null;
 
   // Duas leituras de "ativo", porque a pergunta é diferente em cada lista.
   //
@@ -279,7 +287,7 @@ export function Sidebar() {
             onVoltar={submenu ? () => setVoltouAosModulos(true) : undefined}
           />
 
-          {(submenu ? submenu.itens : MODULOS).map((destino) => (
+          {(submenu ? submenu.itens : modulos).map((destino) => (
             <div key={destino.to}>
               <ItemDeMenu
                 destino={destino}
@@ -482,10 +490,11 @@ export function Sidebar() {
           // entre "Campanhas" e "Automação" era o gap de 2px da barra — os
           // rótulos encostavam um no outro. Quem sai continua na gaveta
           // "Mais", que já lista as duas listas inteiras (GRUPOS_DO_MAIS).
-          const itens = (
+          const itens = doNivel(
             inAtendimentos
               ? ITENS_ATENDIMENTOS
-              : MODULOS.filter((m) => m.to !== "/configuracoes" && m.to !== "/atendimentos")
+              : MODULOS.filter((m) => m.to !== "/configuracoes" && m.to !== "/atendimentos"),
+            nivel,
           ).slice(0, MAX_DESTINOS_DA_ILHA);
           return (
             <>

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { exigeAgenteIa } from "@/lib/auth/area.middleware";
 
 /**
  * A biblioteca de casos de antes e depois.
@@ -53,7 +53,7 @@ function validar(input: {
 }
 
 export const listarCasos = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .handler(async ({ context }): Promise<CasoDaBiblioteca[]> => {
     // types.ts só conhece a tabela depois que o Lovable regenerar a partir da
     // migration — mesmo escape que o resto do projeto já usa até lá.
@@ -76,7 +76,7 @@ export const listarCasos = createServerFn({ method: "GET" })
   });
 
 export const salvarCaso = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .inputValidator(
     (input: {
       id?: string | null;
@@ -119,7 +119,7 @@ export const salvarCaso = createServerFn({ method: "POST" })
   });
 
 export const excluirCaso = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .inputValidator((input: { id: string }) => {
     if (!input.id?.trim()) throw new Error("Caso inválido");
     return { id: input.id.trim() };

@@ -36,6 +36,15 @@ export interface HomeData {
   alertas: { total: number; valorEmAtraso: number };
   proximos: HomeAppointment[];
   atencao: HomeAttentionItem[];
+  /**
+   * Quem está olhando pode ver dinheiro?
+   *
+   * Sem isto, o Início mostrava "Recebido hoje R$ 0,00" para a recepção — o
+   * servidor já não manda os números dela (ver `getFinanceOverview`), e um
+   * zero no lugar de um valor não é "nenhuma informação", é informação errada.
+   * O cartão inteiro sai da tela.
+   */
+  verFinanceiro: boolean;
 }
 
 /** Enfeite rotativo dos avatares da lista de hoje, em token — eram três hex
@@ -68,6 +77,9 @@ export function montarDadosHome(
   /** Avisos não lidos da caixa da clínica (paciente pediu remarcar, etc.).
    *  Opcional para as chamadas que ainda não passam esse dado não quebrarem. */
   avisosEmAberto = 0,
+  /** O nível de quem está olhando alcança o financeiro? Padrão `true` para as
+   *  chamadas antigas (e para os testes) não mudarem de comportamento. */
+  verFinanceiro = true,
 ): HomeData {
   const detalhes: string[] = [];
   if (hoje.confirmed) detalhes.push(`${hoje.confirmed} confirmados`);
@@ -130,5 +142,6 @@ export function montarDadosHome(
       ...ACENTOS[i % ACENTOS.length],
     })),
     atencao,
+    verFinanceiro,
   };
 }

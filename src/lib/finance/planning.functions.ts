@@ -1,9 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { soCaixa, temColunasDeCartao } from "./schema-cartao";
 import { localDateStr } from "@/lib/date";
+import { exigeFinanceiro } from "@/lib/auth/area.middleware";
 
 /* ---------- Types ---------- */
 
@@ -60,7 +60,11 @@ export interface FinancialGoal {
 }
 
 export type ScenarioKind =
-  "hire_employee" | "equipment_purchase" | "new_professional" | "marketing_investment" | "custom";
+  | "hire_employee"
+  | "equipment_purchase"
+  | "new_professional"
+  | "marketing_investment"
+  | "custom";
 
 export interface ScenarioRow {
   id: string;
@@ -239,7 +243,7 @@ const inputUnit = (input: { unitId?: string } | undefined) => ({ unitId: input?.
 
 export const getPlanningSummary = createServerFn({ method: "GET" })
   .inputValidator(inputUnit)
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }): Promise<PlanningSummary> => {
     const unitFilter = context.isAdmin ? (data.unitId ?? null) : context.unitId;
     const { today, currentBalance, pending, paid } = await fetchCompanyData(
@@ -298,7 +302,7 @@ export const getCashProjection = createServerFn({ method: "GET" })
     unitId: input?.unitId,
     period: (input?.period ?? 90) as RangeDays,
   }))
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }): Promise<ProjectionPoint[]> => {
     const supabase: any = context.supabase;
     const unitFilter = context.isAdmin ? (data.unitId ?? null) : context.unitId;
@@ -411,7 +415,7 @@ export const getCashProjection = createServerFn({ method: "GET" })
 
 export const getForecastSummary = createServerFn({ method: "GET" })
   .inputValidator(inputUnit)
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }): Promise<ForecastSummary> => {
     const unitFilter = context.isAdmin ? (data.unitId ?? null) : context.unitId;
     const { today, pending } = await fetchCompanyData(
@@ -438,7 +442,7 @@ export const getFinancialTimeline = createServerFn({ method: "GET" })
     unitId: input?.unitId,
     limit: input?.limit ?? 7,
   }))
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }): Promise<TimelineEvent[]> => {
     const unitFilter = context.isAdmin ? (data.unitId ?? null) : context.unitId;
     const { currentBalance, pending } = await fetchCompanyData(
@@ -466,7 +470,7 @@ export const getFinancialTimeline = createServerFn({ method: "GET" })
 
 export const listGoals = createServerFn({ method: "GET" })
   .inputValidator(inputUnit)
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }): Promise<FinancialGoal[]> => {
     const supabase: any = context.supabase;
     const unitFilter = context.isAdmin ? (data.unitId ?? null) : context.unitId;
@@ -564,7 +568,7 @@ export const listGoals = createServerFn({ method: "GET" })
 
 export const listScenarios = createServerFn({ method: "GET" })
   .inputValidator((_: unknown) => ({}))
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ context }): Promise<ScenarioRow[]> => {
     const supabase: any = context.supabase;
     const { data: rows } = await supabase
@@ -613,7 +617,7 @@ export const createScenario = createServerFn({ method: "POST" })
       one_time_cost: input.one_time_cost ?? 0,
     }),
   )
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
     const { error } = await supabase.from("financial_scenarios").insert({
@@ -631,7 +635,7 @@ export const createScenario = createServerFn({ method: "POST" })
 
 export const deleteScenario = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from("financial_scenarios")
@@ -660,7 +664,7 @@ export const simulateScenario = createServerFn({ method: "POST" })
       period: (input.period ?? 90) as RangeDays,
     }),
   )
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }) => {
     const unitFilter = context.isAdmin ? (data.unitId ?? null) : context.unitId;
     const { today, currentBalance, pending } = await fetchCompanyData(
@@ -819,7 +823,7 @@ async function computeInsights(
 
 export const getInsights = createServerFn({ method: "GET" })
   .inputValidator(inputUnit)
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data, context }) => {
     const unitFilter = context.isAdmin ? (data.unitId ?? null) : context.unitId;
     return computeInsights(context.supabase, context.ownerId, unitFilter);
@@ -830,9 +834,9 @@ export const getPlanningOverview = createServerFn({ method: "GET" })
     unitId: input?.unitId,
     period: (input?.period ?? 90) as RangeDays,
   }))
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .handler(async ({ data }): Promise<PlanningOverview> => {
-    // Cada chamada abaixo roda de novo `requireClinicMembership` sozinha
+    // Cada chamada abaixo roda de novo `exigeFinanceiro` sozinha
     // (mesma requisição HTTP ambiente, mesmo padrão de composição já usado
     // no resto do módulo financeiro) — só precisa repassar `unitId`, que é
     // escolha de tela, não algo que o contexto resolveria sozinho.

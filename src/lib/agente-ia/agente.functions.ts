@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { CAMPOS_DO_MANUAL, type ManualDeVendas } from "./manual";
 import { precoDoModelo, somarPorMes, type PrecoDoModelo, type SomaDoMes } from "./consumo";
+import { exigeAgenteIa } from "@/lib/auth/area.middleware";
 
 export type { ManualDeVendas };
 
@@ -56,7 +56,7 @@ async function chamar(body: unknown): Promise<any> {
 }
 
 export const getEstadoDoAgente = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .handler(async ({ context }): Promise<EstadoDoAgente> => {
     const json = await chamar({ ownerId: context.ownerId, action: "estado" });
     const a = json.agente ?? {};
@@ -94,7 +94,7 @@ export const getEstadoDoAgente = createServerFn({ method: "GET" })
  * as que estão valendo.
  */
 export const getInstrucaoDoAgente = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .handler(async ({ context }): Promise<string> => {
     const json = await chamar({ ownerId: context.ownerId, action: "instrucao" });
     return String(json.instrucao ?? "");
@@ -102,7 +102,7 @@ export const getInstrucaoDoAgente = createServerFn({ method: "GET" })
 
 /** Roda o ciclo agora: coleta vendas novas e reconstrói o manual. */
 export const aprenderAgora = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .handler(async ({ context }): Promise<{ novas: number; aprendeu: boolean; motivo?: string }> => {
     const json = await chamar({ ownerId: context.ownerId, action: "ciclo" });
     return {
@@ -113,7 +113,7 @@ export const aprenderAgora = createServerFn({ method: "POST" })
   });
 
 export const salvarConfiguracaoDoAgente = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .inputValidator(
     (input: {
       nome?: string;
@@ -149,7 +149,7 @@ export const salvarConfiguracaoDoAgente = createServerFn({ method: "POST" })
  * a IA aprendeu.
  */
 export const salvarCorrecao = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .inputValidator((input: { campo: string; valor: string }) => {
     if (!CAMPOS_DO_MANUAL.includes(input.campo as never)) {
       throw new Error(`Campo desconhecido: ${input.campo}`);
@@ -200,7 +200,7 @@ export interface ProcedimentoDoCatalogo {
  * possível num negócio de serviço.
  */
 export const getProcedimentosDoAgente = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .handler(async ({ context }): Promise<ProcedimentoDoCatalogo[]> => {
     const supabase: any = context.supabase;
     const [{ data: procedimentos, error }, { data: escolhidos }] = await Promise.all([
@@ -226,7 +226,7 @@ export const getProcedimentosDoAgente = createServerFn({ method: "GET" })
   });
 
 export const alternarProcedimentoDoAgente = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .inputValidator((input: { procedureId: string; liberado: boolean }) => input)
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
@@ -341,7 +341,7 @@ export interface ConfigDeAtendimento {
 }
 
 export const getAtendimento = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .handler(async ({ context }): Promise<ConfigDeAtendimento> => {
     const supabase: any = context.supabase;
     const { data: agente } = await supabase
@@ -392,7 +392,7 @@ export const getAtendimento = createServerFn({ method: "GET" })
   });
 
 export const salvarAtendimento = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .inputValidator(
     (input: {
       debounceSegundos?: number;
@@ -572,7 +572,7 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
  * O que desce para o navegador é uma lista de nomes.
  */
 export const listarModelosDaIa = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .handler(async ({ context }): Promise<{ modelos: string[]; erro: string | null }> => {
     // `types.ts` é gerado pelo Lovable e não conhece a coluna `model`, que
     // nasceu agora — mesma razão do `any` nas outras funções deste arquivo.
@@ -628,7 +628,7 @@ export const listarModelosDaIa = createServerFn({ method: "GET" })
 /** Roda o atendimento com uma mensagem de mentira. Nada sai para paciente
  *  nenhum — é o que torna isto testável antes do registro no CRM. */
 export const simularAtendimento = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .inputValidator((input: { texto: string }) => {
     if (!input.texto?.trim()) throw new Error("Escreva uma mensagem para simular.");
     return input;
@@ -684,7 +684,7 @@ export interface EstadoDaLunaNaConversa {
 }
 
 export const getEstadoDaLunaNaConversa = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .inputValidator((input: { conversationId: string }) => input)
   .handler(async ({ data, context }): Promise<EstadoDaLunaNaConversa | null> => {
     // `: any` como no resto do arquivo, e aqui é obrigatório, não hábito:
@@ -738,7 +738,7 @@ export const getEstadoDaLunaNaConversa = createServerFn({ method: "GET" })
  * sempre, e a Luna repetiria que está aguardando uma confirmação que já veio.
  */
 export const devolverParaIa = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .inputValidator((input: { sessionId: string }) => input)
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
@@ -765,7 +765,7 @@ export const devolverParaIa = createServerFn({ method: "POST" })
  * assumido a conversa não precisa de devolução: a Luna nunca saiu.
  */
 export const resolverDuvidaDaLuna = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .inputValidator((input: { sessionId: string }) => input)
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
@@ -803,7 +803,7 @@ export interface PainelDoFunil {
  * de página é um painel que ninguém deixa aberto.
  */
 export const getPainelDoFunil = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .handler(async ({ context }): Promise<PainelDoFunil> => {
     const supabase: any = context.supabase;
     const { data, error } = await supabase
@@ -868,7 +868,7 @@ export interface SugestoesDaConversa {
  * card. Um erro vermelho em toda conversa aberta seria pior que card nenhum.
  */
 export const getSugestoesDaConversa = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .inputValidator((input: { conversationId: string }) => input)
   .handler(async ({ data, context }): Promise<SugestoesDaConversa> => {
     const vazio = (motivo: string): SugestoesDaConversa => ({
@@ -940,7 +940,7 @@ export interface LicoesDaLuna {
  * e é justamente a contagem que alguém vai usar para reescrever o manual.
  */
 export const listarLicoesDaLuna = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .handler(async ({ context }): Promise<LicoesDaLuna> => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a tabela nasceu depois do types.ts gerado pelo Lovable
     const supabase: any = context.supabase;
@@ -1123,7 +1123,7 @@ async function daReserva(): Promise<number | null> {
 }
 
 export const getConsumoDaIa = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .handler(async ({ context }): Promise<ConsumoDaIa> => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- as três tabelas nasceram depois do types.ts gerado pelo Lovable
     const supabase: any = context.supabase;
@@ -1190,7 +1190,7 @@ export const getConsumoDaIa = createServerFn({ method: "GET" })
  * milhão de tokens é muito acima de qualquer modelo que exista hoje.
  */
 export const salvarPrecoDoModelo = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .validator((d: { modelo: string; entrada: number; cache: number | null; saida: number }) => d)
   .handler(async ({ context, data }) => {
     const modelo = String(data.modelo ?? "").trim();

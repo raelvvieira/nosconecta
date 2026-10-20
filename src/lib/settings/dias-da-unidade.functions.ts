@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { exigeConfiguracoes } from "@/lib/auth/area.middleware";
 
 /**
  * Os dias em que uma unidade de viagem atende.
@@ -62,7 +62,7 @@ function hojeNaClinica(): string {
 const PADRAO_DE_DATA = /^\d{4}-\d{2}-\d{2}$/;
 
 export const listarDiasDasUnidades = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeConfiguracoes])
   .handler(async ({ context }): Promise<UnidadeComDias[]> => {
     // `any` porque `types.ts` só conhece a coluna e a tabela novas depois que o
     // Lovable regenerar a partir da migration — mesmo escape do resto do
@@ -124,7 +124,7 @@ const MAXIMO_DE_DIAS = 400;
  * estão: são o registro de uma viagem que aconteceu, e a agenda não os olha.
  */
 export const definirDiasDaUnidade = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeConfiguracoes])
   .inputValidator((input: { unitId: string; dates: string[] }) => {
     if (!input.unitId?.trim()) throw new Error("Unidade inválida.");
     const hoje = hojeNaClinica();

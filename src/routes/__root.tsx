@@ -171,10 +171,11 @@ function AuthGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!ready) return;
     const isAuthRoute = pathname.startsWith("/auth");
-    // /cadastro-equipe é pública como /auth (autocadastro, sem sessão ainda),
-    // mas não redireciona para /inicio quando já autenticado — a própria
-    // página lida com os dois casos (ver cadastro-equipe.tsx).
-    const isPublicRoute = isAuthRoute || pathname.startsWith("/cadastro-equipe");
+    // /convite é pública como /auth: quem abre o link ainda não tem conta. E,
+    // ao contrário de /auth, ela NÃO redireciona para /inicio quando já há
+    // sessão — a própria página trata o caso de quem já está logado (ver
+    // `convite.$token.tsx`).
+    const isPublicRoute = isAuthRoute || pathname.startsWith("/convite");
     if (!authed && !isPublicRoute) {
       router.navigate({
         to: "/auth",
@@ -197,7 +198,7 @@ function AuthGate({ children }: { children: ReactNode }) {
       </div>
     );
   }
-  const isPublicRoute = pathname.startsWith("/auth") || pathname.startsWith("/cadastro-equipe");
+  const isPublicRoute = pathname.startsWith("/auth") || pathname.startsWith("/convite");
   if (!authed && !isPublicRoute) return null;
   return <>{children}</>;
 }

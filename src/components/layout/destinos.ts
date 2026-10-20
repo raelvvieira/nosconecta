@@ -1,3 +1,4 @@
+import { areaDaRota, podeVerArea, type NivelDeAcesso } from "@/lib/auth/niveis-de-acesso";
 import {
   ArrowDownCircle,
   ArrowUpCircle,
@@ -129,6 +130,28 @@ export const GRUPOS_DO_MAIS: { label: string; itens: ItemDoMenu[] }[] = [
   { label: "Atendimentos", itens: ITENS_ATENDIMENTOS },
   { label: "Financeiro", itens: ITENS_FINANCEIRO.filter((i) => i.placeholder !== true) },
 ];
+
+/**
+ * Só os destinos que o nível da pessoa alcança.
+ *
+ * Mora aqui, junto das listas, pelo mesmo motivo que elas moram juntas: o menu
+ * lateral, a barra do celular e a gaveta "Mais" têm de esconder exatamente os
+ * mesmos itens. Três filtros escritos à mão divergiriam — e divergir aqui quer
+ * dizer um caminho esquecido para o Financeiro na barra do celular.
+ *
+ * O item "em breve" (sem rota de verdade) segue a área da rota que ele promete.
+ */
+export function doNivel<T extends ItemDoMenu>(
+  itens: readonly T[],
+  nivel: NivelDeAcesso | null | undefined,
+): T[] {
+  return itens.filter((i) => {
+    const area = areaDaRota(i.to);
+    // Destino fora das áreas conhecidas não é escondido por nível — quem o
+    // criou decide, e esconder calado seria pior que mostrar.
+    return area === null || podeVerArea(nivel, area);
+  });
+}
 
 /** Ações da barra inferior na Agenda — a FORMA, sem os handlers.
  *

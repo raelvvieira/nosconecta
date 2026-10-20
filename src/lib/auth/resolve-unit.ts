@@ -20,9 +20,13 @@ export interface UnitResolutionContext {
  * cadastradas, admin precisa escolher explicitamente — não há como adivinhar
  * qual das duas é a certa.
  */
-export async function resolveUnitId(ctx: UnitResolutionContext, requestedUnitId?: string | null): Promise<string> {
+export async function resolveUnitId(
+  ctx: UnitResolutionContext,
+  requestedUnitId?: string | null,
+): Promise<string> {
   if (!ctx.isAdmin) {
-    if (!ctx.unitId) throw new Error("Sua conta não está associada a uma unidade. Fale com o administrador.");
+    if (!ctx.unitId)
+      throw new Error("Sua conta não está associada a uma unidade. Fale com o administrador.");
     return ctx.unitId;
   }
   if (requestedUnitId) return requestedUnitId;

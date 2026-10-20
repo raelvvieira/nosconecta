@@ -53,24 +53,32 @@ export function DesktopHome({ dados }: { dados: HomeData }) {
           tone="violet"
           footer={<span className="text-muted-foreground">pacientes aguardando</span>}
         />
-        <KpiCard
-          label="Recebido hoje"
-          value={formatBRL(dados.recebidoHoje)}
-          icon={DollarSign}
-          tone="success"
-          footer={<span className="text-muted-foreground">entrou no caixa hoje</span>}
-        />
-        <KpiCard
-          label="Alertas"
-          value={String(dados.alertas.total)}
-          icon={AlertTriangle}
-          tone="danger"
-          footer={
-            <span className="text-muted-foreground">
-              {formatBRL(dados.alertas.valorEmAtraso)} em atraso
-            </span>
-          }
-        />
+        {/* Os dois cartões de dinheiro só existem para quem vê o financeiro.
+            Para os outros o servidor nem manda os números — ver
+            `getFinanceOverview` —, e um "R$ 0,00" no lugar seria pior que a
+            ausência: é um número errado com cara de certo. */}
+        {dados.verFinanceiro ? (
+          <>
+            <KpiCard
+              label="Recebido hoje"
+              value={formatBRL(dados.recebidoHoje)}
+              icon={DollarSign}
+              tone="success"
+              footer={<span className="text-muted-foreground">entrou no caixa hoje</span>}
+            />
+            <KpiCard
+              label="Alertas"
+              value={String(dados.alertas.total)}
+              icon={AlertTriangle}
+              tone="danger"
+              footer={
+                <span className="text-muted-foreground">
+                  {formatBRL(dados.alertas.valorEmAtraso)} em atraso
+                </span>
+              }
+            />
+          </>
+        ) : null}
       </GrupoDeKpis>
 
       <section className="surface-card p-6">
@@ -85,32 +93,34 @@ export function DesktopHome({ dados }: { dados: HomeData }) {
             Nenhum atendimento pendente para o resto de hoje.
           </p>
         ) : (
-        <div className="divide-y divide-border">
-          {dados.proximos.map((appt) => (
-            <div key={appt.id} className="flex items-center gap-3 py-3">
-              <div className="w-16 shrink-0 text-sm font-semibold tabular-nums">{appt.time}</div>
-              <div
-                className="h-10 w-10 shrink-0 rounded-full grid place-items-center text-xs font-bold"
-                style={{ background: appt.avatarBg, color: appt.accentColor }}
-              >
-                {appt.initials}
+          <div className="divide-y divide-border">
+            {dados.proximos.map((appt) => (
+              <div key={appt.id} className="flex items-center gap-3 py-3">
+                <div className="w-16 shrink-0 text-sm font-semibold tabular-nums">{appt.time}</div>
+                <div
+                  className="h-10 w-10 shrink-0 rounded-full grid place-items-center text-xs font-bold"
+                  style={{ background: appt.avatarBg, color: appt.accentColor }}
+                >
+                  {appt.initials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">{appt.patient}</p>
+                  <p className="text-xs text-muted-foreground truncate">{appt.procedure}</p>
+                </div>
+                <span
+                  className="text-2xs font-semibold px-2.5 py-1 rounded-full shrink-0"
+                  style={{
+                    background: appt.confirmado
+                      ? "color-mix(in oklab, var(--success) 12%, transparent)"
+                      : "color-mix(in oklab, var(--warning) 12%, transparent)",
+                    color: appt.confirmado ? "var(--success)" : "var(--warning)",
+                  }}
+                >
+                  {appt.confirmado ? "Confirmado" : "Pendente"}
+                </span>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">{appt.patient}</p>
-                <p className="text-xs text-muted-foreground truncate">{appt.procedure}</p>
-              </div>
-              <span
-                className="text-2xs font-semibold px-2.5 py-1 rounded-full shrink-0"
-                style={{
-                  background: appt.confirmado ? "color-mix(in oklab, var(--success) 12%, transparent)" : "color-mix(in oklab, var(--warning) 12%, transparent)",
-                  color: appt.confirmado ? "var(--success)" : "var(--warning)",
-                }}
-              >
-                {appt.confirmado ? "Confirmado" : "Pendente"}
-              </span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
         )}
       </section>
 
@@ -123,7 +133,9 @@ export function DesktopHome({ dados }: { dados: HomeData }) {
             onClick={() => navigate({ to: "/agenda" })}
           >
             <CalendarDays className="h-5 w-5 shrink-0" />
-            <span className="text-sm font-semibold whitespace-normal text-left">Novo agendamento</span>
+            <span className="text-sm font-semibold whitespace-normal text-left">
+              Novo agendamento
+            </span>
           </Button>
           <Button
             variant="secondary"
@@ -139,7 +151,9 @@ export function DesktopHome({ dados }: { dados: HomeData }) {
             onClick={() => navigate({ to: "/recebimentos" })}
           >
             <ArrowDownCircle className="h-5 w-5 shrink-0" />
-            <span className="text-sm font-semibold whitespace-normal text-left">Registrar recebimento</span>
+            <span className="text-sm font-semibold whitespace-normal text-left">
+              Registrar recebimento
+            </span>
           </Button>
           <Button
             variant="secondary"
@@ -147,7 +161,9 @@ export function DesktopHome({ dados }: { dados: HomeData }) {
             onClick={() => navigate({ to: "/pagamentos" })}
           >
             <CreditCard className="h-5 w-5 shrink-0" />
-            <span className="text-sm font-semibold whitespace-normal text-left">Novo pagamento</span>
+            <span className="text-sm font-semibold whitespace-normal text-left">
+              Novo pagamento
+            </span>
           </Button>
         </div>
       </section>
@@ -157,21 +173,25 @@ export function DesktopHome({ dados }: { dados: HomeData }) {
         {dados.atencao.length === 0 ? (
           <p className="py-3 text-sm text-muted-foreground">Nada pendente por aqui.</p>
         ) : (
-        <div className="divide-y divide-border">
-          {dados.atencao.map((item, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => navigate({ to: item.to })}
-              className="w-full flex items-center gap-3 py-3 text-left">
-              <div className="h-9 w-9 shrink-0 rounded-full grid place-items-center" style={{ background: item.bg }}>
-                <item.icon className="h-4 w-4" style={{ color: item.color }} strokeWidth={1.75} />
-              </div>
-              <span className="flex-1 text-sm text-foreground">{item.label}</span>
-              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-            </button>
-          ))}
-        </div>
+          <div className="divide-y divide-border">
+            {dados.atencao.map((item, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => navigate({ to: item.to })}
+                className="w-full flex items-center gap-3 py-3 text-left"
+              >
+                <div
+                  className="h-9 w-9 shrink-0 rounded-full grid place-items-center"
+                  style={{ background: item.bg }}
+                >
+                  <item.icon className="h-4 w-4" style={{ color: item.color }} strokeWidth={1.75} />
+                </div>
+                <span className="flex-1 text-sm text-foreground">{item.label}</span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              </button>
+            ))}
+          </div>
         )}
       </section>
     </div>

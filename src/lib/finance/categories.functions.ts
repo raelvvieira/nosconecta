@@ -1,10 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { exigeFinanceiro } from "@/lib/auth/area.middleware";
 
 type CategoryType = "income" | "expense";
 
 export const listCategories = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator((input: { type: CategoryType }) => {
     if (input.type !== "income" && input.type !== "expense")
       throw new Error("Tipo de categoria inválido");
@@ -22,7 +22,7 @@ export const listCategories = createServerFn({ method: "GET" })
   });
 
 export const createCategory = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator((input: { name: string; type: CategoryType }) => {
     const name = input.name?.trim();
     if (!name) throw new Error("Informe o nome da categoria");
@@ -54,7 +54,7 @@ export const createCategory = createServerFn({ method: "POST" })
   });
 
 export const updateCategory = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator((input: { id: string; name: string }) => {
     const name = input.name?.trim();
     if (!input.id) throw new Error("Categoria inválida");
@@ -73,7 +73,7 @@ export const updateCategory = createServerFn({ method: "POST" })
   });
 
 export const deleteCategory = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator((input: { id: string }) => {
     if (!input.id) throw new Error("Categoria inválida");
     return { id: input.id };

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { exigeFinanceiro } from "@/lib/auth/area.middleware";
 
 /**
  * Lista os fornecedores já utilizados (nomes distintos em pagamentos).
@@ -10,7 +10,7 @@ import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
  * enxerga à própria unidade — não precisa de precisão extra aqui.
  */
 export const listSuppliers = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator((_: unknown) => ({}))
   .handler(async ({ context }) => {
     const { data: rows, error } = await context.supabase

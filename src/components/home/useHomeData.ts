@@ -5,6 +5,8 @@ import { getFinanceOverview } from "@/lib/finance/queries.functions";
 import { getHomeToday } from "@/lib/agenda/agenda.functions";
 import { listarAvisos } from "@/lib/notifications/inbox.functions";
 import { montarDadosHome, type HomeData } from "@/components/home/home-data";
+import { podeVerArea } from "@/lib/auth/niveis-de-acesso";
+import { useUnitSelection } from "@/lib/settings/unit-context";
 
 // A tela inicial aparece em dois lugares (`/inicio` e o modo celular de
 // `/financeiro`). Buscar aqui, e não em cada rota, é o que garante que as duas
@@ -34,6 +36,9 @@ export function useHomeData(): HomeData | null {
 
   const fetchAvisos = useServerFn(listarAvisos);
 
+  // O nível decide se a tela mostra dinheiro. Ver `HomeData.verFinanceiro`.
+  const { nivel } = useUnitSelection();
+
   const overview = useQuery(homeOverviewOptions(fetchOverview as any));
   const today = useQuery(homeTodayOptions(fetchToday as any));
   // Mesma chave do sino: as duas telas leem a mesma contagem, então abrir o
@@ -47,8 +52,13 @@ export function useHomeData(): HomeData | null {
   return useMemo(
     () =>
       overview.data && today.data
-        ? montarDadosHome(overview.data, today.data, avisos.data?.naoLidos ?? 0)
+        ? montarDadosHome(
+            overview.data,
+            today.data,
+            avisos.data?.naoLidos ?? 0,
+            podeVerArea(nivel, "financeiro"),
+          )
         : null,
-    [overview.data, today.data, avisos.data],
+    [overview.data, today.data, avisos.data, nivel],
   );
 }

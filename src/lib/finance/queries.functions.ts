@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { podeVerArea } from "@/lib/auth/niveis-de-acesso";
 import { soCaixa, temColunasDeCartao } from "./schema-cartao";
 import { localDateStr } from "@/lib/date";
 import { mesCorrente } from "./mes";
@@ -80,6 +81,38 @@ export interface OverviewData {
   dentists: { id: string; name: string; value: number; pct: number }[];
   commissions: { id: string; name: string; value: number; pct: number }[];
   insights: Insight[];
+}
+
+/**
+ * O mesmo formato, sem nenhum número.
+ *
+ * Zeros e listas vazias, e não `null`: quem consome espera `OverviewData`
+ * inteiro, e um campo faltando viraria tela branca no meio do Início. O que
+ * decide se isso aparece é a tela, pelo nível — ver o comentário em
+ * `getFinanceOverview`.
+ */
+function semFinanceiro(range: { from: Date; to: Date }): OverviewData {
+  const zero = { current: 0, previous: 0, deltaPct: 0 };
+  return {
+    range: { from: toDateStr(range.from), to: toDateStr(range.to) },
+    kpis: {
+      revenue: zero,
+      expenses: zero,
+      profit: zero,
+      margin: 0,
+      overdue: { total: 0, patients: 0 },
+    },
+    cashFlow: [],
+    accounts: [],
+    totalAvailable: 0,
+    emAberto: { receber: 0, pagar: 0 },
+    upcomingReceivables: [],
+    upcomingPayables: [],
+    procedures: [],
+    dentists: [],
+    commissions: [],
+    insights: [],
+  };
 }
 
 function getServerSupabase() {
@@ -200,6 +233,21 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
     const unitId = context.isAdmin ? (data.unitId ?? null) : context.unitId;
     const { period, granularity, from, to } = data;
     const range = periodToRange(period, from, to);
+
+    // ── Quem não vê o financeiro não recebe os números ────────────────────
+    //
+    // Esta é a única função financeira que NÃO usa `exigeFinanceiro`, e por um
+    // motivo: a tela de Início a carrega no `loader` da rota, para todo mundo.
+    // Recusar aqui faria o Início quebrar com tela de erro para a recepção e
+    // para a dentista — que têm todo direito de abrir o Início.
+    //
+    // Então ela devolve o esqueleto vazio. A tela, do lado de lá, esconde os
+    // blocos de dinheiro pelo mesmo nível (ver `inicio.tsx`): o número não
+    // chega, e o espaço dele também não fica aparecendo zerado, que seria uma
+    // informação errada em vez de nenhuma.
+    if (!podeVerArea(context.memberRole, "financeiro")) {
+      return semFinanceiro(range);
+    }
     const prev = previousRange(range);
     const fromStr = toDateStr(range.from);
     const toStr = toDateStr(range.to);

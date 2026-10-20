@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 import { tabelaDeCartaoAusente, traduzirErroDeCartao } from "./schema-cartao";
+import { exigeFinanceiro } from "@/lib/auth/area.middleware";
 
 /**
  * Cartões de crédito da clínica.
@@ -55,7 +55,7 @@ function validarDigitos(valor: unknown): string | null {
 }
 
 export const listCards = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator((input: { unitId?: string; incluirArquivados?: boolean } | undefined) => ({
     unitId: input?.unitId ?? null,
     incluirArquivados: Boolean(input?.incluirArquivados),
@@ -96,7 +96,7 @@ export const listCards = createServerFn({ method: "GET" })
   });
 
 export const createCard = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator(
     (input: {
       accountId: string;
@@ -151,7 +151,7 @@ export const createCard = createServerFn({ method: "POST" })
   });
 
 export const updateCard = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator(
     (input: {
       id: string;
@@ -197,7 +197,7 @@ export const updateCard = createServerFn({ method: "POST" })
   });
 
 export const archiveCard = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator((input: { id: string; arquivar?: boolean }) => {
     if (!input.id) throw new Error("Cartão inválido.");
     return { id: input.id, arquivar: input.arquivar !== false };
@@ -237,7 +237,7 @@ export const archiveCard = createServerFn({ method: "POST" })
   });
 
 export const deleteCard = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator((input: { id: string }) => {
     if (!input.id) throw new Error("Cartão inválido.");
     return { id: input.id };

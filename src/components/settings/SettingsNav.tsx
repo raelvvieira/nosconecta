@@ -12,8 +12,7 @@ import {
   MessageCircle,
   Receipt,
   Share2,
-  ShieldCheck,
-  Stethoscope,
+  Users,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -49,13 +48,6 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Cadastros",
     items: [
-      {
-        kind: "section",
-        value: "professionals",
-        label: "Profissionais",
-        description: "Equipe clínica e comissões",
-        icon: Stethoscope,
-      },
       {
         kind: "section",
         value: "chairs",
@@ -123,12 +115,16 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
         adminOnly: true,
       },
       {
-        kind: "section",
-        value: "members",
-        label: "Usuários e permissões",
-        description: "Acessos da equipe",
-        icon: ShieldCheck,
-        adminOnly: true,
+        // Uma área só para as pessoas. Eram duas — "Profissionais" nos
+        // cadastros e "Usuários e permissões" aqui —, e a mesma pessoa
+        // aparecia nas duas sem nada dizendo que era a mesma. Rota própria
+        // porque a CRUD genérica desta tela grava campos de texto numa tabela,
+        // e aqui são duas tabelas, as unidades de cada pessoa e os convites.
+        kind: "link",
+        to: "/configuracoes/pessoal",
+        label: "Pessoal",
+        description: "Quem trabalha aqui e o que cada um acessa",
+        icon: Users,
       },
       {
         // Ao lado de Unidades, e não em Cadastros: é sobre QUANDO cada unidade

@@ -1,9 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
 import { clinicTodayStr } from "@/lib/date";
 import { estadoDaFatura, faturasDasParcelas, valorDasParcelas } from "./fatura";
 import { tabelaDeCartaoAusente, traduzirErroDeCartao } from "./schema-cartao";
+import { exigeFinanceiro } from "@/lib/auth/area.middleware";
 
 /**
  * Compras no cartão e as faturas que as recebem.
@@ -111,7 +111,7 @@ async function garantirFatura(
 }
 
 export const createCardPurchase = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator(
     (input: {
       unitId?: string;
@@ -243,7 +243,7 @@ export interface DetalheDaFatura {
 }
 
 export const getCardInvoiceDetail = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator((input: { invoiceId: string }) => {
     if (!input.invoiceId) throw new Error("Fatura inválida.");
     return { invoiceId: input.invoiceId };
@@ -316,7 +316,7 @@ export const getCardInvoiceDetail = createServerFn({ method: "GET" })
  * que permite marcar as compras depois — e é por isso que ela existe.
  */
 export const payCardInvoice = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeFinanceiro])
   .inputValidator((input: { invoiceId: string; paidDate?: string | null }) => {
     if (!input.invoiceId) throw new Error("Fatura inválida.");
     return { invoiceId: input.invoiceId, paidDate: input.paidDate || null };

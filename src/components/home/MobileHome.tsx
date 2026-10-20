@@ -55,6 +55,9 @@ function Cabecalho() {
 }
 
 function cartoesResumo(dados: HomeData) {
+  // Os dois cartões de dinheiro saem da lista para quem não vê o financeiro —
+  // ver o comentário em `DesktopHome`. O filtro no fim da lista mantém a ordem
+  // dos que ficam.
   return [
     {
       icon: CalendarDays,
@@ -86,6 +89,7 @@ function cartoesResumo(dados: HomeData) {
       nota: "Recebimentos →",
       notaClass: "text-success",
       to: "/recebimentos" as const,
+      soComFinanceiro: true,
     },
     {
       icon: AlertTriangle,
@@ -101,8 +105,9 @@ function cartoesResumo(dados: HomeData) {
           : "Recebimentos →",
       notaClass: "text-danger",
       to: "/recebimentos" as const,
+      soComFinanceiro: true,
     },
-  ];
+  ].filter((c) => dados.verFinanceiro || !("soComFinanceiro" in c && c.soComFinanceiro));
 }
 
 function Resumo({ dados }: { dados: HomeData }) {

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { exigeAgenteIa } from "@/lib/auth/area.middleware";
 
 /**
  * O Olho de Deus, para a tela.
@@ -161,7 +161,7 @@ function numerosNaTela(v: unknown): NumerosNaTela {
 }
 
 export const getRelatoriosDoOlho = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .handler(async ({ context }): Promise<RelatorioDoOlho[]> => {
     // `: any` como no resto dos arquivos de server function, e aqui é
     // obrigatório: `ai_olho_relatorios` é tabela nova e `types.ts` é gerado
@@ -227,7 +227,7 @@ export const getRelatoriosDoOlho = createServerFn({ method: "GET" })
  * em vez de chutar um nome.
  */
 export const gerarRelatorioDoOlho = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeAgenteIa])
   .inputValidator((input: { de?: string; ate?: string }) => {
     for (const [campo, valor] of Object.entries(input ?? {})) {
       if (valor && !/^\d{4}-\d{2}-\d{2}$/.test(String(valor))) {
