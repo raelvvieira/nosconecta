@@ -2,6 +2,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { exigeArea } from "@/lib/auth/area.middleware";
+import { faltaTabela, gravarTolerandoColunaAusente, semColuna } from "@/lib/schema-fallback";
 import {
   niveisAPagar,
   reguaOrdenada,
@@ -27,6 +28,18 @@ import {
  */
 
 const exigeClub = exigeArea("club");
+
+/**
+ * A frase que a clínica precisa ler quando a migration do Club não rodou.
+ *
+ * O texto cru do PostgREST ("Could not find the table 'public.club_config' in
+ * the schema cache") é verdade, está em inglês e não diz o que fazer. Quem está
+ * do outro lado da tela não administra banco: precisa saber que falta um
+ * comando no Lovable, e qual é ele.
+ */
+export const FALTA_A_MIGRATION_DO_CLUB =
+  "Falta aplicar a atualização do banco do Club. No Lovable, mande " +
+  '"Apply pending Supabase migrations" e tente salvar de novo.';
 
 export interface IndicacaoNaTela {
   id: string;
@@ -635,16 +648,34 @@ export const salvarConfigDoClub = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     if (!context.isAdmin) throw new Error("Apenas administradores mudam os valores do Club.");
     const supabase: any = context.supabase;
-    const { error } = await supabase.from("club_config").upsert(
-      {
-        owner_id: context.ownerId,
-        credito_por_indicacao: data.creditoPorIndicacao,
-        credito_boas_vindas: data.creditoBoasVindas,
-        link_do_cartao: data.linkDoCartao || null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "owner_id" },
-    );
+    const linha = {
+      owner_id: context.ownerId,
+      credito_por_indicacao: data.creditoPorIndicacao,
+      credito_boas_vindas: data.creditoBoasVindas,
+      link_do_cartao: data.linkDoCartao || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Duas migrations criam o que esta gravação usa: uma faz a tabela, a outra
+    // acrescenta o endereço do cartão. Como o Lovable aplica migration num
+    // passo separado do deploy, as duas podem estar faltando — e o que chegava
+    // à tela era "Could not find the table 'public.club_config' in the schema
+    // cache", verdadeiro e inútil para quem só queria salvar um endereço.
+    const { error } = await gravarTolerandoColunaAusente({
+      coluna: "link_do_cartao",
+      // Sem a coluna, salvar os valores ainda faz sentido; salvar o ENDEREÇO
+      // não — seguir em silêncio deixaria a pessoa achando que o QR já aponta
+      // para o site dela.
+      exigida: !!data.linkDoCartao,
+      motivo: "O endereço do cartão não foi salvo.",
+      tentar: (semALinkDoCartao) =>
+        supabase
+          .from("club_config")
+          .upsert(semALinkDoCartao ? semColuna(linha, "link_do_cartao") : linha, {
+            onConflict: "owner_id",
+          }),
+    });
+    if (faltaTabela(error, "club_config")) throw new Error(FALTA_A_MIGRATION_DO_CLUB);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

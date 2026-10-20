@@ -77,3 +77,27 @@ export async function gravarTolerandoColunaAusente<T = any>({
   );
   return tentar(true);
 }
+
+/**
+ * O erro é "essa TABELA não existe"?
+ *
+ * Irmão de `faltaColuna`, para a migration que cria uma tabela inteira. Os dois
+ * lados falam idiomas diferentes: o Postgres cru diz `42P01` / "relation ...
+ * does not exist", e o PostgREST — que é quem responde ao app — diz `PGRST205`
+ * / "Could not find the table 'public.club_config' in the schema cache". A
+ * frase também é aceita porque cliente novo pode trocar o código sem trocar o
+ * texto.
+ */
+export function faltaTabela(
+  error: { code?: string; message?: string } | null | undefined,
+  tabela?: string,
+): boolean {
+  if (!error) return false;
+  const mensagem = String(error.message ?? "");
+  const ehTabelaAusente =
+    error.code === "PGRST205" ||
+    error.code === "42P01" ||
+    /could not find the table|relation .* does not exist/i.test(mensagem);
+  if (!ehTabelaAusente) return false;
+  return tabela ? mensagem.includes(tabela) : true;
+}
