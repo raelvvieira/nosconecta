@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Loader2, Lock, Phone, ShieldAlert, Sparkles, User } from "lucide-react";
+import { Loader2, Lock, Phone, ShieldAlert, Sparkles, User } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { NIVEIS } from "@/lib/auth/niveis-de-acesso";
 import { ESPECIALIDADES } from "@/lib/settings/especialidades";
 import { cn } from "@/lib/utils";
-import { convitePublico } from "@/lib/settings/pessoal.functions";
+import { convitePublico, criarContaDoConvite } from "@/lib/settings/pessoal.functions";
 
 /**
  * A página do convite.
@@ -40,6 +40,7 @@ function ConvitePage() {
   const { token } = Route.useParams();
   const navigate = useNavigate();
   const buscar = useServerFn(convitePublico);
+  const criarConta = useServerFn(criarContaDoConvite);
 
   const convite = useQuery({
     queryKey: ["convite", token],
@@ -63,7 +64,6 @@ function ConvitePage() {
   const [cor, setCor] = useState("#8B5CF6");
   const [salvando, setSalvando] = useState(false);
   const [marcouAtende, setMarcouAtende] = useState(false);
-  const [aguardandoEmail, setAguardandoEmail] = useState(false);
 
   const nivel = NIVEIS.find((n) => n.valor === convite.data?.nivel);
 
@@ -88,28 +88,37 @@ function ConvitePage() {
     }
 
     setSalvando(true);
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password: senha,
-      options: { data: { full_name: nomeCompleto, phone: telefone } },
-    });
-
-    if (error) {
+    // A conta nasce no servidor, já confirmada — o link do convite é a prova
+    // de quem ela é (ver `criarContaDoConvite`). Daqui ela entra e aceita na
+    // mesma tela: terminar o formulário é o que libera o acesso.
+    let criada: Awaited<ReturnType<typeof criarConta>>;
+    try {
+      criada = await criarConta({
+        data: { token, email, senha, nome: nomeCompleto, telefone },
+      });
+    } catch (erro) {
+      setSalvando(false);
+      toast.error(erro instanceof Error ? erro.message : "Não foi possível criar sua conta.");
+      return;
+    }
+    if (!criada.ok) {
       setSalvando(false);
       toast.error(
-        error.message === "User already registered"
-          ? "Já existe uma conta com este e-mail. Entre e peça o convite de novo."
-          : error.message,
+        criada.motivo === "email_em_uso"
+          ? "Já existe uma conta com este e-mail. Use outro, ou entre com ele e peça o convite de novo."
+          : criada.motivo === "convite_invalido"
+            ? "Este convite não vale mais. Peça um novo."
+            : "Não foi possível criar sua conta. Tente novamente.",
       );
       return;
     }
 
-    // Confirmação de e-mail ligada no projeto: sem sessão, nada pode ser
-    // gravado ainda. O convite continua valendo — ele só é consumido no
-    // aceite —, então a pessoa confirma o e-mail e volta pelo mesmo link.
-    if (!data.session) {
+    const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+    if (error) {
       setSalvando(false);
-      setAguardandoEmail(true);
+      toast.error(
+        "Sua conta foi criada, mas não deu para entrar. Tente entrar com e-mail e senha.",
+      );
       return;
     }
 
@@ -169,19 +178,6 @@ function ConvitePage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Convites valem por 7 dias e servem para uma pessoa só. Peça um link novo para quem
           administra a clínica.
-        </p>
-      </Moldura>
-    );
-  }
-
-  if (aguardandoEmail) {
-    return (
-      <Moldura>
-        <CheckCircle2 className="h-7 w-7 text-success" />
-        <h1 className="mt-3 text-lg font-semibold">Confirme seu e-mail</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Mandamos um link de confirmação para <strong>{email}</strong>. Depois de confirmar, volte
-          a abrir este mesmo convite para terminar — ele continua valendo.
         </p>
       </Moldura>
     );

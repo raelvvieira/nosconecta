@@ -478,3 +478,89 @@ export const convitePublico = createServerFn({ method: "GET" })
       };
     },
   );
+
+/**
+ * Cria a conta de quem abriu um convite — já confirmada, sem e-mail nenhum.
+ *
+ * ── Por que no servidor ───────────────────────────────────────────────────
+ *
+ * O `signUp` do navegador obedece à confirmação de e-mail ligada no projeto:
+ * a conta nasce sem sessão, a tela dizia "Confirme seu e-mail", e a pessoa
+ * tinha de ir à caixa de entrada e voltar pelo mesmo link para terminar. A
+ * clínica pediu em 21/10 que terminar o formulário bastasse.
+ *
+ * Bastar é seguro porque a prova de quem ela é já existe: o link. Ele vale
+ * para UMA pessoa, por 7 dias, e só quem administra gera. Exigir também a
+ * caixa de entrada não provava nada que o link não provasse — o mesmo
+ * raciocínio do Club, onde a prova é o cruzamento com a ficha.
+ *
+ * ── Por que confere o convite ANTES de criar ──────────────────────────────
+ *
+ * Esta função é pública (quem a chama ainda não tem conta) e cria usuário com
+ * a chave de serviço. Sem conferir o convite primeiro, ela seria uma porta
+ * para qualquer um criar conta confirmada no projeto. O nível de acesso NÃO é
+ * decidido aqui: continua vindo de `aceitar_convite`, lido do convite, depois
+ * que a pessoa entra.
+ */
+export const criarContaDoConvite = createServerFn({ method: "POST" })
+  .inputValidator(
+    (input: { token: string; email: string; senha: string; nome: string; telefone: string }) => {
+      const email = String(input.email ?? "")
+        .trim()
+        .toLowerCase();
+      if (!email.includes("@")) throw new Error("E-mail inválido.");
+      if (String(input.senha ?? "").length < 8) {
+        throw new Error("A senha precisa ter pelo menos 8 caracteres.");
+      }
+      return {
+        token: String(input.token ?? "").trim(),
+        email,
+        senha: String(input.senha),
+        nome: String(input.nome ?? "")
+          .trim()
+          .slice(0, 120),
+        telefone: String(input.telefone ?? "")
+          .trim()
+          .slice(0, 40),
+      };
+    },
+  )
+  .handler(
+    async ({
+      data,
+    }): Promise<{ ok: boolean; motivo?: "convite_invalido" | "email_em_uso" | "falhou" }> => {
+      const url = process.env.SUPABASE_URL;
+      const chave = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!url || !chave) {
+        console.error("[convite] SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
+        return { ok: false, motivo: "falhou" };
+      }
+      const { createClient } = await import("@supabase/supabase-js");
+      const admin: any = createClient(url, chave, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+
+      const { data: convite, error: erroConvite } = await admin.rpc("convite_para_mostrar", {
+        _token: data.token,
+      });
+      if (erroConvite) {
+        console.error("[convite] conferência falhou", erroConvite.message);
+        return { ok: false, motivo: "falhou" };
+      }
+      if ((convite as any)?.ok !== true) return { ok: false, motivo: "convite_invalido" };
+
+      const { data: criado, error } = await admin.auth.admin.createUser({
+        email: data.email,
+        password: data.senha,
+        email_confirm: true,
+        user_metadata: { full_name: data.nome, phone: data.telefone },
+      });
+      if (error || !criado?.user?.id) {
+        const texto = String(error?.message ?? "");
+        if (/already|registered|exists/i.test(texto)) return { ok: false, motivo: "email_em_uso" };
+        console.error("[convite] conta não criada", texto);
+        return { ok: false, motivo: "falhou" };
+      }
+      return { ok: true };
+    },
+  );
