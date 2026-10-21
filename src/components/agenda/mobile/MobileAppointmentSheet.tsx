@@ -146,10 +146,7 @@ export function MobileAppointmentSheet({
               procurar o nome em Pacientes. Dois atalhos, mesmo peso: a ficha
               geral e direto a aba clínica. */}
           {a.patientId && (
-            <div className="grid grid-cols-2 gap-2">
-              <AtalhoDaFicha patientId={a.patientId} aba="resumo" titulo="Ficha" />
-              <AtalhoDaFicha patientId={a.patientId} aba="clinico" titulo="Anamnese" />
-            </div>
+            <AtalhoDaFicha patientId={a.patientId} aba="clinico" titulo="Ficha e anamnese" />
           )}
 
           <ConfirmCompletion
@@ -252,7 +249,7 @@ function AtalhoDaFicha({
       to="/pacientes/$patientId"
       params={{ patientId }}
       search={{ aba }}
-      className="rounded-2xl bg-white py-3 text-center text-sm font-semibold text-foreground transition-transform active:scale-[0.97]"
+      className="block rounded-2xl bg-white py-3 text-center text-sm font-semibold text-foreground transition-transform active:scale-[0.97]"
       style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-2)" }}
     >
       {titulo}
