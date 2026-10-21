@@ -1,6 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { STATUS_LABEL, TYPE_LABEL, statusStyle } from "./appointment-utils";
-import { NOTIFICATION_KINDS, NotificationRow } from "./notification-utils";
+import { AvisosDeWhatsapp } from "./notification-utils";
 import type { Appointment, AppointmentStatus, AppointmentType } from "./types";
 import { dataPorExtenso, durationBetween } from "@/lib/date";
 import { duracaoEmTexto } from "@/lib/agenda/procedimentos";
@@ -123,21 +123,12 @@ export function DetalheDoAgendamento({
         </div>
       )}
 
-      {/* Sempre presente, sempre fechada. `NotificationRow` já desenha
-          "não enviado" quando não há registro nenhum — e é justamente esse o
-          estado que alguém precisa poder conferir. Sumir com a seção quando o
-          Brevo nunca mandou nada faria a pergunta "avisaram o paciente?"
-          ficar sem lugar onde ser respondida. */}
-      <Recolhivel titulo="Confirmação e lembretes">
+      {/* Sempre presente, sempre fechada. Sem nenhum envio, ela diz isso —
+          sumir com a seção faria a pergunta "avisaram o paciente?" ficar sem
+          lugar onde ser respondida. */}
+      <Recolhivel titulo="Avisos por WhatsApp">
         <div className="divide-y divide-surface-muted rounded-xl border border-border px-3">
-          {NOTIFICATION_KINDS.map((k) => (
-            <NotificationRow
-              key={k.value}
-              label={k.label}
-              kind={k.value}
-              notifications={notifications}
-            />
-          ))}
+          <AvisosDeWhatsapp notifications={notifications} />
         </div>
       </Recolhivel>
     </div>

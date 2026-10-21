@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import type { Appointment, AppointmentStatus } from "../types";
 import { statusStyle, STATUS_LABEL, TYPE_LABEL } from "../appointment-utils";
-import { NOTIFICATION_KINDS, NotificationRow } from "../notification-utils";
+import { AvisosDeWhatsapp } from "../notification-utils";
 import { ConfirmCompletion } from "../ConfirmCompletion";
 import { formatBRL } from "@/lib/finance/format";
 
@@ -185,19 +185,12 @@ export function MobileAppointmentSheet({
             {a.notes && <InfoRow icon={Pencil} label="Observações" value={a.notes} />}
           </div>
 
-          {/* Confirmação e lembretes (Brevo) */}
+          {/* Avisos por WhatsApp que esta consulta recebeu */}
           <div
             className="bg-white rounded-2xl px-4 py-1 divide-y divide-surface-muted"
             style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-2)" }}
           >
-            {NOTIFICATION_KINDS.map((k) => (
-              <NotificationRow
-                key={k.value}
-                label={k.label}
-                kind={k.value}
-                notifications={a.notifications}
-              />
-            ))}
+            <AvisosDeWhatsapp notifications={a.notifications} />
           </div>
 
           {/* Quick actions */}

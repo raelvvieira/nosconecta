@@ -1,7 +1,12 @@
 import type { ProcedimentoDoAgendamento } from "@/lib/agenda/procedimentos";
 
 export type AppointmentStatus =
-  "confirmed" | "pending" | "in_progress" | "completed" | "missed" | "cancelled";
+  | "confirmed"
+  | "pending"
+  | "in_progress"
+  | "completed"
+  | "missed"
+  | "cancelled";
 
 export type AppointmentType = "consultation" | "evaluation" | "procedure" | "return" | "emergency";
 
@@ -41,10 +46,16 @@ export type NotificationChannel = "email" | "sms" | "whatsapp";
 export type NotificationStatus = "pending" | "sent" | "failed" | "skipped";
 
 export interface AppointmentNotification {
-  kind: NotificationKind;
-  channel: NotificationChannel;
+  /** Qual aviso. Além dos três do caminho antigo, os das automações:
+   *  `wa:confirmacao`, `wa:lembrete_d3`… — ver `avisoDaConsulta` em
+   *  `atendimento-automations`. */
+  kind: string;
+  channel: string;
   status: NotificationStatus;
   sentAt: string | null;
+  /** Quando a linha nasceu — é a hora do aviso que falhou, que não tem
+   *  `sentAt`. */
+  criadoEm?: string | null;
 }
 
 export interface Appointment {

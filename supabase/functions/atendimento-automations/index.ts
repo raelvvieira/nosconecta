@@ -580,6 +580,59 @@ function webhookPermitido(raw: string): boolean {
   return true;
 }
 
+/**
+ * O WhatsApp que saiu, anotado NA CONSULTA.
+ *
+ * ── Por que existe ──────────────────────────────────────────────────────
+ *
+ * O bloco "Confirmação e lembretes" da agenda lia `appointment_notifications`,
+ * onde só o caminho antigo (Brevo: e-mail, SMS e WhatsApp) gravava — e esse
+ * caminho não manda nada há meses: 100% "sem contato" ou "falhou". Os avisos
+ * que chegam de verdade ao paciente saem por aqui, pelas automações, e
+ * `automation_runs` não guarda de qual consulta eram. Resultado: a tela dizia
+ * "Ainda não enviado" três vezes para quem tinha recebido os três.
+ *
+ * Agora cada envio de uma automação ligada a uma consulta deixa uma linha
+ * `channel = "whatsapp"` nela, com `kind` dizendo QUAL aviso foi — é o que a
+ * agenda mostra. A chave única (consulta, kind, canal) faz o reenvio do mesmo
+ * aviso atualizar a linha em vez de duplicar.
+ *
+ * Nunca derruba o envio: a mensagem já saiu, e uma anotação que falhou é só
+ * uma linha a menos na tela.
+ */
+function avisoDaConsulta(regra: Regra, ctx: DispatchContext): string {
+  if (regra.trigger_event === "appointment.created") return "wa:confirmacao";
+  if (regra.trigger_event === "appointment.reminder_due" && ctx.daysUntil != null) {
+    return `wa:lembrete_d${Number(ctx.daysUntil)}`;
+  }
+  return `wa:${regra.trigger_event}`;
+}
+
+async function anotarNaConsulta(
+  ownerId: string,
+  regra: Regra,
+  ctx: DispatchContext,
+  status: "sent" | "failed",
+) {
+  if (!ctx.appointmentId) return;
+  try {
+    const { error } = await supabase.from("appointment_notifications").upsert(
+      {
+        appointment_id: ctx.appointmentId,
+        owner_id: ownerId,
+        kind: avisoDaConsulta(regra, ctx),
+        channel: "whatsapp",
+        status,
+        sent_at: status === "sent" ? new Date().toISOString() : null,
+      },
+      { onConflict: "appointment_id,kind,channel" },
+    );
+    if (error) console.warn("[automations] aviso não anotado na consulta:", error.message);
+  } catch (e) {
+    console.warn("[automations] aviso não anotado na consulta:", e);
+  }
+}
+
 async function executarAcao(
   ownerId: string,
   action: ActionConfig,
@@ -630,8 +683,10 @@ async function executarAcao(
       await enviarWhatsapp(supabase, ownerId, alvo, texto);
       await debitDailyUsage(supabase, ownerId, `automation:${regra.id}`, 1);
       await logRun({ ...base, status: "sent" });
+      await anotarNaConsulta(ownerId, regra, ctx, "sent");
     } catch (e) {
       await logRun({ ...base, status: "failed", error: String(e).slice(0, 500) });
+      await anotarNaConsulta(ownerId, regra, ctx, "failed");
     }
     return;
   }

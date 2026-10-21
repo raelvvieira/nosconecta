@@ -1,98 +1,103 @@
-import type {
-  AppointmentNotification,
-  NotificationChannel,
-  NotificationKind,
-  NotificationStatus,
-} from "./types";
-
-export const NOTIFICATION_KINDS: { value: NotificationKind; label: string }[] = [
-  { value: "confirmation", label: "Confirmação" },
-  { value: "reminder_day_before", label: "1 dia antes" },
-  { value: "reminder_day_of", label: "No dia" },
-];
-
-const CHANNELS: { value: NotificationChannel; label: string }[] = [
-  { value: "email", label: "E-mail" },
-  { value: "sms", label: "SMS" },
-  { value: "whatsapp", label: "WhatsApp" },
-];
-
-export type EstadoEnvio = NotificationStatus | "not_sent";
-
-export function statusFor(
-  notifications: AppointmentNotification[] | undefined,
-  kind: NotificationKind,
-  channel: NotificationChannel,
-): EstadoEnvio {
-  return notifications?.find((n) => n.kind === kind && n.channel === channel)?.status ?? "not_sent";
-}
-
-// Cinco estados, não quatro. "pending" e "not_sent" caíam no mesmo rótulo
-// "Pendente", mas são coisas diferentes: um é "a linha existe e está na fila",
-// o outro é "nunca foi nem agendado". Quem olha para saber se o paciente foi
-// avisado precisa distinguir os dois.
-const ESTADOS: Record<EstadoEnvio, { cor: string; texto: string }> = {
-  sent: { cor: "var(--success)", texto: "enviado" },
-  failed: { cor: "var(--danger)", texto: "falhou" },
-  // "Sem contato" cobre quatro causas na origem (sem e-mail, sem telefone,
-  // WhatsApp não configurado, já enviado antes) — por isso o texto é vago de
-  // propósito: prometer a causa exata seria mentir.
-  skipped: { cor: "var(--foreground-subtle)", texto: "sem contato" },
-  pending: { cor: "var(--warning)", texto: "na fila" },
-  not_sent: { cor: "var(--divider)", texto: "não agendado" },
-};
+import type { AppointmentNotification } from "./types";
 
 /**
- * Uma linha por momento, com uma bolinha por canal.
+ * Os WhatsApp que esta consulta recebeu — e só eles.
  *
- * Antes eram nove selos de texto (3 momentos × 3 canais), que ocupavam mais
- * espaço que todo o resto do formulário junto e ainda assim eram difíceis de
- * ler de relance. A informação é a mesma; o que muda é que agora ela cabe num
- * olhar, e o texto ao lado resume só o que foge do esperado.
+ * ── O que havia antes ─────────────────────────────────────────────────────
+ *
+ * Três linhas fixas (Confirmação, 1 dia antes, No dia), cada uma com uma
+ * bolinha por canal: e-mail, SMS e WhatsApp. Eram os canais do caminho antigo,
+ * o Brevo — e o Brevo não entregou nada: em outubro, 100% "sem contato" ou
+ * "falhou". Os avisos que chegam ao paciente saem pelas automações, que não
+ * escreviam aqui. A tela dizia "Ainda não enviado" três vezes para quem tinha
+ * recebido os três.
+ *
+ * A clínica pediu em 21/10 "apenas os de WhatsApp que enviamos". Então a lista
+ * é do que ACONTECEU: um aviso por linha, na ordem em que saiu, com a hora. O
+ * que falhou também aparece — é exatamente o que alguém precisa ver para
+ * avisar o paciente à mão. O que nunca foi tentado não aparece: uma linha
+ * "não enviado" para um aviso que nem era para ter saído ainda é ruído.
  */
-export function NotificationRow({
-  label,
+
+const ROTULOS: Record<string, string> = {
+  "wa:confirmacao": "Confirmação do agendamento",
+  "wa:lembrete_d3": "Lembrete 3 dias antes",
+  "wa:lembrete_d2": "Lembrete 2 dias antes",
+  "wa:lembrete_d1": "Lembrete 1 dia antes",
+  "wa:lembrete_d0": "Lembrete no dia",
+  "wa:whatsapp.reply_received": "Resposta à confirmação",
+  "wa:appointment.status_changed": "Mudança de status",
+  // As do caminho antigo, se um dia uma delas tiver saído.
+  confirmation: "Confirmação do agendamento",
+  reminder_day_before: "Lembrete 1 dia antes",
+  reminder_day_of: "Lembrete no dia",
+};
+
+function rotulo(kind: string): string {
+  const exato = ROTULOS[kind];
+  if (exato) return exato;
+  const dias = /^wa:lembrete_d(\d+)$/.exec(kind);
+  if (dias) return `Lembrete ${dias[1]} dias antes`;
+  return "Mensagem automática";
+}
+
+const quando = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "America/Sao_Paulo",
+});
+
+/** "21/10 · 09:00" — sem ano: o aviso é sempre da consulta que está aberta. */
+function hora(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return quando.format(d).replace(", ", " · ");
+}
+
+function avisosDeWhatsapp(
+  notifications: AppointmentNotification[] | undefined,
+): AppointmentNotification[] {
+  return (notifications ?? [])
+    .filter((n) => n.channel === "whatsapp" && (n.status === "sent" || n.status === "failed"))
+    .sort((a, b) =>
+      String(a.sentAt ?? a.criadoEm ?? "").localeCompare(String(b.sentAt ?? b.criadoEm ?? "")),
+    );
+}
+
+export function AvisosDeWhatsapp({
   notifications,
-  kind,
 }: {
-  label: string;
   notifications: AppointmentNotification[] | undefined;
-  kind: NotificationKind;
 }) {
-  const porCanal = CHANNELS.map((c) => ({ ...c, estado: statusFor(notifications, kind, c.value) }));
+  const avisos = avisosDeWhatsapp(notifications);
 
-  const enviados = porCanal.filter((c) => c.estado === "sent");
-  const falhas = porCanal.filter((c) => c.estado === "failed");
-
-  // O resumo conta o que interessa: quem chegou, e o que deu errado. Se nada
-  // saiu ainda, uma palavra basta.
-  const resumo = enviados.length
-    ? `Enviado por ${enviados.map((c) => c.label).join(", ")}${
-        falhas.length ? ` · ${falhas.map((c) => c.label).join(", ")} falhou` : ""
-      }`
-    : falhas.length
-      ? `Falhou em ${falhas.map((c) => c.label).join(", ")}`
-      : porCanal.every((c) => c.estado === "skipped")
-        ? "Sem contato cadastrado"
-        : "Ainda não enviado";
+  if (!avisos.length) {
+    return <p className="py-2 text-xs text-muted-foreground">Nenhum WhatsApp enviado ainda.</p>;
+  }
 
   return (
-    <div className="flex items-center justify-between gap-3 py-2">
-      <span className="shrink-0 text-sm text-foreground-secondary">{label}</span>
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="truncate text-2xs text-muted-foreground">{resumo}</span>
-        <span className="flex shrink-0 items-center gap-1">
-          {porCanal.map((c) => (
-            <span
-              key={c.value}
-              className="h-2 w-2 rounded-full"
-              style={{ background: ESTADOS[c.estado].cor }}
-              title={`${c.label}: ${ESTADOS[c.estado].texto}`}
-              aria-label={`${c.label}: ${ESTADOS[c.estado].texto}`}
-            />
-          ))}
-        </span>
-      </div>
-    </div>
+    <ul className="divide-y divide-surface-muted">
+      {avisos.map((a) => {
+        const falhou = a.status === "failed";
+        return (
+          <li key={`${a.kind}`} className="flex items-center justify-between gap-3 py-2">
+            <span className="min-w-0 truncate text-sm text-foreground-secondary">
+              {rotulo(a.kind)}
+            </span>
+            <span className="flex shrink-0 items-center gap-1.5 text-2xs text-muted-foreground">
+              {falhou ? "não saiu" : hora(a.sentAt)}
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ background: falhou ? "var(--danger)" : "var(--success)" }}
+                aria-label={falhou ? "falhou" : "enviado"}
+              />
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

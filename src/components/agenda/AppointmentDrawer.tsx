@@ -24,7 +24,7 @@ import {
   rooms as fallbackRooms,
 } from "./mock-data";
 import { STATUS_LABEL, TYPE_LABEL } from "./appointment-utils";
-import { NOTIFICATION_KINDS, NotificationRow } from "./notification-utils";
+import { AvisosDeWhatsapp } from "./notification-utils";
 import { ConfirmCompletion } from "./ConfirmCompletion";
 import { formatWhatsappNumber, telefoneBrasileiroValido } from "@/lib/atendimentos/phone";
 import { localDateStr, durationBetween, endTimeFrom } from "@/lib/date";
@@ -1012,22 +1012,15 @@ export function AppointmentDrawer({
                   </div>
                 </section>
 
-                {/* Confirmação e lembretes (Brevo), recolhida.
+                {/* Avisos por WhatsApp, recolhida.
               Desceu para o fim porque é acompanhamento, não preenchimento —
               e agora começa fechada porque são três linhas que ninguém
               preenche: elas só contam se o Brevo mandou. Abertas, gastavam um
               terço da rolagem do formulário para dizer "pendente" três vezes. */}
                 {isEdit && (
-                  <Recolhivel titulo="Confirmação e lembretes">
+                  <Recolhivel titulo="Avisos por WhatsApp">
                     <div className="rounded-xl border border-border divide-y divide-surface-muted px-3">
-                      {NOTIFICATION_KINDS.map((k) => (
-                        <NotificationRow
-                          key={k.value}
-                          label={k.label}
-                          kind={k.value}
-                          notifications={appointment?.notifications}
-                        />
-                      ))}
+                      <AvisosDeWhatsapp notifications={appointment?.notifications} />
                     </div>
                   </Recolhivel>
                 )}

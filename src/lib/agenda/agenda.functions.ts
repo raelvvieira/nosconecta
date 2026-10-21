@@ -162,10 +162,16 @@ export const getAgendaOverview = createServerFn({ method: "GET" })
       // próprio (é escopada via join com appointments na RLS — ver migration).
       // Notificação de agendamento fora do recorte simplesmente não casa com
       // nenhum id do `apptRes` já filtrado, e o mapa abaixo a ignora.
+      // Só WhatsApp: é o único canal que a agenda mostra (ver
+      // `AvisosDeWhatsapp`). O e-mail e o SMS do caminho antigo continuam na
+      // tabela, mas nunca chegaram a ninguém, e as linhas de controle das
+      // automações (`channel = "automation"`) não são aviso — são a trava
+      // contra lembrete duplicado.
       supabase
         .from("appointment_notifications")
-        .select("appointment_id, kind, channel, status, sent_at")
+        .select("appointment_id, kind, channel, status, sent_at, created_at")
         .eq("owner_id", context.ownerId)
+        .eq("channel", "whatsapp")
         .limit(5000),
       // Mesmo raciocínio do bloco acima: sem filtro de unidade, e o mapa
       // descarta o que não casa com nenhum agendamento do recorte.
@@ -196,6 +202,7 @@ export const getAgendaOverview = createServerFn({ method: "GET" })
         channel: row.channel,
         status: row.status,
         sentAt: row.sent_at,
+        criadoEm: row.created_at ?? null,
       });
       notifByAppt.set(row.appointment_id, list);
     }
