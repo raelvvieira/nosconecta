@@ -557,10 +557,53 @@ export const criarContaDoConvite = createServerFn({ method: "POST" })
       });
       if (error || !criado?.user?.id) {
         const texto = String(error?.message ?? "");
-        if (/already|registered|exists/i.test(texto)) return { ok: false, motivo: "email_em_uso" };
-        console.error("[convite] conta não criada", texto);
-        return { ok: false, motivo: "falhou" };
+        if (!/already|registered|exists/i.test(texto)) {
+          console.error("[convite] conta não criada", texto);
+          return { ok: false, motivo: "falhou" };
+        }
+        // O e-mail já tem conta. Um caso é legítimo e aconteceu em 21/10: a
+        // pessoa tentou pelo fluxo antigo, que criava a conta SEM confirmar e
+        // mandava esperar o e-mail. Essa conta nunca provou nada — ninguém
+        // confirmou a caixa de entrada nem entrou com ela — e não tem acesso a
+        // clínica nenhuma. O convite válido é prova melhor: ela é completada
+        // com a senha nova e confirmada.
+        //
+        // Conta confirmada, ou que já entrou alguma vez, ou que já tem acesso,
+        // é de alguém de verdade: essa continua recusada.
+        const existente = await contaPeloEmail(admin, data.email);
+        if (!existente) return { ok: false, motivo: "email_em_uso" };
+        const jaProvou = !!existente.email_confirmed_at || !!existente.last_sign_in_at;
+        const { count } = await admin
+          .from("clinic_members")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", existente.id);
+        if (jaProvou || (count ?? 0) > 0) return { ok: false, motivo: "email_em_uso" };
+
+        const { error: erroCompletar } = await admin.auth.admin.updateUserById(existente.id, {
+          password: data.senha,
+          email_confirm: true,
+          user_metadata: { full_name: data.nome, phone: data.telefone },
+        });
+        if (erroCompletar) {
+          console.error("[convite] conta pendente não completada", erroCompletar.message);
+          return { ok: false, motivo: "falhou" };
+        }
       }
       return { ok: true };
     },
   );
+
+/** A conta de um e-mail, pela API de administração — a única que enxerga
+ *  `auth.users`. A clínica tem dezenas de contas, não milhares: duas páginas
+ *  cobrem com folga. */
+async function contaPeloEmail(admin: any, email: string): Promise<any | null> {
+  for (let page = 1; page <= 5; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) return null;
+    const lista = (data?.users ?? []) as any[];
+    const achado = lista.find((u) => String(u.email ?? "").toLowerCase() === email);
+    if (achado) return achado;
+    if (lista.length < 200) return null;
+  }
+  return null;
+}
