@@ -179,18 +179,22 @@ function Marca({ legenda }: { legenda?: string }) {
  * classes de material são as MESMAS do cartão de verdade no painel, então o
  * que passa aqui é o que a pessoa vai receber, não uma ilustração parecida.
  *
- * Sem nome de nível escrito: os nomes moram no banco, configuráveis pela
- * clínica, e esta tela é vista antes de haver sessão para lê-los. Um nome
- * cravado aqui mentiria no dia em que a clínica o mudasse.
+ * Os nomes escritos nos cartões vêm da lista abaixo, não do banco: esta tela
+ * é vista antes de haver sessão para ler a régua. Se a clínica renomear um
+ * nível em /nos-club, é aqui que o desfile precisa acompanhar.
  */
 // A cor do logo em cada material é a mesma do texto do cartão de verdade no
 // painel. Creme sobre o bege, que era a primeira ideia, sumia na faixa clara
 // do degradê; só o prata segura o logo branco.
+//
+// Os nomes são os que a clínica manda escrever no desfile — é vitrine, vista
+// antes de haver sessão para ler a régua do banco. O cartão de verdade, no
+// painel, continua mostrando o nome que está cadastrado na régua.
 const MATERIAIS_DO_DESFILE = [
-  { material: "cartao-velvet", logo: "text-[#3b2f20]/85" },
-  { material: "cartao-prata", logo: "text-white/95" },
-  { material: "cartao-ouro", logo: "text-[#3a2a06]/80" },
-  { material: "cartao-holo", logo: "text-[#2b3a45]/75" },
+  { material: "cartao-velvet", logo: "text-[#3b2f20]/85", nome: "Starter" },
+  { material: "cartao-prata", logo: "text-white/95", nome: "Platinum" },
+  { material: "cartao-ouro", logo: "text-[#3a2a06]/80", nome: "Gold" },
+  { material: "cartao-holo", logo: "text-[#2b3a45]/75", nome: "Diamond" },
 ];
 
 function Desfile() {
@@ -214,7 +218,7 @@ function Desfile() {
             >
               <span className={cn("club-logo w-[104px]", c.logo)} />
               <span className="absolute bottom-4 text-[9px] font-medium uppercase tracking-[0.28em] opacity-70">
-                Member
+                {c.nome}
               </span>
             </div>
           </div>
