@@ -14,9 +14,6 @@ import {
   DoorOpen,
   Stethoscope,
   DollarSign,
-  ChevronRight,
-  ClipboardList,
-  UserRound,
 } from "lucide-react";
 import type { Appointment, AppointmentStatus } from "../types";
 import { statusStyle, STATUS_LABEL, TYPE_LABEL } from "../appointment-utils";
@@ -150,20 +147,8 @@ export function MobileAppointmentSheet({
               geral e direto a aba clínica. */}
           {a.patientId && (
             <div className="grid grid-cols-2 gap-2">
-              <AtalhoDaFicha
-                patientId={a.patientId}
-                aba="resumo"
-                icone={UserRound}
-                titulo="Ficha"
-                legenda="Dados e histórico"
-              />
-              <AtalhoDaFicha
-                patientId={a.patientId}
-                aba="clinico"
-                icone={ClipboardList}
-                titulo="Anamnese"
-                legenda="Saúde e alergias"
-              />
+              <AtalhoDaFicha patientId={a.patientId} aba="resumo" titulo="Ficha" />
+              <AtalhoDaFicha patientId={a.patientId} aba="clinico" titulo="Anamnese" />
             </div>
           )}
 
@@ -256,32 +241,21 @@ export function MobileAppointmentSheet({
 function AtalhoDaFicha({
   patientId,
   aba,
-  icone: Icone,
   titulo,
-  legenda,
 }: {
   patientId: string;
   aba: "resumo" | "clinico";
-  icone: typeof UserRound;
   titulo: string;
-  legenda: string;
 }) {
   return (
     <Link
       to="/pacientes/$patientId"
       params={{ patientId }}
       search={{ aba }}
-      className="flex items-center gap-3 rounded-2xl bg-white px-3.5 py-3 transition-transform active:scale-[0.97]"
+      className="rounded-2xl bg-white py-3 text-center text-sm font-semibold text-foreground transition-transform active:scale-[0.97]"
       style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-2)" }}
     >
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface text-foreground-secondary">
-        <Icone className="h-[18px] w-[18px]" strokeWidth={1.75} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold leading-tight text-foreground">{titulo}</span>
-        <span className="block truncate text-2xs text-muted-foreground">{legenda}</span>
-      </span>
-      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60" strokeWidth={2} />
+      {titulo}
     </Link>
   );
 }
