@@ -85,8 +85,12 @@ import { useMensagensAoVivo } from "@/lib/atendimentos/useMensagensAoVivo";
 
 /** Onde a preferência de painel aberto/fechado fica guardada. */
 const CHAVE_DO_PAINEL = "nos:painel-do-contato";
-/** A ordem escolhida é lembrada; o filtro NÃO — ver `FiltrosDaConversa`. */
-const CHAVE_DA_ORDEM = "nos:ordem-das-conversas";
+/** A ordem escolhida é lembrada; o filtro NÃO — ver `FiltrosDaConversa`.
+ *
+ *  `-v2` desde 21/10: o padrão passou de "sem resposta primeiro" para "mais
+ *  recentes", e a chave antiga guardava o padrão velho em quem nunca escolheu
+ *  nada — a troca não chegaria a ninguém. */
+const CHAVE_DA_ORDEM = "nos:ordem-das-conversas-v2";
 
 const searchSchema = z.object({
   conversationId: z.string().optional(),
@@ -183,7 +187,13 @@ function ChatPage() {
   // conversas: no dia seguinte a caixa parece vazia e alguém deixa de responder
   // um paciente. A ordem muda a sequência, nunca o conjunto.
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS);
-  const [ordem, setOrdem] = useState<Ordenacao>("sem-resposta");
+  // Mais recentes primeiro, como o WhatsApp. "Sem resposta primeiro" era o
+  // padrão e escondia o que a própria clínica acabou de fazer: mandou
+  // mensagem, a conversa deixava de esperar resposta e AFUNDAVA na lista, em
+  // vez de subir. A clínica pediu em 21/10 que a conversa mais recente —
+  // de quem quer que seja a última mensagem — fique no topo. O recorte de
+  // quem espera resposta continua no filtro "Sem resposta".
+  const [ordem, setOrdem] = useState<Ordenacao>("recentes");
   useEffect(() => {
     try {
       const guardada = localStorage.getItem(CHAVE_DA_ORDEM) as Ordenacao | null;
