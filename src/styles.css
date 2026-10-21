@@ -948,14 +948,16 @@
    borda clareada por dentro — é o que dá a espessura que faz parecer vidro, e
    não um retângulo com opacidade. */
 @utility glass-claro {
-  border-radius: 1.25rem;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow:
-    0 18px 40px -24px rgba(32, 24, 44, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
+    0 30px 60px -30px rgba(74, 56, 34, 0.28),
+    0 2px 6px -2px rgba(74, 56, 34, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -964,21 +966,141 @@
   }
 }
 
-/* O fundo: dois halos de cor sobre quase-preto. Em gradiente e não em imagem
-   porque o cartão é lido fora do wi-fi — a página inteira pesa menos que uma
-   foto de fundo. */
-/* Claro, a pedido da clínica — e porque o cartão só parece um objeto de valor
-   sobre um fundo que não compete com ele. Os dois halos continuam, bem mais
-   suaves: é o que separa "app premium" de "folha branca". */
+/* ── O fundo: creme em movimento ─────────────────────────────────────────
+   Quatro manchas grandes de bege, creme e um rosa quase branco, desfocadas e
+   deslocando devagar — a referência era uma "creamy gradient texture", e é
+   isso que ela é: luz atravessando um tecido claro. Em CSS, e não em vídeo,
+   por três motivos que valem juntos: um vídeo pesaria mais que a página
+   inteira num 4G de sala de espera; no iPhone ele só toca sem som e depois
+   de um gesto, e o fundo abriria parado; e um vídeo não respeita "reduzir
+   movimento" — isto respeita.
+
+   As manchas moram num pseudo-elemento FIXO, não no fundo do elemento:
+   `background-attachment: fixed` é ignorado pelo Safari do iPhone, e é lá que
+   esta página é lida. Fixo e atrás de tudo (`isolation` + z-index negativo),
+   o movimento continua enquanto a página rola. Só `transform` anima — é o que
+   a placa de vídeo faz sozinha, sem repintar a página a cada quadro. */
 .club-fundo {
-  /* Branco. Os halos de cor ficaram, bem mais fracos e só no topo — na
-     primeira versão eles pintavam a tela inteira de rosa, e o cartão (que é o
-     objeto colorido da página) perdia o contraste contra o próprio fundo.
-     Aqui eles só tiram o branco de ser chapado. */
+  position: relative;
+  isolation: isolate;
+  background: #faf6ef;
+  overflow-x: clip;
+}
+
+.club-fundo::before {
+  content: "";
+  position: fixed;
+  inset: -25%;
+  z-index: -2;
   background:
-    radial-gradient(70% 30% at 10% 0%, rgba(236, 72, 153, 0.05), transparent 70%),
-    radial-gradient(60% 28% at 95% 0%, rgba(139, 92, 246, 0.045), transparent 70%), #ffffff;
-  background-attachment: fixed;
+    radial-gradient(42% 38% at 18% 22%, rgba(226, 206, 178, 0.95), transparent 70%),
+    radial-gradient(38% 42% at 82% 16%, rgba(255, 250, 240, 1), transparent 70%),
+    radial-gradient(46% 40% at 72% 78%, rgba(214, 192, 160, 0.85), transparent 70%),
+    radial-gradient(34% 34% at 22% 84%, rgba(255, 234, 226, 0.9), transparent 70%),
+    radial-gradient(28% 28% at 55% 50%, rgba(255, 255, 255, 0.9), transparent 70%), #faf6ef;
+  filter: blur(42px);
+  will-change: transform;
+  animation: club-creme 26s ease-in-out infinite alternate;
+}
+
+/* O grão: ruído fino por cima do creme, que é o que separa "tecido" de
+   "gradiente de slide". Gerado pelo próprio navegador (feTurbulence), sem
+   arquivo nenhum. */
+.club-fundo::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.32;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.55 0 0 0 0 0.48 0 0 0 0 0.40 0 0 0 0.35 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+
+@keyframes club-creme {
+  0% {
+    transform: translate3d(-3%, -2%, 0) rotate(0deg) scale(1.04);
+  }
+  50% {
+    transform: translate3d(2.5%, 3%, 0) rotate(2.5deg) scale(1.1);
+  }
+  100% {
+    transform: translate3d(3%, -3%, 0) rotate(-2deg) scale(1.05);
+  }
+}
+
+/* ── O logo do Club ──────────────────────────────────────────────────────
+   Um arquivo só, usado como MÁSCARA: a forma vem do PNG e a cor vem de
+   `currentColor`. É o que deixa o mesmo logo escuro no topo da página e
+   creme sobre o cartão bege, sem dois arquivos para manter iguais. A
+   proporção é a do desenho recortado (720 × 497). */
+.club-logo {
+  display: inline-block;
+  aspect-ratio: 720 / 497;
+  background-color: currentColor;
+  mask: url("/club/logo.png") center / contain no-repeat;
+  -webkit-mask: url("/club/logo.png") center / contain no-repeat;
+}
+
+/* ── O desfile dos cartões ───────────────────────────────────────────────
+   Os quatro materiais passando em fila, inclinados em perspectiva, como
+   cartões sobre uma mesa vistos de lado. A fila tem os quatro DUAS vezes e
+   anda metade do próprio comprimento: quando a segunda metade chega onde a
+   primeira começou, o laço reinicia sem emenda visível. As bordas somem num
+   degradê, para os cartões entrarem e saírem da luz em vez de serem cortados
+   pela borda da tela. */
+.club-desfile {
+  perspective: 1100px;
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+}
+
+.club-fila {
+  display: flex;
+  gap: 1.25rem;
+  width: max-content;
+  transform-style: preserve-3d;
+  transform: rotateX(8deg) rotateY(-14deg);
+  animation: club-desfile 34s linear infinite;
+}
+
+@keyframes club-desfile {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: calc(-50% - 0.625rem) 0;
+  }
+}
+
+/* Cada cartão sobe e desce um pouco, fora de fase com o vizinho: é o que faz
+   a fila parecer flutuar em vez de deslizar num trilho. */
+.club-flutua {
+  animation: club-flutua 5.2s ease-in-out infinite alternate;
+}
+
+.club-flutua:nth-child(odd) {
+  animation-delay: -2.6s;
+}
+
+@keyframes club-flutua {
+  from {
+    transform: translateY(-5px);
+  }
+  to {
+    transform: translateY(5px);
+  }
+}
+
+/* Laço infinito sob "reduzir movimento" vira pisca-pisca (o bloco global
+   encurta tudo para 120ms). Aqui tudo isso simplesmente para: o fundo fica
+   num creme parado e os cartões ficam onde estão. */
+@media (prefers-reduced-motion: reduce) {
+  .club-fundo::before,
+  .club-fila,
+  .club-flutua {
+    animation: none !important;
+  }
 }
 
 @keyframes club-entra {

@@ -63,7 +63,7 @@ export const Route = createFileRoute("/club")({
       { name: "description", content: PREVIA_TEXTO },
       // O cartão é lido no celular, sempre. A cor da barra do navegador junto
       // do fundo escuro é o que faz a página parecer um app, e não um site.
-      { name: "theme-color", content: "#fbf9fb" },
+      { name: "theme-color", content: "#faf6ef" },
 
       // A prévia do WhatsApp, só desta página.
       //
@@ -159,14 +159,67 @@ function Fundo({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** O logo do Club no lugar do ícone genérico. O desenho já diz "NÓS Club";
+ *  o `h1` fica só para leitor de tela e para a aba do navegador. */
 function Marca({ legenda }: { legenda?: string }) {
   return (
     <div className="club-entra flex flex-col items-center text-center">
-      <span className="grid h-14 w-14 place-items-center rounded-2xl bg-neutral-900 text-white shadow-lg">
-        <Sparkles className="h-6 w-6" strokeWidth={1.5} />
-      </span>
-      <h1 className="mt-4 text-[1.75rem] font-semibold tracking-tight">NÓS Club</h1>
-      {legenda ? <p className="mt-1 text-sm text-neutral-500">{legenda}</p> : null}
+      <span className="club-logo w-[148px] text-[#2a2118]" role="img" aria-label="NÓS Club" />
+      <h1 className="sr-only">NÓS Club</h1>
+      {legenda ? <p className="mt-3 text-sm text-neutral-500">{legenda}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * Os quatro materiais do cartão passando, antes de a pessoa entrar.
+ *
+ * É a vitrine do programa: quem chega pelo QR vê que existe um cartão bege,
+ * um prateado, um dourado e um holográfico — e que o dela é um deles. As
+ * classes de material são as MESMAS do cartão de verdade no painel, então o
+ * que passa aqui é o que a pessoa vai receber, não uma ilustração parecida.
+ *
+ * Sem nome de nível escrito: os nomes moram no banco, configuráveis pela
+ * clínica, e esta tela é vista antes de haver sessão para lê-los. Um nome
+ * cravado aqui mentiria no dia em que a clínica o mudasse.
+ */
+// A cor do logo em cada material é a mesma do texto do cartão de verdade no
+// painel. Creme sobre o bege, que era a primeira ideia, sumia na faixa clara
+// do degradê; só o prata segura o logo branco.
+const MATERIAIS_DO_DESFILE = [
+  { material: "cartao-velvet", logo: "text-[#3b2f20]/85" },
+  { material: "cartao-prata", logo: "text-white/95" },
+  { material: "cartao-ouro", logo: "text-[#3a2a06]/80" },
+  { material: "cartao-holo", logo: "text-[#2b3a45]/75" },
+];
+
+function Desfile() {
+  // Duas vezes a fila, para o laço fechar sem emenda — ver `.club-fila`.
+  const fila = [...MATERIAIS_DO_DESFILE, ...MATERIAIS_DO_DESFILE];
+  return (
+    // Sangra até as bordas da tela, e não só até as do formulário: no
+    // computador o desfile apertado em 460px parecia uma tira recortada.
+    <div
+      className="club-desfile club-entra ml-[calc(50%-50vw)] w-screen overflow-hidden py-6"
+      aria-hidden="true"
+    >
+      <div className="club-fila pl-5">
+        {fila.map((c, i) => (
+          <div key={i} className="club-flutua">
+            <div
+              className={cn(
+                "club-cartao club-brilho relative flex h-[150px] w-[238px] shrink-0 flex-col items-center justify-center overflow-hidden rounded-[18px]",
+                c.material,
+              )}
+            >
+              <span className={cn("club-logo w-[104px]", c.logo)} />
+              <span className="absolute bottom-4 text-[9px] font-medium uppercase tracking-[0.28em] opacity-70">
+                Member
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -224,16 +277,18 @@ function Entrada() {
 
   return (
     <Fundo>
-      <div className="pt-6">
+      <div className="pt-2">
         <Marca legenda="Quanto mais NÓS, mais benefícios." />
       </div>
 
+      <Desfile />
+
       <form
         onSubmit={enviar}
-        className="club-entra glass-claro mt-8 space-y-4 p-6"
-        style={{ animationDelay: "80ms" }}
+        className="club-entra glass-claro mt-2 space-y-4 p-6"
+        style={{ animationDelay: "120ms" }}
       >
-        <div className="flex gap-1 rounded-2xl bg-neutral-100 p-1">
+        <div className="flex gap-1 rounded-2xl bg-[#2a2118]/[0.06] p-1">
           {(["entrar", "criar"] as const).map((m) => (
             <button
               key={m}
@@ -265,7 +320,7 @@ function Entrada() {
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 placeholder="Como está na clínica"
-                className="mt-1 border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-300"
+                className="mt-1 h-11 rounded-xl border-white/80 bg-white/70 text-neutral-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] placeholder:text-neutral-300 focus-visible:bg-white"
               />
             </div>
             <div className="club-entra">
@@ -279,7 +334,7 @@ function Entrada() {
                 value={telefone}
                 onChange={(e) => setTelefone(e.target.value)}
                 placeholder="(48) 99999-0000"
-                className="mt-1 border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-300"
+                className="mt-1 h-11 rounded-xl border-white/80 bg-white/70 text-neutral-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] placeholder:text-neutral-300 focus-visible:bg-white"
               />
               <p className="mt-1.5 text-xs text-neutral-500">
                 O mesmo que você deu na clínica — é por ele que a gente encontra seu cadastro.
@@ -298,7 +353,7 @@ function Entrada() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-300"
+            className="mt-1 h-11 rounded-xl border-white/80 bg-white/70 text-neutral-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] placeholder:text-neutral-300 focus-visible:bg-white"
             placeholder="voce@email.com"
           />
         </div>
@@ -313,14 +368,14 @@ function Entrada() {
             required
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
-            className="mt-1 border-neutral-200 bg-white text-neutral-900"
+            className="mt-1 h-11 rounded-xl border-white/80 bg-white/70 text-neutral-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] focus-visible:bg-white"
           />
         </div>
 
         <Button
           type="submit"
           disabled={carregando}
-          className="h-12 w-full rounded-2xl bg-neutral-900 text-base font-semibold text-white hover:bg-neutral-800"
+          className="h-12 w-full rounded-2xl bg-[#1c1814] text-base font-semibold text-[#fbf6ea] shadow-[0_14px_28px_-14px_rgba(28,24,20,0.6)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:bg-[#2a2118] hover:shadow-[0_18px_32px_-14px_rgba(28,24,20,0.65)]"
         >
           {carregando ? "Um instante…" : modo === "entrar" ? "Entrar" : "Entrar no Club"}
           <ArrowRight className="h-4 w-4" />
@@ -329,7 +384,7 @@ function Entrada() {
 
       <p
         className="club-entra mt-6 text-center text-xs text-neutral-400"
-        style={{ animationDelay: "160ms" }}
+        style={{ animationDelay: "220ms" }}
       >
         Seus créditos, suas indicações e seu nível, sempre à mão.
       </p>
