@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +14,9 @@ import {
   DoorOpen,
   Stethoscope,
   DollarSign,
+  ChevronRight,
+  ClipboardList,
+  UserRound,
 } from "lucide-react";
 import type { Appointment, AppointmentStatus } from "../types";
 import { statusStyle, STATUS_LABEL, TYPE_LABEL } from "../appointment-utils";
@@ -139,6 +143,30 @@ export function MobileAppointmentSheet({
             </span>
           </div>
 
+          {/* A ficha a um toque. No computador ela fica no painel ao lado do
+              agendamento; no celular não há "ao lado", e quem atende quer a
+              anamnese ANTES de a pessoa sentar na cadeira — não depois de
+              procurar o nome em Pacientes. Dois atalhos, mesmo peso: a ficha
+              geral e direto a aba clínica. */}
+          {a.patientId && (
+            <div className="grid grid-cols-2 gap-2">
+              <AtalhoDaFicha
+                patientId={a.patientId}
+                aba="resumo"
+                icone={UserRound}
+                titulo="Ficha"
+                legenda="Dados e histórico"
+              />
+              <AtalhoDaFicha
+                patientId={a.patientId}
+                aba="clinico"
+                icone={ClipboardList}
+                titulo="Anamnese"
+                legenda="Saúde e alergias"
+              />
+            </div>
+          )}
+
           <ConfirmCompletion
             expectedRevenue={a.expectedRevenue}
             actualRevenue={a.status === "completed" ? (a.actualRevenue ?? 0) : null}
@@ -222,5 +250,38 @@ export function MobileAppointmentSheet({
         </div>
       </DrawerContent>
     </Drawer>
+  );
+}
+
+function AtalhoDaFicha({
+  patientId,
+  aba,
+  icone: Icone,
+  titulo,
+  legenda,
+}: {
+  patientId: string;
+  aba: "resumo" | "clinico";
+  icone: typeof UserRound;
+  titulo: string;
+  legenda: string;
+}) {
+  return (
+    <Link
+      to="/pacientes/$patientId"
+      params={{ patientId }}
+      search={{ aba }}
+      className="flex items-center gap-3 rounded-2xl bg-white px-3.5 py-3 transition-transform active:scale-[0.97]"
+      style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-2)" }}
+    >
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface text-foreground-secondary">
+        <Icone className="h-[18px] w-[18px]" strokeWidth={1.75} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold leading-tight text-foreground">{titulo}</span>
+        <span className="block truncate text-2xs text-muted-foreground">{legenda}</span>
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60" strokeWidth={2} />
+    </Link>
   );
 }
