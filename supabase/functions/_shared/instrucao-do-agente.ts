@@ -27,7 +27,7 @@
 import { secaoDoAnuncio, type Anuncio } from "./veio-de-anuncio.ts";
 import { catalogoDeVagas, comoReportarFechamento } from "./agendamento-da-ia.ts";
 import { comoUsarOsCasos, type CasoComCodigo } from "./casos-da-ia.ts";
-import { secaoDaCidade, type UnidadeComCodigo } from "./cidade-do-paciente.ts";
+import { secaoDaCidade, semONos, type UnidadeComCodigo } from "./cidade-do-paciente.ts";
 
 export interface EtapaDaConversa {
   nome?: string | null;
@@ -207,11 +207,29 @@ export function secaoDeUnidades(
   /**
    * O nome da unidade da cidade que a pessoa confirmou, quando confirmou.
    *
-   * Sem ela vale a regra antiga — a unidade do horário combinado, e na falta
-   * dele a principal. Com ela, a dúvida acaba: perguntaram o endereço antes de
-   * combinar horário, e a cidade já está dita.
+   * Com ela, a dúvida acaba: perguntaram o endereço antes de combinar horário,
+   * e a cidade já está dita.
    */
   unidadeDaConversa?: string | null,
+  /**
+   * O nome da unidade que o DDD sugere, enquanto a cidade não está confirmada.
+   *
+   * ── Por que este parâmetro existe ───────────────────────────────────────
+   *
+   * Em 21/10, 12:16, um número com DDD 51 perguntou "vocês ficam aonde?". A
+   * seção da cidade, logo acima desta, dizia "o DDD dela é de Porto Alegre,
+   * confirme a cidade". Esta seção dizia "sem horário combinado, a unidade é
+   * a NÓS Florianópolis" — e a Luna, obediente, deu o endereço de
+   * Florianópolis a uma pessoa de Porto Alegre. A Dra. Mariane entrou na
+   * conversa e colou o endereço certo à mão, pela segunda vez este mês.
+   *
+   * O palpite já existia; só não chegava aqui. Agora, sem cidade confirmada
+   * e sem horário combinado, o endereço é o da cidade do DDD — confirmando
+   * na mesma frase — e, sem DDD que diga algo, a Luna pergunta a cidade
+   * antes de dar qualquer endereço. "Cair na principal" deixou de existir:
+   * com duas cidades, é chute com cara de certeza.
+   */
+  unidadeDoPalpite?: string | null,
 ): string {
   const lista = (unidades ?? []).filter((u) => String(u.nome ?? "").trim());
   if (!lista.length) return "";
@@ -232,22 +250,33 @@ export function secaoDeUnidades(
     ...comEndereco.map((u) => `- ${u.nome.trim()}: ${String(u.endereco).trim()}`),
   ];
 
-  // Sem esta linha ela escolheria sozinha entre duas cidades. O horário que as
-  // duas combinaram diz a unidade; enquanto não houver horário, vale a
-  // principal.
+  // Sem estas linhas ela escolheria sozinha entre duas cidades. A ordem é a
+  // da certeza: cidade confirmada, depois o horário que as duas combinaram,
+  // depois o palpite do DDD — e, sem nada disso, perguntar.
   if (comEndereco.length > 1) {
-    const principal = comEndereco.find((u) => u.principal) ?? comEndereco[0];
-    const daConversa = comEndereco.find(
-      (u) => u.nome.trim() === String(unidadeDaConversa ?? "").trim(),
-    );
+    const pelaNome = (nome: string | null | undefined) =>
+      comEndereco.find((u) => u.nome.trim() === String(nome ?? "").trim());
+    const daConversa = pelaNome(unidadeDaConversa);
+    const doPalpite = pelaNome(unidadeDoPalpite);
+    const nomes = comEndereco.map((u) => semONos(u.nome)).join(" ou de ");
     partes.push(
       "",
       ...(daConversa
         ? [`Esta pessoa é de ${daConversa.nome.trim()}: o endereço dela é esse, e`, "nenhum outro."]
-        : [
-            "Responda com o endereço da unidade do horário que vocês combinaram. Se",
-            `ainda não houver horário combinado, a unidade é a ${principal.nome.trim()}.`,
-          ]),
+        : doPalpite
+          ? [
+              "Responda com o endereço da unidade do horário que vocês combinaram.",
+              `Sem horário combinado, o DDD do número dela é de ${semONos(doPalpite.nome)}:`,
+              `dê o endereço da ${doPalpite.nome.trim()} e confirme na mesma mensagem —`,
+              `"você é de ${semONos(doPalpite.nome)}, né?". Se ela disser que é da outra`,
+              "cidade, o endereço é o de lá, e preencha `cidadeConfirmada`.",
+            ]
+          : [
+              "Responda com o endereço da unidade do horário que vocês combinaram.",
+              "Sem horário combinado, o número dela não diz a cidade: pergunte antes",
+              `de dar o endereço — "você é de ${nomes}?" —, uma pergunta curta, e dê o`,
+              "da cidade que ela disser. Não escolha por ela.",
+            ]),
       "",
       // Sem este limite a regra acima vale para TUDO, e foi ela que mandou a
       // Luna dar o endereço de Florianópolis numa conversa sobre uma mentoria
@@ -959,7 +988,11 @@ export function montarInstrucao({
 
   // Depois dos horários é tarde: a pessoa pergunta o endereço logo depois de
   // ouvir o horário, e a seção que responde isso tem de estar junto.
-  const ondeFica = secaoDeUnidades(unidades, cidade?.confirmada?.nome ?? null);
+  const ondeFica = secaoDeUnidades(
+    unidades,
+    cidade?.confirmada?.nome ?? null,
+    cidade?.palpite?.nome ?? null,
+  );
   if (ondeFica) partes.push("", ondeFica);
 
   partes.push("", tabelaDePrecos(procedimentos, parcelamento));

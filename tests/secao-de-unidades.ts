@@ -51,7 +51,43 @@ const POA = {
   conferir("diz que são os únicos", t.includes("são os únicos"), true);
   // Com duas cidades, ela precisa saber qual usar.
   conferir("manda seguir a unidade do horário", t.includes("unidade do horário"), true);
-  conferir("e diz qual vale antes disso", t.includes("a unidade é a NÓS Florianópolis"), true);
+  // Sem DDD que diga algo, ela pergunta — não cai mais na principal.
+  conferir("sem pista, pergunta a cidade", t.includes("pergunte antes"), true);
+  conferir(
+    "com as duas cidades na pergunta",
+    t.includes("você é de Florianópolis ou de Porto Alegre?"),
+    true,
+  );
+  conferir("e não escolhe por ela", t.includes("Não escolha por ela"), true);
+  conferir("nunca mais 'a unidade é a principal'", t.includes("a unidade é a NÓS"), false);
+}
+
+// ── O caso de 21/10: DDD 51 pergunta o endereço antes de confirmar ──────
+//
+// A seção da cidade dizia "o DDD é de Porto Alegre"; esta dizia "sem horário,
+// a unidade é Florianópolis". A Luna seguiu esta. A Dra. Mariane colou o
+// endereço de Porto Alegre à mão.
+{
+  const t = secaoDeUnidades([FLORIPA, POA], null, "NÓS Porto Alegre");
+  conferir("o palpite manda no endereço", t.includes("dê o endereço da NÓS Porto Alegre"), true);
+  conferir("e confirma na mesma frase", t.includes("você é de Porto Alegre, né?"), true);
+  conferir("sem cair na principal", t.includes("a unidade é a NÓS"), false);
+  conferir("o horário combinado ainda vem antes", t.includes("unidade do horário"), true);
+  conferir("e a outra cidade continua possível", t.includes("Se ela disser que é da outra"), true);
+}
+
+// ── Cidade confirmada vence o palpite ────────────────────────────────────
+{
+  const t = secaoDeUnidades([FLORIPA, POA], "NÓS Florianópolis", "NÓS Porto Alegre");
+  conferir("confirmada manda", t.includes("Esta pessoa é de NÓS Florianópolis"), true);
+  conferir("e o palpite some", t.includes("dê o endereço da NÓS Porto Alegre"), false);
+}
+
+// ── Palpite de unidade que não está na lista: igual a sem palpite ────────
+{
+  const t = secaoDeUnidades([FLORIPA, POA], null, "NÓS Curitiba");
+  conferir("palpite desconhecido vira pergunta", t.includes("pergunte antes"), true);
+  conferir("sem endereço inventado", t.includes("Curitiba"), false);
   conferir(
     "não despeja sem perguntarem",
     t.includes("Só diga o endereço quando perguntarem"),
@@ -126,11 +162,9 @@ conferir(
 // Florianópolis numa conversa sobre uma mentoria em Porto Alegre, em 15/10.
 {
   const duas = secaoDeUnidades([FLORIPA, POA]);
-  conferir(
-    "com duas unidades, a regra do padrão aparece",
-    duas.includes("a unidade é a NÓS Florianópolis"),
-    true,
-  );
+  // O padrão deixou de ser "a principal": sem cidade, sem horário e sem DDD
+  // que diga algo, a regra é perguntar — ver o caso de 21/10 acima.
+  conferir("com duas unidades, a regra do padrão aparece", duas.includes("pergunte antes"), true);
   conferir(
     "e vem limitada ao atendimento na clínica",
     duas.includes("vale para atendimento NA CLÍNICA"),
@@ -179,11 +213,7 @@ conferir(
 // cadastro) cai na regra antiga em vez de inventar.
 {
   const t = secaoDeUnidades([FLORIPA, POA], "NÓS Curitiba");
-  conferir(
-    "nome desconhecido volta para a regra antiga",
-    t.includes("ainda não houver horário combinado"),
-    true,
-  );
+  conferir("nome desconhecido volta para a regra padrão", t.includes("pergunte antes"), true);
   conferir("e não afirma cidade nenhuma", t.includes("Esta pessoa é de"), false);
 }
 

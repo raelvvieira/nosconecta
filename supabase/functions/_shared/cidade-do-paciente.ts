@@ -263,7 +263,7 @@ export function unidadePeloDdd(
  */
 /** "NÓS Porto Alegre" → "Porto Alegre". A pergunta é sobre a CIDADE da pessoa,
  *  e "você é de NÓS Porto Alegre?" não é português. */
-function semONos(nome: string): string {
+export function semONos(nome: string): string {
   return (
     String(nome ?? "")
       .replace(/^N[ÓO]S\s+/i, "")
