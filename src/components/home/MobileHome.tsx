@@ -198,28 +198,28 @@ function AcoesRapidas() {
   const navigate = useNavigate();
   const acoes = [
     {
-      label: "Novo\nagendamento",
+      label: "Agendar",
       icon: CalendarDays,
-      principal: true,
-      iconClass: "bg-white/20 text-white",
+      principal: false,
+      iconClass: "bg-pink-soft text-pink",
       onClick: () => navigate({ to: "/agenda" }),
     },
     {
-      label: "Novo\npaciente",
+      label: "Paciente",
       icon: UserPlus,
       principal: false,
       iconClass: "bg-violet-soft text-violet",
       onClick: () => navigate({ to: "/pacientes", search: { status: "all" } }),
     },
     {
-      label: "Registrar\nrecebimento",
+      label: "Recebimento",
       icon: ArrowDownCircle,
       principal: false,
       iconClass: "bg-success-soft text-success",
       onClick: () => navigate({ to: "/recebimentos" }),
     },
     {
-      label: "Novo\npagamento",
+      label: "Pagamento",
       icon: CreditCard,
       principal: false,
       iconClass: "bg-warning-soft text-warning",
@@ -249,9 +249,9 @@ function AcoesRapidas() {
             >
               <a.icon className="h-5 w-5" strokeWidth={1.75} />
             </span>
-            <span className="line-clamp-2 min-w-0 break-words text-sm font-semibold leading-tight">
-              {a.label}
-            </span>
+            {/* Uma palavra, sem quebra: "Novo agendamento" em duas linhas num
+                azulejo de meia tela saía cortado. O ícone já diz o que é. */}
+            <span className="min-w-0 truncate text-sm font-semibold">{a.label}</span>
           </button>
         ))}
       </div>
