@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { VoltarAoInicio } from "./VoltarAoInicio";
 
 /**
  * Cabeçalho de página.
@@ -49,6 +50,7 @@ export function PageHeading({
       )}
     >
       <div className="min-w-0">
+        <VoltarAoInicio />
         {/* Rótulo e explicação só no computador. No celular eram cinco
             linhas antes do conteúdo, para dizer o que a tela já diz no
             título — quem usa o sistema todo dia não precisa ler o que é

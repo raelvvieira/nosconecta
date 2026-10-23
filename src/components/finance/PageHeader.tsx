@@ -1,4 +1,5 @@
 import { SeletorDeMes } from "./SeletorDeMes";
+import { VoltarAoInicio } from "@/components/layout/VoltarAoInicio";
 
 /**
  * O topo das telas financeiras.
@@ -27,6 +28,7 @@ export function PageHeader({
   return (
     <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6">
       <div className="min-w-0">
+        <VoltarAoInicio />
         <h1 className="text-[26px] font-semibold leading-[1.1] tracking-tight lg:text-3xl">
           {titulo}
         </h1>
