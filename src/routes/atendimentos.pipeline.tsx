@@ -627,7 +627,8 @@ function StagesSheet({
             className="h-10 flex-1 rounded-xl"
           />
           <Button
-            className="gap-1.5 bg-gradient-primary text-white"
+            variant="outline"
+            className="gap-1.5"
             disabled={!newName.trim() || saveMutation.isPending}
             onClick={() => {
               const color = STAGE_COLORS[stages.length % STAGE_COLORS.length];

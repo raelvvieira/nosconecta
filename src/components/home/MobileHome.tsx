@@ -236,10 +236,11 @@ function AcoesRapidas() {
             key={a.label}
             type="button"
             className={cn(
-              "press flex h-[86px] min-w-0 cursor-pointer items-center gap-3.5 rounded-2xl px-4 text-left",
-              a.principal
-                ? "bg-gradient-primary text-white shadow-brand"
-                : "surface-card text-foreground",
+              // Quatro iguais, nenhum em degradê: o degradê é da ação principal
+              // da tela, e numa grade de atalhos não há uma — o que havia era
+              // um azulejo dourado com o texto cortado ao lado de três
+              // brancos (padrão de botões, 23/10).
+              "press surface-card flex h-[76px] min-w-0 cursor-pointer items-center gap-3 rounded-2xl px-4 text-left text-foreground",
             )}
             onClick={a.onClick}
           >
@@ -248,7 +249,7 @@ function AcoesRapidas() {
             >
               <a.icon className="h-5 w-5" strokeWidth={1.75} />
             </span>
-            <span className="min-w-0 overflow-hidden whitespace-pre-line text-sm font-bold">
+            <span className="line-clamp-2 min-w-0 break-words text-sm font-semibold leading-tight">
               {a.label}
             </span>
           </button>

@@ -21,6 +21,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // ── A regra dos botões (23/10) ──────────────────────────────────
+        // `premium` (degradê): UMA por tela, a ação principal — e no celular
+        // ela vira o "+" do cabeçalho. `outline`: todo o resto que faz algo
+        // (Adicionar, Salvar, Ver todos). `link`: ação dentro de um texto.
+        // Ícone sozinho: círculo branco com borda (o X das folhas). Degradê
+        // nunca em grade de atalhos nem em botão secundário.
         // `premium` é o nome que o projeto usa para a ação principal; `default`
         // aponta para ela em vez de repetir a string, que era o que fazia as
         // duas divergirem em silêncio quando uma era ajustada.
@@ -28,18 +34,15 @@ const buttonVariants = cva(
           "bg-gradient-primary text-white shadow-2 hover:brightness-[1.03] hover:shadow-3 active:brightness-[0.97]",
         default:
           "bg-gradient-primary text-white shadow-2 hover:brightness-[1.03] hover:shadow-3 active:brightness-[0.97]",
-        dark:
-          "bg-foreground text-white hover:bg-foreground-hover active:bg-foreground-active",
+        dark: "bg-foreground text-white hover:bg-foreground-hover active:bg-foreground-active",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80",
         outline:
           "border border-input bg-white text-foreground hover:bg-surface-subtle active:bg-border",
         secondary:
           "bg-white border border-input text-foreground hover:bg-surface-subtle active:bg-border",
-        ghost:
-          "text-foreground hover:bg-surface-subtle active:bg-border",
-        link:
-          "text-primary underline-offset-4 hover:underline active:opacity-70",
+        ghost: "text-foreground hover:bg-surface-subtle active:bg-border",
+        link: "text-primary underline-offset-4 hover:underline active:opacity-70",
       },
       size: {
         default: "h-11 px-5",
