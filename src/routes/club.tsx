@@ -304,7 +304,13 @@ function Entrada() {
             <span className="block text-sm font-semibold text-neutral-900">Primeiro acesso?</span>
             <span className="mt-0.5 block text-xs leading-5 text-neutral-500">
               Toque em <strong className="font-semibold text-neutral-800">Criar conta</strong> para
-              ter acesso ao seu crédito.
+              ter acesso ao{" "}
+              {/* O crédito é a razão de criar a conta: em dourado, o mesmo
+                  degradê do cartão Gold, para saltar do cinza da frase. */}
+              <strong className="bg-[linear-gradient(100deg,#a9802f,#d2a94f_45%,#a9802f)] bg-clip-text font-bold text-transparent">
+                seu crédito
+              </strong>
+              .
             </span>
           </span>
           <ArrowRight className="h-4 w-4 shrink-0 text-neutral-400" />
