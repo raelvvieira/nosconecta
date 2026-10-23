@@ -6,9 +6,22 @@ import {
   ChevronRight,
   CreditCard,
   DollarSign,
+  LogOut,
+  Palette,
+  Settings2,
   UserPlus,
+  UserRound,
   Users,
 } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useRegisterMobileFab } from "@/components/finance/mobile-fab-context";
 import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { KpiCard } from "@/components/finance/KpiCard";
@@ -27,7 +40,8 @@ import { cn } from "@/lib/utils";
 // usa os cartões, a escala tipográfica e os tokens do resto do app.
 
 function Cabecalho() {
-  const { firstName, initial, greeting } = useGreetingUser();
+  const navigate = useNavigate();
+  const { firstName, greeting } = useGreetingUser();
   return (
     <header className="flex items-start justify-between gap-3 px-6 pt-[calc(env(safe-area-inset-top)+52px)]">
       <div className="min-w-0">
@@ -42,13 +56,48 @@ function Cabecalho() {
             informação de fato mora — sino para as notificações, inicial para a
             conta —, em vez de parecerem clicáveis e não fazerem nada. */}
         <SinoDeAvisos className="h-[52px] w-[52px] shrink-0 !rounded-xl shadow-2" />
-        <Link
-          to="/configuracoes"
-          aria-label="Conta"
-          className="press grid h-[52px] w-[52px] place-items-center rounded-xl border-[3px] border-card bg-gradient-primary text-lg font-bold text-white shadow-2"
-        >
-          {initial}
-        </Link>
+        {/* A conta: um ícone de pessoa, não a inicial — a clínica estranhou o
+            "R" num quadrado dourado sem saber o que fazia. Abre um menu com
+            Aparência, Configurações e Sair. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Conta"
+              className="press grid h-[52px] w-[52px] place-items-center rounded-xl border border-border bg-card text-foreground shadow-2"
+            >
+              <UserRound className="h-[22px] w-[22px]" strokeWidth={1.75} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52 rounded-2xl p-1.5">
+            <p className="px-2.5 pb-1.5 pt-1 text-xs text-muted-foreground">
+              {firstName ? `Olá, ${firstName}` : "Sua conta"}
+            </p>
+            <DropdownMenuItem
+              className="gap-2.5 rounded-xl py-2.5"
+              onSelect={() => navigate({ to: "/configuracoes/aparencia" })}
+            >
+              <Palette className="h-4 w-4" /> Aparência
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="gap-2.5 rounded-xl py-2.5"
+              onSelect={() => navigate({ to: "/configuracoes" })}
+            >
+              <Settings2 className="h-4 w-4" /> Configurações
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="gap-2.5 rounded-xl py-2.5 text-danger"
+              onSelect={async () => {
+                await supabase.auth.signOut();
+                toast.success("Sessão encerrada.");
+                navigate({ to: "/auth", replace: true });
+              }}
+            >
+              <LogOut className="h-4 w-4" /> Sair
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );
