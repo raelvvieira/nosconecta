@@ -246,10 +246,18 @@ export function Sidebar() {
         {/* Marca + alternar.
             A marca fica ancorada na mesma posição x nos dois estados — é o que
             evita a sensação de que a ilha inteira pulou ao expandir. */}
-        <div className={cn("flex items-center", collapsed ? "flex-col gap-2" : "justify-between")}>
+        <div
+          className={cn(
+            "flex items-center",
+            collapsed ? "flex-col gap-2" : "relative justify-center",
+          )}
+        >
           {/* O logo no lugar do "N" num quadrado. Recolhido, só o NŌS: o
               "Conecta" a 44px de largura vira um risco. Aberto, o logo
               inteiro, que já diz o nome — o texto ao lado saiu. */}
+          {/* Aberto, o logo fica no centro da ilha e o botão de recolher sai do
+              fluxo, preso à direita — senão o botão empurraria o logo para a
+              esquerda. */}
           <div className={cn("flex items-center", collapsed && "flex-col")}>
             {collapsed ? (
               <span
@@ -274,7 +282,10 @@ export function Sidebar() {
             onClick={() => setFixado((v) => !v)}
             aria-expanded={aberto}
             aria-controls="menu-principal"
-            className="h-9 w-9 grid place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className={cn(
+              "h-9 w-9 grid place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+              !collapsed && "absolute right-0 top-1/2 -translate-y-1/2",
+            )}
             aria-label={fixado ? "Recolher menu" : "Manter menu aberto"}
           >
             {fixado ? (
