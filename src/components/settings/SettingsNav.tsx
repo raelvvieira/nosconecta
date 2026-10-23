@@ -16,6 +16,8 @@ import {
   Wallet,
   type LucideIcon,
   Palette,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
