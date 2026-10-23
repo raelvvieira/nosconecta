@@ -287,6 +287,30 @@ function Entrada() {
 
       <Desfile />
 
+      {/* Quem chega pelo QR pela primeira vez cai em "Já tenho conta" e tenta
+          entrar com um e-mail que ainda não existe. O aviso vem ANTES do
+          formulário e é ele mesmo o botão: um toque e a aba de criar abre. */}
+      {modo === "entrar" && (
+        <button
+          type="button"
+          onClick={() => setModo("criar")}
+          className="club-entra glass-claro mb-3 flex w-full items-center gap-3 px-5 py-4 text-left transition-transform active:scale-[0.98]"
+          style={{ animationDelay: "100ms" }}
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#1c1814] text-[#fbf6ea]">
+            <Gift className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-neutral-900">Primeiro acesso?</span>
+            <span className="mt-0.5 block text-xs leading-5 text-neutral-500">
+              Toque em <strong className="font-semibold text-neutral-800">Criar conta</strong> para
+              ter acesso ao seu crédito.
+            </span>
+          </span>
+          <ArrowRight className="h-4 w-4 shrink-0 text-neutral-400" />
+        </button>
+      )}
+
       <form
         onSubmit={enviar}
         className="club-entra glass-claro mt-2 space-y-4 p-6"
