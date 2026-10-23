@@ -39,8 +39,14 @@ function SettingsLayout() {
   // Numa subtela (Pessoal, Casos…) o celular mostrava dois cabeçalhos
   // empilhados: "Configurações" com explicação, e logo abaixo o da subtela.
   // Fica só o da subtela; o de Configurações volta no computador.
-  const { pathname } = useLocation();
+  const { pathname, searchStr } = useLocation();
   const naRaiz = pathname === "/configuracoes" || pathname === "/configuracoes/";
+  // No celular, a raiz de Configurações É o menu: a lista de áreas, no
+  // estilo dos Ajustes do iPhone. O conteúdo de uma área só aparece quando
+  // ela foi escolhida (`?section=`) ou numa rota própria. A tira de chips
+  // que rolava de lado saiu — "Biblioteca" aparecia cortado na borda e
+  // metade das áreas ficava escondida (23/10).
+  const menuNoCelular = naRaiz && !String(searchStr ?? "").includes("section=");
   return (
     <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
@@ -55,7 +61,7 @@ function SettingsLayout() {
 
         <div className="mt-7 grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
           <SettingsNav />
-          <section className="min-w-0">
+          <section className={cn("min-w-0", menuNoCelular && "hidden lg:block")}>
             <Outlet />
           </section>
         </div>

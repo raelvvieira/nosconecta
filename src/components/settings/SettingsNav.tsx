@@ -1,4 +1,4 @@
-import { Link, useRouterState, useSearch } from "@tanstack/react-router";
+import { Link, useLocation, useRouterState, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import {
@@ -194,6 +194,9 @@ export function SettingsNav() {
     item.kind !== "section" || !item.adminOnly || !!counts?.isAdmin;
 
   const activeSection: PageSection = search.section ?? "professionals";
+  const { searchStr } = useLocation();
+  const menuNoCelular =
+    pathname === "/configuracoes" && !String(searchStr ?? "").includes("section=");
   const isActive = (item: NavItem) =>
     item.kind === "section"
       ? pathname === "/configuracoes" && activeSection === item.value
@@ -207,31 +210,54 @@ export function SettingsNav() {
 
   return (
     <>
-      {/* Mobile: tira horizontal. Antes o menu era `hidden lg:block` e os
-          cards do topo eram a única navegação no celular — sem eles, o menu
-          precisa aparecer aqui. */}
-      <nav className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {ALL_ITEMS.filter(visible).map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item);
-          return (
-            <Link
-              key={item.kind === "section" ? item.value : item.to}
-              to={item.kind === "section" ? "/configuracoes" : item.to}
-              search={item.kind === "section" ? { section: item.value } : undefined}
-              className={cn(
-                "flex shrink-0 items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition-colors",
-                active
-                  ? "border-transparent bg-foreground text-white"
-                  : "border-border bg-white/65 text-muted-foreground",
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Celular. Na raiz, a lista de áreas em grupos — o menu é a página.
+          Numa área, só uma linha de volta: "‹ Configurações". */}
+      {menuNoCelular ? (
+        <nav className="space-y-5 lg:hidden">
+          {GROUPS.map((group) => {
+            const itens = group.items.filter(visible);
+            if (!itens.length) return null;
+            return (
+              <div key={group.label}>
+                <p className="mb-1.5 px-1 text-2xs font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
+                  {group.label}
+                </p>
+                <div className="surface-card divide-y divide-border overflow-hidden">
+                  {itens.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.kind === "section" ? item.value : item.to}
+                        to={item.kind === "section" ? "/configuracoes" : item.to}
+                        search={item.kind === "section" ? { section: item.value } : undefined}
+                        className="press flex items-center gap-3 px-4 py-3.5 active:bg-muted/40"
+                      >
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface text-foreground-secondary">
+                          <Icon className="h-4 w-4" strokeWidth={1.75} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">{item.label}</span>
+                          <span className="block truncate text-2xs text-muted-foreground">
+                            {detail(item)}
+                          </span>
+                        </span>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </nav>
+      ) : (
+        <Link
+          to="/configuracoes"
+          className="press -mt-2 flex items-center gap-1 self-start text-sm font-medium text-pink lg:hidden"
+        >
+          <ChevronLeft className="h-4 w-4" strokeWidth={2} /> Configurações
+        </Link>
+      )}
 
       <aside className="surface-card hidden overflow-hidden p-2 lg:sticky lg:top-8 lg:block">
         {GROUPS.map((group) => (
