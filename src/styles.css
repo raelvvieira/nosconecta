@@ -1029,17 +1029,30 @@
   }
 }
 
-/* ── O logo do Club ──────────────────────────────────────────────────────
-   Um arquivo só, usado como MÁSCARA: a forma vem do PNG e a cor vem de
-   `currentColor`. É o que deixa o mesmo logo escuro no topo da página e
-   creme sobre o cartão bege, sem dois arquivos para manter iguais. A
-   proporção é a do desenho recortado (720 × 497). */
+/* ── A marca NÓS Conecta ─────────────────────────────────────────────────
+   Um logo para o sistema inteiro, inclusive a área do paciente do Club
+   (decisão da clínica em 23/10). Usado como MÁSCARA: a forma vem do PNG e a
+   cor de `currentColor` — o mesmo arquivo sai escuro no topo da página e
+   claro sobre um cartão, sem duas versões para manter iguais.
+
+   `marca-nos` é o logo completo (NÓS + Conecta, 900 × 547). `marca-nos-simbolo`
+   é só o NŌS (900 × 399), para lugares pequenos como o menu recolhido, onde
+   o "Conecta" ficaria ilegível. */
+.marca-nos,
 .club-logo {
   display: inline-block;
-  aspect-ratio: 720 / 497;
+  aspect-ratio: 900 / 547;
   background-color: currentColor;
-  mask: url("/club/logo.png") center / contain no-repeat;
-  -webkit-mask: url("/club/logo.png") center / contain no-repeat;
+  mask: url("/marca/nos-conecta.png") center / contain no-repeat;
+  -webkit-mask: url("/marca/nos-conecta.png") center / contain no-repeat;
+}
+
+.marca-nos-simbolo {
+  display: inline-block;
+  aspect-ratio: 900 / 399;
+  background-color: currentColor;
+  mask: url("/marca/nos-simbolo.png") center / contain no-repeat;
+  -webkit-mask: url("/marca/nos-simbolo.png") center / contain no-repeat;
 }
 
 /* ── O desfile dos cartões ───────────────────────────────────────────────

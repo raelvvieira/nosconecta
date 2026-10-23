@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Lock, Phone, ShieldAlert, Sparkles, User } from "lucide-react";
+import { Loader2, Lock, Phone, ShieldAlert, User } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -33,14 +33,19 @@ import { motivoDaConta } from "@/lib/auth/erro-do-convite";
  */
 export const Route = createFileRoute("/convite/$token")({
   ssr: false,
-  head: () => ({ meta: [
-    { title: "Convite · NÓS Conecta" },
-    { name: "description", content: "Aceite seu convite de acesso à equipe da NÓS Conecta." },
-    { property: "og:title", content: "Convite · NÓS Conecta" },
-    { property: "og:description", content: "Aceite seu convite de acesso à equipe da NÓS Conecta." },
-    { property: "og:type", content: "website" },
-    { name: "twitter:card", content: "summary" },
-  ] }),
+  head: () => ({
+    meta: [
+      { title: "Convite · NÓS Conecta" },
+      { name: "description", content: "Aceite seu convite de acesso à equipe da NÓS Conecta." },
+      { property: "og:title", content: "Convite · NÓS Conecta" },
+      {
+        property: "og:description",
+        content: "Aceite seu convite de acesso à equipe da NÓS Conecta.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: ConvitePage,
 });
 
@@ -107,9 +112,11 @@ function ConvitePage() {
       const { error: erroSenha } = await supabase.auth.updateUser({ password: senha });
       if (erroSenha) {
         setSalvando(false);
-        toast.error(motivoDaConta(erroSenha) === "senha_fraca"
-          ? "Esta senha é muito comum ou foi exposta. Escolha uma senha mais forte e repita nos dois campos."
-          : "Não deu para gravar a senha nova. Tente de novo.");
+        toast.error(
+          motivoDaConta(erroSenha) === "senha_fraca"
+            ? "Esta senha é muito comum ou foi exposta. Escolha uma senha mais forte e repita nos dois campos."
+            : "Não deu para gravar a senha nova. Tente de novo.",
+        );
         return;
       }
       await aceitar();
@@ -233,9 +240,11 @@ function ConvitePage() {
     <div className="min-h-dvh w-full bg-surface-subtle px-4 py-10">
       <div className="mx-auto w-full max-w-[460px]">
         <div className="mb-7 flex flex-col items-center text-center">
-          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-primary text-white">
-            <Sparkles className="h-5 w-5" />
-          </span>
+          <span
+            className="marca-nos w-[140px] text-foreground"
+            role="img"
+            aria-label="NÓS Conecta"
+          />
           <h1 className="mt-3 text-xl font-semibold">
             {convite.data.convidadoNome
               ? `Olá, ${convite.data.convidadoNome.split(" ")[0]}!`
@@ -277,7 +286,10 @@ function ConvitePage() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => { setEmail(e.target.value); setContaExistente(false); }}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setContaExistente(false);
+                }}
                 required
                 className="pl-9"
               />

@@ -239,12 +239,22 @@ export function Sidebar() {
             A marca fica ancorada na mesma posição x nos dois estados — é o que
             evita a sensação de que a ilha inteira pulou ao expandir. */}
         <div className={cn("flex items-center", collapsed ? "flex-col gap-2" : "justify-between")}>
-          <div className={cn("flex items-center gap-3", collapsed && "flex-col")}>
-            <div className="h-11 w-11 rounded-xl bg-gradient-primary text-white grid place-items-center font-bold text-lg shadow-2 shrink-0">
-              N
-            </div>
-            {!collapsed && (
-              <span className="font-semibold text-foreground text-sm">NÓS Conecta</span>
+          {/* O logo no lugar do "N" num quadrado. Recolhido, só o NŌS: o
+              "Conecta" a 44px de largura vira um risco. Aberto, o logo
+              inteiro, que já diz o nome — o texto ao lado saiu. */}
+          <div className={cn("flex items-center", collapsed && "flex-col")}>
+            {collapsed ? (
+              <span
+                className="marca-nos-simbolo w-11 shrink-0 text-foreground"
+                role="img"
+                aria-label="NÓS Conecta"
+              />
+            ) : (
+              <span
+                className="marca-nos w-[104px] shrink-0 text-foreground"
+                role="img"
+                aria-label="NÓS Conecta"
+              />
             )}
           </div>
           {/* Rótulo e ícone seguem o FIXADO, não o estado visível: seguindo o

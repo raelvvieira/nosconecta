@@ -164,7 +164,7 @@ function Fundo({ children }: { children: React.ReactNode }) {
 function Marca({ legenda }: { legenda?: string }) {
   return (
     <div className="club-entra flex flex-col items-center text-center">
-      <span className="club-logo w-[148px] text-[#2a2118]" role="img" aria-label="NÓS Club" />
+      <span className="club-logo w-[150px] text-[#2a2118]" role="img" aria-label="NÓS Conecta" />
       <h1 className="sr-only">NÓS Club</h1>
       {legenda ? <p className="mt-3 text-sm text-neutral-500">{legenda}</p> : null}
     </div>
