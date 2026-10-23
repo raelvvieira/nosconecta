@@ -1,5 +1,6 @@
 import {
   Home,
+  Users,
   LogOut,
   Palette,
   PanelLeftClose,
@@ -484,8 +485,11 @@ export function Sidebar() {
           // aparecia antes da certa.
           if (inAgenda) {
             const [esquerda, direita] = [ACOES_DA_AGENDA[0], ACOES_DA_AGENDA[1]];
+            // "Início" na ponta, como nas outras telas: sem o botão de casa no
+            // canto, a agenda tinha ficado sem caminho de volta (23/10).
             return (
               <>
+                <LinkDaIlha to="/inicio" label="Início" icon={Home} ativo={false} />
                 <BotaoDaIlha
                   label={esquerda.label}
                   icon={esquerda.icon}
@@ -497,6 +501,7 @@ export function Sidebar() {
                   icon={direita.icon}
                   onClick={handlers[direita.id]}
                 />
+                <LinkDaIlha to="/pacientes" label="Pacientes" icon={Users} ativo={false} />
               </>
             );
           }
