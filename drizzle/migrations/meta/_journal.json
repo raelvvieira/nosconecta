@@ -64,6 +64,13 @@
       "when": 1792528222263,
       "tag": "0008_club_link_do_cartao",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792773925403,
+      "tag": "0009_club_boas_vindas_no_painel",
+      "breakpoints": true
     }
   ]
 }
