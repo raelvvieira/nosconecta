@@ -13,6 +13,7 @@ import { NIVEIS } from "@/lib/auth/niveis-de-acesso";
 import { ESPECIALIDADES } from "@/lib/settings/especialidades";
 import { cn } from "@/lib/utils";
 import { convitePublico, criarContaDoConvite } from "@/lib/settings/pessoal.functions";
+import { motivoDaConta } from "@/lib/auth/erro-do-convite";
 
 /**
  * A página do convite.
@@ -32,7 +33,14 @@ import { convitePublico, criarContaDoConvite } from "@/lib/settings/pessoal.func
  */
 export const Route = createFileRoute("/convite/$token")({
   ssr: false,
-  head: () => ({ meta: [{ title: "Convite · NÓS Conecta" }] }),
+  head: () => ({ meta: [
+    { title: "Convite · NÓS Conecta" },
+    { name: "description", content: "Aceite seu convite de acesso à equipe da NÓS Conecta." },
+    { property: "og:title", content: "Convite · NÓS Conecta" },
+    { property: "og:description", content: "Aceite seu convite de acesso à equipe da NÓS Conecta." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+  ] }),
   component: ConvitePage,
 });
 
@@ -99,7 +107,9 @@ function ConvitePage() {
       const { error: erroSenha } = await supabase.auth.updateUser({ password: senha });
       if (erroSenha) {
         setSalvando(false);
-        toast.error("Não deu para gravar a senha nova. Tente de novo.");
+        toast.error(motivoDaConta(erroSenha) === "senha_fraca"
+          ? "Esta senha é muito comum ou foi exposta. Escolha uma senha mais forte e repita nos dois campos."
+          : "Não deu para gravar a senha nova. Tente de novo.");
         return;
       }
       await aceitar();
@@ -142,7 +152,9 @@ function ConvitePage() {
       toast.error(
         criada.motivo === "convite_invalido"
           ? "Este convite não vale mais. Peça um novo."
-          : "Não foi possível criar sua conta. Tente novamente.",
+          : criada.motivo === "senha_fraca"
+            ? "Esta senha é muito comum ou foi exposta. Escolha uma senha mais forte e repita nos dois campos."
+            : "Não foi possível criar sua conta. Tente novamente.",
       );
       return;
     }
@@ -265,7 +277,7 @@ function ConvitePage() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setContaExistente(false); }}
                 required
                 className="pl-9"
               />

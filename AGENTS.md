@@ -16,3 +16,7 @@ Este projeto esta conectado ao Lovable via GitHub. Quando o push para o GitHub e
 
 - Toda rota deve preservar a navegacao principal: sidebar fixa a esquerda no desktop e menu flutuante em formato de ilha no mobile.
 - Estados de erro e pagina nao encontrada devem usar `ResponsiveRouteState` para manter esse comportamento.
+
+## Invitation account security
+- Existing accounts must authenticate or use email recovery before accepting invitations; an invitation alone must never reset another account's password.
+- Classify invitation Auth failures through the shared error helper so weak passwords and existing accounts remain distinct recoverable outcomes.

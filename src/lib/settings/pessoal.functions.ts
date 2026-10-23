@@ -2,6 +2,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { exigeConfiguracoes } from "@/lib/auth/area.middleware";
 import type { NivelDeAcesso } from "@/lib/auth/niveis-de-acesso";
+import { motivoDaConta, type MotivoDaConta } from "@/lib/auth/erro-do-convite";
 
 /**
  * As pessoas da clínica, numa lista só.
@@ -528,7 +529,7 @@ export const criarContaDoConvite = createServerFn({ method: "POST" })
   .handler(
     async ({
       data,
-    }): Promise<{ ok: boolean; motivo?: "convite_invalido" | "email_em_uso" | "falhou" }> => {
+    }): Promise<{ ok: boolean; motivo?: "convite_invalido" | MotivoDaConta }> => {
       const url = process.env.SUPABASE_URL;
       const chave = process.env.SUPABASE_SERVICE_ROLE_KEY;
       if (!url || !chave) {
@@ -556,57 +557,13 @@ export const criarContaDoConvite = createServerFn({ method: "POST" })
         user_metadata: { full_name: data.nome, phone: data.telefone },
       });
       if (error || !criado?.user?.id) {
-        const texto = String(error?.message ?? "");
-        if (!/already|registered|exists/i.test(texto)) {
-          console.error("[convite] conta não criada", texto);
-          return { ok: false, motivo: "falhou" };
-        }
-        // O e-mail já tem conta. Decisão da clínica em 23/10, no caso da Dra.
-        // Mariane (conta de setembro, sem acesso a nada): o convite REFAZ a
-        // conta do zero — senha e dados novos, e ela entra. O link é a prova:
-        // só quem administra gera, vale para uma pessoa e por 7 dias.
-        //
-        // Duas contas o convite nunca toma, porque são de alguém de verdade:
-        // a que já tem acesso a uma clínica, e a de paciente do NÓS Club.
-        // Trocar a senha delas com um link seria entregar a conta de outra
-        // pessoa a quem estiver com o link.
-        const existente = await contaPeloEmail(admin, data.email);
-        if (!existente) return { ok: false, motivo: "email_em_uso" };
-        const { count: acessos } = await admin
-          .from("clinic_members")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", existente.id);
-        const { count: doClub } = await admin
-          .from("patients")
-          .select("id", { count: "exact", head: true })
-          .eq("club_user_id", existente.id);
-        if ((acessos ?? 0) > 0 || (doClub ?? 0) > 0) return { ok: false, motivo: "email_em_uso" };
-
-        const { error: erroCompletar } = await admin.auth.admin.updateUserById(existente.id, {
-          password: data.senha,
-          email_confirm: true,
-          user_metadata: { full_name: data.nome, phone: data.telefone },
-        });
-        if (erroCompletar) {
-          console.error("[convite] conta pendente não completada", erroCompletar.message);
-          return { ok: false, motivo: "falhou" };
-        }
+        // Mesmo sem matrícula, a conta pertence a quem controla sua senha/e-mail.
+        // O navegador faz login ou oferece recuperação; nunca redefinimos aqui.
+        const motivo = motivoDaConta(error);
+        if (motivo === "falhou") console.error("[convite] conta não criada", error?.message);
+        return { ok: false, motivo };
       }
       return { ok: true };
     },
   );
 
-/** A conta de um e-mail, pela API de administração — a única que enxerga
- *  `auth.users`. A clínica tem dezenas de contas, não milhares: duas páginas
- *  cobrem com folga. */
-async function contaPeloEmail(admin: any, email: string): Promise<any | null> {
-  for (let page = 1; page <= 5; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) return null;
-    const lista = (data?.users ?? []) as any[];
-    const achado = lista.find((u) => String(u.email ?? "").toLowerCase() === email);
-    if (achado) return achado;
-    if (lista.length < 200) return null;
-  }
-  return null;
-}
