@@ -264,61 +264,76 @@ function AppointmentCard({
   comAviso: TipoDeAviso | null;
 }) {
   const s = statusStyle(appt.status);
+  const cancelado = appt.status === "cancelled";
+  // Varredura de 23/10: hora, bolinha de status, avatar com iniciais, nome,
+  // selo de status e seta disputavam uma linha de 360px — e quem perdia era
+  // o nome do paciente, cortado em "Gustavo Ahr…". Ficou o essencial: a hora
+  // à esquerda, o nome inteiro, o procedimento e, numa linha só, o status
+  // (na cor dele) com quem atende. A cor do status vira uma barra fina na
+  // borda — o que a bolinha e o selo diziam duas vezes.
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left surface-card p-4 flex items-center gap-3 active:scale-[0.985] transition-transform"
+      className={cn(
+        "surface-card relative flex w-full items-stretch gap-3.5 overflow-hidden py-3.5 pl-4 pr-4 text-left transition-transform active:scale-[0.985]",
+        cancelado && "opacity-60",
+      )}
     >
-      <div className="flex flex-col items-center shrink-0 w-12">
-        <span className="text-sm font-bold text-foreground">{appt.startTime}</span>
-        <span className="text-3xs text-muted-foreground">{appt.endTime}</span>
-        <div
-          className="mt-1.5"
-          style={{ width: 8, height: 8, borderRadius: 9999, background: s.badge }}
-        />
-      </div>
-
-      <div
-        className="h-11 w-11 rounded-full grid place-items-center text-white text-sm font-bold shrink-0"
-        style={{ background: "var(--gradient-primary)" }}
-      >
-        {initialsOf(appt.patientName)}
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-          <span className="truncate">{appt.patientName}</span>
-          {appt.type === "return" && (
-            <span className="shrink-0 rounded-full bg-violet-soft px-1.5 py-0.5 text-3xs font-semibold text-violet">
-              {TYPE_LABEL.return}
-            </span>
-          )}
-          {comAviso && (
-            <span
-              className={cn(
-                "shrink-0 rounded-full px-1.5 py-0.5 text-3xs font-semibold",
-                TOM_DO_AVISO[comAviso],
-              )}
-            >
-              {ROTULO_DO_AVISO[comAviso]}
-            </span>
-          )}
-        </p>
-        <p className="text-xs text-muted-foreground truncate">{appt.procedureName}</p>
-        <p className="text-2xs text-foreground-subtle truncate mt-0.5">
-          {appt.professionalName} · {appt.roomName}
-        </p>
-      </div>
-
-      <div className="flex flex-col items-end gap-1.5 shrink-0">
-        <span
-          className="px-2.5 py-1 rounded-full text-3xs font-semibold whitespace-nowrap"
-          style={{ background: s.bg, color: s.text }}
-        >
-          {STATUS_LABEL[appt.status]}
+      <span
+        aria-hidden
+        className="absolute inset-y-0 left-0 w-[3px]"
+        style={{ background: s.badge }}
+      />
+      <div className="flex w-11 shrink-0 flex-col pt-0.5">
+        <span className="text-[15px] font-semibold tabular-nums leading-tight text-foreground">
+          {appt.startTime}
         </span>
-        <ChevronRight className="h-4 w-4 text-divider" strokeWidth={2} />
+        <span className="text-2xs tabular-nums text-muted-foreground">{appt.endTime}</span>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p
+          className={cn(
+            "line-clamp-2 text-[15px] font-semibold leading-snug text-foreground",
+            cancelado && "line-through decoration-foreground-subtle",
+          )}
+        >
+          {appt.patientName}
+        </p>
+        <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">
+          {appt.procedureName}
+        </p>
+        <p className="mt-1.5 flex min-w-0 items-center gap-1.5 text-2xs">
+          <span className="shrink-0 font-semibold" style={{ color: s.text }}>
+            {STATUS_LABEL[appt.status]}
+          </span>
+          {appt.professionalName && (
+            <>
+              <span className="text-foreground-subtle">·</span>
+              <span className="truncate text-foreground-subtle">{appt.professionalName}</span>
+            </>
+          )}
+        </p>
+        {(appt.type === "return" || comAviso) && (
+          <p className="mt-1.5 flex flex-wrap gap-1">
+            {appt.type === "return" && (
+              <span className="rounded-full bg-violet-soft px-1.5 py-0.5 text-3xs font-semibold text-violet">
+                {TYPE_LABEL.return}
+              </span>
+            )}
+            {comAviso && (
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-3xs font-semibold",
+                  TOM_DO_AVISO[comAviso],
+                )}
+              >
+                {ROTULO_DO_AVISO[comAviso]}
+              </span>
+            )}
+          </p>
+        )}
       </div>
     </button>
   );
@@ -601,23 +616,12 @@ export function MobileAgenda({
           (timelineItems.length === 0 ? (
             <EmptyState onNew={onNewAppointment} />
           ) : (
-            <div className="relative pl-4">
-              {/* vertical connector line */}
-              <div className="absolute left-1.5 top-2 bottom-2 w-px bg-divider" />
-              <div className="space-y-3">
+            <div>
+              {/* A linha do tempo com bolinhas saiu: a cor do status já está na
+                  borda de cada card, e a hora à esquerda já diz a ordem. */}
+              <div className="space-y-2.5">
                 {timelineItems.map((item) => (
-                  <div key={item.kind + item.data.id} className="relative">
-                    <div
-                      className="absolute -left-[14px] top-5 rounded-full ring-4 ring-surface"
-                      style={{
-                        width: 9,
-                        height: 9,
-                        background:
-                          item.kind === "appt"
-                            ? statusStyle(item.data.status).badge
-                            : "var(--foreground-subtle)",
-                      }}
-                    />
+                  <div key={item.kind + item.data.id}>
                     {item.kind === "appt" ? (
                       <AppointmentCard
                         appt={item.data}
