@@ -4,7 +4,16 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
-import { AlertTriangle, CalendarClock, ChevronRight, Search, UserPlus, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarClock,
+  ChevronRight,
+  Plus,
+  Search,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { Sidebar } from "@/components/finance/Sidebar";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
@@ -48,7 +57,8 @@ export const Route = createFileRoute("/pacientes/")({
   }),
   validateSearch: searchSchema,
   errorComponent: ({ error }) => (
-    <ResponsiveRouteState error={error}
+    <ResponsiveRouteState
+      error={error}
       title="Não foi possível carregar os pacientes"
       description="Houve uma falha ao buscar a lista de pacientes. Tente novamente em instantes."
     />
@@ -114,7 +124,11 @@ function PatientsPage() {
 
   const fetchTags = useServerFn(listarTags);
   const fetchAtribuicoes = useServerFn(todasAsAtribuicoes);
-  const tagsQuery = useQuery({ queryKey: ["tags"], queryFn: () => fetchTags(), staleTime: 5 * 60_000 });
+  const tagsQuery = useQuery({
+    queryKey: ["tags"],
+    queryFn: () => fetchTags(),
+    staleTime: 5 * 60_000,
+  });
   const atribuicoesQuery = useQuery({
     queryKey: ["tags-atribuicoes"],
     queryFn: () => fetchAtribuicoes(),
@@ -150,40 +164,39 @@ function PatientsPage() {
           icon={Users}
           title="Pacientes"
           subtitle="Encontre e acompanhe seus pacientes"
+          acaoMobile={<BotaoMais onClick={() => setFormOpen(true)} rotulo="Novo paciente" />}
           actions={
-            <Button variant="premium" className="hidden gap-2 lg:flex" onClick={() => setFormOpen(true)}>
+            <Button
+              variant="premium"
+              className="hidden gap-2 lg:flex"
+              onClick={() => setFormOpen(true)}
+            >
               <UserPlus className="h-4 w-4" /> Novo paciente
             </Button>
           }
         />
 
-        <div className="mt-7 grid gap-3 lg:grid-cols-[1fr_auto]">
+        <div className="mt-4 grid gap-3 lg:mt-7 lg:grid-cols-[1fr_auto]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
             <Input
               aria-label="Buscar pacientes"
               value={search.q ?? ""}
               onChange={(event) => setSearch({ q: event.target.value || undefined })}
-              className="h-14 rounded-2xl bg-white pl-12 text-sm shadow-soft"
-              placeholder="Buscar por nome, telefone ou CPF"
+              className="h-12 rounded-2xl bg-white pl-12 text-sm shadow-soft lg:h-14"
+              placeholder="Buscar"
             />
           </div>
-          <Button
-            className="h-14 gap-2 rounded-2xl bg-gradient-primary text-white lg:hidden"
-            onClick={() => setFormOpen(true)}
-          >
-            <UserPlus className="h-5 w-5" /> Novo paciente
-          </Button>
         </div>
 
-        <div className="scrollbar-none -mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+        <div className="scrollbar-none -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 lg:mt-5">
           {FILTERS.map((filter) => (
             <button
               key={filter.value}
               type="button"
               onClick={() => setSearch({ status: filter.value })}
               className={cn(
-                "h-11 shrink-0 rounded-2xl border px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                "h-9 shrink-0 rounded-full border px-3.5 text-sm font-medium transition-colors lg:h-11 lg:rounded-2xl lg:px-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                 search.status === filter.value
                   ? "border-pink/25 bg-pink-soft text-pink"
                   : "border-border bg-white text-muted-foreground hover:text-foreground",
@@ -194,23 +207,27 @@ function PatientsPage() {
           ))}
         </div>
 
-        <section className="surface-card mt-6 overflow-hidden px-5 py-5 sm:px-6">
-          <h2 className="text-lg font-semibold">Precisa de atenção</h2>
-          <div className="mt-3 divide-y divide-border">
-            <AttentionRow
-              icon={CalendarClock}
-              tone="warning"
-              label={`${data.attention.returns} retornos atrasados`}
-              onClick={() => setSearch({ status: "return_pending" })}
-            />
-            <AttentionRow
-              icon={AlertTriangle}
-              tone="danger"
-              label={`${data.attention.delinquent} pacientes inadimplentes`}
-              onClick={() => setSearch({ status: "delinquent" })}
-            />
-          </div>
-        </section>
+        {/* Só quando há algo: um bloco de meia tela para dizer "0" e "0" era o
+            que mais pesava no celular. */}
+        {data.attention.returns + data.attention.delinquent > 0 && (
+          <section className="surface-card mt-6 overflow-hidden px-5 py-5 sm:px-6">
+            <h2 className="text-lg font-semibold">Precisa de atenção</h2>
+            <div className="mt-3 divide-y divide-border">
+              <AttentionRow
+                icon={CalendarClock}
+                tone="warning"
+                label={`${data.attention.returns} retornos atrasados`}
+                onClick={() => setSearch({ status: "return_pending" })}
+              />
+              <AttentionRow
+                icon={AlertTriangle}
+                tone="danger"
+                label={`${data.attention.delinquent} pacientes inadimplentes`}
+                onClick={() => setSearch({ status: "delinquent" })}
+              />
+            </div>
+          </section>
+        )}
 
         <section className="mt-7">
           <div className="mb-3 flex items-center gap-2">
@@ -244,11 +261,11 @@ function PatientsPage() {
                   key={patient.id}
                   to="/pacientes/$patientId"
                   params={{ patientId: patient.id }}
-                  className="press group flex min-h-[106px] items-center gap-3 px-4 py-4 hover:bg-muted/25 active:bg-muted/40 sm:px-6"
+                  className="press group flex items-center gap-3 px-4 py-3 hover:bg-muted/25 active:bg-muted/40 sm:px-6 lg:min-h-[106px] lg:py-4"
                 >
                   <span
                     className={cn(
-                      "grid h-12 w-12 shrink-0 place-items-center rounded-full text-sm font-bold",
+                      "grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold lg:h-12 lg:w-12",
                       avatarTone(index),
                     )}
                   >
@@ -257,19 +274,29 @@ function PatientsPage() {
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="truncate text-sm font-semibold">{patient.name}</span>
+                      {/* "Ativo" em todo mundo não diz nada; no celular só a
+                          exceção aparece. */}
                       <span
                         className={cn(
                           "rounded-full px-2.5 py-1 text-2xs font-semibold",
                           STATUS[patient.status].className,
+                          patient.status === "active" && "hidden lg:inline",
                         )}
                       >
                         {STATUS[patient.status].label}
                       </span>
                     </span>
-                    <span className="mt-1 block text-sm text-muted-foreground">
-                      {patient.phone ?? "Telefone não informado"}
+                    <span className="mt-0.5 block text-sm text-muted-foreground lg:mt-1">
+                      {formatWhatsappNumber(patient.phone) ||
+                        patient.phone ||
+                        "Telefone não informado"}
                     </span>
-                    <span className="mt-1 block truncate text-xs text-muted-foreground">
+                    <span
+                      className={cn(
+                        "mt-1 block truncate text-xs text-muted-foreground",
+                        !patient.treatmentName && "hidden lg:block",
+                      )}
+                    >
                       {patientContext(patient)}
                     </span>
                   </span>
@@ -343,4 +370,19 @@ function avatarTone(index: number) {
     "bg-pink-soft text-pink",
     "bg-info-soft text-info",
   ][index % 4];
+}
+
+/** O "+" do cabeçalho no celular: a ação principal da tela, sem tomar uma
+ *  linha inteira. */
+function BotaoMais({ onClick, rotulo }: { onClick: () => void; rotulo: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={rotulo}
+      className="press grid h-10 w-10 place-items-center rounded-full bg-gradient-primary text-white shadow-brand"
+    >
+      <Plus className="h-5 w-5" strokeWidth={2.25} />
+    </button>
+  );
 }

@@ -579,9 +579,11 @@ export function Sidebar() {
       <Link
         to="/inicio"
         className={cn(
-          "lg:hidden fixed z-40 flex items-center justify-center",
-          (pathname === "/inicio" || inAtendimentos || (inPatients && pathname !== "/pacientes")) &&
-            "hidden",
+          // Desligado na varredura de 23/10: a barra de baixo já tem "Início", e
+          // o botão era um segundo caminho para o mesmo lugar ocupando o canto
+          // de todas as telas. Fica no código para voltar se alguma tela sem
+          // barra precisar dele.
+          "hidden",
         )}
         style={{
           // Em standalone com notch, um top fixo colide com a status bar.

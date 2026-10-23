@@ -2,7 +2,23 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Copy, Link2, Stethoscope, Trash2, UserPlus, Users } from "lucide-react";
+import {
+  Ban,
+  Check,
+  Copy,
+  Link2,
+  MoreHorizontal,
+  Stethoscope,
+  Trash2,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -119,18 +135,33 @@ function PessoalPage() {
       <main className="w-full px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
         <header className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="flex items-center gap-2.5 text-2xl font-semibold md:text-3xl">
-              <Users className="h-[1.1em] w-[1.1em] shrink-0 text-pink" strokeWidth={1.75} />
+            <h1 className="flex items-center gap-2.5 text-[22px] font-semibold md:text-3xl">
+              <Users
+                className="hidden h-[1.1em] w-[1.1em] shrink-0 text-pink lg:block"
+                strokeWidth={1.75}
+              />
               Pessoal
             </h1>
-            <p className="mt-1.5 max-w-prose text-sm text-muted-foreground">
+            <p className="mt-1.5 hidden max-w-prose text-sm text-muted-foreground lg:block">
               Todo mundo que trabalha na clínica em um lugar só: quem entra no sistema, com qual
               nível e em quais unidades, e quem atende pacientes na agenda.
             </p>
           </div>
-          <Button variant="premium" onClick={() => setConvidando(true)}>
+          <Button
+            variant="premium"
+            className="hidden lg:inline-flex"
+            onClick={() => setConvidando(true)}
+          >
             <UserPlus className="h-4 w-4" /> Convidar pessoa
           </Button>
+          <button
+            type="button"
+            onClick={() => setConvidando(true)}
+            aria-label="Convidar pessoa"
+            className="press grid h-10 w-10 place-items-center rounded-full bg-gradient-primary text-white shadow-brand lg:hidden"
+          >
+            <UserPlus className="h-[18px] w-[18px]" strokeWidth={2} />
+          </button>
         </header>
 
         {pessoasQuery.isError ? (
@@ -320,7 +351,36 @@ function CartaoDaPessoa({
           </p>
         </div>
 
-        <div className="flex shrink-0 flex-wrap gap-1.5">
+        {/* No celular, as ações ficam num menu "⋯": quatro botões por pessoa
+            eram mais botão que informação, e a lixeira saía cortada na
+            borda. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={`Ações de ${pessoa.nome}`}
+              className="press grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-surface-muted lg:hidden"
+            >
+              <MoreHorizontal className="h-5 w-5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {pessoa.memberId ? (
+              <DropdownMenuItem onSelect={onEditarAcesso}>Acesso</DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem onSelect={onEditarFicha}>Ficha clínica</DropdownMenuItem>
+            {pessoa.memberId && pessoa.temLogin ? (
+              <DropdownMenuItem onSelect={() => situacao.mutate(pessoa.situacao === "ativo")}>
+                {pessoa.situacao === "ativo" ? "Desativar" : "Reativar"}
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem className="text-danger" onSelect={() => setConfirmando(true)}>
+              Excluir
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="hidden shrink-0 flex-wrap gap-1.5 lg:flex">
           {pessoa.memberId ? (
             <Button variant="outline" size="sm" onClick={onEditarAcesso}>
               Acesso

@@ -18,6 +18,7 @@ export function PageHeading({
   subtitle,
   actions,
   kicker,
+  acaoMobile,
   className,
 }: {
   /** Sempre presente: é o que identifica a seção de relance, e a ausência dele
@@ -30,6 +31,14 @@ export function PageHeading({
   /** Etiqueta curta acima do título, em maiúsculas. Usada onde a tela precisa
    *  se situar dentro de um módulo maior. */
   kicker?: string;
+  /**
+   * A ação principal da tela, como ÍCONE ao lado do título — só no celular.
+   *
+   * Varredura de 23/10: no celular cada tela tinha um botão da largura da
+   * tela ("Novo paciente", "Convidar pessoa") tomando o lugar do conteúdo.
+   * No iPhone a ação principal é um "+" no cabeçalho; aqui também.
+   */
+  acaoMobile?: React.ReactNode;
   className?: string;
 }) {
   return (
@@ -40,20 +49,29 @@ export function PageHeading({
       )}
     >
       <div className="min-w-0">
+        {/* Rótulo e explicação só no computador. No celular eram cinco
+            linhas antes do conteúdo, para dizer o que a tela já diz no
+            título — quem usa o sistema todo dia não precisa ler o que é
+            "Pacientes". */}
         {kicker && (
-          <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-pink">
+          <p className="mb-2 hidden items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-pink lg:flex">
             {kicker}
           </p>
         )}
-        <h1 className="flex items-center gap-2.5 text-2xl font-semibold text-foreground md:text-3xl">
-          <Icon
-            className="h-[1.1em] w-[1.1em] shrink-0 text-pink"
-            strokeWidth={1.75}
-            aria-hidden="true"
-          />
-          <span className="truncate">{title}</span>
-        </h1>
-        {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="flex min-w-0 items-center gap-2.5 text-[26px] font-semibold tracking-tight text-foreground md:text-3xl">
+            <Icon
+              className="hidden h-[1.1em] w-[1.1em] shrink-0 text-pink lg:block"
+              strokeWidth={1.75}
+              aria-hidden="true"
+            />
+            <span className="truncate">{title}</span>
+          </h1>
+          {acaoMobile && <div className="shrink-0 lg:hidden">{acaoMobile}</div>}
+        </div>
+        {subtitle && (
+          <p className="mt-1 hidden text-sm text-muted-foreground lg:block">{subtitle}</p>
+        )}
       </div>
       {/* `shrink-0` sem `min-w-0` deixava uma ação larga demais estourar a
           linha mesmo com o `flex-wrap` — o item não quebra por dentro, então

@@ -1,4 +1,5 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
+import { cn } from "@/lib/utils";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { Settings2 } from "lucide-react";
 import { Sidebar } from "@/components/finance/Sidebar";
@@ -14,7 +15,8 @@ export const Route = createFileRoute("/configuracoes")({
     ],
   }),
   errorComponent: ({ error }) => (
-    <ResponsiveRouteState error={error}
+    <ResponsiveRouteState
+      error={error}
       title="Não foi possível carregar as configurações"
       description="Houve uma falha ao buscar os dados da clínica. Tente novamente em instantes."
     />
@@ -34,12 +36,17 @@ export const Route = createFileRoute("/configuracoes")({
 // um <Outlet />, então /configuracoes/notificacoes mudava a URL e não abria
 // nada — a sub-rota estava registrada mas não tinha onde renderizar.
 function SettingsLayout() {
+  // Numa subtela (Pessoal, Casos…) o celular mostrava dois cabeçalhos
+  // empilhados: "Configurações" com explicação, e logo abaixo o da subtela.
+  // Fica só o da subtela; o de Configurações volta no computador.
+  const { pathname } = useLocation();
+  const naRaiz = pathname === "/configuracoes" || pathname === "/configuracoes/";
   return (
     <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
       <main className="w-full px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
         <PageHeading
-          className="pr-16 lg:pr-0"
+          className={cn("pr-16 lg:pr-0", !naRaiz && "hidden lg:flex")}
           icon={Settings2}
           kicker="Base operacional"
           title="Configurações"
