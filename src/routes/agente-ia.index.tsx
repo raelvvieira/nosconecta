@@ -115,7 +115,7 @@ function AgentePage() {
     config?.circuitoAbertoAte && new Date(config.circuitoAbertoAte) > new Date();
 
   return (
-    <main className="w-full min-w-0 flex-1 px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
+    <main className="agente-ia-celular w-full min-w-0 flex-1 overflow-x-hidden px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-10 lg:pt-9">
       <PageHeading
         className="pr-16 lg:pr-0"
         icon={Sparkles}
@@ -141,7 +141,7 @@ function AgentePage() {
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="mt-8 grid gap-4">
+        <div className="mt-5 grid gap-3 lg:mt-8 lg:gap-4">
           {disjuntorAberto && (
             <p className="flex items-center gap-2.5 rounded-2xl bg-warning-soft px-4 py-3 text-sm">
               <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />

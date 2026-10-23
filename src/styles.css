@@ -1431,3 +1431,12 @@ html[data-tema="grafite"] {
   );
   color: #3b2f20;
 }
+
+/* Agente de IA no celular: as notas miúdas de rodapé de cada campo ("Chave da
+   OpenAI, começa com sk-…") ficam só no computador. São explicação, não
+   função — e eram metade do texto da tela. */
+@media (max-width: 1023px) {
+  .agente-ia-celular p.text-2xs {
+    display: none;
+  }
+}

@@ -84,16 +84,40 @@ export function Bloco({
   children: React.ReactNode;
   className?: string;
 }) {
+  // No celular cada bloco nasce FECHADO, só o título: a tela inteira aberta
+  // eram doze cartões de texto um atrás do outro (varredura de 23/10). Um
+  // toque abre. No computador nada muda — o estado só vale abaixo de `lg`.
+  const [aberto, setAberto] = useState(false);
   return (
-    <section className={cn("rounded-3xl border border-border bg-white/70 p-6", className)}>
+    <section
+      className={cn(
+        "rounded-2xl border border-border bg-white/70 p-4 lg:rounded-3xl lg:p-6",
+        className,
+      )}
+    >
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold">{titulo}</h2>
-          {descricao && <p className="mt-1 text-sm text-muted-foreground">{descricao}</p>}
-        </div>
+        <button
+          type="button"
+          onClick={() => setAberto((v) => !v)}
+          aria-expanded={aberto}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left lg:pointer-events-none"
+        >
+          <span className="min-w-0 flex-1">
+            <h2 className="text-base font-semibold">{titulo}</h2>
+            {descricao && (
+              <p className="mt-1 hidden text-sm text-muted-foreground lg:block">{descricao}</p>
+            )}
+          </span>
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted-foreground transition-transform lg:hidden",
+              aberto && "rotate-180",
+            )}
+          />
+        </button>
         {acao}
       </div>
-      <div className="mt-5">{children}</div>
+      <div className={cn("mt-4 lg:mt-5", !aberto && "hidden lg:block")}>{children}</div>
     </section>
   );
 }

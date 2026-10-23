@@ -94,7 +94,7 @@ export function ChaveDaIa() {
           placeholder={temPropria ? "Trocar a chave" : "Cole a chave aqui"}
           autoComplete="off"
           spellCheck={false}
-          className="flex-1 font-mono"
+          className="min-w-0 flex-1 font-mono"
         />
         <Button
           type="button"
