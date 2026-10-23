@@ -1440,3 +1440,18 @@ html[data-tema="grafite"] {
     display: none;
   }
 }
+
+/* ── A barra de rolagem não empurra a tela ───────────────────────────────
+   Quando uma tela passa a ter conteúdo maior que a janela (a agenda num dia
+   com agendamentos, uma lista que carregou), a barra de rolagem aparece e
+   come a largura dela — tudo à direita pula para a esquerda. A clínica viu
+   isso na agenda em 23/10. `scrollbar-gutter: stable` reserva o espaço da
+   barra desde o início, com ou sem rolagem: nada mais se mexe. No celular de
+   verdade a barra é sobreposta e isto não muda nada; vale para o navegador do
+   computador e para a prévia em tela estreita. */
+html,
+.custom-scroll,
+[class*="overflow-y-auto"],
+[class~="overflow-auto"] {
+  scrollbar-gutter: stable;
+}

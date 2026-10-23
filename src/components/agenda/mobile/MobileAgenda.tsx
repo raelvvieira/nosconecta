@@ -194,7 +194,10 @@ function DateSelector({
         <ChevronLeft className="h-4 w-4" strokeWidth={2} />
       </button>
 
-      <div className="flex-1 flex gap-2 overflow-x-auto scrollbar-none">
+      {/* Sete colunas iguais que sempre cabem, em vez de uma faixa que rola:
+          com a barra de rolagem da página aparecendo (dia com agendamentos),
+          a faixa perdia largura e o sábado saía cortado. */}
+      <div className="grid min-w-0 flex-1 grid-cols-7 gap-1">
         {days.map((d) => {
           const ds = toDateStr(d);
           const active = ds === selStr;
@@ -204,7 +207,7 @@ function DateSelector({
               type="button"
               onClick={() => onDateChange(d)}
               className={cn(
-                "flex-1 min-w-[44px] flex flex-col items-center py-2.5 rounded-xl transition-[background-color,color,box-shadow]",
+                "flex min-w-0 flex-col items-center rounded-xl py-2 transition-[background-color,color,box-shadow]",
                 !active && "bg-white",
               )}
               style={
@@ -514,7 +517,8 @@ export function MobileAgenda({
 
   // Day timeline = appointments + blocks ordered by time
   const timelineItems: (
-    { kind: "appt"; data: Appointment } | { kind: "block"; data: BlockedTime }
+    | { kind: "appt"; data: Appointment }
+    | { kind: "block"; data: BlockedTime }
   )[] = [
     ...dayAppts.map((a) => ({ kind: "appt" as const, data: a })),
     ...dayBlocks.map((b) => ({ kind: "block" as const, data: b })),
