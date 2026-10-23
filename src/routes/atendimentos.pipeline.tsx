@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { PageHeading } from "@/components/layout/PageHeading";
-import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBadge";
 import { DealDetailSheet } from "@/components/atendimentos/pipeline/DealDetailSheet";
 import { PipelineCard, type CardExtras } from "@/components/atendimentos/pipeline/PipelineCard";
 import { useCardDrag } from "@/components/atendimentos/pipeline/useCardDrag";
@@ -279,7 +278,6 @@ function PipelinePage() {
           className="px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7"
           actions={
             <>
-              <WhatsappStatusBadge />
               {configured && (
                 <Button variant="outline" className="gap-2" onClick={() => setConfigOpen(true)}>
                   <Settings2 className="h-4 w-4" />

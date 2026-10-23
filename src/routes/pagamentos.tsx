@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeading } from "@/components/layout/PageHeading";
+import { DobraNoCelular } from "@/components/layout/DobraNoCelular";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { lazy, useState } from "react";
@@ -303,7 +304,7 @@ function PagamentosPage() {
         {/* Main grid */}
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
           {/* Table card */}
-          <section className="surface-card p-8 space-y-6">
+          <section className="surface-card space-y-4 p-4 lg:space-y-6 lg:p-8">
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative flex-1 min-w-[240px] max-w-md">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -318,70 +319,72 @@ function PagamentosPage() {
                   onBlur={() => setSearch({ q: qLocal || undefined, page: 1 })}
                 />
               </div>
-              <Button variant="secondary">
+              <Button variant="secondary" className="hidden lg:inline-flex">
                 <Filter className="h-4 w-4" /> Filtros
               </Button>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-              <FilterField label="Categoria">
-                <FilterSelect
-                  value={search.category ?? "all"}
-                  onChange={(v) => setSearch({ category: v === "all" ? undefined : v, page: 1 })}
-                  placeholder="Todas"
-                  options={[
-                    { value: "all", label: "Todas" },
-                    ...data.categories.map((c) => ({ value: c.id, label: c.name })),
-                  ]}
-                />
-              </FilterField>
-              <FilterField label="Conta">
-                <FilterSelect
-                  value={search.account ?? "all"}
-                  onChange={(v) => setSearch({ account: v === "all" ? undefined : v, page: 1 })}
-                  placeholder="Todas"
-                  options={[
-                    { value: "all", label: "Todas" },
-                    ...data.accounts.map((a) => ({ value: a.id, label: a.name })),
-                  ]}
-                />
-              </FilterField>
-              <FilterField label="Fornecedor">
-                <FilterSelect
-                  value={search.supplier ?? "all"}
-                  onChange={(v) => setSearch({ supplier: v === "all" ? undefined : v, page: 1 })}
-                  placeholder="Todos"
-                  options={[
-                    { value: "all", label: "Todos" },
-                    ...data.suppliers.map((s) => ({ value: s, label: s })),
-                  ]}
-                />
-              </FilterField>
-              <FilterField label="Status">
-                <FilterSelect
-                  value={search.status}
-                  onChange={(v) => setSearch({ status: v as PayableStatus, page: 1 })}
-                  placeholder="Todos"
-                  options={[
-                    { value: "all", label: "Todos" },
-                    { value: "paid", label: "Pago" },
-                    { value: "pending", label: "Pendente" },
-                    { value: "overdue", label: "Atrasado" },
-                  ]}
-                />
-              </FilterField>
-              <FilterField label="Método">
-                <FilterSelect
-                  value={search.method ?? "all"}
-                  onChange={(v) => setSearch({ method: v === "all" ? undefined : v, page: 1 })}
-                  placeholder="Todos"
-                  options={[
-                    { value: "all", label: "Todos" },
-                    ...Object.entries(METHODS).map(([k, v]) => ({ value: k, label: v.label })),
-                  ]}
-                />
-              </FilterField>
-            </div>
+            <DobraNoCelular titulo="Filtros">
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                <FilterField label="Categoria">
+                  <FilterSelect
+                    value={search.category ?? "all"}
+                    onChange={(v) => setSearch({ category: v === "all" ? undefined : v, page: 1 })}
+                    placeholder="Todas"
+                    options={[
+                      { value: "all", label: "Todas" },
+                      ...data.categories.map((c) => ({ value: c.id, label: c.name })),
+                    ]}
+                  />
+                </FilterField>
+                <FilterField label="Conta">
+                  <FilterSelect
+                    value={search.account ?? "all"}
+                    onChange={(v) => setSearch({ account: v === "all" ? undefined : v, page: 1 })}
+                    placeholder="Todas"
+                    options={[
+                      { value: "all", label: "Todas" },
+                      ...data.accounts.map((a) => ({ value: a.id, label: a.name })),
+                    ]}
+                  />
+                </FilterField>
+                <FilterField label="Fornecedor">
+                  <FilterSelect
+                    value={search.supplier ?? "all"}
+                    onChange={(v) => setSearch({ supplier: v === "all" ? undefined : v, page: 1 })}
+                    placeholder="Todos"
+                    options={[
+                      { value: "all", label: "Todos" },
+                      ...data.suppliers.map((s) => ({ value: s, label: s })),
+                    ]}
+                  />
+                </FilterField>
+                <FilterField label="Status">
+                  <FilterSelect
+                    value={search.status}
+                    onChange={(v) => setSearch({ status: v as PayableStatus, page: 1 })}
+                    placeholder="Todos"
+                    options={[
+                      { value: "all", label: "Todos" },
+                      { value: "paid", label: "Pago" },
+                      { value: "pending", label: "Pendente" },
+                      { value: "overdue", label: "Atrasado" },
+                    ]}
+                  />
+                </FilterField>
+                <FilterField label="Método">
+                  <FilterSelect
+                    value={search.method ?? "all"}
+                    onChange={(v) => setSearch({ method: v === "all" ? undefined : v, page: 1 })}
+                    placeholder="Todos"
+                    options={[
+                      { value: "all", label: "Todos" },
+                      ...Object.entries(METHODS).map(([k, v]) => ({ value: k, label: v.label })),
+                    ]}
+                  />
+                </FilterField>
+              </div>
+            </DobraNoCelular>
 
             {/* Lista em cards no celular — a tabela tem nove colunas e num
                 telefone nenhuma delas sobra legível. Mesmo dado, mesmas ações. */}
@@ -562,7 +565,10 @@ function PagamentosPage() {
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground lg:hidden">
+                {page} de {Math.max(1, totalPages)}
+              </p>
+              <p className="hidden text-xs text-muted-foreground lg:block">
                 Mostrando {rows.length === 0 ? 0 : (page - 1) * PER_PAGE + 1} a{" "}
                 {(page - 1) * PER_PAGE + rows.length} de {data.transactions.length} resultados
               </p>
@@ -570,6 +576,7 @@ function PagamentosPage() {
                 <PaginationContent>
                   <PaginationItem>
                     <PaginationPrevious
+                      className="[&>span]:hidden lg:[&>span]:inline"
                       href="#"
                       onClick={(e) => {
                         e.preventDefault();
@@ -580,7 +587,7 @@ function PagamentosPage() {
                   {Array.from({ length: totalPages })
                     .slice(0, 5)
                     .map((_, i) => (
-                      <PaginationItem key={i}>
+                      <PaginationItem key={i} className="hidden lg:block">
                         <PaginationLink
                           href="#"
                           isActive={page === i + 1}
@@ -595,6 +602,7 @@ function PagamentosPage() {
                     ))}
                   <PaginationItem>
                     <PaginationNext
+                      className="[&>span]:hidden lg:[&>span]:inline"
                       href="#"
                       onClick={(e) => {
                         e.preventDefault();
@@ -608,11 +616,13 @@ function PagamentosPage() {
           </section>
 
           {/* Right column */}
-          <aside className="space-y-6">
-            <CategoryBreakdownCard items={data.categoryBreakdown} />
-            <UpcomingCard items={data.upcomingDueDates} />
-            <RecurringCard items={data.recurringPayments} />
-          </aside>
+          <DobraNoCelular titulo="Análises do período">
+            <aside className="space-y-6">
+              <CategoryBreakdownCard items={data.categoryBreakdown} />
+              <UpcomingCard items={data.upcomingDueDates} />
+              <RecurringCard items={data.recurringPayments} />
+            </aside>
+          </DobraNoCelular>
         </div>
       </main>
 

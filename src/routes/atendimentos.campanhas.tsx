@@ -9,7 +9,6 @@ import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeading } from "@/components/layout/PageHeading";
-import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBadge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -157,7 +156,6 @@ function CampanhasPage() {
           title="Campanhas"
           actions={
             <>
-              <WhatsappStatusBadge />
               <Button variant="premium" className="gap-2" onClick={() => setFormOpen(true)}>
                 <Plus className="h-4 w-4" />
                 Nova campanha

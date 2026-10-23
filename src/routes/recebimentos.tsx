@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeading } from "@/components/layout/PageHeading";
+import { DobraNoCelular } from "@/components/layout/DobraNoCelular";
 import { useServerFn } from "@tanstack/react-start";
 import { useSuspenseQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { lazy, useEffect, useState } from "react";
@@ -331,20 +332,25 @@ function RecebimentosPage() {
               />
             </GrupoDeKpis>
 
-            {/* Evolution chart */}
-            <section className="surface-card p-5 space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="font-semibold">Evolução de Recebimentos</h2>
-              </div>
-              <div className="h-[320px]">
-                <SobDemanda altura={320}>
-                  <EvolucaoDeRecebimentos data={data.evolution} />
-                </SobDemanda>
-              </div>
-            </section>
+            <DobraNoCelular
+              titulo="Evolução de recebimentos"
+              className="surface-card p-4 lg:contents"
+            >
+              {/* Evolution chart */}
+              <section className="space-y-4 lg:surface-card lg:p-5">
+                <div className="hidden items-center justify-between gap-3 lg:flex">
+                  <h2 className="font-semibold">Evolução de Recebimentos</h2>
+                </div>
+                <div className="h-[260px] lg:h-[320px]">
+                  <SobDemanda altura={320}>
+                    <EvolucaoDeRecebimentos data={data.evolution} />
+                  </SobDemanda>
+                </div>
+              </section>
+            </DobraNoCelular>
 
             {/* Filters + tabs + table */}
-            <section className="surface-card p-5 space-y-4">
+            <section className="surface-card space-y-3 p-4 lg:space-y-4 lg:p-5">
               <div className="flex items-center gap-3">
                 <div className="relative flex-1 max-w-sm">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -361,66 +367,70 @@ function RecebimentosPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-end gap-3">
-                <FilterField label="Paciente">
-                  <FilterSelect
-                    value={search.patient ?? "all"}
-                    onChange={(v) => setSearch({ patient: v === "all" ? undefined : v, page: 1 })}
-                    options={[
-                      { value: "all", label: "Todos" },
-                      ...data.patients.map((p) => ({ value: p.id, label: p.name })),
-                    ]}
-                  />
-                </FilterField>
-                <FilterField label="Profissional">
-                  <FilterSelect
-                    value={search.professional ?? "all"}
-                    onChange={(v) =>
-                      setSearch({ professional: v === "all" ? undefined : v, page: 1 })
-                    }
-                    options={[
-                      { value: "all", label: "Todos" },
-                      ...data.professionals.map((p) => ({ value: p.id, label: p.name })),
-                    ]}
-                  />
-                </FilterField>
-                <FilterField label="Procedimento">
-                  <FilterSelect
-                    value={search.procedure ?? "all"}
-                    onChange={(v) => setSearch({ procedure: v === "all" ? undefined : v, page: 1 })}
-                    options={[
-                      { value: "all", label: "Todos" },
-                      ...data.categories.map((c) => ({ value: c.id, label: c.name })),
-                    ]}
-                  />
-                </FilterField>
-                <FilterField label="Conta">
-                  <FilterSelect
-                    value={search.account ?? "all"}
-                    onChange={(v) => setSearch({ account: v === "all" ? undefined : v, page: 1 })}
-                    options={[
-                      { value: "all", label: "Todas" },
-                      ...data.accounts.map((a) => ({ value: a.id, label: a.name })),
-                    ]}
-                  />
-                </FilterField>
-                <FilterField label="Forma de pagamento">
-                  <FilterSelect
-                    value={search.method ?? "all"}
-                    onChange={(v) => setSearch({ method: v === "all" ? undefined : v, page: 1 })}
-                    options={[
-                      { value: "all", label: "Todos" },
-                      ...Object.entries(PAYMENT_METHODS).map(([k, v]) => ({
-                        value: k,
-                        label: v.label,
-                      })),
-                    ]}
-                  />
-                </FilterField>
-                <Button variant="outline" className="h-10 gap-2">
-                  <Filter className="h-4 w-4" /> Mais filtros
-                </Button>
-              </div>
+              <DobraNoCelular titulo="Filtros">
+                <div className="flex flex-wrap items-end gap-3">
+                  <FilterField label="Paciente">
+                    <FilterSelect
+                      value={search.patient ?? "all"}
+                      onChange={(v) => setSearch({ patient: v === "all" ? undefined : v, page: 1 })}
+                      options={[
+                        { value: "all", label: "Todos" },
+                        ...data.patients.map((p) => ({ value: p.id, label: p.name })),
+                      ]}
+                    />
+                  </FilterField>
+                  <FilterField label="Profissional">
+                    <FilterSelect
+                      value={search.professional ?? "all"}
+                      onChange={(v) =>
+                        setSearch({ professional: v === "all" ? undefined : v, page: 1 })
+                      }
+                      options={[
+                        { value: "all", label: "Todos" },
+                        ...data.professionals.map((p) => ({ value: p.id, label: p.name })),
+                      ]}
+                    />
+                  </FilterField>
+                  <FilterField label="Procedimento">
+                    <FilterSelect
+                      value={search.procedure ?? "all"}
+                      onChange={(v) =>
+                        setSearch({ procedure: v === "all" ? undefined : v, page: 1 })
+                      }
+                      options={[
+                        { value: "all", label: "Todos" },
+                        ...data.categories.map((c) => ({ value: c.id, label: c.name })),
+                      ]}
+                    />
+                  </FilterField>
+                  <FilterField label="Conta">
+                    <FilterSelect
+                      value={search.account ?? "all"}
+                      onChange={(v) => setSearch({ account: v === "all" ? undefined : v, page: 1 })}
+                      options={[
+                        { value: "all", label: "Todas" },
+                        ...data.accounts.map((a) => ({ value: a.id, label: a.name })),
+                      ]}
+                    />
+                  </FilterField>
+                  <FilterField label="Forma de pagamento">
+                    <FilterSelect
+                      value={search.method ?? "all"}
+                      onChange={(v) => setSearch({ method: v === "all" ? undefined : v, page: 1 })}
+                      options={[
+                        { value: "all", label: "Todos" },
+                        ...Object.entries(PAYMENT_METHODS).map(([k, v]) => ({
+                          value: k,
+                          label: v.label,
+                        })),
+                      ]}
+                    />
+                  </FilterField>
+                  <Button variant="outline" className="h-10 gap-2">
+                    <Filter className="h-4 w-4" /> Mais filtros
+                  </Button>
+                </div>
+              </DobraNoCelular>
 
               <Tabs
                 value={search.status}
@@ -649,14 +659,18 @@ function RecebimentosPage() {
               </div>
 
               <div className="flex items-center justify-between pt-2">
-                <p className="text-xs text-muted-foreground">
+                <p className="hidden text-xs text-muted-foreground lg:block">
                   Mostrando {rows.length === 0 ? 0 : (page - 1) * PER_PAGE + 1} a{" "}
                   {(page - 1) * PER_PAGE + rows.length} de {data.transactions.length} resultados
+                </p>
+                <p className="text-xs text-muted-foreground lg:hidden">
+                  {page} de {Math.max(1, totalPages)}
                 </p>
                 <Pagination className="m-0 w-auto">
                   <PaginationContent>
                     <PaginationItem>
                       <PaginationPrevious
+                        className="[&>span]:hidden lg:[&>span]:inline"
                         href="#"
                         onClick={(e) => {
                           e.preventDefault();
@@ -667,7 +681,7 @@ function RecebimentosPage() {
                     {Array.from({ length: totalPages })
                       .slice(0, 5)
                       .map((_, i) => (
-                        <PaginationItem key={i}>
+                        <PaginationItem key={i} className="hidden lg:block">
                           <PaginationLink
                             href="#"
                             isActive={page === i + 1}
@@ -682,6 +696,7 @@ function RecebimentosPage() {
                       ))}
                     <PaginationItem>
                       <PaginationNext
+                        className="[&>span]:hidden lg:[&>span]:inline"
                         href="#"
                         onClick={(e) => {
                           e.preventDefault();
@@ -696,12 +711,14 @@ function RecebimentosPage() {
           </div>
 
           {/* Right column */}
-          <aside className="space-y-5">
-            <TopProceduresCard items={data.topProcedures} />
-            <TopDentistsCard items={data.topDentists} />
-            <DefaultersCard items={data.defaulters} />
-            <RecurringCard items={data.recurringReceivables} />
-          </aside>
+          <DobraNoCelular titulo="Análises do período">
+            <aside className="space-y-5">
+              <TopProceduresCard items={data.topProcedures} />
+              <TopDentistsCard items={data.topDentists} />
+              <DefaultersCard items={data.defaulters} />
+              <RecurringCard items={data.recurringReceivables} />
+            </aside>
+          </DobraNoCelular>
         </div>
       </main>
 

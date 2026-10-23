@@ -6,7 +6,6 @@ import { Bell, LayoutDashboard, MessageCircle, Send, Workflow } from "lucide-rea
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { KpiCard } from "@/components/finance/KpiCard";
-import { WhatsappStatusBadge } from "@/components/atendimentos/WhatsappStatusBadge";
 import { WhatsappConnectionCard } from "@/components/atendimentos/WhatsappConnectionCard";
 import { PipelineFunnelCard } from "@/components/atendimentos/PipelineFunnelCard";
 import { StuckConversationsCard } from "@/components/atendimentos/StuckConversationsCard";
@@ -113,7 +112,6 @@ function DashboardPage() {
         className="px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7"
         icon={LayoutDashboard}
         title="Dashboard"
-        actions={<WhatsappStatusBadge />}
       />
 
       <div className="space-y-5 px-4 sm:px-6 lg:px-10">
