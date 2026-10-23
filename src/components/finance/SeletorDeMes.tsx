@@ -23,7 +23,8 @@ import { intervaloDoMes, mesCheioDe, mesesEmVolta, somarMeses } from "@/lib/fina
  * de forma conforme a tela é um controle que a pessoa reaprende toda vez.
  *
  * A janela desliza com as setas, então nenhum mês fica inalcançável; a barra
- * mostra quatro de cada vez para caber no celular sem rolagem lateral.
+ * mostra quatro de cada vez (três no celular) — sem rolagem lateral: as
+ * setas é que andam.
  */
 export function SeletorDeMes({
   from,
@@ -58,7 +59,10 @@ export function SeletorDeMes({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <div className="flex items-center gap-1 p-1 rounded-xl bg-card/70 backdrop-blur border border-border/70 shadow-sm">
+      {/* No celular, três meses e a barra na largura da tela: com quatro a
+          seta da direita ficava cortada fora da tela, e a pessoa não sabia
+          que dava para avançar (23/10). */}
+      <div className="flex w-full items-center justify-between gap-1 rounded-xl border border-border/70 bg-card/70 p-1 shadow-sm backdrop-blur sm:w-auto sm:justify-start">
         <button
           type="button"
           onClick={() => deslizar(-1)}
@@ -68,7 +72,7 @@ export function SeletorDeMes({
           <ChevronLeft className="h-4 w-4" strokeWidth={2} />
         </button>
 
-        {meses.map((m) => (
+        {meses.map((m, i) => (
           <button
             key={m.chave}
             type="button"
@@ -76,6 +80,7 @@ export function SeletorDeMes({
             aria-current={mesAceso === m.chave ? "true" : undefined}
             className={cn(
               "px-3 sm:px-4 h-9 text-sm rounded-lg whitespace-nowrap transition-[background-color,color,box-shadow]",
+              i === 0 && "hidden sm:inline-block",
               mesAceso === m.chave
                 ? "bg-primary text-primary-foreground shadow-sm font-medium"
                 : "text-muted-foreground hover:text-foreground",
