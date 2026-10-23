@@ -385,6 +385,94 @@
   --gradient-primary: linear-gradient(135deg, #f55f95 0%, #ff7a59 50%, #ffb086 100%);
 }
 
+/* ── Os temas por pessoa ─────────────────────────────────────────────────
+   Cada um troca só a MARCA — ver `src/lib/tema/temas.ts`. O padrão (NÓS)
+   não tem bloco: é o `:root` acima, sem atributo nenhum. */
+html[data-tema="areia"] {
+  --primary: #c9a46c;
+  --coral: #c9a46c;
+  --pink: #a8845a;
+  --peach: #e3caa0;
+  --pink-soft: #f6efe3;
+  --coral-soft: #f8f1e6;
+  --cream: #f8f1e6;
+  --accent: #f8f1e6;
+  --accent-foreground: #8a6a3f;
+  --ring: #c9a46c;
+  --chart-1: #c9a46c;
+  --chart-2: #a8845a;
+  --chart-3: #e3caa0;
+  --gradient-primary: linear-gradient(135deg, #a8845a 0%, #c9a46c 50%, #e3caa0 100%);
+}
+
+html[data-tema="oceano"] {
+  --primary: #2a9db0;
+  --coral: #2a9db0;
+  --pink: #1f6f8b;
+  --peach: #7fd1d8;
+  --pink-soft: #e3f3f5;
+  --coral-soft: #e8f6f7;
+  --cream: #e8f6f7;
+  --accent: #e8f6f7;
+  --accent-foreground: #1f6f8b;
+  --ring: #2a9db0;
+  --chart-1: #2a9db0;
+  --chart-2: #1f6f8b;
+  --chart-3: #7fd1d8;
+  --gradient-primary: linear-gradient(135deg, #1f6f8b 0%, #2a9db0 50%, #7fd1d8 100%);
+}
+
+html[data-tema="ametista"] {
+  --primary: #8f6cf0;
+  --coral: #8f6cf0;
+  --pink: #6d4bd8;
+  --peach: #c3aefb;
+  --pink-soft: #efeafe;
+  --coral-soft: #f2eefe;
+  --cream: #f2eefe;
+  --accent: #f2eefe;
+  --accent-foreground: #6d4bd8;
+  --ring: #8f6cf0;
+  --chart-1: #8f6cf0;
+  --chart-2: #6d4bd8;
+  --chart-3: #c3aefb;
+  --gradient-primary: linear-gradient(135deg, #6d4bd8 0%, #8f6cf0 50%, #c3aefb 100%);
+}
+
+html[data-tema="salvia"] {
+  --primary: #7f9c6e;
+  --coral: #7f9c6e;
+  --pink: #5f7a52;
+  --peach: #b9cfa8;
+  --pink-soft: #edf3e8;
+  --coral-soft: #f0f5ec;
+  --cream: #f0f5ec;
+  --accent: #f0f5ec;
+  --accent-foreground: #5f7a52;
+  --ring: #7f9c6e;
+  --chart-1: #7f9c6e;
+  --chart-2: #5f7a52;
+  --chart-3: #b9cfa8;
+  --gradient-primary: linear-gradient(135deg, #5f7a52 0%, #7f9c6e 50%, #b9cfa8 100%);
+}
+
+html[data-tema="grafite"] {
+  --primary: #3a3a40;
+  --coral: #3a3a40;
+  --pink: #1c1c1f;
+  --peach: #77777f;
+  --pink-soft: #ececee;
+  --coral-soft: #f1f1f3;
+  --cream: #f1f1f3;
+  --accent: #f1f1f3;
+  --accent-foreground: #1c1c1f;
+  --ring: #3a3a40;
+  --chart-1: #3a3a40;
+  --chart-2: #1c1c1f;
+  --chart-3: #77777f;
+  --gradient-primary: linear-gradient(135deg, #1c1c1f 0%, #3a3a40 50%, #77777f 100%);
+}
+
 @layer base {
   * {
     border-color: var(--color-border);

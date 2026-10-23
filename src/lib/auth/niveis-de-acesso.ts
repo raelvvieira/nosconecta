@@ -122,6 +122,9 @@ export function areaDaRota(pathname: string): AreaDoApp | null {
   if (p === "/atendimentos" || p.startsWith("/atendimentos/")) return "atendimentos";
   if (p === "/agente-ia" || p.startsWith("/agente-ia/")) return "agente_ia";
   if (p === "/nos-club" || p.startsWith("/nos-club/")) return "club";
+  // Aparência é preferência da PESSOA, não da clínica: todo nível escolhe a
+  // própria cor, inclusive quem não vê o resto de Configurações.
+  if (p === "/configuracoes/aparencia") return "inicio";
   if (p === "/configuracoes" || p.startsWith("/configuracoes/")) return "configuracoes";
   if (
     p === "/financeiro" ||

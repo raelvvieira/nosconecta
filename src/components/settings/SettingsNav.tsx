@@ -15,6 +15,7 @@ import {
   Users,
   Wallet,
   type LucideIcon,
+  Palette,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -136,6 +137,18 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
         label: "Dias de viagem",
         description: "Quando a outra unidade atende",
         icon: CalendarRange,
+      },
+    ],
+  },
+  {
+    label: "Preferências",
+    items: [
+      {
+        kind: "link",
+        to: "/configuracoes/aparencia",
+        label: "Aparência",
+        description: "A cor do seu sistema",
+        icon: Palette,
       },
     ],
   },

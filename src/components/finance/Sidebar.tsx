@@ -1,4 +1,12 @@
-import { Home, LogOut, PanelLeftClose, PanelLeftOpen, Plus, MoreHorizontal } from "lucide-react";
+import {
+  Home,
+  LogOut,
+  Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
+  MoreHorizontal,
+} from "lucide-react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -344,6 +352,23 @@ export function Sidebar() {
           {isAdmin &&
             units.length > 1 &&
             maybeTooltip(<UnitSwitcher collapsed={collapsed} />, "Unidade")}
+
+          {/* Aparência ao lado de Sair, para todo nível: quem não é
+              administrador não vê Configurações, e a cor é dela também. */}
+          {maybeTooltip(
+            <Link
+              to="/configuracoes/aparencia"
+              className={cn(
+                "press flex items-center rounded-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                collapsed ? "h-10 w-10 justify-center" : "h-11 w-full px-3 gap-3",
+              )}
+              aria-label="Aparência"
+            >
+              <Palette className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+              {!collapsed && <span className="text-sm font-medium">Aparência</span>}
+            </Link>,
+            "Aparência",
+          )}
 
           {maybeTooltip(
             <button

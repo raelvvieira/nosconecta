@@ -30,6 +30,7 @@ import { Route as AtendimentosCampanhasRouteImport } from './routes/atendimentos
 import { Route as AtendimentosChatRouteImport } from './routes/atendimentos.chat'
 import { Route as AtendimentosPipelineRouteImport } from './routes/atendimentos.pipeline'
 import { Route as ConfiguracoesIndexRouteImport } from './routes/configuracoes.index'
+import { Route as ConfiguracoesAparenciaRouteImport } from './routes/configuracoes.aparencia'
 import { Route as ConfiguracoesCasosRouteImport } from './routes/configuracoes.casos'
 import { Route as ConfiguracoesContasRouteImport } from './routes/configuracoes.contas'
 import { Route as ConfiguracoesDiasDeViagemRouteImport } from './routes/configuracoes.dias-de-viagem'
@@ -150,6 +151,11 @@ const ConfiguracoesIndexRoute = ConfiguracoesIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ConfiguracoesRoute,
 } as any)
+const ConfiguracoesAparenciaRoute = ConfiguracoesAparenciaRouteImport.update({
+  id: '/aparencia',
+  path: '/aparencia',
+  getParentRoute: () => ConfiguracoesRoute,
+} as any)
 const ConfiguracoesCasosRoute = ConfiguracoesCasosRouteImport.update({
   id: '/casos',
   path: '/casos',
@@ -247,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
+  '/configuracoes/aparencia': typeof ConfiguracoesAparenciaRoute
   '/configuracoes/casos': typeof ConfiguracoesCasosRoute
   '/configuracoes/contas': typeof ConfiguracoesContasRoute
   '/configuracoes/dias-de-viagem': typeof ConfiguracoesDiasDeViagemRoute
@@ -279,6 +286,7 @@ export interface FileRoutesByTo {
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
+  '/configuracoes/aparencia': typeof ConfiguracoesAparenciaRoute
   '/configuracoes/casos': typeof ConfiguracoesCasosRoute
   '/configuracoes/contas': typeof ConfiguracoesContasRoute
   '/configuracoes/dias-de-viagem': typeof ConfiguracoesDiasDeViagemRoute
@@ -317,6 +325,7 @@ export interface FileRoutesById {
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
+  '/configuracoes/aparencia': typeof ConfiguracoesAparenciaRoute
   '/configuracoes/casos': typeof ConfiguracoesCasosRoute
   '/configuracoes/contas': typeof ConfiguracoesContasRoute
   '/configuracoes/dias-de-viagem': typeof ConfiguracoesDiasDeViagemRoute
@@ -356,6 +365,7 @@ export interface FileRouteTypes {
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
+    | '/configuracoes/aparencia'
     | '/configuracoes/casos'
     | '/configuracoes/contas'
     | '/configuracoes/dias-de-viagem'
@@ -388,6 +398,7 @@ export interface FileRouteTypes {
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
+    | '/configuracoes/aparencia'
     | '/configuracoes/casos'
     | '/configuracoes/contas'
     | '/configuracoes/dias-de-viagem'
@@ -425,6 +436,7 @@ export interface FileRouteTypes {
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
+    | '/configuracoes/aparencia'
     | '/configuracoes/casos'
     | '/configuracoes/contas'
     | '/configuracoes/dias-de-viagem'
@@ -611,6 +623,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfiguracoesIndexRouteImport
       parentRoute: typeof ConfiguracoesRoute
     }
+    '/configuracoes/aparencia': {
+      id: '/configuracoes/aparencia'
+      path: '/aparencia'
+      fullPath: '/configuracoes/aparencia'
+      preLoaderRoute: typeof ConfiguracoesAparenciaRouteImport
+      parentRoute: typeof ConfiguracoesRoute
+    }
     '/configuracoes/casos': {
       id: '/configuracoes/casos'
       path: '/casos'
@@ -765,6 +784,7 @@ const AtendimentosRouteWithChildren = AtendimentosRoute._addFileChildren(
 )
 
 interface ConfiguracoesRouteChildren {
+  ConfiguracoesAparenciaRoute: typeof ConfiguracoesAparenciaRoute
   ConfiguracoesCasosRoute: typeof ConfiguracoesCasosRoute
   ConfiguracoesContasRoute: typeof ConfiguracoesContasRoute
   ConfiguracoesDiasDeViagemRoute: typeof ConfiguracoesDiasDeViagemRoute
@@ -777,6 +797,7 @@ interface ConfiguracoesRouteChildren {
 }
 
 const ConfiguracoesRouteChildren: ConfiguracoesRouteChildren = {
+  ConfiguracoesAparenciaRoute: ConfiguracoesAparenciaRoute,
   ConfiguracoesCasosRoute: ConfiguracoesCasosRoute,
   ConfiguracoesContasRoute: ConfiguracoesContasRoute,
   ConfiguracoesDiasDeViagemRoute: ConfiguracoesDiasDeViagemRoute,

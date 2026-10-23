@@ -18,6 +18,7 @@ import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { supabase } from "@/integrations/supabase/client";
 import { registerServiceWorker } from "@/lib/pwa/service-worker";
 import { MembershipGate } from "@/components/auth/MembershipGate";
+import { Novidades } from "@/components/tema/Novidades";
 import { UnitProvider } from "@/lib/settings/unit-context";
 
 function NotFoundComponent() {
@@ -137,6 +138,7 @@ function RootComponent() {
           <UnitProvider>
             <MobileFabProvider>
               <Outlet />
+              <Novidades />
             </MobileFabProvider>
           </UnitProvider>
         </MembershipGate>
