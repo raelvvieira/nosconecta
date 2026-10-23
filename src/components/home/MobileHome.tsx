@@ -240,18 +240,20 @@ function AcoesRapidas() {
               // da tela, e numa grade de atalhos não há uma — o que havia era
               // um azulejo dourado com o texto cortado ao lado de três
               // brancos (padrão de botões, 23/10).
-              "press surface-card flex h-[76px] min-w-0 cursor-pointer items-center gap-3 rounded-2xl px-4 text-left text-foreground",
+              // Ícone em cima, palavra embaixo: lado a lado, "Recebimento" não
+              // cabia em meia tela e saía cortado.
+              "press surface-card flex min-w-0 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl px-3 py-4 text-center text-foreground",
             )}
             onClick={a.onClick}
           >
             <span
-              className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-lg", a.iconClass)}
+              className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", a.iconClass)}
             >
               <a.icon className="h-5 w-5" strokeWidth={1.75} />
             </span>
             {/* Uma palavra, sem quebra: "Novo agendamento" em duas linhas num
                 azulejo de meia tela saía cortado. O ícone já diz o que é. */}
-            <span className="min-w-0 truncate text-sm font-semibold">{a.label}</span>
+            <span className="max-w-full truncate text-[13px] font-semibold">{a.label}</span>
           </button>
         ))}
       </div>
