@@ -27,8 +27,10 @@ export function PageHeader({
   return (
     <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6">
       <div className="min-w-0">
-        <h1 className="text-3xl font-semibold leading-[1.1]">{titulo}</h1>
-        <p className="text-sm text-muted-foreground mt-1">{subtitulo}</p>
+        <h1 className="text-[26px] font-semibold leading-[1.1] tracking-tight lg:text-3xl">
+          {titulo}
+        </h1>
+        <p className="mt-1 hidden text-sm text-muted-foreground lg:block">{subtitulo}</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

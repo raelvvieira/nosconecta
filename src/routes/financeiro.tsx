@@ -6,8 +6,7 @@ import { DollarSign, TrendingDown, BarChart3, Wallet } from "lucide-react";
 
 import { Sidebar } from "@/components/finance/Sidebar";
 import { SobDemanda, nomeado } from "@/components/finance/SobDemanda";
-import { MobileHome } from "@/components/home/MobileHome";
-import { useHomeData } from "@/components/home/useHomeData";
+import { DobraNoCelular } from "@/components/layout/DobraNoCelular";
 import { PageHeader } from "@/components/finance/PageHeader";
 import { mesCorrente } from "@/lib/finance/mes";
 import { localDateStr } from "@/lib/date";
@@ -153,17 +152,15 @@ function FinanceiroVisaoGeral() {
   // cifra embaixo não diria nada.
   const emAbertoLiquido = data.emAberto.receber - data.emAberto.pagar;
   const projecao = emAbertoLiquido === 0 ? null : kpis.profit.current + emAbertoLiquido;
-  // No celular esta rota mostra a tela inicial — os mesmos números de /inicio,
-  // buscados pelo mesmo hook para nunca divergirem.
-  const dadosHome = useHomeData();
-
+  // No celular esta rota mostrava a tela inicial (os números de /inicio), e a
+  // clínica estranhou: "Visão geral" no computador era o financeiro, no
+  // celular era outra coisa. Agora é a MESMA tela, com o que é pesado
+  // dobrado — ver `DobraNoCelular`.
   return (
     <div className="app-bg h-dvh flex overflow-hidden">
       <Sidebar />
 
-      {dadosHome && <MobileHome dados={dadosHome} />}
-
-      <main className="hidden lg:block flex-1 min-w-0 overflow-y-auto sem-arrasto-lateral custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-6 pb-nav lg:pb-8">
+      <main className="flex-1 min-w-0 overflow-y-auto sem-arrasto-lateral custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 space-y-5 lg:space-y-6 pb-nav lg:pb-8">
         <PageHeader acoes={<LancamentoRapido />} from={de} to={ate} onRangeChange={setRange} />
 
         {/* ── Os quatro números do mês ─────────────────────────────────
@@ -251,13 +248,15 @@ function FinanceiroVisaoGeral() {
         </GrupoDeKpis>
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
-          <SobDemanda altura={360}>
-            <CashFlowChart
-              data={data.cashFlow}
-              granularity={granularity}
-              onGranularityChange={setGranularity}
-            />
-          </SobDemanda>
+          <DobraNoCelular titulo="Fluxo de caixa" className="lg:contents">
+            <SobDemanda altura={360}>
+              <CashFlowChart
+                data={data.cashFlow}
+                granularity={granularity}
+                onGranularityChange={setGranularity}
+              />
+            </SobDemanda>
+          </DobraNoCelular>
           <BankAccountsCard
             accounts={data.accounts}
             total={data.totalAvailable}
@@ -279,13 +278,15 @@ function FinanceiroVisaoGeral() {
           <InsightsCard insights={data.insights} />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <SobDemanda altura={280}>
-            <RevenueByProcedure data={data.procedures} />
-          </SobDemanda>
-          <RevenueByDentist data={data.dentists} />
-          <CommissionsTable data={data.commissions} />
-        </div>
+        <DobraNoCelular titulo="Análises do mês">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+            <SobDemanda altura={280}>
+              <RevenueByProcedure data={data.procedures} />
+            </SobDemanda>
+            <RevenueByDentist data={data.dentists} />
+            <CommissionsTable data={data.commissions} />
+          </div>
+        </DobraNoCelular>
         <GerenciarContasSheet open={contasAbertas} onOpenChange={setContasAbertas} />
       </main>
     </div>
