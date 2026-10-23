@@ -63,6 +63,9 @@ function ConvitePage() {
   const [especialidades, setEspecialidades] = useState<string[]>([]);
   const [cor, setCor] = useState("#8B5CF6");
   const [salvando, setSalvando] = useState(false);
+  // O e-mail já tem conta e a senha digitada não é a dela: mostra o caminho
+  // do "esqueci a senha" em vez de um beco sem saída.
+  const [contaExistente, setContaExistente] = useState(false);
   const [marcouAtende, setMarcouAtende] = useState(false);
 
   const nivel = NIVEIS.find((n) => n.valor === convite.data?.nivel);
@@ -88,6 +91,21 @@ function ConvitePage() {
     }
 
     setSalvando(true);
+
+    // Voltou pelo link de "esqueci a senha": já está entrada como ela mesma.
+    // A senha digitada vira a senha nova, e o convite é aceito na sequência.
+    const { data: atual } = await supabase.auth.getSession();
+    if (atual.session?.user?.email?.toLowerCase() === email.trim().toLowerCase()) {
+      const { error: erroSenha } = await supabase.auth.updateUser({ password: senha });
+      if (erroSenha) {
+        setSalvando(false);
+        toast.error("Não deu para gravar a senha nova. Tente de novo.");
+        return;
+      }
+      await aceitar();
+      return;
+    }
+
     // A conta nasce no servidor, já confirmada — o link do convite é a prova
     // de quem ela é (ver `criarContaDoConvite`). Daqui ela entra e aceita na
     // mesma tela: terminar o formulário é o que libera o acesso.
@@ -101,14 +119,30 @@ function ConvitePage() {
       toast.error(erro instanceof Error ? erro.message : "Não foi possível criar sua conta.");
       return;
     }
+    // O e-mail já tem conta — o caso da Dra. Mariane, em 23/10: conta de
+    // setembro, sem acesso à clínica. Não se cria outra, e o convite não
+    // troca a senha de uma conta que já foi usada (seria tomar a conta de
+    // alguém com um link). A prova é a própria senha: se a digitada abre a
+    // conta, o convite é aceito nela. Se não abre, ela redefine.
+    if (!criada.ok && criada.motivo === "email_em_uso") {
+      const { error: erroEntrar } = await supabase.auth.signInWithPassword({
+        email,
+        password: senha,
+      });
+      if (!erroEntrar) {
+        await aceitar();
+        return;
+      }
+      setSalvando(false);
+      setContaExistente(true);
+      return;
+    }
     if (!criada.ok) {
       setSalvando(false);
       toast.error(
-        criada.motivo === "email_em_uso"
-          ? "Já existe uma conta com este e-mail. Use outro, ou entre com ele e peça o convite de novo."
-          : criada.motivo === "convite_invalido"
-            ? "Este convite não vale mais. Peça um novo."
-            : "Não foi possível criar sua conta. Tente novamente.",
+        criada.motivo === "convite_invalido"
+          ? "Este convite não vale mais. Peça um novo."
+          : "Não foi possível criar sua conta. Tente novamente.",
       );
       return;
     }
@@ -375,6 +409,29 @@ function ConvitePage() {
               />
             </div>
           </div>
+
+          {contaExistente && (
+            <div className="rounded-xl bg-warning-soft px-4 py-3 text-xs leading-5 text-warning">
+              <p className="font-medium">Este e-mail já tem uma conta.</p>
+              <p className="mt-1">
+                Digite a senha que você já usa nela e envie de novo. Não lembra? Mandamos um link
+                para criar uma senha nova — ele traz você de volta para este convite.
+              </p>
+              <button
+                type="button"
+                className="mt-2 font-semibold underline underline-offset-2"
+                onClick={async () => {
+                  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+                    redirectTo: window.location.href,
+                  });
+                  if (error) toast.error("Não deu para mandar o link agora. Tente de novo.");
+                  else toast.success(`Link enviado para ${email.trim()}.`);
+                }}
+              >
+                Esqueci a senha
+              </button>
+            </div>
+          )}
 
           <Button type="submit" variant="premium" className="w-full" disabled={salvando}>
             {salvando ? "Criando seu acesso…" : "Criar meu acesso"}

@@ -561,23 +561,26 @@ export const criarContaDoConvite = createServerFn({ method: "POST" })
           console.error("[convite] conta não criada", texto);
           return { ok: false, motivo: "falhou" };
         }
-        // O e-mail já tem conta. Um caso é legítimo e aconteceu em 21/10: a
-        // pessoa tentou pelo fluxo antigo, que criava a conta SEM confirmar e
-        // mandava esperar o e-mail. Essa conta nunca provou nada — ninguém
-        // confirmou a caixa de entrada nem entrou com ela — e não tem acesso a
-        // clínica nenhuma. O convite válido é prova melhor: ela é completada
-        // com a senha nova e confirmada.
+        // O e-mail já tem conta. Decisão da clínica em 23/10, no caso da Dra.
+        // Mariane (conta de setembro, sem acesso a nada): o convite REFAZ a
+        // conta do zero — senha e dados novos, e ela entra. O link é a prova:
+        // só quem administra gera, vale para uma pessoa e por 7 dias.
         //
-        // Conta confirmada, ou que já entrou alguma vez, ou que já tem acesso,
-        // é de alguém de verdade: essa continua recusada.
+        // Duas contas o convite nunca toma, porque são de alguém de verdade:
+        // a que já tem acesso a uma clínica, e a de paciente do NÓS Club.
+        // Trocar a senha delas com um link seria entregar a conta de outra
+        // pessoa a quem estiver com o link.
         const existente = await contaPeloEmail(admin, data.email);
         if (!existente) return { ok: false, motivo: "email_em_uso" };
-        const jaProvou = !!existente.email_confirmed_at || !!existente.last_sign_in_at;
-        const { count } = await admin
+        const { count: acessos } = await admin
           .from("clinic_members")
           .select("id", { count: "exact", head: true })
           .eq("user_id", existente.id);
-        if (jaProvou || (count ?? 0) > 0) return { ok: false, motivo: "email_em_uso" };
+        const { count: doClub } = await admin
+          .from("patients")
+          .select("id", { count: "exact", head: true })
+          .eq("club_user_id", existente.id);
+        if ((acessos ?? 0) > 0 || (doClub ?? 0) > 0) return { ok: false, motivo: "email_em_uso" };
 
         const { error: erroCompletar } = await admin.auth.admin.updateUserById(existente.id, {
           password: data.senha,
