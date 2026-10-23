@@ -19,6 +19,8 @@ import {
   reguaOrdenada,
   saldoDoExtrato,
   situacaoNoClub,
+  trilhaDoCredito,
+  valorDaProximaIndicacao,
   type NivelDoClub,
 } from "../src/lib/club/niveis-do-club.ts";
 
@@ -137,6 +139,44 @@ conferir(
   saldoDoExtrato([{ valor: "500" as unknown as number }, { valor: "-250" as unknown as number }]),
   250,
 );
+
+// ── A próxima indicação e a trilha ──────────────────────────────────────
+//
+// Com a régua real da clínica em 23/10: R$ 100 por indicação, e bônus de
+// R$ 100 (1), 500 (5), 1.000 (10) e 2.000 (20).
+const REAL: NivelDoClub[] = [
+  { id: "s", nome: "Start", indicacoes: 1, credito: 100 },
+  { id: "p", nome: "Premium", indicacoes: 5, credito: 500 },
+  { id: "g", nome: "Gold", indicacoes: 10, credito: 1000 },
+  { id: "d", nome: "Diamond", indicacoes: 20, credito: 2000 },
+];
+conferir(
+  "a primeira indicação vale o fixo + o bônus do Start",
+  valorDaProximaIndicacao(0, REAL, 100),
+  200,
+);
+conferir("a segunda vale só o fixo", valorDaProximaIndicacao(1, REAL, 100), 100);
+conferir("a quinta traz o Premium junto", valorDaProximaIndicacao(4, REAL, 100), 600);
+conferir("depois do topo, só o fixo", valorDaProximaIndicacao(25, REAL, 100), 100);
+conferir("régua vazia, só o fixo", valorDaProximaIndicacao(0, [], 100), 100);
+
+{
+  const t = trilhaDoCredito(0, REAL, 100);
+  conferir("o topo da trilha é R$ 5.600", t.total, 5600);
+  conferir(
+    "as paradas acumulam",
+    t.paradas.map((p) => p.acumulado),
+    [200, 1100, 2600, 5600],
+  );
+  conferir("quem não indicou está no zero", t.ganho, 0);
+  conferir("com 5 confirmadas, R$ 1.100", trilhaDoCredito(5, REAL, 100).ganho, 1100);
+  conferir("passar do topo não estoura a linha", trilhaDoCredito(40, REAL, 100).ganho, 5600);
+  conferir(
+    "a trilha vem ordenada mesmo com régua fora de ordem",
+    trilhaDoCredito(0, REGUA, 100).paradas.map((p) => p.nivel.nome),
+    ["Start", "Premium", "Gold", "Diamond"],
+  );
+}
 
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);

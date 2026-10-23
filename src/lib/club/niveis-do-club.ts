@@ -111,3 +111,63 @@ export function niveisAPagar(
 export function saldoDoExtrato(lancamentos: readonly { valor: number }[]): number {
   return lancamentos.reduce((total, l) => total + Number(l.valor || 0), 0);
 }
+
+/**
+ * Quanto a PRÓXIMA indicação confirmada rende para esta pessoa.
+ *
+ * O crédito fixo de cada indicação, mais o bônus do nível que essa indicação
+ * alcança, quando alcança. É a frase que mais pesa na tela do paciente: a
+ * primeira indicação de quem está começando não vale R$ 100, vale R$ 100 mais
+ * o bônus do primeiro nível — e quem está a uma do Premium vê o bônus do
+ * Premium. Dizer só "ganhe R$ 100" escondia justamente o melhor motivo.
+ */
+export function valorDaProximaIndicacao(
+  confirmadas: number,
+  niveis: readonly NivelDoClub[],
+  porIndicacao: number,
+): number {
+  const proxima = Math.max(0, Math.floor(confirmadas || 0)) + 1;
+  const bonus = reguaOrdenada(niveis)
+    .filter((n) => n.indicacoes === proxima)
+    .reduce((soma, n) => soma + Math.max(0, Number(n.credito) || 0), 0);
+  return Math.max(0, Number(porIndicacao) || 0) + bonus;
+}
+
+/** Uma parada da trilha: o nível e quanto se terá ganho com indicações ao
+ *  chegar nele. */
+export interface ParadaDaTrilha {
+  nivel: NivelDoClub;
+  /** Ganho acumulado SÓ com indicações (crédito por indicação + bônus dos
+   *  níveis até aqui). Não inclui boas-vindas nem o que já foi usado. */
+  acumulado: number;
+}
+
+/**
+ * A trilha do crédito: de zero até o último nível.
+ *
+ * Mostra o quanto a pessoa PODE chegar a ganhar, que a tela não dizia — ela
+ * via o saldo de hoje e mais nada. O número é o da régua da clínica: com 20
+ * indicações a R$ 100 e os bônus de R$ 100 + 500 + 1.000 + 2.000, são
+ * R$ 5.600. Muda sozinho quando a régua mudar.
+ *
+ * `ganho` é o mesmo cálculo para a contagem atual: é onde o ponto da pessoa
+ * fica na linha. Conta o direito, não o extrato — um crédito usado na
+ * consulta não faz ninguém andar para trás na trilha.
+ */
+export function trilhaDoCredito(
+  confirmadas: number,
+  niveis: readonly NivelDoClub[],
+  porIndicacao: number,
+): { paradas: ParadaDaTrilha[]; total: number; ganho: number } {
+  const regua = reguaOrdenada(niveis);
+  const por = Math.max(0, Number(porIndicacao) || 0);
+  const acumuladoEm = (n: number) =>
+    n * por +
+    regua
+      .filter((x) => x.indicacoes <= n)
+      .reduce((s, x) => s + Math.max(0, Number(x.credito) || 0), 0);
+  const paradas = regua.map((nivel) => ({ nivel, acumulado: acumuladoEm(nivel.indicacoes) }));
+  const total = paradas.length ? paradas[paradas.length - 1].acumulado : 0;
+  const quantas = Math.max(0, Math.floor(confirmadas || 0));
+  return { paradas, total, ganho: Math.min(total, acumuladoEm(quantas)) };
+}

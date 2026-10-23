@@ -10,7 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
-import { situacaoNoClub, type NivelDoClub } from "@/lib/club/niveis-do-club";
+import {
+  situacaoNoClub,
+  trilhaDoCredito,
+  valorDaProximaIndicacao,
+  type NivelDoClub,
+} from "@/lib/club/niveis-do-club";
 import { convite } from "@/lib/club/convite";
 import { criarContaDoClub } from "@/lib/club/club.functions";
 
@@ -526,6 +531,11 @@ function Painel({ dados }: { dados: PainelDoPaciente }) {
   const porIndicacao = Number(dados.por_indicacao ?? 100);
   const indicacoes = dados.indicacoes ?? [];
   const primeiroNome = String(dados.nome ?? "").split(" ")[0];
+  // O que a tela vende: quanto a PRÓXIMA indicação rende, e até onde dá para
+  // chegar. Contas puras, em `niveis-do-club.ts`, com testes.
+  const proximaVale = valorDaProximaIndicacao(s.confirmadas, regua, porIndicacao);
+  const trilha = trilhaDoCredito(s.confirmadas, regua, porIndicacao);
+  const aCaminho = indicacoes.filter((i) => i.status !== "confirmada").length;
 
   const compartilhar = async () => {
     const texto = convite({
@@ -575,7 +585,11 @@ function Painel({ dados }: { dados: PainelDoPaciente }) {
       >
         <div className="relative z-10">
           <p className="text-xs uppercase tracking-[0.18em] opacity-70">Seu nível</p>
-          <p className="mt-1 text-4xl font-semibold tracking-tight">{s.nivel?.nome ?? "Membro"}</p>
+          {/* Sem nível ainda, o cartão diz para onde ela vai — "Membro" parecia
+              um nível, e não é. */}
+          <p className="mt-1 text-4xl font-semibold tracking-tight">
+            {s.nivel?.nome ?? (s.proximo ? `Rumo ao ${s.proximo.nome}` : "Membro")}
+          </p>
 
           <div className="mt-5">
             <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/15">
@@ -587,8 +601,9 @@ function Painel({ dados }: { dados: PainelDoPaciente }) {
             <p className="mt-2 text-sm opacity-80">
               {s.proximo ? (
                 <>
-                  <strong>{s.confirmadas}</strong> de {s.proximo.indicacoes} — faltam{" "}
-                  <strong>{s.faltam}</strong> para {s.proximo.nome}
+                  <strong>{s.confirmadas}</strong> de {s.proximo.indicacoes} —{" "}
+                  {s.faltam === 1 ? "falta" : "faltam"} <strong>{s.faltam}</strong> para{" "}
+                  {s.proximo.nome}
                 </>
               ) : (
                 <>Você chegou ao topo do Club 🎉</>
@@ -599,16 +614,22 @@ function Painel({ dados }: { dados: PainelDoPaciente }) {
         <div className="club-brilho pointer-events-none absolute inset-0 z-0" aria-hidden />
       </section>
 
-      <section
-        className="club-entra glass-claro mt-4 flex items-center justify-between p-5"
-        style={{ animationDelay: "120ms" }}
-      >
-        <div>
-          <p className="text-xs uppercase tracking-wider text-neutral-500">Créditos NÓS</p>
-          <p className="mt-0.5 text-3xl font-semibold">{formatBRL(dados.saldo ?? 0)}</p>
-          <p className="mt-0.5 text-xs text-neutral-500">para usar nos seus procedimentos</p>
-        </div>
-        <Gift className="h-8 w-8 text-neutral-300" strokeWidth={1.25} />
+      {/* O saldo de hoje e, logo abaixo, até onde ele pode ir. A trilha é o
+          que faltava: a tela mostrava o que a pessoa tem, e não o que ela
+          ainda pode ganhar. */}
+      <section className="club-entra glass-claro mt-4 p-5" style={{ animationDelay: "120ms" }}>
+        <p className="text-xs uppercase tracking-wider text-neutral-500">Créditos NÓS</p>
+        <p className="mt-0.5 text-3xl font-semibold tabular-nums">{formatBRL(dados.saldo ?? 0)}</p>
+
+        {trilha.paradas.length > 0 && (
+          <>
+            <TrilhaDoCredito trilha={trilha} />
+            <p className="mt-4 text-xs text-neutral-500">
+              Indicando, você pode ganhar até{" "}
+              <strong className="font-semibold text-neutral-900">{reais(trilha.total)}</strong>.
+            </p>
+          </>
+        )}
       </section>
 
       <button
@@ -617,13 +638,29 @@ function Painel({ dados }: { dados: PainelDoPaciente }) {
         className="club-entra club-pulsa mt-4 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-neutral-900 text-base font-semibold text-white"
         style={{ animationDelay: "180ms" }}
       >
-        <Share2 className="h-5 w-5" /> Indicar alguém
+        <Share2 className="h-5 w-5" /> Indicar e ganhar {reais(proximaVale)}
       </button>
+
+      {/* Indicação pendente é dinheiro esperando — dito assim, vira motivo
+          para a pessoa lembrar a amiga de marcar. */}
+      {aCaminho > 0 && (
+        <p
+          className="club-entra mt-3 flex items-center justify-center gap-1.5 text-xs text-neutral-500"
+          style={{ animationDelay: "200ms" }}
+        >
+          <Clock className="h-3.5 w-3.5" />
+          <strong className="font-semibold text-neutral-800">
+            {reais(aCaminho * porIndicacao)}
+          </strong>
+          a caminho · {aCaminho === 1 ? "1 indicação aguardando" : `${aCaminho} aguardando`}{" "}
+          consulta
+        </p>
+      )}
 
       <section className="club-entra glass-claro mt-4 p-5" style={{ animationDelay: "210ms" }}>
         <h2 className="text-sm font-semibold">Como funciona</h2>
         <ol className="mt-3 space-y-3">
-          <ComoFunciona numero="1" titulo={`Indique alguém e ganhe ${formatBRL(porIndicacao)}`}>
+          <ComoFunciona numero="1" titulo={`Indique alguém e ganhe ${reais(porIndicacao)}`}>
             O crédito entra quando a pessoa que você indicou vem à clínica e é atendida.
           </ComoFunciona>
           <ComoFunciona numero="2" titulo="A cada indicação você sobe">
@@ -742,4 +779,79 @@ function linkDoClube(doCartao?: string | null): string {
   const base =
     String(doCartao ?? "").trim() || (typeof window === "undefined" ? "" : window.location.origin);
   return base ? `${base}/club` : "";
+}
+
+/** "R$ 200" — sem centavos quando o valor é redondo, que é sempre aqui. */
+function reais(valor: number): string {
+  const v = Math.round(Number(valor) || 0);
+  return `R$ ${v.toLocaleString("pt-BR")}`;
+}
+
+/**
+ * A trilha do crédito: hoje → cada nível, com quanto se terá ganho lá.
+ *
+ * Paradas em espaços IGUAIS, e não proporcionais ao valor: proporcional, o
+ * Start (R$ 200 de R$ 5.600) ficaria colado no começo e o nome dele em cima
+ * do "Hoje". O preenchimento anda por trecho — entre duas paradas, na
+ * proporção do que já foi ganho naquele trecho.
+ */
+function TrilhaDoCredito({ trilha }: { trilha: ReturnType<typeof trilhaDoCredito> }) {
+  const marcos = [0, ...trilha.paradas.map((p) => p.acumulado)];
+  const passo = 100 / (marcos.length - 1);
+  let preenchido = 100;
+  for (let i = 1; i < marcos.length; i++) {
+    if (trilha.ganho < marcos[i]) {
+      const vao = Math.max(1, marcos[i] - marcos[i - 1]);
+      preenchido = (i - 1 + (trilha.ganho - marcos[i - 1]) / vao) * passo;
+      break;
+    }
+  }
+
+  return (
+    <div className="mt-5">
+      <div className="relative mx-2 h-1.5 rounded-full bg-neutral-200">
+        <div
+          className="club-barra absolute inset-y-0 left-0 rounded-full bg-neutral-900"
+          style={{ ["--ate" as string]: `${preenchido}%` }}
+        />
+        {marcos.map((m, i) => {
+          const alcancado = trilha.ganho >= m;
+          return (
+            <span
+              key={i}
+              className={cn(
+                "absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-white",
+                alcancado ? "bg-neutral-900" : "bg-neutral-300",
+              )}
+              style={{ left: `${i * passo}%` }}
+            />
+          );
+        })}
+      </div>
+      <div className="relative mx-2 mt-3 h-8">
+        {[
+          { nome: "Hoje", valor: null as number | null },
+          ...trilha.paradas.map((p) => ({ nome: p.nivel.nome, valor: p.acumulado })),
+        ].map((p, i, todos) => (
+          <span
+            key={p.nome}
+            className={cn(
+              "absolute top-0 flex flex-col text-[10px] leading-tight",
+              i === 0
+                ? "items-start"
+                : i === todos.length - 1
+                  ? "items-end"
+                  : "-translate-x-1/2 items-center",
+            )}
+            style={i === todos.length - 1 ? { right: 0 } : { left: `${i * passo}%` }}
+          >
+            <span className="font-medium text-neutral-700">{p.nome}</span>
+            {p.valor !== null && (
+              <span className="tabular-nums text-neutral-400">{reais(p.valor)}</span>
+            )}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
 }
