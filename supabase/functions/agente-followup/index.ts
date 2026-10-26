@@ -45,6 +45,7 @@ import { instrucaoDaLuna } from "../_shared/atendimento.ts";
 import { semTravessao } from "../_shared/sem-travessao.ts";
 import { jaDisseIssoAgora } from "../_shared/nao-repetir.ts";
 import { oQueEuMandei } from "../_shared/historico-da-clinica.ts";
+import { type Anuncio } from "../_shared/veio-de-anuncio.ts";
 import {
   decidirFollowup,
   dentroDaJanela,
@@ -270,7 +271,7 @@ async function cuidarDaClinica(agente: {
       supabase,
       ownerId,
       agente,
-      (s.anuncio as Record<string, unknown> | null) ?? null,
+      (s.anuncio as Anuncio | null) ?? null,
       agora,
       // Sessão e dúvida pendente seguem fora, como antes desta mudança: o que
       // entrou aqui foi só a cidade.
