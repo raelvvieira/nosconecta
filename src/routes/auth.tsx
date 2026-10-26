@@ -127,7 +127,7 @@ function AuthPage() {
             aria-label="NÓS Conecta"
           />
           <h1 className="sr-only">NÓS Conecta</h1>
-          <p className="text-sm text-muted-foreground mt-1">Gestão financeira para clínicas</p>
+          <p className="text-sm text-muted-foreground mt-1">Gestão para clínicas</p>
         </div>
 
         <div className="surface-card p-8">
