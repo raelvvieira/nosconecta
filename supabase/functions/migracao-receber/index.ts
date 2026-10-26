@@ -26,7 +26,7 @@
  * isso este arquivo pode existir no repositório e até ser publicado no Lovable
  * por engano sem abrir nada. Apagar depois da virada.
  */
-import postgres from "npm:postgres@3.4.5";
+import postgres from "npm:postgres@3.4.9";
 
 const NOME_VALIDO = /^(public|auth|migracao)\.[a-z_][a-z0-9_]*$/;
 
