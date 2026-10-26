@@ -713,7 +713,11 @@ function ChatPage() {
           </div>
         ) : (
           <>
-            <header className="flex items-center gap-3 border-b border-border bg-white/70 px-4 py-3 sm:px-6 lg:px-6">
+            {/* No celular, duas linhas: em cima voltar, contato e perfil; embaixo
+                tag, etapa e desfecho. Numa linha só, os três seletores
+                espremiam o nome até sumir ("NE" e mais nada) e cortavam o
+                último seletor na borda (23/10). No computador, uma linha. */}
+            <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-white/70 px-4 py-3 sm:px-6 lg:flex-nowrap lg:px-6">
               <button
                 type="button"
                 onClick={() => navigate({ search: { conversationId: undefined } })}
@@ -776,85 +780,91 @@ function ChatPage() {
               {/* Tags ficam FORA do bloco do funil: elas não dependem de o
                   pipeline estar configurado, e uma clínica que nunca conectou o
                   CRM continua podendo categorizar quem fala com ela. */}
-              <SeletorDeTags
-                alvo={{ crmContactId: selected.contactId ?? null }}
-                vazio="Tag"
-                compacto
-                className="shrink-0"
-              />
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5 max-lg:order-last max-lg:basis-full max-lg:pl-12 lg:flex-nowrap">
+                <SeletorDeTags
+                  alvo={{ crmContactId: selected.contactId ?? null }}
+                  vazio="Tag"
+                  compacto
+                  className="shrink-0"
+                />
 
-              {pipelineConfigured && pipelineStages.length > 0 && (
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold"
-                      >
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-full"
-                          style={{
-                            backgroundColor: currentStage?.color ?? "var(--foreground-subtle)",
-                          }}
-                        />
-                        {currentStage?.name ?? "Sem etapa"}
-                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {pipelineStages.map((s) => (
-                        <DropdownMenuItem key={s.id} onClick={() => moveStageMutation.mutate(s.id)}>
-                          {s.name}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                {pipelineConfigured && pipelineStages.length > 0 && (
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold"
+                        >
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full"
+                            style={{
+                              backgroundColor: currentStage?.color ?? "var(--foreground-subtle)",
+                            }}
+                          />
+                          {currentStage?.name ?? "Sem etapa"}
+                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {pipelineStages.map((s) => (
+                          <DropdownMenuItem
+                            key={s.id}
+                            onClick={() => moveStageMutation.mutate(s.id)}
+                          >
+                            {s.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
 
-                  {/* Etapa e desfecho são coisas diferentes: a etapa diz onde a
+                    {/* Etapa e desfecho são coisas diferentes: a etapa diz onde a
                       pessoa está, o desfecho diz como terminou. Marcar o
                       desfecho NÃO mexe na etapa nem cria card — sem card, a
                       negociação é gravada com a chave da própria conversa
                       (ver deal-key.ts), e a pessoa simplesmente não aparece no
                       board. */}
-                  {chaveDoDesfecho && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          data-desfecho=""
-                          className={cn(
-                            "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold",
-                            dealStatus === "won" &&
-                              "border-success/30 bg-success-soft text-success",
-                            dealStatus === "lost" && "border-danger/30 bg-danger-soft text-danger",
-                            dealStatus === "negotiating" && "border-border bg-white",
-                          )}
-                        >
-                          {dealStatus === "won" && <Check className="h-3.5 w-3.5" />}
-                          {dealStatus === "lost" && <X className="h-3.5 w-3.5" />}
-                          {DEAL_STATUS_LABEL[dealStatus]}
-                          <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => statusMutation.mutate({ status: "negotiating" })}
-                        >
-                          Em negociação
-                        </DropdownMenuItem>
-                        {/* Ganho não grava daqui: abre a confirmação, que pede
+                    {chaveDoDesfecho && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            data-desfecho=""
+                            className={cn(
+                              "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold",
+                              dealStatus === "won" &&
+                                "border-success/30 bg-success-soft text-success",
+                              dealStatus === "lost" &&
+                                "border-danger/30 bg-danger-soft text-danger",
+                              dealStatus === "negotiating" && "border-border bg-white",
+                            )}
+                          >
+                            {dealStatus === "won" && <Check className="h-3.5 w-3.5" />}
+                            {dealStatus === "lost" && <X className="h-3.5 w-3.5" />}
+                            {DEAL_STATUS_LABEL[dealStatus]}
+                            <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => statusMutation.mutate({ status: "negotiating" })}
+                          >
+                            Em negociação
+                          </DropdownMenuItem>
+                          {/* Ganho não grava daqui: abre a confirmação, que pede
                             valor e data antes de mandar qualquer conversão. */}
-                        <DropdownMenuItem onClick={() => setConfirmandoGanho(true)}>
-                          Ganho
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setAskingLoss(true)}>
-                          Perdido
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-              )}
+                          <DropdownMenuItem onClick={() => setConfirmandoGanho(true)}>
+                            Ganho
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setAskingLoss(true)}>
+                            Perdido
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                )}
+              </div>
             </header>
 
             {/* Sem motivo, "perdido" não ensina nada depois — mesma exigência
