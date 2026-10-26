@@ -330,7 +330,12 @@ export async function deixarORoboRegistrar(
     // leria a si mesmo e lançaria a despesa de novo.
     if (m.fromMe && ehRecadoDoRobo(texto)) return;
 
-    const temImagem = Boolean(m.anexo?.tipo === "image");
+    // `attachments` é `unknown[]` de propósito: o tradutor não impõe forma ao
+    // anexo. O `tipo` é o que diz se há uma foto para ler, lido com a mesma
+    // molde de `wa-webhook`.
+    const temImagem = m.attachments.some(
+      (a) => (a as { tipo?: string } | undefined)?.tipo === "image",
+    );
     const quem = String(evento?.pushName ?? "").trim() || null;
 
     // A reserva vem antes de qualquer trabalho caro, e é ela que garante que
