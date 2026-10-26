@@ -30,7 +30,7 @@ import { agoraNaClinica } from "./agenda-da-clinica.ts";
 import { chamarModelo } from "./modelo-de-atendimento.ts";
 import { enviarWhatsapp } from "./whatsapp-send.ts";
 import { evolutionFetch, conexaoParaEnviar } from "./evolution-api.ts";
-import type { MensagemEspelhada } from "./evolution-mapear.ts";
+import { temFotoDoEspelho, type MensagemEspelhada } from "./evolution-mapear.ts";
 import { desfazerLancamento, lancarNoFinanceiro } from "./lancar-no-financeiro.ts";
 import {
   catalogoDeCategorias,
@@ -330,12 +330,7 @@ export async function deixarORoboRegistrar(
     // leria a si mesmo e lançaria a despesa de novo.
     if (m.fromMe && ehRecadoDoRobo(texto)) return;
 
-    // `attachments` é `unknown[]` de propósito: o tradutor não impõe forma ao
-    // anexo. O `tipo` é o que diz se há uma foto para ler, lido com a mesma
-    // molde de `wa-webhook`.
-    const temImagem = m.attachments.some(
-      (a) => (a as { tipo?: string } | undefined)?.tipo === "image",
-    );
+    const temImagem = temFotoDoEspelho(m);
     const quem = String(evento?.pushName ?? "").trim() || null;
 
     // A reserva vem antes de qualquer trabalho caro, e é ela que garante que
