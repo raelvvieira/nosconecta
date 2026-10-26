@@ -31,6 +31,13 @@ import { conversaPorContato } from "@/lib/atendimentos/agruparConversas";
 import { listarTags, mapaDeTags, todasAsAtribuicoes } from "@/lib/tags/tags.functions";
 import { FichasDeTag } from "@/components/tags/FichasDeTag";
 import { FiltrosDeContatos } from "./FiltrosDeContatos";
+import { TirarDoDisparo } from "./TirarDoDisparo";
+import {
+  LISTAS_AUTOMATICAS,
+  pareceDoutor,
+  pareceEmpresa,
+  type ListaAutomatica,
+} from "@/lib/atendimentos/listasAutomaticas";
 import { LoteDeDisparo, nomeDoRecorte } from "./LoteDeDisparo";
 
 /** Constante, não `[]` na hora: array novo a cada render invalida todo
@@ -194,6 +201,10 @@ export function ContactsTab({
   /** Só quem já teve horário marcado alguma vez. */
   const [soClientesAtivos, setSoClientesAtivos] = useState(false);
   const [tagsEscolhidas, setTagsEscolhidas] = useState<Set<string>>(new Set());
+  /** O outro lado das fichas: quem SAI do recorte. Tag tirada e tag escolhida
+   *  nunca são a mesma — ligar uma desliga a outra. */
+  const [tagsTiradas, setTagsTiradas] = useState<Set<string>>(new Set());
+  const [listasTiradas, setListasTiradas] = useState<Set<ListaAutomatica>>(new Set());
   // Só quem é do número conectado, por padrão. Trocar de número no WhatsApp
   // deixa a caixa antiga na conta com todas as conversas dela, e disparar para
   // essa gente é mandar mensagem de uma clínica que ela não reconhece. Não se
@@ -329,6 +340,31 @@ export function ContactsTab({
     return false;
   };
 
+  // Empresa? Doutor? Calculado uma vez por contato, não a cada render: a base
+  // passa de três mil nomes, e as fichas recontam a cada toque.
+  const listasDoContato = useMemo(() => {
+    const m = new Map<string, { empresas: boolean; doutores: boolean }>();
+    for (const c of contatos) {
+      m.set(c.id, { empresas: pareceEmpresa(c.name), doutores: pareceDoutor(c.name) });
+    }
+    return m;
+  }, [contatos]);
+
+  const estaNaLista = (c: ContatoUnificado, lista: ListaAutomatica): boolean =>
+    Boolean(listasDoContato.get(c.id)?.[lista]);
+
+  const temTag = (c: ContatoUnificado, tagId: string): boolean => {
+    const t = porContatoTags.get(c.id) ?? porContatoTags.get(c.patientId ?? "");
+    return Boolean(t?.has(tagId));
+  };
+
+  /** Fica de fora do disparo por alguma ficha de "Tirar do disparo". */
+  const foiTirado = (c: ContatoUnificado): boolean => {
+    for (const l of listasTiradas) if (estaNaLista(c, l)) return true;
+    for (const t of tagsTiradas) if (temTag(c, t)) return true;
+    return false;
+  };
+
   /** DDDs presentes na base, do mais numeroso para o menos. */
   const fichasDdd = useMemo(() => contarPorDdd(semRecentes), [semRecentes]);
 
@@ -346,12 +382,18 @@ export function ContactsTab({
     [semRecentes, naAgenda],
   );
 
-  const filtrados = useMemo(
+  // O recorte antes de tirar ninguém. As fichas de "Tirar do disparo" contam
+  // sobre ELE: "Empresas (12)" diz quantas sairiam deste recorte, não da base.
+  const recorteAntesDeTirar = useMemo(
     () =>
       filtrarContatos(semRecentes, { busca, ddds, naAgenda: recorteNaAgenda }).filter(
         temAlgumaTagEscolhida,
       ),
     [semRecentes, busca, ddds, recorteNaAgenda, tagsEscolhidas, porContatoTags],
+  );
+  const filtrados = useMemo(
+    () => recorteAntesDeTirar.filter((c) => !foiTirado(c)),
+    [recorteAntesDeTirar, tagsTiradas, listasTiradas, listasDoContato, porContatoTags],
   );
 
   // O recorte para o envio em lotes, em duas medidas: quantos existem e quantos
@@ -360,17 +402,37 @@ export function ContactsTab({
   // não pode fazer o lote reenviar para quem já recebeu.
   const recorteTotal = useMemo(
     () =>
-      filtrarContatos(noEscopo, { busca, ddds, naAgenda: recorteNaAgenda }).filter(
-        temAlgumaTagEscolhida,
-      ).length,
-    [noEscopo, busca, ddds, recorteNaAgenda, tagsEscolhidas, porContatoTags],
+      filtrarContatos(noEscopo, { busca, ddds, naAgenda: recorteNaAgenda })
+        .filter(temAlgumaTagEscolhida)
+        .filter((c) => !foiTirado(c)).length,
+    [
+      noEscopo,
+      busca,
+      ddds,
+      recorteNaAgenda,
+      tagsEscolhidas,
+      tagsTiradas,
+      listasTiradas,
+      listasDoContato,
+      porContatoTags,
+    ],
   );
   const recortePendente = useMemo(
     () =>
-      filtrarContatos(naoTratados, { busca, ddds, naAgenda: recorteNaAgenda }).filter(
-        temAlgumaTagEscolhida,
-      ),
-    [naoTratados, busca, ddds, recorteNaAgenda, tagsEscolhidas, porContatoTags],
+      filtrarContatos(naoTratados, { busca, ddds, naAgenda: recorteNaAgenda })
+        .filter(temAlgumaTagEscolhida)
+        .filter((c) => !foiTirado(c)),
+    [
+      naoTratados,
+      busca,
+      ddds,
+      recorteNaAgenda,
+      tagsEscolhidas,
+      tagsTiradas,
+      listasTiradas,
+      listasDoContato,
+      porContatoTags,
+    ],
   );
 
   const lote = calcularLote({
@@ -569,16 +631,54 @@ export function ContactsTab({
           if (next.has(id)) next.delete(id);
           else next.add(id);
           setTagsEscolhidas(next);
+          // Escolher para entrar desfaz o "tirar" da mesma tag.
+          if (next.has(id) && tagsTiradas.has(id)) {
+            const tiradas = new Set(tagsTiradas);
+            tiradas.delete(id);
+            setTagsTiradas(tiradas);
+          }
           // Mesmo motivo dos outros filtros: mudar o recorte não pode deixar
           // selecionado quem sumiu da tela.
           onSelecionadosChange(new Set());
         }}
-        contar={(id) =>
-          semRecentes.filter((c) => {
-            const t = porContatoTags.get(c.id) ?? porContatoTags.get(c.patientId ?? "");
-            return Boolean(t?.has(id));
-          }).length
+        contar={(id) => semRecentes.filter((c) => temTag(c, id)).length}
+      />
+
+      <TirarDoDisparo
+        listas={LISTAS_AUTOMATICAS.map((l) => ({
+          id: l.id,
+          rotulo: l.rotulo,
+          contagem: recorteAntesDeTirar.filter((c) => estaNaLista(c, l.id)).length,
+          ativa: listasTiradas.has(l.id),
+          onAlternar: () => {
+            const next = new Set(listasTiradas);
+            if (next.has(l.id)) next.delete(l.id);
+            else next.add(l.id);
+            setListasTiradas(next);
+            onSelecionadosChange(new Set());
+          },
+        }))}
+        tags={tagsQuery.data ?? SEM_TAGS}
+        tagsTiradas={tagsTiradas}
+        onAlternarTag={(id) => {
+          const next = new Set(tagsTiradas);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          setTagsTiradas(next);
+          // Tirar uma tag que estava escolhida para entrar desfaz a escolha.
+          if (next.has(id) && tagsEscolhidas.has(id)) {
+            const escolhidas = new Set(tagsEscolhidas);
+            escolhidas.delete(id);
+            setTagsEscolhidas(escolhidas);
+          }
+          onSelecionadosChange(new Set());
+        }}
+        contarTag={(id) =>
+          // Uma tag escolhida para entrar não é oferecida para sair: tirar
+          // todo mundo que se acabou de escolher esvazia a lista.
+          tagsEscolhidas.has(id) ? 0 : recorteAntesDeTirar.filter((c) => temTag(c, id)).length
         }
+        fora={recorteAntesDeTirar.length - filtrados.length}
       />
 
       {precisaDeLotes && (
@@ -612,7 +712,9 @@ export function ContactsTab({
           />
           <span className="text-sm font-medium">
             {todosFiltradosSelecionados ? "Limpar" : "Selecionar"} os {filtrados.length}{" "}
-            {ddds.size > 0 || busca.trim() ? "filtrados" : "contatos"}
+            {ddds.size > 0 || busca.trim() || filtrados.length < recorteAntesDeTirar.length
+              ? "filtrados"
+              : "contatos"}
           </span>
           {selecionados.size > 0 && (
             <span className="ml-auto text-2xs font-semibold text-coral" data-total-selecionado="">
