@@ -88,7 +88,10 @@ export type ParaQue =
   | "leitura"
   | "teste"
   | "followup"
-  | "olho";
+  | "olho"
+  /** O robô que lê comprovante no grupo do financeiro: gasto dele, não da
+   *  leitura da confirmação do paciente. */
+  | "financeiro-do-grupo";
 
 /**
  * Grava o consumo de uma chamada.
