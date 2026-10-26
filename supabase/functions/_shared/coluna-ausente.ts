@@ -35,7 +35,9 @@ export function colunaInexistente(erro: unknown): string | null {
  * aí o erro DEVE subir.
  */
 export async function inserirTolerandoColunaAusente<T extends Record<string, unknown>>(
-  executar: (linha: T) => Promise<{ data: any; error: any }>,
+  // `PromiseLike` e não `Promise`: o que chama isto é o construtor do PostgREST,
+  // que é thenable mas não é `Promise` — e aqui só se espera (`await`) por ele.
+  executar: (linha: T) => PromiseLike<{ data: any; error: any }>,
   linha: T,
   opcionais: string[],
 ): Promise<{ data: any; removidas: string[] }> {

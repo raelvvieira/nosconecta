@@ -117,6 +117,7 @@ export const NOME_DO_USO: Record<string, string> = {
   teste: "Testes na tela",
   followup: "Voltar em quem sumiu",
   olho: "Olho de Deus (relatório semanal)",
+  "financeiro-do-grupo": "Ler comprovante no grupo",
 };
 
 export function nomeDoUso(para: string): string {

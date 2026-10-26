@@ -130,7 +130,10 @@ interface GrafoNode {
       | "unitId"
       | "daysUntil"
       | "replyText"
-      | "replyIntent";
+      | "replyIntent"
+      /** A condição por tag, implementada em `condicaoCasa` — comparada por ID
+       *  para que renomear a etiqueta não mude o ramo de uma automação salva. */
+      | "tag";
     operator?: "gt" | "lt" | "eq" | "contains" | "not_contains";
     value?: string;
     weights?: Record<string, number>;

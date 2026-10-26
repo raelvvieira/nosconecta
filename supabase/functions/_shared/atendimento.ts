@@ -743,6 +743,16 @@ export interface InstrucaoMontada {
   unidades: UnidadeComCodigo[];
 }
 
+/** A unidade como a instrução a usa: com id, nome, endereço e a marca de
+ *  principal. O `id` é o que liga o catálogo de códigos à agenda e à cidade
+ *  dita pela pessoa, e o endereço é o que diz de onde ela fica. */
+interface UnidadeDaClinica {
+  id: string;
+  nome: string;
+  endereco: string | null;
+  principal: boolean;
+}
+
 export async function instrucaoDaLuna(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -807,7 +817,7 @@ export async function instrucaoDaLuna(
     .eq("active", true)
     .order("is_default", { ascending: false });
   // deno-lint-ignore no-explicit-any
-  const listaDeUnidades = (unidades ?? []).map((u: any) => ({
+  const listaDeUnidades: UnidadeDaClinica[] = (unidades ?? []).map((u: any) => ({
     id: String(u.id ?? ""),
     nome: String(u.name ?? "").trim(),
     endereco: u.address ?? null,
