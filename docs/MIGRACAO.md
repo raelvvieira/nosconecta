@@ -66,6 +66,19 @@ VAPID_PUBLIC_KEY.
 
 ---
 
+## Publicação automática (GitHub Actions)
+
+`.github/workflows/publicar.yml`: a cada push no main, checa tipos e Edge
+Functions, publica o site na Cloudflare e, se o commit mexeu em
+`supabase/functions/`, atualiza as rotinas no Supabase novo. Estrutura do
+banco fica de fora (aplicada à mão). Também roda pelo botão "Run workflow".
+
+Cadastro no GitHub (Settings → Secrets and variables → Actions):
+
+- **Secrets:** `SUPABASE_ACCESS_TOKEN`, `CLOUDFLARE_API_TOKEN`
+- **Variables:** `NOVO_PROJETO_REF` = `cuqbpelstbgihhxmcrfn`,
+  `NOVO_VAPID_PUBLIC_KEY` = a chave pública do push (não é segredo)
+
 ## Ambiente do Claude (variáveis secretas)
 
 | Variável              | Para quê                                                      |
