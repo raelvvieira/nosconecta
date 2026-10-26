@@ -30,10 +30,12 @@ import postgres from "npm:postgres@3.4.9";
 
 const NOME_VALIDO = /^(public|auth|migracao)\.[a-z_][a-z0-9_]*$/;
 
-let banco: ReturnType<typeof postgres> | null = null;
+// Uma conexão por pedido, fechada no fim. O pg_net manda dezenas de lotes ao
+// mesmo tempo e cada um sobe uma instância desta função; conexões que ficam
+// abertas esgotaram o banco novo na primeira cópia ("remaining connection
+// slots are reserved") e dois terços dos lotes voltaram.
 function conexao() {
-  if (!banco) banco = postgres(Deno.env.get("SUPABASE_DB_URL")!, { max: 2, prepare: false });
-  return banco;
+  return postgres(Deno.env.get("SUPABASE_DB_URL")!, { max: 1, prepare: false, idle_timeout: 1 });
 }
 
 /** As colunas que podem receber valor: fora as geradas (`GENERATED ... STORED`). */
@@ -49,6 +51,14 @@ async function colunas(sql: ReturnType<typeof postgres>, tabela: string) {
 
 async function gravar(tabela: string, linhas: unknown[]) {
   const sql = conexao();
+  try {
+    return await gravarCom(sql, tabela, linhas);
+  } finally {
+    await sql.end();
+  }
+}
+
+async function gravarCom(sql: ReturnType<typeof postgres>, tabela: string, linhas: unknown[]) {
   const cols = await colunas(sql, tabela);
   if (!cols.length) throw new Error(`Tabela sem colunas: ${tabela}`);
   const lista = cols.map((c) => `"${c.nome}"`).join(", ");
@@ -68,6 +78,14 @@ async function gravar(tabela: string, linhas: unknown[]) {
 /** Depois da cópia: cada sequência volta a contar a partir do maior id copiado. */
 async function acertarSequencias() {
   const sql = conexao();
+  try {
+    return await acertarCom(sql);
+  } finally {
+    await sql.end();
+  }
+}
+
+async function acertarCom(sql: ReturnType<typeof postgres>) {
   const seqs = await sql<{ tabela: string; coluna: string; seq: string }[]>`
     SELECT n.nspname || '.' || c.relname AS tabela, a.attname AS coluna,
            pg_get_serial_sequence(n.nspname || '.' || c.relname, a.attname) AS seq

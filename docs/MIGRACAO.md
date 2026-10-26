@@ -112,6 +112,18 @@ Depois, no painel do Supabase novo (a pessoa):
 
 ### Fase 4 — ensaio
 
+**Feito em 27/10/2026:** dados e logins copiados (57 tabelas com dados, 3
+logins com senha), site em `https://nos-conecta.nos-conecta.workers.dev`,
+login conversando só com o projeto novo. Arquivos (fotos/documentos) ainda
+não.
+
+**Lição da cópia:** o pg_net dispara tudo em paralelo. Lotes de 300 linhas
+(até 2,4 MB) derrubaram conexões ("Stream error in the HTTP/2 framing
+layer", "remaining connection slots"). Funcionou com **lotes de 100 e no
+máximo ~30 pedidos por vez** (`DE`/`ATE` em `sql-de-envio.mjs`), e repetindo
+só o que faltava — comparar contagem por dia (`created_at::date`) mostra
+onde. Repetir não duplica (`ON CONFLICT DO NOTHING`).
+
 1. `node scripts/migracao/preparar-recepcao.mjs`
 2. `node scripts/migracao/sql-de-envio.mjs /tmp/envio.sql` e rodar o SQL **no
    Lovable** (com autorização: manda dado de paciente para fora). Tabelas
