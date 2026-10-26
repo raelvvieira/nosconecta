@@ -135,6 +135,19 @@ export interface MensagemEspelhada {
 }
 
 /**
+ * A mensagem do espelho traz uma foto?
+ *
+ * `attachments` é `unknown[]` de propósito — o tradutor não impõe forma ao
+ * anexo, e quem consome o espelho lê o `tipo` com uma molde. Perguntar por um
+ * campo `anexo` que não existe devolve `undefined` e a resposta vira "não tem
+ * foto" para sempre, sem erro nenhum: foi assim que o robô do financeiro
+ * atravessou comprovante sem olhar.
+ */
+export function temFotoDoEspelho(m: MensagemEspelhada): boolean {
+  return m.attachments.some((a) => (a as { tipo?: string } | undefined)?.tipo === "image");
+}
+
+/**
  * Um evento `messages.upsert` virando a linha do espelho.
  *
  * Devolve `null` quando falta o que identifica a mensagem — sem id ou sem
