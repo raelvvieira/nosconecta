@@ -76,8 +76,8 @@ banco fica de fora (aplicada à mão). Também roda pelo botão "Run workflow".
 Cadastro no GitHub (Settings → Secrets and variables → Actions):
 
 - **Secrets:** `SUPABASE_ACCESS_TOKEN`, `CLOUDFLARE_API_TOKEN`
-- **Variables:** `NOVO_PROJETO_REF` = `cuqbpelstbgihhxmcrfn`,
-  `NOVO_VAPID_PUBLIC_KEY` = a chave pública do push (não é segredo)
+- `NOVO_PROJETO_REF` e `NOVO_VAPID_PUBLIC_KEY` já vêm escritos no workflow
+  (não são segredo); uma variable do GitHub com o mesmo nome os substitui.
 
 ## Ambiente do Claude (variáveis secretas)
 
