@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { registerServiceWorker } from "@/lib/pwa/service-worker";
 import { MembershipGate } from "@/components/auth/MembershipGate";
 import { Novidades } from "@/components/tema/Novidades";
+import { TEMAS, TEMA_PADRAO } from "@/lib/tema/temas";
 import { UnitProvider } from "@/lib/settings/unit-context";
 
 function NotFoundComponent() {
@@ -110,10 +111,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+// Pinta o tema guardado ANTES da primeira pintura, em toda página — a tela de
+// login inclusive. Antes a cor só entrava depois de o React montar, e por
+// dentro do AuthGate: o login abria no rosa padrão mesmo com outro tema
+// escolhido. Os ids repetem `TEMAS` (lib/tema/temas.ts) porque este script
+// roda antes de qualquer módulo carregar.
+const TEMA_ANTES_DA_PINTURA = `try{var t=localStorage.getItem("nos:tema");if(${JSON.stringify(
+  TEMAS.map((t) => t.id).filter((id) => id !== TEMA_PADRAO),
+)}.indexOf(t)>-1)document.documentElement.dataset.tema=t}catch(e){}`;
+
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: TEMA_ANTES_DA_PINTURA }} />
         <HeadContent />
       </head>
       <body>

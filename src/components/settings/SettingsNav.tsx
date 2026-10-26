@@ -195,7 +195,7 @@ export function SettingsNav() {
   const visible = (item: NavItem) =>
     item.kind !== "section" || !item.adminOnly || !!counts?.isAdmin;
 
-  const activeSection: PageSection = search.section ?? "professionals";
+  const activeSection: PageSection = search.section ?? "chairs";
   const { searchStr } = useLocation();
   const menuNoCelular =
     pathname === "/configuracoes" && !String(searchStr ?? "").includes("section=");

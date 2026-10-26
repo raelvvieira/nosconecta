@@ -46,7 +46,11 @@ import {
 // um SettingsSection de verdade — não tem CRUD genérico, é a tela de
 // aprovação (ver branch no componente abaixo).
 const searchSchema = z.object({
-  section: z.enum(["professionals", "chairs", "procedures", "units", "members"]).default("chairs"),
+  // Sem `.default`: o roteador escreve o padrão na URL de todo link para
+  // /configuracoes, e o celular lê `?section=` para saber se mostra o menu ou
+  // uma área. Com o padrão na URL, o menu completo nunca aparecia — abria
+  // direto em Cadeiras. O padrão fica no componente.
+  section: z.enum(["professionals", "chairs", "procedures", "units", "members"]).optional(),
 });
 type PageSection = SettingsSection | "members";
 type SettingsFetcher = () => Promise<SettingsData>;
@@ -78,7 +82,7 @@ const SECTION_LABEL: Record<PageSection, string> = {
 };
 
 function SettingsRegistryPage() {
-  const { section } = Route.useSearch();
+  const section = Route.useSearch().section ?? "chairs";
   const queryClient = useQueryClient();
   const fetchSettings = useServerFn(getSettings);
   const save = useServerFn(saveSetting);

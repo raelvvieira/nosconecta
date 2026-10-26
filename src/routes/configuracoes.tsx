@@ -52,7 +52,7 @@ function SettingsLayout() {
       <Sidebar />
       <main className="w-full px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
         <PageHeading
-          className={cn("pr-16 lg:pr-0", !naRaiz && "hidden lg:flex")}
+          className={cn("pr-16 lg:pr-0", !menuNoCelular && "hidden lg:flex")}
           icon={Settings2}
           kicker="Base operacional"
           title="Configurações"
