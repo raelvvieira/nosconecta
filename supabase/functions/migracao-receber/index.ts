@@ -28,7 +28,7 @@
  */
 import postgres from "npm:postgres@3.4.5";
 
-const NOME_VALIDO = /^(public|auth)\.[a-z_][a-z0-9_]*$/;
+const NOME_VALIDO = /^(public|auth|migracao)\.[a-z_][a-z0-9_]*$/;
 
 let banco: ReturnType<typeof postgres> | null = null;
 function conexao() {
@@ -57,7 +57,7 @@ async function gravar(tabela: string, linhas: unknown[]) {
     await tx.unsafe("SET LOCAL session_replication_role = replica");
     const feito = await tx.unsafe(
       `INSERT INTO ${tabela} (${lista}) ${sobrepor}
-       SELECT ${lista} FROM jsonb_populate_recordset(NULL::${tabela}, $1::jsonb)
+       SELECT ${lista} FROM jsonb_populate_recordset(NULL::${tabela}, $1::text::jsonb)
        ON CONFLICT DO NOTHING`,
       [JSON.stringify(linhas)],
     );

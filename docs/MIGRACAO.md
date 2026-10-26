@@ -82,10 +82,24 @@ VAPID_PUBLIC_KEY.
 ### Fase 3 — montar a casa nova (vazia)
 
 ```bash
-node scripts/migracao/montar-banco.mjs       # 175 migrations + 3 depósitos
-node scripts/migracao/aplicar-rotinas.mjs    # 7 tarefas, TODAS DESLIGADAS
-node scripts/migracao/instalar-funcoes.mjs   # 19 funções + push novo; lista as chaves que faltam
+node scripts/migracao/preparar-recepcao.mjs   # abre a recepção no projeto novo
+npx supabase functions deploy migracao-receber --project-ref $NOVO_PROJETO_REF --use-api
+node scripts/migracao/sql-de-envio.mjs /tmp/planta.sql --estrutura
+#   → rodar /tmp/planta.sql NO LOVABLE (só lê a estrutura; nenhum dado)
+node scripts/migracao/montar-banco.mjs        # aplica a planta + 3 depósitos
+node scripts/migracao/aplicar-rotinas.mjs     # 7 tarefas, TODAS DESLIGADAS
+node scripts/migracao/instalar-funcoes.mjs    # funções + push novo; lista as chaves que faltam
 ```
+
+**Por que planta e não as migrations:** só 81 das 175 migrations estão no
+histórico do Lovable — as demais entraram por cópias, à mão ou fora de ordem,
+e reaplicá-las num banco vazio quebra na 10ª. `estrutura.sql` lê dos
+catálogos o que existe lá hoje.
+
+**Feito em 27/10/2026** no projeto `cuqbpelstbgihhxmcrfn` (São Paulo):
+1.203 comandos sem falha; contagens iguais ao Lovable (78 tabelas, 4 views,
+38 funções, 200 índices, 95 regras, 30 gatilhos, mesmas extensões); 3
+depósitos; 7 tarefas desligadas; 19 funções; VAPID novo.
 
 Depois, no painel do Supabase novo (a pessoa):
 
@@ -95,10 +109,6 @@ Depois, no painel do Supabase novo (a pessoa):
   `https://login.nosodontoesaude.com.br/**` e o endereço `workers.dev` do ensaio.
 - **Authentication → Emails → SMTP:** a Brevo (mesmo remetente de hoje).
 - **Authentication → Providers → Email:** confirmação igual à do Lovable.
-
-Conferir também que a estrutura bate: rodar no Lovable e no novo
-`select table_name from information_schema.tables where table_schema='public'`
-e comparar — algo criado no Lovable fora de migration aparece aqui.
 
 ### Fase 4 — ensaio
 
