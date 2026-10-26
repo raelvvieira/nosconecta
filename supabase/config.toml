@@ -11,3 +11,12 @@ verify_jwt = false
 # mesmo desenho do whatsapp-inbound-webhook logo acima.
 [functions.wa-webhook]
 verify_jwt = false
+
+# Migração para fora do Lovable (docs/MIGRACAO.md). As duas fechadas por um
+# segredo no cabeçalho `x-migracao`, conferido dentro da função; sem o segredo
+# cadastrado, respondem 404. Apagar as duas depois da virada.
+[functions.migracao-exportar]
+verify_jwt = false
+
+[functions.migracao-receber]
+verify_jwt = false
