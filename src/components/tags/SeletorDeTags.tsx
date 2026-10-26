@@ -32,6 +32,7 @@ export function SeletorDeTags({
   /** Rótulo do gatilho quando não há tag nenhuma. */
   vazio = "Adicionar tag",
   compacto = false,
+  iconeNoCelular = false,
   className,
 }: {
   alvo: AlvoDaTag;
@@ -41,6 +42,10 @@ export function SeletorDeTags({
    *  cresceria a altura do cabeçalho a cada tag; espremer sem rolagem comeria o
    *  nome do contato, que é a informação principal ali. */
   compacto?: boolean;
+  /** No celular, só o ícone (com o número de tags marcadas): o topo da
+   *  conversa não tem largura para etiquetas e rótulo. As etiquetas aparecem
+   *  ao abrir. Acima de `lg`, nada muda. */
+  iconeNoCelular?: boolean;
   className?: string;
 }) {
   const queryClient = useQueryClient();
@@ -135,7 +140,10 @@ export function SeletorDeTags({
       <div
         className={cn(
           "flex items-center gap-1.5",
-          compacto ? "scrollbar-none min-w-0 max-w-[38vw] flex-nowrap overflow-x-auto" : "flex-wrap",
+          compacto
+            ? "scrollbar-none min-w-0 max-w-[38vw] flex-nowrap overflow-x-auto"
+            : "flex-wrap",
+          iconeNoCelular && "max-lg:hidden",
         )}
       >
         {marcadas.map((t) => (
@@ -160,10 +168,27 @@ export function SeletorDeTags({
               "px-3 text-2xs font-medium text-muted-foreground transition-colors",
               "hover:border-coral hover:text-coral disabled:opacity-50",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coral focus-visible:ring-offset-1",
+              iconeNoCelular &&
+                "max-lg:relative max-lg:w-9 max-lg:justify-center max-lg:border-solid max-lg:px-0",
             )}
+            aria-label={iconeNoCelular ? "Tags" : undefined}
           >
-            {marcadas.length > 0 ? <Plus className="h-3.5 w-3.5" /> : <TagIcon className="h-3.5 w-3.5" />}
-            {marcadas.length > 0 ? "Tag" : vazio}
+            {iconeNoCelular && <TagIcon className="h-4 w-4 lg:hidden" />}
+            {iconeNoCelular && marcadas.length > 0 && (
+              <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-coral px-1 text-3xs font-bold text-white lg:hidden">
+                {marcadas.length}
+              </span>
+            )}
+            <span
+              className={cn("inline-flex items-center gap-1.5", iconeNoCelular && "max-lg:hidden")}
+            >
+              {marcadas.length > 0 ? (
+                <Plus className="h-3.5 w-3.5" />
+              ) : (
+                <TagIcon className="h-3.5 w-3.5" />
+              )}
+              {marcadas.length > 0 ? "Tag" : vazio}
+            </span>
           </button>
         </PopoverTrigger>
 
@@ -267,12 +292,7 @@ export function SeletorDeTags({
                 >
                   <Plus className="h-3.5 w-3.5 shrink-0 text-coral" />
                   <span className="min-w-0 flex-1 truncate text-sm">
-                    Criar{" "}
-                    <Etiqueta
-                      nome={termo}
-                      cor={corNova}
-                      className="ml-0.5 align-middle"
-                    />
+                    Criar <Etiqueta nome={termo} cor={corNova} className="ml-0.5 align-middle" />
                   </span>
                 </button>
               </div>

@@ -5,6 +5,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Check,
+  Filter,
+  Hourglass,
   CheckCheck,
   ChevronDown,
   MessageCircle,
@@ -713,11 +715,10 @@ function ChatPage() {
           </div>
         ) : (
           <>
-            {/* No celular, duas linhas: em cima voltar, contato e perfil; embaixo
-                tag, etapa e desfecho. Numa linha só, os três seletores
-                espremiam o nome até sumir ("NE" e mais nada) e cortavam o
-                último seletor na borda (23/10). No computador, uma linha. */}
-            <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-white/70 px-4 py-3 sm:px-6 lg:flex-nowrap lg:px-6">
+            {/* Uma linha. No celular, tag, etapa e desfecho viram ÍCONES: com
+                rótulo, espremiam o nome até sumir; em duas linhas, o topo
+                ficou grande demais (23/10). O nome é o que fica por extenso. */}
+            <header className="flex items-center gap-2 border-b border-border bg-white/70 px-3 py-2.5 sm:px-6 lg:gap-3 lg:px-6 lg:py-3">
               <button
                 type="button"
                 onClick={() => navigate({ search: { conversationId: undefined } })}
@@ -780,11 +781,12 @@ function ChatPage() {
               {/* Tags ficam FORA do bloco do funil: elas não dependem de o
                   pipeline estar configurado, e uma clínica que nunca conectou o
                   CRM continua podendo categorizar quem fala com ela. */}
-              <div className="flex min-w-0 flex-wrap items-center gap-1.5 max-lg:order-last max-lg:basis-full max-lg:pl-12 lg:flex-nowrap">
+              <div className="flex shrink-0 items-center gap-1.5">
                 <SeletorDeTags
                   alvo={{ crmContactId: selected.contactId ?? null }}
                   vazio="Tag"
                   compacto
+                  iconeNoCelular
                   className="shrink-0"
                 />
 
@@ -794,16 +796,18 @@ function ChatPage() {
                       <DropdownMenuTrigger asChild>
                         <button
                           type="button"
-                          className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold"
+                          aria-label={`Etapa: ${currentStage?.name ?? "Sem etapa"}`}
+                          className="relative flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-white text-xs font-semibold max-lg:w-9 max-lg:justify-center lg:px-3"
                         >
+                          <Filter className="h-4 w-4 text-muted-foreground lg:hidden" />
                           <span
-                            className="h-2 w-2 shrink-0 rounded-full"
+                            className="h-2 w-2 shrink-0 rounded-full max-lg:absolute max-lg:-right-0.5 max-lg:-top-0.5 max-lg:h-2.5 max-lg:w-2.5 max-lg:ring-2 max-lg:ring-white"
                             style={{
                               backgroundColor: currentStage?.color ?? "var(--foreground-subtle)",
                             }}
                           />
-                          {currentStage?.name ?? "Sem etapa"}
-                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="max-lg:hidden">{currentStage?.name ?? "Sem etapa"}</span>
+                          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground max-lg:hidden" />
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -830,8 +834,9 @@ function ChatPage() {
                           <button
                             type="button"
                             data-desfecho=""
+                            aria-label={DEAL_STATUS_LABEL[dealStatus]}
                             className={cn(
-                              "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold",
+                              "flex h-8 shrink-0 items-center gap-1.5 rounded-full border text-xs font-semibold max-lg:w-9 max-lg:justify-center lg:px-3",
                               dealStatus === "won" &&
                                 "border-success/30 bg-success-soft text-success",
                               dealStatus === "lost" &&
@@ -839,10 +844,15 @@ function ChatPage() {
                               dealStatus === "negotiating" && "border-border bg-white",
                             )}
                           >
-                            {dealStatus === "won" && <Check className="h-3.5 w-3.5" />}
-                            {dealStatus === "lost" && <X className="h-3.5 w-3.5" />}
-                            {DEAL_STATUS_LABEL[dealStatus]}
-                            <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                            {dealStatus === "won" && (
+                              <Check className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
+                            )}
+                            {dealStatus === "lost" && <X className="h-4 w-4 lg:h-3.5 lg:w-3.5" />}
+                            {dealStatus === "negotiating" && (
+                              <Hourglass className="h-4 w-4 lg:hidden" />
+                            )}
+                            <span className="max-lg:hidden">{DEAL_STATUS_LABEL[dealStatus]}</span>
+                            <ChevronDown className="h-3.5 w-3.5 opacity-60 max-lg:hidden" />
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
