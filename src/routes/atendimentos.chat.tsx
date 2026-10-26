@@ -693,7 +693,18 @@ function ChatPage() {
       </section>
 
       {/* Thread */}
-      <section className={cn("flex min-w-0 flex-1 flex-col", !conversationId && "hidden lg:flex")}>
+      {/* No celular, com uma conversa aberta, a seção tem a altura da tela
+          menos a ilha de baixo: só as mensagens rolam, e o campo de escrever
+          fica fixo logo acima da ilha. Antes a página inteira rolava e o
+          campo ia parar no fim de tudo (23/10). */}
+      <section
+        className={cn(
+          "flex min-w-0 flex-1 flex-col",
+          !conversationId && "hidden lg:flex",
+          conversationId &&
+            "max-lg:h-[calc(100dvh-96px-env(safe-area-inset-bottom))] max-lg:flex-none max-lg:overflow-hidden",
+        )}
+      >
         {!selected ? (
           <div className="hidden flex-1 items-center justify-center lg:flex">
             <p className="text-sm text-muted-foreground">

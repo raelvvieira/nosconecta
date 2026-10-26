@@ -1,6 +1,7 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BotOff, HelpCircle } from "lucide-react";
+import { useState } from "react";
+import { BotOff, ChevronDown, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
   devolverParaIa,
@@ -84,13 +85,13 @@ export function EstadoDaLuna({ conversationId }: { conversationId: string }) {
       <Faixa
         tom="warning"
         icone={<BotOff className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
-        titulo="A Luna está calada nesta conversa"
+        titulo="Luna pausada"
         texto={
           dados.agenteLigado
-            ? `Alguém da equipe respondeu aqui ${quando(dados.humanoAssumiuEm)}, e desde então ela não fala mais nesta conversa. Devolva quando o atendimento puder seguir com ela.`
-            : `Alguém da equipe respondeu aqui ${quando(dados.humanoAssumiuEm)}. A Luna também está desligada no geral, então devolver só vale a partir de quando ela for ligada.`
+            ? `A equipe respondeu ${quando(dados.humanoAssumiuEm)}; desde então ela não fala aqui.`
+            : `A equipe respondeu ${quando(dados.humanoAssumiuEm)}. A Luna também está desligada no geral.`
         }
-        rotuloDaAcao={aoDevolver.isPending ? "Devolvendo…" : "Devolver para a Luna"}
+        rotuloDaAcao={aoDevolver.isPending ? "Devolvendo…" : "Devolver"}
         ocupado={aoDevolver.isPending}
         acao={() => aoDevolver.mutate(dados.sessionId)}
       />
@@ -102,8 +103,8 @@ export function EstadoDaLuna({ conversationId }: { conversationId: string }) {
       <Faixa
         tom="info"
         icone={<HelpCircle className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
-        titulo="A Luna encaminhou uma dúvida"
-        texto={`“${dados.duvidaPendente}” — pedida ${quando(dados.duvidaPendenteEm)}. Ela continua atendendo o resto da conversa e não vai prometer isso de novo. Responda à pessoa e marque como respondida.`}
+        titulo="Dúvida para a equipe"
+        texto={`“${dados.duvidaPendente}” — ${quando(dados.duvidaPendenteEm)}. Responda à pessoa e marque como respondida.`}
         rotuloDaAcao={aoResolver.isPending ? "Marcando…" : "Já respondi"}
         ocupado={aoResolver.isPending}
         acao={() => aoResolver.mutate(dados.sessionId)}
@@ -138,23 +139,34 @@ function Faixa({
       ? "border-warning/30 bg-warning-soft text-warning"
       : "border-info/30 bg-info-soft text-info";
 
+  // Um selo de uma linha, e não uma faixa de seis: o texto longo ocupava o
+  // espaço da conversa no celular (23/10). A explicação abre num toque.
+  const [aberto, setAberto] = useState(false);
   return (
-    <div
-      className={`flex flex-wrap items-start gap-x-3 gap-y-2 border-t px-4 py-2.5 sm:px-6 lg:px-8 ${cor}`}
-    >
-      <span className="mt-0.5">{icone}</span>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold">{titulo}</p>
-        <p className="mt-0.5 text-xs leading-5 text-foreground/80">{texto}</p>
+    <div className="border-t border-border px-4 py-2 sm:px-6 lg:px-8">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setAberto((v) => !v)}
+          aria-expanded={aberto}
+          className={`flex min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${cor}`}
+        >
+          {icone}
+          <span className="truncate">{titulo}</span>
+          <ChevronDown
+            className={`h-3.5 w-3.5 shrink-0 transition-transform ${aberto ? "rotate-180" : ""}`}
+          />
+        </button>
+        <button
+          type="button"
+          disabled={ocupado}
+          onClick={acao}
+          className="ml-auto shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold text-pink transition hover:bg-pink-soft disabled:opacity-60"
+        >
+          {rotuloDaAcao}
+        </button>
       </div>
-      <button
-        type="button"
-        disabled={ocupado}
-        onClick={acao}
-        className="shrink-0 rounded-full border border-current px-3 py-1 text-xs font-medium transition hover:bg-white/60 disabled:opacity-60"
-      >
-        {rotuloDaAcao}
-      </button>
+      {aberto && <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{texto}</p>}
     </div>
   );
 }

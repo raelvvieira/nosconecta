@@ -89,7 +89,7 @@ export function CardDeSugestoes({
       acao={
         dados?.etapaAtual ? (
           <span
-            className="shrink-0 rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success"
+            className="min-w-0 truncate rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success"
             title={dados.porqueEssaEtapa ?? undefined}
           >
             {dados.etapaAtual}

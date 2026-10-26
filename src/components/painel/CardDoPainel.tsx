@@ -30,11 +30,14 @@ export function CardDoPainel({
   return (
     <section className={cn("surface-card p-5", className)}>
       <div className="flex items-center justify-between gap-3">
-        <h3 className="flex items-center gap-2 text-sm font-semibold">
+        {/* O título não quebra e não encolhe; quem cede espaço é a ação ao
+            lado. Antes, uma etiqueta longa ("Triagem de segurança: a pessoa
+            relatou…") espremia "O que dizer agora" numa palavra por linha. */}
+        <h3 className="flex shrink-0 items-center gap-2 whitespace-nowrap text-sm font-semibold">
           <Icone className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
           {titulo}
         </h3>
-        {acao}
+        {acao && <div className="flex min-w-0 justify-end">{acao}</div>}
       </div>
       <div className="mt-3.5">{children}</div>
     </section>
