@@ -79,7 +79,7 @@ const POA = {
 // ── Cidade confirmada vence o palpite ────────────────────────────────────
 {
   const t = secaoDeUnidades([FLORIPA, POA], "NÓS Florianópolis", "NÓS Porto Alegre");
-  conferir("confirmada manda", t.includes("Esta pessoa é de NÓS Florianópolis"), true);
+  conferir("confirmada manda", t.includes("A unidade desta pessoa é a NÓS Florianópolis"), true);
   conferir("e o palpite some", t.includes("dê o endereço da NÓS Porto Alegre"), false);
 }
 
@@ -191,7 +191,11 @@ conferir(
 // combinar horário? O endereço é o da cidade dela, e a principal não entra.
 {
   const t = secaoDeUnidades([FLORIPA, POA], "NÓS Porto Alegre");
-  conferir("diz de qual unidade ela é", t.includes("Esta pessoa é de NÓS Porto Alegre"), true);
+  conferir(
+    "diz de qual unidade ela é",
+    t.includes("A unidade desta pessoa é a NÓS Porto Alegre"),
+    true,
+  );
   conferir("e que é esse e nenhum outro", t.includes("nenhum outro"), true);
   // A regra do palpite sai de cena: mantê-la ao lado da certeza daria duas
   // instruções para a mesma pergunta, e aí ninguém sabe qual valeu.
@@ -214,7 +218,7 @@ conferir(
 {
   const t = secaoDeUnidades([FLORIPA, POA], "NÓS Curitiba");
   conferir("nome desconhecido volta para a regra padrão", t.includes("pergunte antes"), true);
-  conferir("e não afirma cidade nenhuma", t.includes("Esta pessoa é de"), false);
+  conferir("e não afirma cidade nenhuma", t.includes("A unidade desta pessoa"), false);
 }
 
 if (falhas.length) {

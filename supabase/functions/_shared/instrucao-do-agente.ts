@@ -27,7 +27,12 @@
 import { secaoDoAnuncio, type Anuncio } from "./veio-de-anuncio.ts";
 import { catalogoDeVagas, comoReportarFechamento } from "./agendamento-da-ia.ts";
 import { comoUsarOsCasos, type CasoComCodigo } from "./casos-da-ia.ts";
-import { secaoDaCidade, semONos, type UnidadeComCodigo } from "./cidade-do-paciente.ts";
+import {
+  secaoDaCidade,
+  semONos,
+  type CidadeDeclarada,
+  type UnidadeComCodigo,
+} from "./cidade-do-paciente.ts";
 
 export interface EtapaDaConversa {
   nome?: string | null;
@@ -158,6 +163,9 @@ export interface EntradaDaInstrucao {
    * pergunta não existe.
    */
   cidade?: CidadeDaConversa | null;
+  /** Quem atende na clínica, com as especialidades do cadastro. Ver
+   *  `secaoDeQuemAtende`. Ausente = nenhuma seção. */
+  profissionais?: ProfissionalDaClinica[] | null;
   /**
    * A dúvida que já está com a equipe nesta conversa, se houver.
    *
@@ -184,6 +192,19 @@ export interface CidadeDaConversa {
   confirmada: UnidadeComCodigo | null;
   /** A que o DDD sugere. Palpite, nunca resposta. */
   palpite: UnidadeComCodigo | null;
+  /** A cidade que ela DISSE, resolvida para a unidade mais próxima. Vence o
+   *  DDD. Ver `localizacao-do-paciente.ts`. */
+  declarada?: CidadeDeclarada | null;
+}
+
+/** Uma profissional da clínica, como o cadastro a descreve. */
+export interface ProfissionalDaClinica {
+  nome: string;
+  /** Escolhidas pela própria profissional, da lista do CFO + Clínica Geral,
+   *  na ficha clínica. NÃO são validadas pelo sistema. */
+  especialidades: string[];
+  /** CRO, quando cadastrado. */
+  registro?: string | null;
 }
 
 /**
@@ -202,6 +223,57 @@ export interface CidadeDaConversa {
  * Endereço é o que separa "quero marcar" de "onde eu vou". Não dar é perder a
  * pessoa na última pergunta.
  */
+/**
+ * Quem atende, e o que o cadastro diz de cada uma.
+ *
+ * ── Por que existe (LUNA V4.1, regra 16) ─────────────────────────────────
+ *
+ * Quem pergunta "qual a especialidade da doutora?" recebia "vou confirmar com
+ * a equipe" — as especialidades estavam na ficha clínica de cada dentista,
+ * no sistema, e nunca chegavam à instrução.
+ *
+ * ── O que o dado É, e por isso como pode ser dito ─────────────────────────
+ *
+ * A profissional escolhe as especialidades na própria ficha, de uma lista
+ * (as do CFO mais "Clínica Geral"). O sistema não confere registro no
+ * conselho. Então a instrução manda falar em "atua em", "trabalha com" —
+ * nunca "é especialista registrada em", que é título que o sistema não sabe
+ * se ela tem. E credencial de uma nunca vale para outra.
+ */
+export function secaoDeQuemAtende(
+  profissionais: ProfissionalDaClinica[] | null | undefined,
+): string {
+  const lista = (profissionais ?? []).filter((p) => String(p.nome ?? "").trim());
+  if (!lista.length) return "";
+  const linhas = lista.map((p) => {
+    const areas = (p.especialidades ?? []).map((e) => String(e).trim()).filter(Boolean);
+    const cro = String(p.registro ?? "").trim();
+    return [
+      `- ${p.nome.trim()}${cro ? ` (CRO ${cro})` : ""}: `,
+      areas.length
+        ? `áreas informadas no cadastro: ${areas.join(", ")}.`
+        : "nenhuma especialidade cadastrada.",
+    ].join("");
+  });
+  return [
+    "## Quem atende",
+    "",
+    "Estas são as profissionais da clínica e o que cada uma informou no cadastro:",
+    "",
+    ...linhas,
+    "",
+    "Se perguntarem a especialidade, formação ou área de uma delas, responda",
+    'direto com o que está acima, sem passar para a equipe. Diga "atua em",',
+    '"trabalha com" — o cadastro não confirma registro de especialista no',
+    'conselho, então não afirme título ("é especialista registrada em").',
+    "O que está na lista de uma profissional nunca vale para outra.",
+    "Se a pessoa quiser a confirmação formal de um título, ou se não houver",
+    "nada cadastrado, encaminhe SÓ essa pergunta em `duvidaEncaminhada` e siga",
+    "o atendimento normalmente. Nunca complete a lista com os procedimentos",
+    "que a clínica vende.",
+  ].join("\n");
+}
+
 export function secaoDeUnidades(
   unidades: UnidadeDaClinica[] | null | undefined,
   /**
@@ -262,7 +334,12 @@ export function secaoDeUnidades(
     partes.push(
       "",
       ...(daConversa
-        ? [`Esta pessoa é de ${daConversa.nome.trim()}: o endereço dela é esse, e`, "nenhum outro."]
+        ? // "A unidade desta pessoa", e não "ela é de": desde a V4.1 a unidade
+          // pode ser a mais PRÓXIMA da cidade dela, não a cidade dela.
+          [
+            `A unidade desta pessoa é a ${daConversa.nome.trim()}: o endereço é esse, e`,
+            "nenhum outro.",
+          ]
         : doPalpite
           ? [
               "Responda com o endereço da unidade do horário que vocês combinaram.",
@@ -907,6 +984,7 @@ export function montarInstrucao({
   anuncio,
   unidades,
   cidade,
+  profissionais,
   duvidaPendente,
 }: EntradaDaInstrucao): string {
   const daClinica = String(instrucaoBase ?? "").trim();
@@ -983,6 +1061,7 @@ export function montarInstrucao({
           nome: horarios.paraOferecer[0].unidadeNome,
         }
       : null,
+    cidade?.declarada ?? null,
   );
   if (deOndeEla) partes.push("", deOndeEla);
 
@@ -990,10 +1069,13 @@ export function montarInstrucao({
   // ouvir o horário, e a seção que responde isso tem de estar junto.
   const ondeFica = secaoDeUnidades(
     unidades,
-    cidade?.confirmada?.nome ?? null,
+    cidade?.confirmada?.nome ?? cidade?.declarada?.unidade?.nome ?? null,
     cidade?.palpite?.nome ?? null,
   );
   if (ondeFica) partes.push("", ondeFica);
+
+  const quemAtende = secaoDeQuemAtende(profissionais);
+  if (quemAtende) partes.push("", quemAtende);
 
   partes.push("", tabelaDePrecos(procedimentos, parcelamento));
   partes.push("", secaoDeHorarios(horarios));

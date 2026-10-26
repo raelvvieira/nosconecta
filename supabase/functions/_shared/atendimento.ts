@@ -35,8 +35,12 @@ import {
   catalogoDeUnidades,
   unidadeEscolhida,
   unidadePeloDdd,
+  ufDoTelefone,
+  type CidadeDeclarada,
   type UnidadeComCodigo,
 } from "./cidade-do-paciente.ts";
+import { cidadeDita, municipioDaUnidade, unidadeMaisProxima } from "./localizacao-do-paciente.ts";
+import type { ProfissionalDaClinica } from "./instrucao-do-agente.ts";
 import type { HorariosParaOferecer } from "./instrucao-do-agente.ts";
 import type { RespostaAoPaciente } from "./modelo-de-atendimento.ts";
 
@@ -758,6 +762,9 @@ export async function instrucaoDaLuna(
   unidadeConfirmadaId?: string | null,
   /** O número dela, só para o palpite do DDD. Ausente na prévia da tela. */
   telefone?: string | null,
+  /** O que a PESSOA escreveu na conversa, da mais antiga para a mais nova —
+   *  é daqui que sai a cidade que ela disse. Ver `localizacao-do-paciente.ts`. */
+  falasDoPaciente?: readonly string[] | null,
 ): Promise<InstrucaoMontada> {
   const { data: playbook } = await supabase
     .from("ai_sales_playbooks")
@@ -817,13 +824,52 @@ export async function instrucaoDaLuna(
   const catalogoDasUnidades = catalogoDeUnidades(listaDeUnidades);
   const confirmada =
     catalogoDasUnidades.find((u) => u.id === String(unidadeConfirmadaId ?? "")) ?? null;
+  // A cidade que ela DISSE vence o DDD (LUNA V4.1, regra 15). O código acha
+  // o município e a unidade mais próxima; a instrução já chega com o fato.
+  let declarada: CidadeDeclarada | null = null;
+  try {
+    const ufsDaClinica = new Set(
+      listaDeUnidades
+        .map((u) => municipioDaUnidade(u.nome, u.endereco)?.uf)
+        .filter((uf): uf is string => !!uf),
+    );
+    const dita = cidadeDita(falasDoPaciente ?? [], ufDoTelefone(telefone), ufsDaClinica);
+    if (dita?.municipio) {
+      const perto = unidadeMaisProxima(dita.municipio, listaDeUnidades);
+      declarada = {
+        cidade: dita.municipio.nome,
+        uf: dita.municipio.uf,
+        unidade: perto
+          ? (catalogoDasUnidades.find((u) => u.id === perto.unidade.id) ?? null)
+          : null,
+      };
+    } else if (dita?.ambiguo.length) {
+      declarada = {
+        cidade: "",
+        uf: "",
+        unidade: null,
+        ambiguo: dita.ambiguo.map((m) => `${m.nome}/${m.uf}`),
+      };
+    }
+    if (declarada) {
+      console.log(
+        `[luna] cidade dita: ${declarada.cidade || "ambígua"}${declarada.uf ? `/${declarada.uf}` : ""} → ${declarada.unidade?.nome ?? "sem unidade"}`,
+      );
+    }
+  } catch (e) {
+    // Falhar aqui não pode calar a Luna: fica o comportamento de antes.
+    console.warn("[luna] não deu para resolver a cidade dita:", e);
+  }
+
   const palpite = confirmada
     ? null
-    : unidadePeloDdd(
-        telefone,
-        catalogoDasUnidades,
-        Object.fromEntries(listaDeUnidades.map((u) => [u.id, u.endereco])),
-      );
+    : declarada?.unidade
+      ? declarada.unidade
+      : unidadePeloDdd(
+          telefone,
+          catalogoDasUnidades,
+          Object.fromEntries(listaDeUnidades.map((u) => [u.id, u.endereco])),
+        );
 
   // Os horários de verdade, ao lado das outras leituras de contexto. É o que
   // torna a regra dos dois horários possível — antes disto o agente não tinha
@@ -841,7 +887,9 @@ export async function instrucaoDaLuna(
   const cidadeDaAgenda = confirmada
     ? { id: confirmada.id, nome: confirmada.nome, confirmada: true }
     : palpite
-      ? { id: palpite.id, nome: palpite.nome, confirmada: false }
+      ? // A cidade dita vale como confirmada para a agenda: horário de outra
+        // cidade para quem disse onde mora é exatamente o erro a evitar.
+        { id: palpite.id, nome: palpite.nome, confirmada: !!declarada?.unidade }
       : null;
   const horarios = await horariosParaOferecer(supabase, ownerId, agora, cidadeDaAgenda);
 
@@ -896,8 +944,10 @@ export async function instrucaoDaLuna(
     cidade: {
       catalogo: catalogoDasUnidades,
       confirmada,
-      palpite,
+      palpite: declarada?.unidade ? null : palpite,
+      declarada,
     },
+    profissionais: await profissionaisDaClinica(supabase, ownerId),
     instrucaoBase: agente.instrucao_base ?? null,
     parcelamento: agente.parcelamento ?? null,
     pacienteModelo: {
@@ -921,6 +971,41 @@ export async function instrucaoDaLuna(
   });
 
   return { texto, horarios, casos, unidades: catalogoDasUnidades };
+}
+
+/**
+ * As profissionais ativas e o que a ficha clínica diz de cada uma.
+ *
+ * Lido a cada mensagem, sem cache: mudar a especialidade na ficha vale na
+ * resposta seguinte (LUNA V4.1, fase 3). Falha de leitura devolve lista
+ * vazia — a seção some e a Luna encaminha a pergunta, em vez de calar.
+ */
+async function profissionaisDaClinica(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  ownerId: string,
+): Promise<ProfissionalDaClinica[]> {
+  try {
+    const { data, error } = await supabase
+      .from("professionals")
+      .select("name, specialties, specialty, registration_number")
+      .eq("owner_id", ownerId)
+      .eq("active", true)
+      .order("name");
+    if (error) throw error;
+    // deno-lint-ignore no-explicit-any
+    return (data ?? []).map((p: any) => ({
+      nome: String(p.name ?? ""),
+      especialidades: [
+        ...(Array.isArray(p.specialties) ? p.specialties : []),
+        ...(p.specialty && !(p.specialties ?? []).includes(p.specialty) ? [p.specialty] : []),
+      ].map(String),
+      registro: p.registration_number ?? null,
+    }));
+  } catch (e) {
+    console.warn("[luna] não deu para ler as profissionais:", e);
+    return [];
+  }
 }
 
 /**
@@ -973,6 +1058,13 @@ async function responderComModelo(
   cidade: UnidadeComCodigo | null;
 }> {
   const { supabase, ownerId } = deps;
+  // O histórico vem ANTES da instrução desde a V4.1: é das falas da pessoa
+  // que sai a cidade que ela disse ("sou de Criciúma").
+  const anteriores = await deps.historico(entrada.conversationId);
+  const falasDoPaciente = [
+    ...anteriores.filter((m) => m.deQuem === "paciente").map((m) => m.texto),
+    String(entrada.conteudo ?? ""),
+  ];
   const instrucao = await instrucaoDaLuna(
     supabase,
     ownerId,
@@ -983,9 +1075,8 @@ async function responderComModelo(
     duvidaPendente,
     unidadeConfirmadaId,
     entrada.telefone ?? null,
+    falasDoPaciente,
   );
-
-  const anteriores = await deps.historico(entrada.conversationId);
 
   // ── O conjunto, e não a última bolha ────────────────────────────────────
   //

@@ -291,3 +291,77 @@ for (const valor of [42, null, true, { a: 1 }, ["U1"]]) {
 }
 
 console.log(`ok — ${feitas} checagens da cidade do paciente`);
+
+// ── V4.1: a cidade que ela DISSE vira fato na instrução ─────────────────
+{
+  const { secaoDaCidade: sc, catalogoDeUnidades: cu } =
+    await import("../supabase/functions/_shared/cidade-do-paciente.ts");
+  const { secaoDeQuemAtende } =
+    await import("../supabase/functions/_shared/instrucao-do-agente.ts");
+  const cat = cu([
+    { id: "flo", nome: "NÓS Florianópolis" },
+    { id: "poa", nome: "NÓS Porto Alegre" },
+  ]);
+  const t = sc(
+    cat,
+    null,
+    null,
+    { id: "flo", nome: "NÓS Florianópolis" },
+    {
+      cidade: "Criciúma",
+      uf: "SC",
+      unidade: cat[0],
+    },
+  );
+  conferir("V4.1: diz a cidade dita", t.includes("Ela disse que é de Criciúma (SC)"), true);
+  conferir(
+    "V4.1: diz a unidade mais próxima",
+    t.includes("mais próxima de lá é a NÓS Florianópolis (U1)"),
+    true,
+  );
+  conferir(
+    "V4.1: manda confirmar o código",
+    t.includes("preencha `cidadeConfirmada` com U1"),
+    true,
+  );
+  conferir("V4.1: proíbe 'vou verificar'", t.includes("Não diga que vai verificar"), true);
+  conferir("V4.1: proíbe dizer que atende na cidade dela", t.includes("atende em Criciúma"), true);
+  conferir("V4.1: não volta a perguntar pelo DDD", t.includes("né?"), false);
+
+  const amb = sc(cat, null, null, null, {
+    cidade: "",
+    uf: "",
+    unidade: null,
+    ambiguo: ["Bom Jesus/RS", "Bom Jesus/SC"],
+  });
+  conferir("V4.1: ambígua pede só o estado", amb.includes("Pergunte só o estado"), true);
+
+  const q = secaoDeQuemAtende([
+    {
+      nome: "Dra. Mariane Botti",
+      especialidades: ["Dentística", "Harmonização Orofacial"],
+      registro: "28463",
+    },
+    { nome: "Isabelli Cavalli", especialidades: [], registro: null },
+  ]);
+  conferir(
+    "V4.1: áreas da profissional certa",
+    q.includes(
+      "Dra. Mariane Botti (CRO 28463): áreas informadas no cadastro: Dentística, Harmonização Orofacial",
+    ),
+    true,
+  );
+  conferir(
+    "V4.1: sem cadastro, diz que não há",
+    q.includes("Isabelli Cavalli: nenhuma especialidade cadastrada"),
+    true,
+  );
+  conferir("V4.1: não afirma título", q.includes("não afirme título"), true);
+  conferir(
+    "V4.1: credencial não passa de uma para outra",
+    q.includes("nunca vale para outra"),
+    true,
+  );
+  conferir("V4.1: sem profissionais, sem seção", secaoDeQuemAtende([]), "");
+  console.log(`ok — ${feitas} checagens com a V4.1`);
+}

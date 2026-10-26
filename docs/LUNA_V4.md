@@ -1,4 +1,6 @@
 # LUNA V4
+
+> **Substituído pela [LUNA V4.1](LUNA_V4_1.md) em 26/10/2026.** Mantido como histórico.
 ## Manual operacional de atendimento, conversão e recuperação da NÓS
 
 **Versão:** 4.0  

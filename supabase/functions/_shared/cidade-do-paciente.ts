@@ -213,6 +213,13 @@ function comparavel(texto: string): string {
  * E não se perde nada: o telefone sempre chega de `telefoneDoJid`, que
  * devolve o número como o WhatsApp o identifica, com código de país.
  */
+/** A UF do DDD do número, ou nula. Só para desempatar nome de cidade
+ *  repetido — nunca como a cidade da pessoa. */
+export function ufDoTelefone(telefone: string | null | undefined): string | null {
+  const ddd = dddDoTelefone(telefone);
+  return ddd ? (UF_POR_DDD[ddd] ?? null) : null;
+}
+
 export function dddDoTelefone(telefone: string | null | undefined): string | null {
   const digitos = String(telefone ?? "").replace(/\D/g, "");
   if (!digitos.startsWith("55")) return null;
@@ -287,6 +294,13 @@ export function secaoDaCidade(
    * comparação que impede a instrução de afirmar o contrário.
    */
   unidadeDosHorarios?: { id: string; nome: string } | null,
+  /**
+   * A cidade que a pessoa DISSE ("sou de Criciúma"), já resolvida pelo código
+   * para a unidade mais próxima — ver `localizacao-do-paciente.ts`. Vale mais
+   * que o DDD, e é dita na instrução como fato, para o modelo não ter de
+   * adivinhar geografia nem dizer que "vai verificar".
+   */
+  declarada?: CidadeDeclarada | null,
 ): string {
   if (catalogo.length < 2) return "";
 
@@ -308,9 +322,14 @@ export function secaoDaCidade(
     "uma sala onde não há ninguém.",
   ];
 
+  // A cidade que ela disse, quando ela disse uma — antes de tudo, porque é a
+  // informação mais forte da seção.
+  const dita = declarada ? linhasDaCidadeDita(declarada, confirmada, horariosSaoDo) : [];
+
   if (confirmada) {
     return [
       "## A cidade desta pessoa",
+      ...(dita.length ? ["", ...dita] : []),
       "",
       `Ela já disse que é de ${confirmada.nome} (${confirmada.codigo}). NÃO pergunte`,
       "de novo — perguntar duas vezes a mesma coisa é o que mais denuncia",
@@ -333,7 +352,9 @@ export function secaoDaCidade(
     ...lista,
   ];
 
-  if (palpite && !horariosSaoDo(palpite)) {
+  if (dita.length) {
+    partes.push("", ...dita);
+  } else if (palpite && !horariosSaoDo(palpite)) {
     // O DDD sugere uma cidade e não há horário nela — viagem sem data marcada,
     // ou agenda cheia. Os horários abaixo são de outra, e dizer "já são dessa
     // unidade" seria uma frase falsa dentro da instrução. Então o palpite vira
@@ -400,4 +421,78 @@ export function secaoDaCidade(
   partes.push("", ...seForOutra);
 
   return partes.join("\n");
+}
+
+/** A cidade que a pessoa disse, como o código a resolveu. */
+export interface CidadeDeclarada {
+  /** "Criciúma" */
+  cidade: string;
+  /** "SC" */
+  uf: string;
+  /** A unidade da clínica mais próxima daquela cidade. Nula quando nenhuma
+   *  unidade tem endereço com cidade reconhecível. */
+  unidade: UnidadeComCodigo | null;
+  /** Quando o nome existe em mais de um estado e nada diz qual: "Bom Jesus/RS",
+   *  "Bom Jesus/SC". Aí `cidade`/`uf` vêm vazias e `unidade` nula. */
+  ambiguo?: string[];
+}
+
+/**
+ * As linhas da instrução para a cidade que a pessoa disse.
+ *
+ * LUNA V4.1, regra 15: "perguntas geográficas não podem travar a conversa".
+ * O código já resolveu a cidade e a unidade; o texto só manda usar.
+ */
+function linhasDaCidadeDita(
+  d: CidadeDeclarada,
+  confirmada: UnidadeComCodigo | null,
+  horariosSaoDo: (u: UnidadeComCodigo) => boolean,
+): string[] {
+  if (d.ambiguo?.length) {
+    return [
+      `Ela citou uma cidade que existe em mais de um estado (${d.ambiguo.slice(0, 4).join(", ")}).`,
+      "Pergunte só o estado, numa frase curta, e siga respondendo o resto da",
+      "mensagem. Não escolha por ela.",
+    ];
+  }
+  if (!d.unidade) {
+    return [
+      `Ela disse que é de ${d.cidade} (${d.uf}). Não há como saber, pelo cadastro,`,
+      "qual unidade fica mais perto. Diga em quais cidades a clínica atende e",
+      "pergunte em qual ela prefere. Não invente distância.",
+    ];
+  }
+  const u = d.unidade;
+  const naMesma = semONos(u.nome).toLowerCase() === d.cidade.toLowerCase();
+  const linhas = [
+    naMesma
+      ? `Ela disse que é de ${d.cidade} (${d.uf}), onde a clínica tem a ${u.nome} (${u.codigo}).`
+      : `Ela disse que é de ${d.cidade} (${d.uf}). A unidade da clínica mais próxima de lá é a ${u.nome} (${u.codigo}) — isto já foi calculado pelo sistema, não é palpite.`,
+  ];
+  if (confirmada && confirmada.id !== u.id) {
+    linhas.push(
+      `Antes ela tinha confirmado ${confirmada.nome}. Vale o que ela disse por último:`,
+      `se a cidade nova muda a unidade, confirme com ela em uma frase antes de marcar.`,
+    );
+    return linhas;
+  }
+  linhas.push(
+    "",
+    `Use a ${u.nome} nesta conversa: preencha \`cidadeConfirmada\` com ${u.codigo}.`,
+    ...(horariosSaoDo(u)
+      ? ["Os horários que você tem para oferecer já são dessa unidade."]
+      : [
+          `Não há horário livre na ${u.nome} nos próximos dias: diga que vai confirmar`,
+          "as próximas datas com a equipe, e não ofereça horário de outra cidade.",
+        ]),
+    ...(naMesma
+      ? []
+      : [
+          `Se ela perguntar onde fica, dê o endereço da ${u.nome} (seção "Onde a clínica`,
+          `fica") e deixe claro que é em ${semONos(u.nome)}, não em ${d.cidade}. Nunca diga`,
+          `que a clínica atende em ${d.cidade}, nem fale em distância ou tempo de viagem.`,
+        ]),
+    "Não diga que vai verificar onde há unidades: a resposta já está aqui.",
+  );
+  return linhas;
 }
