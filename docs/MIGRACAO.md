@@ -168,22 +168,36 @@ Lista do ensaio:
 - [ ] configurações, temas, Club (créditos e indicações)
 - [ ] criar e apagar um agendamento de teste
 
-### Fase 5 — a virada (noite combinada, com autorização)
+### Fase 5 — a virada (roteiro testado em 27/10)
 
-1. Avisar a equipe: uma hora sem usar.
-2. **Congelar o Lovable** (no banco dele): `update cron.job set active = false;`
-3. **Limpar o ensaio no novo** e copiar de novo: repetir a fase 4, itens 2 a 6.
-   Para limpar: `truncate` de todas as tabelas de `public` + `delete from auth.users`
-   no projeto novo — **nunca** no Lovable.
-4. `node scripts/migracao/fechar-recepcao.mjs`
-5. Trocar endereços: VPS (`WEBHOOK_URL`), domínio, Brevo.
-6. `node scripts/migracao/ligar-rotinas.mjs ligar`
-7. Teste real: mensagem do celular da pessoa para o WhatsApp da clínica →
-   aparece na tela → a Luna responde. Entrar pelo domínio de sempre.
+Todos os comandos com `NOVO_PROJETO_REF` no ambiente. O "SQL no Lovable" roda
+pelo MCP do Lovable (`query_database`).
+
+1. **Congelar o Lovable** (SQL no Lovable): `update cron.job set active = false;`
+   Anotar a hora `T` (ex.: `2026-10-27T21:00:00-03:00`).
+2. `node scripts/migracao/limpar-dados.mjs --sim` — banco novo sem dados.
+3. **Cópia final**: `DE=0 ATE=30 node scripts/migracao/sql-de-envio.mjs /tmp/onda.sql`
+   → rodar no Lovable; repetir com `DE=30 ATE=60`, … até cobrir todos os
+   lotes (lotes de 100; ~30 por onda; esperar a fila do pg_net esvaziar entre
+   ondas). Conferir com `conferir.mjs`; o que faltar, reenviar por dia
+   (`created_at::date`) — repetir não duplica.
+4. `node scripts/migracao/copiar-arquivos.mjs` (regrava tudo, ~10 min).
+5. **WhatsApp — a pessoa, na VPS**: hPanel → VPS → Gerenciador Docker →
+   Evolution → Ambiente → `WEBHOOK_URL`: trocar só `ddfteoeehsticjhojpka`
+   por `cuqbpelstbgihhxmcrfn` → salvar → reiniciar o contêiner.
+6. **Acerto final**: `DESDE=<T menos 10 min> node scripts/migracao/sql-de-envio.mjs /tmp/acerto.sql`
+   → rodar no Lovable. Pega o que chegou ou mudou lá desde o congelamento
+   (atualiza quem já existe; conversas e contatos vão inteiros).
+7. `node scripts/migracao/ligar-rotinas.mjs ligar`
+8. `node scripts/migracao/trocar-dominio.mjs novo` — `login` e `club` passam a
+   abrir o Worker (testado com um endereço de teste: 10 s até responder).
+9. Teste real: mensagem do celular da pessoa para o WhatsApp da clínica →
+   aparece em Conversas → a Luna responde. Entrar por `login.nosodontoesaude.com.br`.
+10. `node scripts/migracao/fechar-recepcao.mjs`.
 
 ### Como voltar (até 15 dias depois)
 
-1. Domínio de volta para o Lovable; `WEBHOOK_URL` da VPS de volta.
+1. `node scripts/migracao/trocar-dominio.mjs lovable`; `WEBHOOK_URL` da VPS de volta.
 2. `node scripts/migracao/ligar-rotinas.mjs desligar` no novo.
 3. No Lovable: `update cron.job set active = true;`
 4. O que foi criado no meio-tempo fica no novo e é trazido de volta à parte.

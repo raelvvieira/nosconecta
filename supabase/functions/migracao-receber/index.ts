@@ -49,26 +49,57 @@ async function colunas(sql: ReturnType<typeof postgres>, tabela: string) {
   return linhas;
 }
 
-async function gravar(tabela: string, linhas: unknown[]) {
+async function gravar(tabela: string, linhas: unknown[], atualizar: boolean) {
   const sql = conexao();
   try {
-    return await gravarCom(sql, tabela, linhas);
+    return await gravarCom(sql, tabela, linhas, atualizar);
   } finally {
     await sql.end();
   }
 }
 
-async function gravarCom(sql: ReturnType<typeof postgres>, tabela: string, linhas: unknown[]) {
+/** As colunas da chave primária — o "quem é quem" para atualizar. */
+async function chave(sql: ReturnType<typeof postgres>, tabela: string) {
+  const linhas = await sql<{ nome: string }[]>`
+    SELECT a.attname AS nome
+    FROM pg_index i
+    JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY (i.indkey)
+    WHERE i.indrelid = ${tabela}::regclass AND i.indisprimary`;
+  return linhas.map((l) => l.nome);
+}
+
+/**
+ * `atualizar`: em vez de ignorar quem já existe, sobrescreve com o que veio.
+ * É o que a virada usa no fim, para trazer o que mudou NOS ÚLTIMOS MINUTOS
+ * (uma conversa que ganhou mensagem, um agendamento remarcado) sem apagar e
+ * copiar tudo de novo.
+ */
+async function gravarCom(
+  sql: ReturnType<typeof postgres>,
+  tabela: string,
+  linhas: unknown[],
+  atualizar: boolean,
+) {
   const cols = await colunas(sql, tabela);
   if (!cols.length) throw new Error(`Tabela sem colunas: ${tabela}`);
   const lista = cols.map((c) => `"${c.nome}"`).join(", ");
   const sobrepor = cols.some((c) => c.identidade === "a") ? "OVERRIDING SYSTEM VALUE" : "";
+  let conflito = "ON CONFLICT DO NOTHING";
+  if (atualizar) {
+    const pk = await chave(sql, tabela);
+    const resto = cols.filter((c) => !pk.includes(c.nome) && c.identidade !== "a");
+    if (pk.length && resto.length) {
+      conflito = `ON CONFLICT (${pk.map((c) => `"${c}"`).join(", ")}) DO UPDATE SET ${resto
+        .map((c) => `"${c.nome}" = EXCLUDED."${c.nome}"`)
+        .join(", ")}`;
+    }
+  }
   return await sql.begin(async (tx) => {
     await tx.unsafe("SET LOCAL session_replication_role = replica");
     const feito = await tx.unsafe(
       `INSERT INTO ${tabela} (${lista}) ${sobrepor}
        SELECT ${lista} FROM jsonb_populate_recordset(NULL::${tabela}, $1::text::jsonb)
-       ON CONFLICT DO NOTHING`,
+       ${conflito}`,
       [JSON.stringify(linhas)],
     );
     return feito.count;
@@ -118,7 +149,7 @@ Deno.serve(async (req) => {
     if (!NOME_VALIDO.test(tabela))
       return Response.json({ ok: false, erro: "tabela inválida" }, { status: 400 });
     const linhas = Array.isArray(corpo.linhas) ? corpo.linhas : [];
-    const gravadas = linhas.length ? await gravar(tabela, linhas) : 0;
+    const gravadas = linhas.length ? await gravar(tabela, linhas, corpo.atualizar === true) : 0;
     return Response.json({ ok: true, tabela, recebidas: linhas.length, gravadas });
   } catch (erro) {
     // A mensagem do Postgres diz a coluna e o motivo, nunca o conteúdo da linha.

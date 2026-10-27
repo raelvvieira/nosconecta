@@ -55,6 +55,59 @@ const lista = tabelas.length
   : `ARRAY['auth.users', 'auth.identities'] || ARRAY(
        SELECT 'public.' || tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename)`;
 
+// Acerto final da virada: `DESDE=2026-10-27T21:00:00-03:00` manda só as linhas
+// criadas OU alteradas depois desse momento (tabelas com `created_at` /
+// `updated_at`), e pede para a recepção ATUALIZAR quem já existe. É o que
+// pega a mensagem que chegou no Lovable enquanto a cópia grande rodava.
+if (process.env.DESDE) {
+  const desde = process.env.DESDE.replaceAll("'", "");
+  writeFileSync(
+    saida,
+    `DO $acerto$
+DECLARE
+  r record;
+  filtro text;
+  n int;
+  k int;
+BEGIN
+  FOR r IN
+    SELECT c.table_name,
+           bool_or(c.column_name = 'created_at') AS tem_criado,
+           bool_or(c.column_name = 'updated_at') AS tem_alterado
+    FROM information_schema.columns c
+    JOIN pg_tables t ON t.schemaname = c.table_schema AND t.tablename = c.table_name
+    WHERE c.table_schema = 'public' AND c.column_name IN ('created_at', 'updated_at')
+    GROUP BY c.table_name
+  LOOP
+    -- Conversa e contato mudam (última mensagem, nome) sem tocar em
+    -- created_at/updated_at: vão inteiros, para a ordem do chat bater.
+    filtro := CASE
+      WHEN r.table_name IN ('wa_conversations', 'wa_contacts') THEN 'true'
+      WHEN r.tem_criado AND r.tem_alterado THEN 'greatest(created_at, updated_at)'
+      WHEN r.tem_alterado THEN 'updated_at'
+      ELSE 'created_at' END
+      || CASE WHEN r.table_name IN ('wa_conversations', 'wa_contacts') THEN ''
+              ELSE format(' > %L::timestamptz', '${desde}') END;
+    EXECUTE format('SELECT count(*) FROM public.%I WHERE %s', r.table_name, filtro) INTO n;
+    FOR k IN 0 .. ceil(n / ${LOTE}.0)::int - 1 LOOP
+      EXECUTE format($q$
+        SELECT net.http_post(
+          url := %L,
+          headers := jsonb_build_object('Content-Type', 'application/json', 'x-migracao', %L),
+          body := jsonb_build_object('tabela', %L, 'atualizar', true, 'linhas',
+            (SELECT jsonb_agg(to_jsonb(x)) FROM (SELECT * FROM public.%I WHERE %s ORDER BY ctid OFFSET %s LIMIT ${LOTE}) x)),
+          timeout_milliseconds := 120000)$q$,
+        '${destino}', '${token}', 'public.' || r.table_name, r.table_name, filtro, k * ${LOTE});
+    END LOOP;
+  END LOOP;
+END
+$acerto$;
+`,
+  );
+  console.log(`SQL do acerto final (desde ${desde}) escrito em ${saida}`);
+  process.exit(0);
+}
+
 // Em ondas: só os lotes de número [de, ate) — contados em sequência por todas
 // as tabelas. Mandar tudo de uma vez esgotou as conexões do banco novo na
 // primeira cópia: o pg_net dispara os pedidos em paralelo. Ondas de ~15.
