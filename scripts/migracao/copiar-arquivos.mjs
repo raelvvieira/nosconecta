@@ -4,19 +4,27 @@
  *
  *   NOVO_PROJETO_REF=xxxx node scripts/migracao/copiar-arquivos.mjs
  *
- * Precisa de `MIGRACAO_TOKEN` no ambiente (o mesmo valor cadastrado nos
- * Secrets do Lovable) e da função `migracao-exportar` publicada lá. Os
+ * Precisa da função `migracao-exportar` publicada no Lovable e da chave em
+ * `scripts/migracao/.exportacao` (a função só conhece a impressão digital dela). Os
  * arquivos passam por este computador em memória, um de cada vez; nada é
  * gravado em disco nem impresso.
  *
  * Rodar de novo é seguro: cada arquivo é gravado com `x-upsert`.
  */
+import { readFileSync } from "node:fs";
 import { PROJETO_DO_LOVABLE, chavesDoProjeto, projetoNovo } from "./api.mjs";
 
 const ref = projetoNovo();
-const token = process.env.MIGRACAO_TOKEN;
+// A chave da exportação fica em `.exportacao` (fora do git); a função no
+// Lovable guarda só a impressão digital dela.
+let token = process.env.MIGRACAO_TOKEN;
+try {
+  token ||= JSON.parse(readFileSync(new URL("./.exportacao", import.meta.url), "utf8")).token;
+} catch {
+  /* sem arquivo: cai no aviso abaixo */
+}
 if (!token) {
-  console.error("Falta MIGRACAO_TOKEN no ambiente (o mesmo dos Secrets do Lovable).");
+  console.error("Falta a chave da exportação (scripts/migracao/.exportacao).");
   process.exit(1);
 }
 const EXPORTAR = `https://${PROJETO_DO_LOVABLE}.supabase.co/functions/v1/migracao-exportar`;

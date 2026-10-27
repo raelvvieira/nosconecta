@@ -146,8 +146,11 @@ onde. Repetir não duplica (`ON CONFLICT DO NOTHING`).
    — tudo 200.
 4. Acertar as sequências: POST em `migracao-receber` com `{"acao":"sequencias"}`.
 5. Arquivos: publicar `migracao-exportar` no Lovable (com autorização:
-   "Deploy the migracao-exportar edge function"; `MIGRACAO_TOKEN` em Cloud →
-   Secrets), e `node scripts/migracao/copiar-arquivos.mjs`.
+   "Deploy the migracao-exportar edge function") e
+   `node scripts/migracao/copiar-arquivos.mjs`. Sem segredo para cadastrar: a
+   função guarda só a impressão digital (SHA-256) da chave, que fica em
+   `scripts/migracao/.exportacao` (fora do git). Sessão nova sem o arquivo:
+   gerar outra chave, trocar a impressão no código e publicar de novo.
 6. `node scripts/migracao/conferir.mjs --sql` → rodar no Lovable → salvar o
    JSON → `node scripts/migracao/conferir.mjs origem.json`. "Nada faltando".
 7. `node scripts/migracao/publicar-site.mjs` e a pessoa testa em

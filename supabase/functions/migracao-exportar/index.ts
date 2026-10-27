@@ -1,7 +1,7 @@
 /**
  * Entrega os ARQUIVOS do Lovable para a migração. Roda no projeto do Lovable,
  * e só se a pessoa autorizar publicar ("Deploy the migracao-exportar edge
- * function") e cadastrar `MIGRACAO_TOKEN` em Cloud → Secrets.
+ * function").
  *
  * ── Por que só arquivos ───────────────────────────────────────────────────
  *
@@ -13,9 +13,11 @@
  *
  * ── A porta ───────────────────────────────────────────────────────────────
  *
- * Sem `MIGRACAO_TOKEN` cadastrado, 404 a tudo. O valor é criado pela pessoa e
- * guardado nos Secrets do Lovable e no ambiente do Claude — nunca no chat.
- * Apagar a função e o segredo depois da virada.
+ * Aqui está só a IMPRESSÃO DIGITAL (SHA-256) da chave; a chave mesma fica num
+ * arquivo fora do git (`scripts/migracao/.exportacao`), na máquina que roda a
+ * cópia. Assim a pessoa não precisa criar nem colar segredo nenhum no Lovable
+ * — e quem lê este código não consegue abrir a porta. Pedido sem a chave
+ * certa: 404. Apagar a função depois da virada.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -55,9 +57,16 @@ async function listar(deposito: string) {
   return arquivos;
 }
 
+const IMPRESSAO_DA_CHAVE = "d43d4be27cc7a41dd2716bdf3a77ccf7831062a1093bcfeb76743b7181975b5e";
+
+async function impressao(texto: string): Promise<string> {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+  return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 Deno.serve(async (req) => {
-  const esperado = Deno.env.get("MIGRACAO_TOKEN");
-  if (!esperado || req.method !== "POST" || req.headers.get("x-migracao") !== esperado) {
+  const chave = req.headers.get("x-migracao") ?? "";
+  if (req.method !== "POST" || !chave || (await impressao(chave)) !== IMPRESSAO_DA_CHAVE) {
     return new Response("Not found", { status: 404 });
   }
   try {
