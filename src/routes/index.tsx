@@ -8,5 +8,11 @@ export const Route = createFileRoute("/")({
       { name: "description", content: "Resumo do dia da clínica odontológica." },
     ],
   }),
-  component: () => <Navigate to="/inicio" replace />,
+  component: Raiz,
 });
+
+/** No endereço do cartão (`club.…`), a raiz é a área do paciente; no resto, o início da equipe. */
+function Raiz() {
+  const doClube = window.location.hostname.toLowerCase().split(".")[0] === "club";
+  return <Navigate to={doClube ? "/club" : "/inicio"} replace />;
+}

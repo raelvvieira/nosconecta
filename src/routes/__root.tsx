@@ -198,6 +198,11 @@ function AuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!ready) return;
+    // No endereço do cartão, a raiz é a área do paciente — com ou sem sessão.
+    if (pathname === "/" && ehDominioDoClube()) {
+      router.navigate({ to: "/club", replace: true });
+      return;
+    }
     const isAuthRoute = pathname.startsWith("/auth");
     // /convite é pública como /auth: quem abre o link ainda não tem conta. E,
     // ao contrário de /auth, ela NÃO redireciona para /inicio quando já há
