@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Clock, Loader2, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, Clock, Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { getRecovery, salvarRecovery } from "@/lib/agente-ia/recovery.functions";
+import {
+  getRecovery,
+  listarFigurinhas,
+  removerFigurinha,
+  salvarRecovery,
+} from "@/lib/agente-ia/recovery.functions";
 import {
   INTENSIDADES,
   MECANISMOS,
@@ -175,6 +180,8 @@ export function RecoveryEngine() {
             atrasada além do tolerado (servidor fora do ar, por exemplo) é descartada.
           </p>
         </div>
+
+        <Figurinhas />
 
         {/* ── Trilhas ──────────────────────────────────────────────────── */}
         <div className="grid gap-3">
@@ -585,4 +592,73 @@ function formatar(iso: string, origem: Date, fuso: string): string {
   );
   const quando = dias === 0 ? "mesmo dia" : dias === 1 ? "dia seguinte" : `+${dias} dias`;
   return `${quando} ${String(p.hora).padStart(2, "0")}h${String(p.minuto).padStart(2, "0")}`;
+}
+
+/**
+ * As figurinhas que a Luna pode mandar na etapa de quebra de padrão.
+ *
+ * Aprovar é no chat (botão embaixo da figurinha); aqui se vê e se tira.
+ * Sem nenhuma, a etapa sai em texto leve.
+ */
+function Figurinhas() {
+  const queryClient = useQueryClient();
+  const buscar = useServerFn(listarFigurinhas);
+  const remover = useServerFn(removerFigurinha);
+  const query = useQuery({ queryKey: ["figurinhas-da-luna", "lista"], queryFn: () => buscar() });
+  const lista = query.data ?? [];
+
+  return (
+    <div className="grid gap-3 rounded-2xl bg-muted/40 p-4">
+      <div>
+        <p className="text-sm font-medium">Figurinhas da quebra de padrão</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Uma por sequência, no máximo, e só em quem nunca respondeu, parou no meio da conversa ou
+          não escolheu horário. Para incluir, mande a figurinha numa conversa e toque em &ldquo;Usar
+          nos follow-ups&rdquo; embaixo dela.
+        </p>
+      </div>
+      {query.isPending ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando…
+        </div>
+      ) : lista.length ? (
+        <div className="flex flex-wrap gap-2">
+          {lista.map((f) => (
+            <div key={f.id} className="group relative h-20 w-20 rounded-xl bg-white p-1.5">
+              {f.url ? (
+                <img
+                  src={f.url}
+                  alt="Figurinha aprovada"
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <span className="grid h-full place-items-center text-3xs text-muted-foreground">
+                  sem arquivo
+                </span>
+              )}
+              <button
+                type="button"
+                aria-label="Tirar esta figurinha"
+                onClick={async () => {
+                  try {
+                    await remover({ data: { id: f.id } });
+                    await queryClient.invalidateQueries({ queryKey: ["figurinhas-da-luna"] });
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Não foi possível tirar.");
+                  }
+                }}
+                className="absolute -right-1.5 -top-1.5 grid h-6 w-6 place-items-center rounded-full border border-border bg-white text-muted-foreground shadow-sm hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Nenhuma aprovada ainda: a quebra de padrão sai em texto leve.
+        </p>
+      )}
+    </div>
+  );
 }

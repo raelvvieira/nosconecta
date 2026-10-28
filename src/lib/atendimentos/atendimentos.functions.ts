@@ -85,13 +85,16 @@ export interface MessageRow {
   // contato. Precisa aparecer diferente na thread, senão parece uma
   // mensagem que o paciente recebeu.
   isPrivate: boolean;
+  /** A mensagem é uma figurinha. É o que mostra, no chat, o botão de usá-la
+   *  nos follow-ups da Luna. Ausente nas mensagens que não vêm do espelho. */
+  figurinha?: boolean;
 }
 
 /** Um timeout do CRM não é um erro do sistema — é lentidão momentânea do
  *  outro lado. Damos uma segunda chance e, se ainda assim falhar, devolvemos
  *  uma mensagem legível em vez de deixar o `TimeoutError` cru estourar na
  *  tela. */
-async function callEdgeFunction(name: string, body: unknown, tentativa = 0): Promise<any> {
+export async function callEdgeFunction(name: string, body: unknown, tentativa = 0): Promise<any> {
   const url = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes");
@@ -455,6 +458,7 @@ interface LinhaDoEspelho {
   is_private: boolean;
   attachments: unknown;
   sent_at: string;
+  tipo?: string | null;
 }
 
 /**
@@ -473,7 +477,9 @@ async function mensagensDoEspelho(
   try {
     const { data, error } = await supabase
       .from("wa_messages")
-      .select("crm_message_id, from_me, body, is_private, attachments, sent_at")
+      .select(
+        "crm_message_id, from_me, body, is_private, attachments, sent_at, tipo:payload->>messageType",
+      )
       .eq("owner_id", ownerId)
       .eq("origem", origem)
       .eq("crm_conversation_id", conversationId)
@@ -489,6 +495,7 @@ async function mensagensDoEspelho(
       status: row.from_me === true ? ("sent" as const) : ("received" as const),
       timestamp: row.sent_at,
       isPrivate: row.is_private === true,
+      figurinha: row.tipo === "stickerMessage",
     }));
   } catch (e) {
     // Conversa da Evolution cujo espelho falhou vai cair no CRM e voltar

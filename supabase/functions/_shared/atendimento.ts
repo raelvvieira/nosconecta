@@ -349,13 +349,29 @@ export async function atender(
   // Só se pergunta quando a mensagem saiu da clínica — para toda mensagem de
   // paciente a resposta é não, e uma consulta por mensagem recebida seria
   // gasto puro.
-  const ecoDaPropriaIa = entrada.daClinica
+  let ecoDaPropriaIa = entrada.daClinica
     ? ehEcoDaPropriaIa(
         entrada.conteudo,
         await oQueEuMandei(supabase, sessao.id, agora),
         entrada.messageId ?? null,
       )
     : false;
+  // A figurinha do Recovery Engine volta pelo webhook SEM texto, e mensagem
+  // sem texto nunca é eco pela regra acima. Sem isto, a figurinha da Luna
+  // contaria como "a equipe assumiu" e calaria a conversa. A linha da
+  // figurinha é gravada antes do envio, então ela já está aqui quando o eco
+  // chega.
+  if (entrada.daClinica && !ecoDaPropriaIa && !String(entrada.conteudo ?? "").trim()) {
+    const { data: figurinha } = await supabase
+      .from("ai_agent_messages")
+      .select("id")
+      .eq("session_id", sessao.id)
+      .eq("direction", "saida")
+      .like("content", "[figurinha %")
+      .gte("created_at", new Date(agora.getTime() - 3 * 60_000).toISOString())
+      .limit(1);
+    ecoDaPropriaIa = (figurinha ?? []).length > 0;
+  }
 
   const decisao = decidirSeResponde(
     {

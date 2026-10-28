@@ -115,7 +115,16 @@ export function paraBase64(bytes: Uint8Array): string {
   return btoa(binario);
 }
 
+/**
+ * `POST /message/sendSticker/{instancia}`
+ *
+ * A figurinha vai sozinha, sem legenda: figurinha no WhatsApp não tem texto.
+ */
+export function corpoDeFigurinha(destino: string, base64: string): Record<string, unknown> {
+  return { number: destino, sticker: base64 };
+}
+
 /** O caminho da chamada, para a instância dada. */
-export function rota(acao: "sendText" | "sendMedia", instancia: string): string {
+export function rota(acao: "sendText" | "sendMedia" | "sendSticker", instancia: string): string {
   return `/message/${acao}/${encodeURIComponent(instancia)}`;
 }

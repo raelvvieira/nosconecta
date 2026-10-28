@@ -32,6 +32,7 @@ export {
   type TrilhaConfig,
 };
 export {
+  figurinhasAprovadas,
   instanteLocal,
   janelaAberta,
   planejarSequencia,

@@ -758,3 +758,67 @@ export function novaSequencia(plano: EtapaPlanejada[]): EstadoDaSequencia | null
     motivo: null,
   };
 }
+
+// ── Figurinhas aprovadas ────────────────────────────────────────────────
+
+/** Uma figurinha que a clínica aprovou para a quebra de padrão. O arquivo é
+ *  o que `wa-midia` decifrou e guardou no depósito. */
+export interface FigurinhaAprovada {
+  /** O id da mensagem do WhatsApp em que ela chegou. */
+  id: string;
+  path: string;
+  mimetype: string;
+  animada: boolean;
+}
+
+/** As trilhas em que figurinha cabe. Fora delas a conversa tem preço,
+ *  objeção, pedido de tempo ou etapa de fechamento, e figurinha soa como
+ *  descaso. */
+const TRILHAS_COM_FIGURINHA: readonly Trilha[] = [
+  "INITIAL_NO_RESPONSE",
+  "ACTIVE_CONVERSATION_DROP",
+  "SCHEDULE_IGNORED",
+];
+
+/** Dá para usar figurinha nesta etapa? Uma por sequência, no máximo. */
+export function podeUsarFigurinha(p: {
+  trilha: Trilha;
+  usados: readonly Mecanismo[];
+  aprovadas: readonly FigurinhaAprovada[];
+}): boolean {
+  return (
+    p.aprovadas.length > 0 &&
+    TRILHAS_COM_FIGURINHA.includes(p.trilha) &&
+    !p.usados.includes("PATTERN_INTERRUPT")
+  );
+}
+
+/**
+ * Qual figurinha mandar. Uma que esta pessoa ainda não recebeu, quando
+ * houver; e sorteada, para duas pessoas do mesmo anúncio não receberem a
+ * mesma. `sorteio` entre 0 e 1 entra de fora, para o teste fixar.
+ */
+export function escolherFigurinha(
+  aprovadas: readonly FigurinhaAprovada[],
+  jaRecebidas: readonly string[],
+  sorteio: number,
+): FigurinhaAprovada | null {
+  if (!aprovadas.length) return null;
+  const novas = aprovadas.filter((f) => !jaRecebidas.includes(f.id));
+  const lista = novas.length ? novas : aprovadas;
+  const i = Math.min(lista.length - 1, Math.max(0, Math.floor(sorteio * lista.length)));
+  return lista[i];
+}
+
+/** A lista como o banco guarda (`ai_agents.recovery_figurinhas`), limpa. */
+export function figurinhasAprovadas(bruto: unknown): FigurinhaAprovada[] {
+  if (!Array.isArray(bruto)) return [];
+  return bruto
+    .filter((f) => f && typeof f === "object" && typeof f.path === "string" && f.path)
+    .map((f) => ({
+      id: String(f.id ?? f.path),
+      path: String(f.path),
+      mimetype: typeof f.mimetype === "string" && f.mimetype ? f.mimetype : "image/webp",
+      animada: f.animada === true,
+    }));
+}

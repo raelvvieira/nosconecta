@@ -82,6 +82,7 @@ import { haptic } from "@/lib/haptics";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { FotoDoContato } from "@/components/atendimentos/chat/FotoDoContato";
 import { AnexoDaMensagem } from "@/components/atendimentos/chat/AnexoDaMensagem";
+import { UsarFigurinha } from "@/components/atendimentos/chat/UsarFigurinha";
 import { getConexaoPropria } from "@/lib/atendimentos/conexao.functions";
 import { useMensagensAoVivo } from "@/lib/atendimentos/useMensagensAoVivo";
 
@@ -966,6 +967,9 @@ function ChatPage() {
                           claro={m.fromMe && !m.isPrivate}
                         />
                       ))}
+                      {m.figurinha && (
+                        <UsarFigurinha messageId={m.id} claro={m.fromMe && !m.isPrivate} />
+                      )}
                       {m.body && <p className="mt-1 whitespace-pre-wrap break-words">{m.body}</p>}
                       <span
                         className={cn(

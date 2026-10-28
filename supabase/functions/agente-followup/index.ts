@@ -38,7 +38,7 @@ import { anotarConsumo } from "../_shared/consumo-da-ia.ts";
 import { historicoDoEspelho } from "../_shared/historico-da-conversa.ts";
 import { variantesDoNumero } from "../_shared/phone-match.ts";
 import { telefoneDoJid } from "../_shared/evolution-mapear.ts";
-import { enviarWhatsapp } from "../_shared/whatsapp-send.ts";
+import { enviarFigurinha, enviarWhatsapp } from "../_shared/whatsapp-send.ts";
 import { debitDailyUsage, getDailyUsage } from "../_shared/daily-quota.ts";
 import { agoraNaClinica } from "../_shared/agenda-da-clinica.ts";
 import { instrucaoDaLuna } from "../_shared/atendimento.ts";
@@ -57,6 +57,9 @@ import {
 import {
   conferirAntesDeEnviar,
   depoisDe,
+  escolherFigurinha,
+  figurinhasAprovadas,
+  podeUsarFigurinha,
   janelaAberta,
   MECANISMOS,
   mecanismoDaEtapa,
@@ -118,6 +121,7 @@ type Agente = {
   followup_horas_2: number | null;
   followup_ligado_desde: string | null;
   recovery_config: unknown;
+  recovery_figurinhas: unknown;
 };
 
 async function cuidarDaClinica(agente: {
@@ -700,12 +704,114 @@ async function executarEtapa(
     s.unidade_id ? String(s.unidade_id) : null,
   );
 
+  const figurinhas = figurinhasAprovadas(agente.recovery_figurinhas);
   const mecanismo = mecanismoDaEtapa(etapa.mecanismo, estado.mecanismos, {
-    // Sem biblioteca de figurinhas aprovadas ainda: a quebra de padrão vira
-    // outra abordagem leve, em vez de fingir uma mídia (teste 13).
-    figurinha: false,
+    // Sem figurinha aprovada (ou já usada nesta sequência), a quebra de padrão
+    // vira outra abordagem leve, em vez de fingir uma mídia (teste 13).
+    figurinha: podeUsarFigurinha({ trilha, usados: estado.mecanismos, aprovadas: figurinhas }),
     casos: instrucao.casos.length > 0,
   });
+
+  // A conversa mudou enquanto esta etapa era preparada? Se a pessoa respondeu
+  // ou a equipe entrou, o atendimento já cancelou a sequência, e a linha não
+  // está mais "enviando" neste passo.
+  const mudouAgora = async (): Promise<boolean> => {
+    const { data: agoraMesmo } = await supabase
+      .from("ai_agent_sessions")
+      .select("recovery_status, recovery_passo, human_took_over_at, nao_contatar_em")
+      .eq("id", s.id)
+      .maybeSingle();
+    return (
+      agoraMesmo?.recovery_status !== "enviando" ||
+      Number(agoraMesmo?.recovery_passo) !== estado.passo ||
+      !!agoraMesmo?.human_took_over_at ||
+      !!agoraMesmo?.nao_contatar_em ||
+      (await pessoaFalouDepois(ownerId, s.conversation_id, s.recovery_origem_em))
+    );
+  };
+
+  // ── A figurinha: sem modelo, sem texto ─────────────────────────────────
+  if (mecanismo === "PATTERN_INTERRUPT") {
+    const { data: jaMandadas } = await supabase
+      .from("ai_agent_messages")
+      .select("content")
+      .eq("session_id", s.id)
+      .like("content", "[figurinha %");
+    const recebidas = (jaMandadas ?? []).map((m: { content: string }) =>
+      String(m.content).slice(11, -1),
+    );
+    const figurinha = escolherFigurinha(figurinhas, recebidas, Math.random());
+    const arquivo = figurinha
+      ? await supabase.storage.from("wa-midia").download(figurinha.path)
+      : null;
+    if (figurinha && arquivo?.data) {
+      if (await mudouAgora()) {
+        return {
+          estado: depoisDe(estado, { tipo: "cancelou", motivo: "mudou enquanto a Luna preparava" }),
+          motivo: "mudou enquanto a Luna preparava",
+        };
+      }
+      // Gravada ANTES de enviar, como o texto: o eco da figurinha volta sem
+      // texto, e é esta linha que diz ao atendimento que foi a Luna.
+      const { data: linha } = await supabase
+        .from("ai_agent_messages")
+        .insert({
+          owner_id: ownerId,
+          session_id: s.id,
+          direction: "saida",
+          content: `[figurinha ${figurinha.id}]`,
+          skipped_reason: null,
+          recovery_trilha: trilha,
+          recovery_passo: etapa.passo,
+          recovery_mecanismo: "PATTERN_INTERRUPT",
+        })
+        .select("id")
+        .maybeSingle();
+      try {
+        const envio = await enviarFigurinha(
+          supabase,
+          ownerId,
+          { conversation_id: s.conversation_id, phone: telefoneDoJid(s.conversation_id) },
+          new Uint8Array(await arquivo.data.arrayBuffer()),
+        );
+        if (linha?.id && typeof envio?.messageId === "string") {
+          await supabase
+            .from("ai_agent_messages")
+            .update({ wa_message_id: envio.messageId })
+            .eq("id", linha.id);
+        }
+      } catch (e) {
+        if (linha?.id) await supabase.from("ai_agent_messages").delete().eq("id", linha.id);
+        const motivo = e instanceof Error ? e.message : String(e);
+        return {
+          estado: depoisDe(estado, { tipo: "falhou", motivo: motivo.slice(0, 200) }),
+          motivo: "falha no envio",
+        };
+      }
+      await debitDailyUsage(supabase, ownerId, `recovery:${agente.id}`, 1);
+      const quando = new Date().toISOString();
+      return {
+        estado: depoisDe(estado, { tipo: "enviou", mecanismo: "PATTERN_INTERRUPT" }),
+        motivo: "enviada",
+        extras: {
+          last_outbound_at: quando,
+          ultimo_followup_em: quando,
+          followups_enviados: Number(s.followups_enviados ?? 0) + 1,
+        },
+      };
+    }
+    // O arquivo sumiu do depósito: a etapa segue em texto leve, sem fingir.
+    return executarEtapa(
+      { ...agente, recovery_figurinhas: [] },
+      config,
+      dias,
+      s,
+      estado,
+      etapa,
+      trilha,
+      agora,
+    );
+  }
   const historico = falas
     .map((f) => `${f.deQuem === "clinica" ? "VOCÊ" : "PACIENTE"}: ${f.texto}`)
     .join("\n");
@@ -771,18 +877,7 @@ async function executarEtapa(
   // A escrita leva segundos. Se a pessoa respondeu ou a equipe entrou nesse
   // meio-tempo, o atendimento já cancelou a sequência, e a linha não está mais
   // "enviando" neste passo.
-  const { data: agoraMesmo } = await supabase
-    .from("ai_agent_sessions")
-    .select("recovery_status, recovery_passo, human_took_over_at, nao_contatar_em")
-    .eq("id", s.id)
-    .maybeSingle();
-  if (
-    agoraMesmo?.recovery_status !== "enviando" ||
-    Number(agoraMesmo?.recovery_passo) !== estado.passo ||
-    agoraMesmo?.human_took_over_at ||
-    agoraMesmo?.nao_contatar_em ||
-    (await pessoaFalouDepois(ownerId, s.conversation_id, s.recovery_origem_em))
-  ) {
+  if (await mudouAgora()) {
     return {
       estado: depoisDe(estado, { tipo: "cancelou", motivo: "mudou enquanto a Luna escrevia" }),
       motivo: "mudou enquanto a Luna escrevia",
@@ -875,7 +970,7 @@ Deno.serve(async (req) => {
     const { data: agentes, error } = await supabase
       .from("ai_agents")
       .select(
-        "id, owner_id, api_key, model, instrucao_base, parcelamento, enabled, circuit_open_until, followup_ligado, followup_horas_1, followup_horas_2, followup_ligado_desde, recovery_config",
+        "id, owner_id, api_key, model, instrucao_base, parcelamento, enabled, circuit_open_until, followup_ligado, followup_horas_1, followup_horas_2, followup_ligado_desde, recovery_config, recovery_figurinhas",
       );
     if (error) throw new Error(error.message);
 

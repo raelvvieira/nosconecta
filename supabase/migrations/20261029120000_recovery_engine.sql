@@ -74,3 +74,12 @@ COMMENT ON COLUMN public.ai_agent_messages.recovery_passo IS
 -- deploy (scripts/migracao/rotinas.sql), que passa a rodar `agente-followup`
 -- a cada minuto. O follow-up antigo, para quem não ligou o motor, continua
 -- saindo só no minuto 43 de cada hora (ver agente-followup/index.ts).
+
+-- ── Figurinhas aprovadas para a quebra de padrão ─────────────────────────
+--
+-- [{id, path, mimetype, animada}]. O arquivo é o que `wa-midia` decifrou e
+-- guardou no depósito `wa-midia`; aprovar é escolher uma figurinha que já
+-- chegou numa conversa (botão no chat). Lista vazia = a etapa de quebra de
+-- padrão sai em texto leve.
+ALTER TABLE public.ai_agents
+  ADD COLUMN IF NOT EXISTS recovery_figurinhas jsonb NOT NULL DEFAULT '[]'::jsonb;

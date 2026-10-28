@@ -9,6 +9,7 @@ import { conexaoParaEnviar, evolutionFetch } from "./evolution-api.ts";
 import { explicarSemConexao } from "./evolution-rota.ts";
 import { gravarMensagemEspelhada, mensagemEnviada } from "./espelho-evolution.ts";
 import {
+  corpoDeFigurinha,
   corpoDeMidia,
   corpoDeTexto,
   destinoDaMensagem,
@@ -129,6 +130,30 @@ export async function enviarPelaEvolution(
     body: JSON.stringify(corpoDeTexto(destino, message)),
   });
   return { via: "evolution", messageId: await espelharEnviada(supabase, ownerId, resposta) };
+}
+
+/**
+ * Manda uma figurinha. Só pela Evolution própria: é o único caminho que
+ * existe hoje, e o Recovery Engine é quem usa.
+ */
+export async function enviarFigurinha(
+  supabase: any,
+  ownerId: string,
+  alvo: AlvoDeEnvio,
+  bytes: Uint8Array,
+): Promise<EnvioFeito> {
+  const { instancia, motivo } = await conexaoParaEnviar(supabase, ownerId);
+  if (!instancia) throw new Error(explicarSemConexao(motivo));
+  const destino = await destinoDoAlvo(supabase, ownerId, alvo);
+  if (!destino) throw new Error("Sem número de WhatsApp para este contato.");
+  const resposta = await evolutionFetch(rota("sendSticker", instancia), {
+    method: "POST",
+    body: JSON.stringify(corpoDeFigurinha(destino, paraBase64(bytes))),
+  });
+  return {
+    via: "evolution_figurinha",
+    messageId: await espelharEnviada(supabase, ownerId, resposta),
+  };
 }
 
 /**
