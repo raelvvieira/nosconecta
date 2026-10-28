@@ -20,6 +20,7 @@ import { PacienteModelo } from "@/components/agente-ia/PacienteModelo";
 import { ComQuemFala } from "@/components/agente-ia/ComQuemFala";
 import { Ritmo } from "@/components/agente-ia/Ritmo";
 import { VoltarEmQuemSumiu } from "@/components/agente-ia/VoltarEmQuemSumiu";
+import { RecoveryEngine, SoSemRecovery } from "@/components/agente-ia/RecoveryEngine";
 import { Testar } from "@/components/agente-ia/Testar";
 import { Procedimentos } from "@/components/agente-ia/Procedimentos";
 import { LicoesDaLuna } from "@/components/agente-ia/LicoesDaLuna";
@@ -183,7 +184,10 @@ function AgentePage() {
               {/* Depois do ritmo de propósito: é a única coisa da tela que faz
                   a Luna escrever sem ninguém ter escrito para ela, e quem
                   chega aqui já entendeu com quem ela fala e como. */}
-              <VoltarEmQuemSumiu />
+              <RecoveryEngine />
+              <SoSemRecovery>
+                <VoltarEmQuemSumiu />
+              </SoSemRecovery>
             </div>
             <div className="grid gap-4">
               <Testar />

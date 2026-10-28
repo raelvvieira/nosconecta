@@ -42,7 +42,7 @@ REVOKE ALL ON FUNCTION public.chamar_rotina(text, jsonb) FROM PUBLIC, anon, auth
 -- Lovable já tinha removido, como wa-espelho e push-poll-conversations).
 SELECT cron.unschedule(jobid) FROM cron.job;
 
-SELECT cron.schedule('agente-followup', '43 * * * *', $$SELECT public.chamar_rotina('agente-followup')$$);
+SELECT cron.schedule('agente-followup', '* * * * *', $$SELECT public.chamar_rotina('agente-followup')$$);
 SELECT cron.schedule('agente-licoes', '17 * * * *', $$SELECT public.chamar_rotina('agente-licoes')$$);
 SELECT cron.schedule('ai-playbook-diario', '0 7 * * *', $$
   SELECT public.chamar_rotina('ai-playbook', jsonb_build_object('ownerId', a.owner_id::text, 'action', 'ciclo'))

@@ -391,6 +391,19 @@ export interface RespostaAoPaciente {
    * a pessoa viajar. Validado em `cidade-do-paciente.ts`, não aqui.
    */
   cidadeConfirmada: string;
+  /**
+   * Em que situação a conversa fica se a pessoa parar de responder AGORA, com
+   * os nomes da Parte D do manual (PRICE_SILENCE, SAID_WILL_THINK…).
+   *
+   * Quem entende "vou pensar" e "me chama quinta" é ela; quem decide QUANDO
+   * voltar é o Recovery Engine (`recuperacao.ts`), que confere este rótulo e
+   * cai numa trilha segura quando ele vem torto.
+   */
+  estadoDaConversa: string;
+  /** A pergunta que ela deixou para a pessoa responder, em poucas palavras. */
+  perguntaAberta: string;
+  /** AAAA-MM-DD quando a pessoa pediu para ser chamada num dia. Vazio no resto. */
+  retornoCombinado: string;
 }
 
 /**
@@ -420,6 +433,9 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
       "casoEnviado",
       "duvidaEncaminhada",
       "cidadeConfirmada",
+      "estadoDaConversa",
+      "perguntaAberta",
+      "retornoCombinado",
     ],
     properties: {
       resposta: {
@@ -445,6 +461,32 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
         type: "string",
         description:
           "O código da unidade da cidade que a pessoa acabou de dizer que é (U1, U2…), exatamente como está na lista. Vazio quando ela não disse a cidade nesta mensagem.",
+      },
+      estadoDaConversa: {
+        type: "string",
+        enum: [
+          "INITIAL_NO_RESPONSE",
+          "ACTIVE_CONVERSATION_DROP",
+          "PRICE_SILENCE",
+          "SCHEDULE_IGNORED",
+          "SAID_WILL_THINK",
+          "PROMISED_CALLBACK",
+          "AWAITING_DATA",
+          "AWAITING_RESERVATION",
+          "STOP",
+        ],
+        description:
+          "Se a pessoa parar de responder depois desta sua mensagem, em que situação a conversa fica (Parte D do manual): PRICE_SILENCE se você acabou de dar o preço; SCHEDULE_IGNORED se ofereceu horários; SAID_WILL_THINK se ela disse que vai pensar; PROMISED_CALLBACK se ela pediu para ser chamada num dia; AWAITING_DATA se ela escolheu o horário e falta um dado; AWAITING_RESERVATION se falta concluir a reserva de paciente modelo; STOP se ela recusou contato; ACTIVE_CONVERSATION_DROP no resto.",
+      },
+      perguntaAberta: {
+        type: "string",
+        description:
+          "A pergunta principal que você deixou para a pessoa responder nesta mensagem, em poucas palavras. Vazio se não deixou nenhuma.",
+      },
+      retornoCombinado: {
+        type: "string",
+        description:
+          "A data AAAA-MM-DD em que a pessoa pediu para ser chamada, quando ela pediu. Vazio no resto, que é o normal.",
       },
     },
   },
@@ -487,6 +529,9 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
     casoEnviado: "",
     duvidaEncaminhada: "",
     cidadeConfirmada: "",
+    estadoDaConversa: "",
+    perguntaAberta: "",
+    retornoCombinado: "",
   };
   if (!cru) return vazia;
   try {
@@ -496,6 +541,9 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
       casoEnviado?: unknown;
       duvidaEncaminhada?: unknown;
       cidadeConfirmada?: unknown;
+      estadoDaConversa?: unknown;
+      perguntaAberta?: unknown;
+      retornoCombinado?: unknown;
     };
     if (!obj || typeof obj !== "object") return { ...vazia, texto: cru };
     const texto = typeof obj.resposta === "string" ? obj.resposta.trim() : "";
@@ -510,6 +558,8 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
     // para o texto cru, que ao menos é algo que alguém escreveu — e sem caso
     // nenhum: num objeto que não entendemos, mandar foto é o pior palpite.
     const cidade = typeof obj.cidadeConfirmada === "string" ? obj.cidadeConfirmada.trim() : "";
+    const curto = (v: unknown, teto: number) =>
+      typeof v === "string" ? v.trim().slice(0, teto) : "";
     return texto
       ? {
           texto,
@@ -517,6 +567,9 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
           casoEnviado: caso,
           duvidaEncaminhada: duvida,
           cidadeConfirmada: cidade,
+          estadoDaConversa: curto(obj.estadoDaConversa, 40),
+          perguntaAberta: curto(obj.perguntaAberta, 200),
+          retornoCombinado: curto(obj.retornoCombinado, 10),
         }
       : { ...vazia, texto: cru };
   } catch {

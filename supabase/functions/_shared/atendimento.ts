@@ -22,6 +22,8 @@ import { manualEfetivo, montarInstrucao } from "./instrucao-do-agente.ts";
 import { agoraNaClinica, horariosParaOferecer } from "./agenda-da-clinica.ts";
 import { semTravessao } from "./sem-travessao.ts";
 import { emojiNaMedida } from "./emoji-na-medida.ts";
+import { cancelarRecuperacao, iniciarRecuperacao } from "./recuperacao-no-banco.ts";
+import { pediuParaParar } from "./recuperacao.ts";
 import { aClinicaJaFalou, ehEcoDaPropriaIa, oQueEuMandei } from "./historico-da-clinica.ts";
 import { blocoSemResposta, jaDisseIssoAgora } from "./nao-repetir.ts";
 import {
@@ -268,6 +270,23 @@ export async function atender(
 
   const sessao = await garantirSessao(supabase, ownerId, agente.id, entrada);
 
+  // ── A pessoa falou: a retomada programada morre aqui ────────────────────
+  //
+  // Na hora, e não na próxima rodada do Recovery Engine. Qualquer mensagem
+  // dela conta, mesmo uma que a Luna não vá responder: a sequência existe para
+  // quem PAROU de responder, e ela não parou. Uma sequência nova só nasce na
+  // próxima resposta da Luna, contada a partir dela.
+  //
+  // A simulação da tela não mexe em sequência de ninguém.
+  if (!entrada.daClinica && !entrada.privada && deps.ignorarInterruptor !== true) {
+    await cancelarRecuperacao(
+      supabase,
+      sessao.id,
+      "a pessoa respondeu",
+      pediuParaParar(entrada.conteudo) ? { nao_contatar_em: agora.toISOString() } : {},
+    );
+  }
+
   const soDeAnuncio = agente.so_de_anuncio !== false;
   const soSemHistorico = agente.so_sem_historico !== false;
 
@@ -443,6 +462,8 @@ export async function atender(
         .from("ai_agent_sessions")
         .update({ human_took_over_at: agora.toISOString(), updated_at: agora.toISOString() })
         .eq("id", sessao.id);
+      // A conversa é da equipe agora: nenhuma retomada automática por cima.
+      await cancelarRecuperacao(supabase, sessao.id, "a equipe assumiu a conversa");
     }
     return { respondeu: false, motivo: decisao.motivo, pedacos: [] };
   }
@@ -472,6 +493,9 @@ export async function atender(
   // A que ela confirmou NESTA mensagem, se confirmou. Gravada depois do envio,
   // pelo mesmo motivo do agendamento e da dúvida.
   let cidadeNova: UnidadeComCodigo | null = null;
+  // Em que situação a conversa fica se a pessoa parar aqui. Vem da resposta da
+  // Luna; quem decide quando voltar é o Recovery Engine.
+  let recuperacao = { rotulo: "", perguntaAberta: "", retornoCombinado: "" };
   try {
     if (agente.mode === "ia") {
       const r = await responderComModelo(
@@ -488,6 +512,7 @@ export async function atender(
       caso = r.caso;
       duvidaNova = r.duvida;
       cidadeNova = r.cidade;
+      recuperacao = r.recuperacao;
     } else {
       texto = String(agente.echo_message ?? "").trim();
     }
@@ -716,6 +741,27 @@ export async function atender(
       content: null,
       skipped_reason: `fechou ${vagaFechadaAqui.codigo} (${vagaFechadaAqui.date} ${vagaFechadaAqui.hora}) sem registrar: simulação`,
     });
+  }
+
+  // ── A sequência de recuperação, por último ──────────────────────────────
+  //
+  // Nasce da resposta que acabou de sair: é ela que pode ficar sem resposta.
+  // Não nasce quando a Luna fechou um horário (a conversa virou consulta), no
+  // modo de frase fixa (não há quem escreva a retomada), nem na simulação.
+  if (agente.mode === "ia" && !vagaFechadaAqui && deps.ignorarInterruptor !== true) {
+    await iniciarRecuperacao(supabase, {
+      agente,
+      ownerId,
+      sessionId: sessao.id,
+      origem: agoraDoAtendimento(deps),
+      primeiraRespostaDaLuna: !sessao.last_outbound_at,
+      rotulo: recuperacao.rotulo,
+      perguntaAberta: recuperacao.perguntaAberta,
+      retornoCombinado: recuperacao.retornoCombinado,
+      ultimaMensagemDaPessoa: entrada.conteudo,
+    });
+  } else if (vagaFechadaAqui && deps.ignorarInterruptor !== true) {
+    await cancelarRecuperacao(supabase, sessao.id, "já agendou");
   }
 
   return { respondeu: true, pedacos: enviados };
@@ -1082,6 +1128,8 @@ async function responderComModelo(
   /** A cidade que ela disse nesta mensagem, já validada contra o catálogo.
    *  `null` é o normal: a cidade se diz uma vez por conversa. */
   cidade: UnidadeComCodigo | null;
+  /** O rótulo do Recovery Engine. Conferido em `trilhaDaSequencia`. */
+  recuperacao: { rotulo: string; perguntaAberta: string; retornoCombinado: string };
 }> {
   const { supabase, ownerId } = deps;
   // O histórico vem ANTES da instrução desde a V4.1: é das falas da pessoa
@@ -1140,7 +1188,18 @@ async function responderComModelo(
   // qual endereço a confirmação vai mandar — um código inventado não confirma
   // nada, e a Luna pergunta de novo na mensagem seguinte.
   const cidade = unidadeEscolhida({ codigo: resposta.cidadeConfirmada }, instrucao.unidades);
-  return { texto: resposta.texto, vaga, caso, duvida: resposta.duvidaEncaminhada, cidade };
+  return {
+    texto: resposta.texto,
+    vaga,
+    caso,
+    duvida: resposta.duvidaEncaminhada,
+    cidade,
+    recuperacao: {
+      rotulo: resposta.estadoDaConversa ?? "",
+      perguntaAberta: resposta.perguntaAberta ?? "",
+      retornoCombinado: resposta.retornoCombinado ?? "",
+    },
+  };
 }
 
 /**

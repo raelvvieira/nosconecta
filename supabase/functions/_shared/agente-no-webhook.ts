@@ -90,7 +90,7 @@ const BUCKET_DE_CASOS = "crm-campaign-media";
  * código `C1` para a linha de `ai_agent_casos`. O modelo não vê `media_path` e
  * não teria como apontar para outro arquivo.
  */
-async function baixarCaso(
+export async function baixarCaso(
   // deno-lint-ignore no-explicit-any
   supabase: any,
   caso: CasoComCodigo,
