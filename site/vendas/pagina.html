@@ -1,0 +1,713 @@
+<title>NÓS Conecta</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: white Apple-keynote canvas; one glass orb per assistant; UI "prints" built in CSS. Single light look, chosen on purpose. */
+:root{
+  --bg:#ffffff; --bg-2:#f6f6f7; --fg:#121215; --fg-2:#4a4a52; --fg-3:#8a8a93;
+  --line:#e8e8ec; --coral:#ff7a59; --pink:#f55f95; --violet:#7c5cfa; --gold:#c9a46c;
+  --green:#1fa971; --wa:#dcf8c6; --ios-blue:#007aff;
+  --grad:linear-gradient(135deg,#ff7a59 0%,#f55f95 100%);
+  --font:"Geist",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --ease:cubic-bezier(.2,.8,.2,1); --r:20px; --max:1120px;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:60;background:rgba(255,255,255,.8)}
+h1,h2,h3{margin:0;text-wrap:balance;letter-spacing:-.025em;line-height:1.08;font-weight:600}
+h1{font-size:clamp(2.3rem,4.8vw,4rem);letter-spacing:-.035em;line-height:1.03}
+h2{font-size:clamp(2rem,4.4vw,3.4rem)}
+h3{font-size:1.35rem;letter-spacing:-.015em}
+p{margin:0}
+a{color:inherit;text-decoration:none}
+img{max-width:100%;display:block}
+.wrap{max-width:var(--max);margin-inline:auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:.78rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--fg-3)}
+.eyebrow i{width:6px;height:6px;border-radius:50%;background:var(--grad)}
+.lead{font-size:clamp(1.05rem,1.6vw,1.3rem);color:var(--fg-2);max-width:40rem;line-height:1.5}
+.grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:50px;padding:0 22px;border-radius:999px;font-weight:600;font-size:.98rem;border:1px solid var(--line);background:#fff;color:var(--fg);transition:transform .35s var(--ease),box-shadow .35s var(--ease),background .25s;cursor:pointer;white-space:nowrap}
+.btn:hover{transform:translateY(-1px);box-shadow:0 10px 30px -12px rgba(18,18,21,.25)}
+.btn:active{transform:scale(.97);transition-duration:.1s}
+.btn:focus-visible{outline:3px solid rgba(245,95,149,.45);outline-offset:2px}
+.btn.p{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 8px 24px -10px rgba(245,95,149,.6)}
+.btn.p:hover{box-shadow:0 14px 34px -10px rgba(245,95,149,.7)}
+section{padding-block:clamp(72px,10vw,128px)}
+.sec-head{display:grid;gap:18px;max-width:46rem;margin-bottom:clamp(36px,5vw,64px)}
+
+/* nav */
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:rgba(255,255,255,.72);backdrop-filter:blur(18px) saturate(180%);-webkit-backdrop-filter:blur(18px) saturate(180%);border-bottom:1px solid rgba(18,18,21,.06)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:76px;gap:16px}
+nav .logo img{height:44px;width:auto}
+nav ul{display:flex;gap:28px;list-style:none;margin:0;padding:0;font-size:.92rem;font-weight:500;color:var(--fg-2)}
+nav ul a:hover{color:var(--fg)}
+nav .btn{height:42px;padding:0 18px;font-size:.9rem}
+@media(max-width:820px){nav ul{display:none}nav .logo img{height:36px}}
+
+/* hero */
+.hero{padding-block:clamp(56px,8vw,110px) clamp(40px,6vw,80px);position:relative;overflow:hidden}
+.hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(24px,5vw,64px);align-items:center}
+.hero-copy{display:grid;gap:26px;position:relative;z-index:1}
+.hero-ctas{display:flex;gap:12px;flex-wrap:wrap}
+.hero-note{font-size:.85rem;color:var(--fg-3)}
+.hero-art{position:relative;min-width:0;aspect-ratio:1/1;max-width:100%}
+.hero-art img.orb{position:absolute;left:-18%;top:-18%;width:140%;height:136%;max-width:none;object-fit:contain;animation:float 7s ease-in-out infinite}
+.fcard{position:absolute;background:rgba(255,255,255,.84);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.8);box-shadow:0 20px 50px -20px rgba(18,18,21,.25),0 1px 0 rgba(255,255,255,.9) inset;border-radius:16px;padding:12px 14px;font-size:.85rem;display:flex;gap:10px;align-items:center;min-width:0}
+.fcard b{display:block;font-weight:600}
+.fcard small{color:var(--fg-3);font-size:.75rem}
+.fcard .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:none}
+.fc1{left:-4%;top:16%;animation:float 6s ease-in-out infinite .6s}
+.fc2{right:-2%;top:48%;animation:float 6.5s ease-in-out infinite 1.4s}
+.fc3{left:8%;bottom:8%;animation:float 7s ease-in-out infinite 2.2s}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@media(max-width:860px){.hero .wrap{grid-template-columns:1fr}.hero-art{max-width:420px;margin-inline:auto;width:100%}.fcard{font-size:.78rem}}
+
+/* ticker: the assistants' day, passing by */
+.ticker{border-block:1px solid var(--line);background:var(--bg-2);overflow:hidden;padding-block:16px}
+.ticker .lane{display:flex;gap:12px;width:max-content;animation:slide 60s linear infinite}
+.ticker:hover .lane{animation-play-state:paused}
+@keyframes slide{to{transform:translateX(-50%)}}
+.tk{display:inline-flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 14px 8px 8px;font-size:.85rem;white-space:nowrap}
+.tk i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:none}
+.tk b{font-weight:600}
+.tk span{color:var(--fg-3)}
+
+/* assistants */
+.team{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.agent{position:relative;border:1px solid var(--line);border-radius:28px;padding:28px 26px 26px;background:#fff;display:grid;gap:16px;transition:transform .5s var(--ease),box-shadow .5s var(--ease);min-width:0}
+.agent:hover{transform:translateY(-4px);box-shadow:0 30px 60px -30px rgba(18,18,21,.25)}
+.agent img{width:150px;height:150px;margin:-8px auto 0}
+.agent .role{font-size:.78rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase}
+.agent h3{font-size:1.6rem;letter-spacing:-.02em}
+.agent p{color:var(--fg-2);font-size:.95rem}
+.agent ul{margin:0;padding:0;list-style:none;display:grid;gap:8px;font-size:.9rem}
+.agent li{display:flex;gap:10px;align-items:flex-start}
+.agent li svg{flex:none;margin-top:3px}
+.tag{position:absolute;top:18px;right:18px;font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:5px 10px;border-radius:999px;background:var(--bg-2);color:var(--fg-2)}
+.tag.ai{background:var(--grad);color:#fff}
+.tag.soon{background:#f3efe6;color:#8a6d3a}
+@media(max-width:900px){.team{grid-template-columns:1fr}}
+
+/* photo band */
+.band{position:relative;border-radius:40px;overflow:hidden;min-height:420px;display:grid;align-items:end;isolation:isolate}
+.band img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-1;transform:scale(1.04);transition:transform 1.2s var(--ease)}
+.band:hover img{transform:scale(1)}
+.band::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(to top,rgba(18,18,21,.72),rgba(18,18,21,0) 60%)}
+.band .txt{padding:clamp(24px,4vw,48px);color:#fff;display:grid;gap:10px;max-width:40rem}
+.band h2{color:#fff;font-size:clamp(1.6rem,3.2vw,2.6rem)}
+.band p{color:rgba(255,255,255,.8)}
+@media(max-width:720px){.band{border-radius:28px;min-height:360px}}
+
+/* demo */
+.demo{background:var(--fg);color:#fff;border-radius:40px;overflow:hidden}
+.demo .in{display:grid;grid-template-columns:1fr 1fr;gap:clamp(24px,5vw,64px);align-items:center;padding:clamp(40px,6vw,80px) clamp(20px,5vw,72px)}
+.demo h2{color:#fff}
+.demo .lead{color:rgba(255,255,255,.72)}
+.demo ul{margin:0;padding:0;list-style:none;display:grid;gap:14px}
+.demo ul li{display:flex;gap:14px;align-items:flex-start;color:rgba(255,255,255,.85);font-size:.98rem}
+.demo ul li svg{flex:none;margin-top:4px}
+.replay{background:none;border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:999px;padding:9px 16px;font:inherit;font-size:.85rem;cursor:pointer;justify-self:start}
+.replay:hover{background:rgba(255,255,255,.08)}
+@media(max-width:860px){.demo .in{grid-template-columns:1fr}.demo{border-radius:28px}}
+
+/* iPhone + WhatsApp (iOS) */
+.phone{width:min(100%,340px);margin-inline:auto;background:#1a1a1c;border-radius:50px;padding:10px;box-shadow:0 40px 80px -30px rgba(0,0,0,.8),0 0 0 1.5px #3a3a3e,0 0 0 4px #0b0b0d;min-width:0;position:relative}
+.phone::before{content:"";position:absolute;top:22px;left:50%;transform:translateX(-50%);width:96px;height:28px;background:#0b0b0d;border-radius:999px;z-index:3}
+.screen{background:#ece5dd;border-radius:40px;overflow:hidden;color:#111;height:660px;display:flex;flex-direction:column;position:relative;font-family:-apple-system,"SF Pro Text",var(--font)}
+.screen::before{content:"";position:absolute;inset:0;opacity:.06;background-image:radial-gradient(circle at 20% 30%,#000 1.5px,transparent 2px),radial-gradient(circle at 70% 60%,#000 1.5px,transparent 2px),radial-gradient(circle at 45% 85%,#000 1.5px,transparent 2px);background-size:48px 48px,64px 64px,56px 56px;pointer-events:none}
+.status{display:flex;justify-content:space-between;align-items:center;padding:14px 26px 0;font-size:.82rem;font-weight:600;background:#f6f6f6;position:relative}
+.status .r{display:flex;gap:5px;align-items:center}
+.wa-top{background:#f6f6f6;padding:8px 12px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #d9d9d9;position:relative}
+.wa-top .back{color:var(--ios-blue);display:flex;align-items:center;font-size:.9rem;gap:2px}
+.wa-top .av{width:36px;height:36px;border-radius:50%;background:var(--grad);flex:none;display:grid;place-items:center}
+.wa-top .av img{width:30px;height:30px}
+.wa-top b{display:block;font-size:.92rem;font-weight:600;line-height:1.1}
+.wa-top small{font-size:.7rem;color:#8e8e93}
+.wa-top .acts{margin-left:auto;display:flex;gap:16px;color:var(--ios-blue)}
+.msgs{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:6px;overflow:hidden;justify-content:flex-end;position:relative}
+.day{align-self:center;background:rgba(255,255,255,.85);color:#6b6b70;font-size:.68rem;font-weight:500;padding:3px 10px;border-radius:8px;margin-bottom:4px}
+.m{position:relative;max-width:82%;padding:7px 10px 6px;border-radius:16px;font-size:.86rem;line-height:1.35;background:#fff;box-shadow:0 1px .5px rgba(0,0,0,.13);opacity:0;transform:translateY(8px) scale(.98);transition:opacity .45s var(--ease),transform .45s var(--ease)}
+.m.on{opacity:1;transform:none}
+.m::after{content:"";position:absolute;bottom:0;width:10px;height:14px;background:inherit}
+.m:not(.me){border-bottom-left-radius:4px}
+.m:not(.me)::after{left:-6px;clip-path:polygon(100% 0,100% 100%,0 100%);border-bottom-left-radius:10px}
+.m.me{align-self:flex-end;background:#dcf7c5;border-bottom-right-radius:4px}
+.m.me::after{right:-6px;clip-path:polygon(0 0,100% 100%,0 100%);border-bottom-right-radius:10px}
+.m .meta{display:inline-flex;gap:3px;align-items:center;float:right;margin:8px 0 0 10px;font-size:.64rem;color:#8e8e93;line-height:1}
+.m.me .meta{color:#6f8f5a}
+.m .meta svg{width:14px;height:10px}
+.typing{align-self:flex-start;background:#fff;border-radius:16px;border-bottom-left-radius:4px;padding:10px 12px;display:none;gap:4px;box-shadow:0 1px .5px rgba(0,0,0,.13)}
+.typing.on{display:flex}
+.typing i{width:6px;height:6px;border-radius:50%;background:#b9b9c0;animation:dot 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+@keyframes dot{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-4px);opacity:1}}
+.booked{margin:4px 10px 6px;background:#fff;border-radius:14px;padding:9px 12px;display:flex;gap:10px;align-items:center;font-size:.8rem;opacity:0;transform:translateY(8px);transition:opacity .5s var(--ease),transform .5s var(--ease);box-shadow:0 1px .5px rgba(0,0,0,.13);position:relative}
+.booked.on{opacity:1;transform:none}
+.booked .ok{width:28px;height:28px;border-radius:50%;background:var(--green);display:grid;place-items:center;flex:none}
+.wa-bot{background:#f6f6f6;border-top:1px solid #d9d9d9;padding:8px 10px 6px;display:flex;align-items:center;gap:10px;position:relative}
+.wa-bot .plus{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:var(--ios-blue)}
+.wa-bot .inp{flex:1;height:34px;border-radius:999px;background:#fff;border:1px solid #d9d9d9;display:flex;align-items:center;padding:0 12px;color:#8e8e93;font-size:.85rem;justify-content:space-between}
+.wa-bot .mic{color:var(--ios-blue);display:flex;gap:14px}
+.home{height:5px;width:120px;border-radius:999px;background:#111;margin:8px auto 6px;opacity:.9}
+.screen .home-wrap{background:#f6f6f6;position:relative}
+
+/* finance flow */
+.flow{display:grid;grid-template-columns:1fr auto 1fr;gap:20px;align-items:center}
+.flow .arrow{color:var(--fg-3);display:grid;place-items:center}
+.card{border:1px solid var(--line);border-radius:var(--r);background:#fff;padding:18px;min-width:0}
+.wa-msg{display:grid;gap:10px;background:#ece5dd}
+.wa-msg .eyebrow{color:#6b6b70}
+.wa-msg .b{background:#dcf7c5;border-radius:16px;border-bottom-right-radius:4px;padding:8px 12px;font-size:.88rem;justify-self:end;max-width:92%;box-shadow:0 1px .5px rgba(0,0,0,.13)}
+.wa-msg .b.img{padding:5px;width:min(100%,300px)}
+.wa-msg .b .meta{display:block;text-align:right;font-size:.64rem;color:#6f8f5a;margin-top:2px}
+/* the invoice "photo": a DANFE drawn in CSS, lit like a phone photo */
+.photo{border-radius:12px;overflow:hidden;background:#cfc6b8;padding:14px 18px;position:relative}
+.photo::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,rgba(255,255,255,.25),transparent 40%,rgba(0,0,0,.12));pointer-events:none}
+.danfe{background:#fbfaf6;color:#222;font:500 .5rem/1.35 var(--mono);transform:rotate(-2.5deg);box-shadow:0 10px 24px -8px rgba(0,0,0,.45),0 2px 4px rgba(0,0,0,.2);padding:8px 9px;display:grid;gap:5px;border:1px solid #e3dfd3}
+.danfe .hd{display:grid;grid-template-columns:1fr auto;gap:6px;border:1px solid #333;padding:5px 6px}
+.danfe .hd b{font-size:.6rem;letter-spacing:.02em;font-family:var(--font)}
+.danfe .hd .nf{text-align:right;font-weight:600}
+.danfe .bar{height:26px;background:repeating-linear-gradient(90deg,#111 0 1px,transparent 1px 3px,#111 3px 5px,transparent 5px 6px,#111 6px 7px,transparent 7px 10px);border:1px solid #333;padding:2px}
+.danfe .box{border:1px solid #333;padding:4px 6px;display:grid;grid-template-columns:1fr 1fr;gap:2px 8px}
+.danfe .box span{color:#555}
+.danfe table{border-collapse:collapse;width:100%;font-size:.48rem}
+.danfe th,.danfe td{border:1px solid #333;padding:2px 4px;text-align:left}
+.danfe th{background:#efece4;font-weight:600}
+.danfe td.n{text-align:right;font-variant-numeric:tabular-nums}
+.danfe .tot{display:flex;justify-content:space-between;border:1px solid #333;padding:4px 6px;font-weight:600;font-size:.56rem}
+.lanc{display:grid;gap:10px}
+.lanc .row{display:flex;justify-content:space-between;gap:12px;font-size:.88rem;padding:8px 0;border-bottom:1px dashed var(--line)}
+.lanc .row:last-child{border:0}
+.lanc .row span:first-child{color:var(--fg-3)}
+.lanc .row b{font-weight:500;font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:.75rem;font-weight:600;padding:4px 10px;border-radius:999px;background:#e8f7ef;color:#167a52}
+@media(max-width:760px){.flow{grid-template-columns:1fr}.flow .arrow{transform:rotate(90deg)}}
+
+/* features */
+.feats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.feat{border:1px solid var(--line);border-radius:22px;padding:22px;display:grid;gap:12px;background:#fff;transition:transform .45s var(--ease),box-shadow .45s var(--ease);min-width:0}
+.feat:hover{transform:translateY(-3px);box-shadow:0 24px 50px -30px rgba(18,18,21,.25)}
+.feat .ico{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:var(--bg-2)}
+.feat h3{font-size:1.05rem}
+.feat p{font-size:.92rem;color:var(--fg-2)}
+@media(max-width:900px){.feats{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.feats{grid-template-columns:1fr}}
+
+/* UI prints */
+.prints{display:grid;grid-template-columns:1.3fr 1fr;gap:18px}
+.print{border:1px solid var(--line);border-radius:26px;background:var(--bg-2);padding:18px;overflow:hidden;min-width:0}
+.print .cap{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;gap:12px}
+.print .cap b{font-weight:600}
+.print .cap span{font-size:.8rem;color:var(--fg-3)}
+.ui{background:#fff;border-radius:16px;border:1px solid var(--line);box-shadow:0 20px 40px -30px rgba(18,18,21,.3);overflow:hidden;font-size:.78rem}
+.ui-top{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);color:var(--fg-3)}
+.ui-top i{width:9px;height:9px;border-radius:50%;background:#e5e5ea}
+.ui-top i:first-child{background:#ff5f57}.ui-top i:nth-child(2){background:#febc2e}.ui-top i:nth-child(3){background:#28c840}
+.ui-top span{margin-left:auto;font-family:var(--mono);font-size:.7rem}
+.agenda{display:grid;grid-template-columns:44px repeat(3,1fr);gap:0;padding:12px;min-width:0}
+.agenda .h{font-weight:600;padding:6px;text-align:center;color:var(--fg-2);border-bottom:1px solid var(--line)}
+.agenda .t{color:var(--fg-3);font-family:var(--mono);font-size:.66rem;padding:6px 4px;border-right:1px solid var(--line)}
+.agenda .c{border-bottom:1px solid #f1f1f4;padding:3px;min-height:34px}
+.ap{border-radius:8px;padding:5px 7px;font-size:.7rem;line-height:1.2;border-left:3px solid}
+.ap b{display:block;font-weight:600}
+.ap.a{background:#fff2ec;border-color:var(--coral)}.ap.b{background:#ece7fe;border-color:var(--violet)}.ap.c{background:#e8f7ef;border-color:var(--green)}.ap.d{background:#ffe7f0;border-color:var(--pink)}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px}
+.kpi{border:1px solid var(--line);border-radius:12px;padding:12px}
+.kpi span{color:var(--fg-3);font-size:.7rem;display:block}
+.kpi b{font-size:1.15rem;letter-spacing:-.02em;font-variant-numeric:tabular-nums;display:block;margin-top:4px}
+.kpi em{font-style:normal;font-size:.68rem;color:var(--green);font-weight:600}
+.bars{grid-column:1/-1;display:flex;align-items:flex-end;gap:6px;height:70px;padding:0 4px}
+.bars i{flex:1;background:var(--grad);border-radius:4px 4px 0 0;opacity:.85;transform-origin:bottom;animation:grow 1.2s var(--ease) both}
+@keyframes grow{from{transform:scaleY(.1)}}
+.conv{padding:12px;display:grid;gap:8px}
+.cv{display:flex;gap:10px;align-items:center;padding:8px;border-radius:10px}
+.cv.sel{background:var(--bg-2)}
+.cv .av{width:28px;height:28px;border-radius:50%;background:#e5e5ea;flex:none}
+.cv b{display:block;font-weight:600}
+.cv small{color:var(--fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:150px}
+.cv .luna{margin-left:auto;font-size:.62rem;font-weight:600;padding:3px 7px;border-radius:999px;background:var(--grad);color:#fff;flex:none}
+@media(max-width:860px){.prints{grid-template-columns:1fr}}
+
+/* who */
+.who{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.who div{border-top:2px solid var(--fg);padding-top:18px;display:grid;gap:8px}
+.who b{font-size:1.1rem;letter-spacing:-.01em}
+.who p{color:var(--fg-2);font-size:.95rem}
+@media(max-width:720px){.who{grid-template-columns:1fr}}
+
+/* pricing */
+.toggle{display:inline-flex;background:var(--bg-2);border-radius:999px;padding:4px;gap:4px;border:1px solid var(--line)}
+.toggle button{border:0;background:none;font:inherit;font-weight:600;font-size:.9rem;padding:8px 16px;border-radius:999px;cursor:pointer;color:var(--fg-2)}
+.toggle button[aria-pressed="true"]{background:#fff;color:var(--fg);box-shadow:0 2px 8px rgba(18,18,21,.1)}
+.toggle button:focus-visible{outline:2px solid var(--pink)}
+.save{font-size:.78rem;font-weight:600;color:#167a52;background:#e8f7ef;padding:3px 9px;border-radius:999px;margin-left:6px}
+.plans{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:28px;max-width:900px}
+.plan{border:1px solid var(--line);border-radius:30px;padding:30px;display:grid;gap:22px;background:#fff;position:relative;min-width:0}
+.plan.hi{border-color:transparent;background:linear-gradient(#fff,#fff) padding-box,var(--grad) border-box;border-width:1.5px;box-shadow:0 30px 70px -40px rgba(245,95,149,.5)}
+.plan .name{font-size:.8rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3)}
+.plan.hi .name{color:var(--pink)}
+.plan .price{display:flex;align-items:baseline;gap:6px;font-variant-numeric:tabular-nums}
+.plan .price b{font-size:3rem;letter-spacing:-.04em;font-weight:600;line-height:1}
+.plan .price span{color:var(--fg-3)}
+.plan .sub{font-size:.85rem;color:var(--fg-3);min-height:1.3em}
+.plan ul{margin:0;padding:0;list-style:none;display:grid;gap:10px;font-size:.93rem}
+.plan li{display:flex;gap:10px;align-items:flex-start}
+.plan li svg{flex:none;margin-top:4px}
+.plan li.off{color:var(--fg-3)}
+.plan .best{position:absolute;top:-13px;left:30px;background:var(--grad);color:#fff;font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:6px 12px;border-radius:999px}
+@media(max-width:720px){.plans{grid-template-columns:1fr}}
+
+/* faq */
+.faq{max-width:760px;display:grid;gap:0;border-top:1px solid var(--line)}
+details{border-bottom:1px solid var(--line)}
+summary{cursor:pointer;list-style:none;padding:20px 0;font-weight:600;font-size:1.05rem;display:flex;justify-content:space-between;gap:16px;align-items:center}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";font-weight:400;font-size:1.4rem;color:var(--fg-3);transition:transform .3s var(--ease)}
+details[open] summary::after{transform:rotate(45deg)}
+details p{padding:0 0 20px;color:var(--fg-2);max-width:60ch}
+
+/* final */
+.final{text-align:center;padding-block:clamp(72px,10vw,128px)}
+.final h2{font-size:clamp(2.2rem,5vw,4rem)}
+footer{border-top:1px solid var(--line);padding-block:40px;font-size:.85rem;color:var(--fg-3)}
+footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center}
+footer img{height:36px;width:auto}
+
+/* reveal */
+.rv{transition:opacity .7s var(--ease),transform .7s var(--ease)}
+.rv.pre{opacity:0;transform:translateY(18px)}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition-duration:.01ms!important}
+  .rv.pre{opacity:1;transform:none}
+  .m,.booked{opacity:1;transform:none}
+  .ticker .lane{animation:none}
+}
+</style>
+
+<nav>
+  <div class="wrap">
+    <a class="logo" href="#top" aria-label="NÓS Conecta"><img src="{{LOGO}}" alt="NÓS Conecta"></a>
+    <ul>
+      <li><a href="#assistentes">Assistentes</a></li>
+      <li><a href="#sistema">Sistema</a></li>
+      <li><a href="#planos">Planos</a></li>
+      <li><a href="#faq">Dúvidas</a></li>
+    </ul>
+    <a class="btn p" href="#planos">Começar grátis</a>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-copy">
+      <span class="eyebrow"><i></i>Sistema odontológico com I.A.</span>
+      <h1>Tenha uma equipe de <span class="grad">assistentes de I.A.</span> que trabalha para você e conversa pelo WhatsApp.</h1>
+      <p class="lead">Agenda, pacientes, cadeiras e financeiro do seu consultório odontológico num só lugar. Com assistentes que atendem, agendam, lembram os pacientes e lançam as suas contas.</p>
+      <div class="hero-ctas">
+        <a class="btn p" href="#planos">Testar 14 dias grátis</a>
+        <a class="btn" href="#demo">Ver a Luna atendendo</a>
+      </div>
+      <p class="hero-note">Sem cartão e sem taxa de implantação. Do dentista autônomo à rede com várias unidades.</p>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <img class="orb" src="{{HERO}}" alt="">
+      <div class="fcard fc1">
+        <div class="ic" style="background:#e8f7ef"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <div><b>Consulta marcada</b><small>Ter, 14h30 · Cadeira 2 · pela Luna</small></div>
+      </div>
+      <div class="fcard fc2">
+        <div class="ic" style="background:#fff2ec"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff7a59" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M12 7v5l3 2"/></svg></div>
+        <div><b>Lembrete enviado</b><small>Amanhã, 9h · confirmado pelo paciente</small></div>
+      </div>
+      <div class="fcard fc3">
+        <div class="ic" style="background:#ece7fe"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c5cfa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div>
+        <div><b>Nota lançada</b><small>R$ 1.280,00 · Material · vence 10/11</small></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="ticker" aria-label="O que os assistentes fazem ao longo do dia">
+  <div class="lane" id="lane">
+    <span class="tk"><i style="background:#fff2ec"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff7a59" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></i><b>Luna</b><span>marcou avaliação para Carla M., terça 14h30</span></span>
+    <span class="tk"><i style="background:#e8f7ef"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M12 7v5l3 2"/></svg></i><b>Lembrete</b><span>Ana P. confirmou a consulta de amanhã</span></span>
+    <span class="tk"><i style="background:#ece7fe"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c5cfa" stroke-width="2.5" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8"/></svg></i><b>Financeiro</b><span>lançou a nota da Dental Supri, R$ 1.280,00</span></span>
+    <span class="tk"><i style="background:#fff2ec"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ff7a59" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/></svg></i><b>Luna</b><span>respondeu 3 pessoas que vieram do anúncio</span></span>
+    <span class="tk"><i style="background:#ffe7f0"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f55f95" stroke-width="2.5" stroke-linecap="round"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg></i><b>Follow-up</b><span>chamou de novo quem não respondeu ontem</span></span>
+    <span class="tk"><i style="background:#ece7fe"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c5cfa" stroke-width="2.5" stroke-linecap="round"><path d="M4 19V5M4 19h16M8 15l4-5 3 3 5-7"/></svg></i><b>Financeiro</b><span>avisou: 2 boletos vencem esta semana</span></span>
+    <span class="tk"><i style="background:#e8f7ef"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></i><b>Luna</b><span>encaixou um retorno na vaga das 11h</span></span>
+  </div>
+</div>
+
+<section id="assistentes">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="eyebrow"><i></i>Os assistentes</span>
+      <h2>Cada assistente tem um papel. Todos conversam pelo WhatsApp.</h2>
+      <p class="lead">Eles conhecem o seu consultório, falam com o seu tom de voz e trabalham o dia inteiro. Você acompanha tudo pela tela de Conversas e assume quando quiser.</p>
+    </div>
+    <div class="team">
+      <article class="agent rv">
+        <span class="tag ai">Atendimento</span>
+        <img src="{{LUNA}}" alt="">
+        <div><span class="role" style="color:var(--coral)">Luna</span><h3>Atende e agenda por você</h3></div>
+        <p>Treinada com técnicas comerciais validadas e linguagem amigável. Responde quem chega do anúncio, tira dúvidas, oferece horários reais da agenda e marca a consulta.</p>
+        <ul>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Agenda direto nas vagas livres da cadeira</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Lembra, confirma e reduz faltas</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Tom de voz personalizável</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Passa para a equipe quando precisa</li>
+        </ul>
+      </article>
+      <article class="agent rv">
+        <span class="tag ai">Financeiro</span>
+        <img src="{{FIN}}" alt="">
+        <div><span class="role" style="color:var(--violet)">Assistente financeiro</span><h3>Manda a nota, ele lança</h3></div>
+        <p>Nota fiscal, boleto, comprovante, cupom. Você manda no WhatsApp como mandaria para um sócio, e ele lê, classifica e lança no financeiro, com vencimento e categoria.</p>
+        <ul>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Lê fotos, PDFs e áudios</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Contas a pagar organizadas por categoria</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Avisa o que vence esta semana</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Você confirma antes de lançar</li>
+        </ul>
+      </article>
+      <article class="agent rv">
+        <span class="tag soon">Em breve</span>
+        <img src="{{GESTAO}}" alt="">
+        <div><span class="role" style="color:var(--gold)">Assistente de gestão</span><h3>O resumo do dia, todo dia</h3></div>
+        <p>Lê os dados do consultório inteiro e manda no seu WhatsApp o que importa: a agenda de hoje, o caixa, quem faltou, quem sumiu, e ideias para preencher a cadeira vazia.</p>
+        <ul>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Resumo da manhã no WhatsApp</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Alertas de caixa e de agenda</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Leitura de pacientes e procedimentos</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Incluído no plano com I.A. quando lançar</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="band rv">
+      <img src="{{OFFICE}}" alt="Sala de atendimento de um consultório odontológico">
+      <div class="txt">
+        <span class="eyebrow" style="color:rgba(255,255,255,.7)"><i></i>Feito para o consultório</span>
+        <h2>Pensado para quem atende com a mão ocupada e o celular no bolso.</h2>
+        <p>Cada tela foi desenhada com dentistas, para o ritmo real de um consultório odontológico.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="demo" style="padding-top:0">
+  <div class="wrap">
+    <div class="demo">
+      <div class="in">
+        <div style="display:grid;gap:22px">
+          <span class="eyebrow" style="color:rgba(255,255,255,.6)"><i></i>Luna · Atendimento</span>
+          <h2>Atenda seus pacientes 24 horas por dia. E deixe a Luna agendar por você.</h2>
+          <p class="lead">Ela conversa como uma pessoa, entende o que o paciente precisa, confirma a unidade e oferece só horários que existem na sua agenda.</p>
+          <ul>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff7a59" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Responde quem chega do anúncio ou pelo seu número de sempre</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff7a59" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Oferece dois ou três horários livres da cadeira certa</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff7a59" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Marca na agenda, confirma e lembra antes da consulta</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff7a59" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Se alguém da equipe entra na conversa, ela sai de cena</li>
+          </ul>
+          <button class="replay" id="replay" type="button">Ver a conversa de novo</button>
+        </div>
+        <div class="phone" aria-label="Simulação de conversa no WhatsApp">
+          <div class="screen">
+            <div class="status"><span>9:41</span><span class="r"><svg width="16" height="11" viewBox="0 0 16 11" fill="#111"><rect x="0" y="7" width="3" height="4" rx=".6"/><rect x="4.3" y="5" width="3" height="6" rx=".6"/><rect x="8.6" y="2.5" width="3" height="8.5" rx=".6"/><rect x="12.9" y="0" width="3" height="11" rx=".6"/></svg><svg width="15" height="11" viewBox="0 0 15 11" fill="#111"><path d="M7.5 2.6c2.2 0 4.2.8 5.7 2.2l1.1-1.1A9.9 9.9 0 0 0 7.5 1 9.9 9.9 0 0 0 .7 3.7l1.1 1.1A8.3 8.3 0 0 1 7.5 2.6zm0 3c1.4 0 2.6.5 3.6 1.4l1.1-1.1a6.7 6.7 0 0 0-9.4 0l1.1 1.1a5 5 0 0 1 3.6-1.4zm0 3c.6 0 1.1.2 1.5.6L7.5 10.7 6 9.2c.4-.4.9-.6 1.5-.6z"/></svg><svg width="25" height="12" viewBox="0 0 25 12"><rect x=".5" y=".5" width="21" height="11" rx="3" fill="none" stroke="#111" stroke-opacity=".4"/><rect x="2" y="2" width="18" height="8" rx="1.8" fill="#111"/><path d="M23 4v4a2 2 0 0 0 0-4z" fill="#111" fill-opacity=".4"/></svg></span></div>
+            <div class="wa-top">
+              <span class="back"><svg width="11" height="18" viewBox="0 0 11 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1 2 9l7 8"/></svg>3</span>
+              <div class="av"><img src="{{LUNA}}" alt=""></div>
+              <div><b>Luna · Consultório</b><small>online</small></div>
+              <div class="acts"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg></div>
+            </div>
+            <div class="msgs" id="msgs">
+              <span class="day">Hoje</span>
+              <div class="m me">Oi, vi o anúncio de vocês. Quanto custa uma avaliação?<span class="meta">22:00 <svg viewBox="0 0 16 11" fill="none" stroke="#53bdeb" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m1 6 3 3 6-7"/><path d="m6 6 3 3 6-7"/></svg></span></div>
+              <div class="typing" id="typing"><i></i><i></i><i></i></div>
+              <div class="m">Oi! Que bom que você chegou 😊 A avaliação aqui é gratuita. Você prefere a unidade Centro ou a Zona Sul?<span class="meta">22:00</span></div>
+              <div class="m me">Centro<span class="meta">22:00 <svg viewBox="0 0 16 11" fill="none" stroke="#53bdeb" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m1 6 3 3 6-7"/><path d="m6 6 3 3 6-7"/></svg></span></div>
+              <div class="m">Perfeito. Tenho amanhã às 9h, terça às 14h30 ou quinta às 18h. Qual fica melhor pra você?<span class="meta">22:01</span></div>
+              <div class="m me">Terça 14h30<span class="meta">22:01 <svg viewBox="0 0 16 11" fill="none" stroke="#53bdeb" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m1 6 3 3 6-7"/><path d="m6 6 3 3 6-7"/></svg></span></div>
+              <div class="m">Marcado! Terça, 14h30, na unidade Centro. Te mando um lembrete no dia anterior. Qualquer coisa, é só chamar aqui 💛<span class="meta">22:01</span></div>
+            </div>
+            <div class="booked" id="booked"><div class="ok"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg></div><div><b>Agendado na Cadeira 2</b><br><span style="color:var(--fg-3)">Ter, 14h30 · Avaliação · Centro</span></div></div>
+            <div class="wa-bot">
+              <span class="plus"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+              <span class="inp"><span></span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19.5 12 3l9 16.5H3z" opacity="0"/><path d="M4 8V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2"/><path d="M4 12h9m-3-3 3 3-3 3"/></svg></span>
+              <span class="mic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a2 2 0 0 1 2-2h2l2-2h4l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
+            </div>
+            <div class="home-wrap"><div class="home"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="financeiro" style="padding-top:0">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="eyebrow"><i></i>Financeiro por WhatsApp</span>
+      <h2>Chegou a nota? Tira uma foto e manda. O lançamento sai pronto.</h2>
+      <p class="lead">Comprou material, pagou o protético, chegou o boleto da luz. Você manda no WhatsApp e o assistente financeiro lê, classifica e lança no lugar certo. No fim do mês, o relatório já está feito.</p>
+    </div>
+    <div class="flow rv">
+      <div class="card wa-msg">
+        <span class="eyebrow" style="font-size:.7rem">Você manda</span>
+        <div class="b img">
+          <div class="photo">
+            <div class="danfe" aria-label="Foto de uma nota fiscal">
+              <div class="hd"><div><b>DANFE</b><br>Documento Auxiliar da<br>Nota Fiscal Eletrônica<br>Dental Supri Ltda</div><div class="nf">Nº 048.213<br>Série 1<br>0 - ENTRADA<br>1 - SAÍDA <b>[1]</b></div></div>
+              <div class="bar"></div>
+              <div class="box"><span>Natureza da operação</span><span>Data de emissão</span><div>VENDA DE MERCADORIA</div><div>27/10/2026</div><span>Destinatário</span><span>Vencimento</span><div>CONSULTÓRIO ODONTOLÓGICO</div><div>10/11/2026</div></div>
+              <table><tr><th>Descrição</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr><tr><td>Implante cone morse 3.5x11</td><td class="n">4</td><td class="n">245,00</td><td class="n">980,00</td></tr><tr><td>Pilar protético</td><td class="n">2</td><td class="n">150,00</td><td class="n">300,00</td></tr></table>
+              <div class="tot"><span>VALOR TOTAL DA NOTA</span><span>R$ 1.280,00</span></div>
+            </div>
+          </div>
+          <span class="meta">17:42 ✓✓</span>
+        </div>
+        <div class="b">essa é do material de implante, venceu dia 10<span class="meta">17:42 ✓✓</span></div>
+      </div>
+      <div class="arrow"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+      <div class="card lanc">
+        <span class="eyebrow" style="font-size:.7rem">O assistente lança</span>
+        <div class="row"><span>Fornecedor</span><b>Dental Supri Ltda</b></div>
+        <div class="row"><span>Valor</span><b>R$ 1.280,00</b></div>
+        <div class="row"><span>Categoria</span><b>Material clínico</b></div>
+        <div class="row"><span>Vencimento</span><b>10/11</b></div>
+        <div class="row"><span>Status</span><span class="pill">Lançado em Pagamentos</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="sistema" style="background:var(--bg-2);border-block:1px solid var(--line)">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="eyebrow"><i></i>O sistema completo</span>
+      <h2>Tudo que o consultório precisa, no computador da recepção e no seu celular.</h2>
+    </div>
+    <div class="feats">
+      <div class="feat rv"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7a59" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></div><h3>Agenda por cadeira</h3><p>Cada cadeira com a sua coluna. Encaixes, bloqueios, lista de espera e a visão do dia inteiro num toque.</p></div>
+      <div class="feat rv"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f55f95" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div><h3>Pacientes e prontuário</h3><p>Ficha, anamnese, fotos, documentos e histórico de procedimentos. Tudo que a equipe precisa antes de chamar o próximo.</p></div>
+      <div class="feat rv"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/></svg></div><h3>WhatsApp dentro do sistema</h3><p>Todas as conversas do consultório numa só tela, com o histórico ligado ao paciente. A equipe responde, a Luna ajuda.</p></div>
+      <div class="feat rv"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7c5cfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 15l4-5 3 3 5-7"/></svg></div><h3>Financeiro completo</h3><p>Recebimentos, pagamentos, planejamento e visão geral. Com os lançamentos que chegam pelo WhatsApp.</p></div>
+      <div class="feat rv"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff7a59" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h3l6 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M17 8a5 5 0 0 1 0 8"/></svg></div><h3>Campanhas e reativação</h3><p>Mensagens para quem sumiu, com listas por DDD, por tag ou por tempo sem vir. E filtros para não mandar para quem não deve.</p></div>
+      <div class="feat rv"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c9a46c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg></div><h3>NÓS Club: fidelidade</h3><p>Cartão digital de níveis, créditos e indicações. O paciente acompanha pelo celular e indica o consultório para os amigos.</p></div>
+      <div class="feat rv"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f55f95" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z"/><path d="M12 6v6l4 2"/></svg></div><h3>Lembretes contra faltas</h3><p>Confirmação e lembrete automáticos pelo WhatsApp, no horário certo. Menos cadeira vazia, menos ligação da recepção.</p></div>
+      <div class="feat rv"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.5"/><path d="M2 20a7 7 0 0 1 14 0M15 15a5 5 0 0 1 7 4.5"/></svg></div><h3>Equipe e níveis de acesso</h3><p>Convite por link, e cada pessoa vê só o que precisa. Recepção, dentistas e sócios com permissões próprias.</p></div>
+      <div class="feat rv"><div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7c5cfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg></div><h3>Várias unidades</h3><p>Endereço, horários e cadeiras por unidade. A Luna sabe qual é qual e agenda no lugar certo.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="prints">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="eyebrow"><i></i>Por dentro</span>
+      <h2>O que a recepção vê no computador é o que você vê no celular.</h2>
+      <p class="lead">Interface clara e rápida, sem treinamento. A equipe aprende no primeiro dia.</p>
+    </div>
+    <div class="prints">
+      <div class="print rv">
+        <div class="cap"><b>Agenda</b><span>Terça, 3 cadeiras</span></div>
+        <div class="ui">
+          <div class="ui-top"><i></i><i></i><i></i><span>/agenda</span></div>
+          <div class="agenda">
+            <div class="t"></div><div class="h">Cadeira 1</div><div class="h">Cadeira 2</div><div class="h">Cadeira 3</div>
+            <div class="t">09:00</div><div class="c"><div class="ap a"><b>Limpeza</b>M. Souza</div></div><div class="c"><div class="ap b"><b>Avaliação</b>pela Luna</div></div><div class="c"></div>
+            <div class="t">10:00</div><div class="c"><div class="ap c"><b>Canal</b>R. Lima</div></div><div class="c"></div><div class="c"><div class="ap d"><b>Clareamento</b>J. Alves</div></div>
+            <div class="t">11:00</div><div class="c"></div><div class="c"><div class="ap a"><b>Restauração</b>P. Costa</div></div><div class="c"><div class="ap b"><b>Avaliação</b>pela Luna</div></div>
+            <div class="t">14:00</div><div class="c"><div class="ap d"><b>Implante</b>A. Rocha</div></div><div class="c"><div class="ap c"><b>Retorno</b>L. Dias</div></div><div class="c"></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:grid;gap:18px;min-width:0">
+        <div class="print rv">
+          <div class="cap"><b>Financeiro</b><span>Este mês</span></div>
+          <div class="ui">
+            <div class="ui-top"><i></i><i></i><i></i><span>/recebimentos</span></div>
+            <div class="kpis">
+              <div class="kpi"><span>Recebido</span><b>R$ 48.320</b><em>+12% vs. mês passado</em></div>
+              <div class="kpi"><span>A receber</span><b>R$ 9.140</b><em>6 parcelas</em></div>
+              <div class="bars"><i style="height:40%"></i><i style="height:55%"></i><i style="height:48%"></i><i style="height:70%"></i><i style="height:62%"></i><i style="height:88%"></i><i style="height:100%"></i></div>
+            </div>
+          </div>
+        </div>
+        <div class="print rv">
+          <div class="cap"><b>Conversas</b><span>Agora</span></div>
+          <div class="ui">
+            <div class="ui-top"><i></i><i></i><i></i><span>/atendimentos</span></div>
+            <div class="conv">
+              <div class="cv sel"><div class="av"></div><div><b>Carla M.</b><small>Marcado! Terça, 14h30…</small></div><span class="luna">Luna</span></div>
+              <div class="cv"><div class="av"></div><div><b>Dr. Pedro (protético)</b><small>Mando o orçamento amanhã</small></div></div>
+              <div class="cv"><div class="av"></div><div><b>Ana P.</b><small>Confirmado 👍</small></div><span class="luna">Luna</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="quem" style="padding-top:0">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="eyebrow"><i></i>Para quem</span>
+      <h2>Do consultório de uma cadeira à rede com várias unidades.</h2>
+    </div>
+    <div class="who">
+      <div class="rv"><b>Dentista autônomo</b><p>Você atende e a Luna cuida do WhatsApp. Agenda, lembretes e financeiro sem precisar contratar recepção.</p></div>
+      <div class="rv"><b>Consultório com equipe</b><p>Várias cadeiras, recepção e dentistas no mesmo sistema. Cada um com o seu acesso, e nada se perde entre um e outro.</p></div>
+      <div class="rv"><b>Rede com unidades</b><p>Unidades, horários e equipes separadas, com a visão consolidada para o sócio. A Luna sabe para onde cada paciente vai.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="planos" style="background:var(--bg-2);border-block:1px solid var(--line)">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="eyebrow"><i></i>Planos</span>
+      <h2>O sistema inteiro, com ou sem a equipe de I.A.</h2>
+      <p class="lead">14 dias grátis nos dois planos. Sem taxa de implantação e sem fidelidade. Cancele quando quiser.</p>
+      <div class="toggle" role="group" aria-label="Período de cobrança">
+        <button type="button" id="tMensal" aria-pressed="true">Mensal</button>
+        <button type="button" id="tAnual" aria-pressed="false">Anual <span class="save">2 meses grátis</span></button>
+      </div>
+    </div>
+    <div class="plans">
+      <article class="plan rv">
+        <span class="name">Básico</span>
+        <div><div class="price"><b data-m="249" data-a="207">R$ 249</b><span>/mês</span></div><p class="sub" data-m="por consultório, cobrado mensalmente" data-a="R$ 2.490 por ano, cobrado anualmente">por consultório, cobrado mensalmente</p></div>
+        <a class="btn" href="#contato">Começar grátis</a>
+        <ul>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Agenda por cadeira e lista de espera</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Pacientes, prontuário, fotos e documentos</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>WhatsApp integrado, com as conversas da equipe</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Lembretes e confirmações automáticas</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Financeiro completo e campanhas</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>NÓS Club, equipe ilimitada e várias unidades</li>
+          <li class="off"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b9b9c0" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>Luna atendendo e agendando no WhatsApp</li>
+          <li class="off"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b9b9c0" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>Assistente financeiro por WhatsApp</li>
+        </ul>
+      </article>
+      <article class="plan hi rv">
+        <span class="best">Mais escolhido</span>
+        <span class="name">Com equipe de I.A.</span>
+        <div><div class="price"><b data-m="549" data-a="457">R$ 549</b><span>/mês</span></div><p class="sub" data-m="por consultório, cobrado mensalmente" data-a="R$ 5.490 por ano, cobrado anualmente">por consultório, cobrado mensalmente</p></div>
+        <a class="btn p" href="#contato">Testar 14 dias grátis</a>
+        <ul>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fa971" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg><b style="font-weight:600">Tudo do Básico</b></li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f55f95" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Luna atende, agenda e reduz faltas, 24 horas por dia</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f55f95" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Follow-up automático de quem não respondeu</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f55f95" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Tom de voz e regras de atendimento personalizáveis</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f55f95" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Assistente financeiro: nota, boleto e comprovante por WhatsApp</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f55f95" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Assistente de gestão incluído no lançamento</li>
+          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f55f95" stroke-width="2.5" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>Configuração da I.A. feita junto com você</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="eyebrow"><i></i>Dúvidas</span>
+      <h2>O que todo mundo pergunta.</h2>
+    </div>
+    <div class="faq rv">
+      <details><summary>A Luna usa o meu número de WhatsApp de sempre?</summary><p>Sim. Ela atende no número que os seus pacientes já conhecem. A equipe continua vendo e respondendo tudo pela tela de Conversas, e pode assumir qualquer conversa a qualquer momento.</p></details>
+      <details><summary>Ela vai responder os meus pacientes antigos sem eu querer?</summary><p>Não. Você escolhe com quem ela fala: só quem chega de anúncio, só contatos novos, ou todo mundo. E quando alguém da equipe entra na conversa, a Luna sai de cena sozinha.</p></details>
+      <details><summary>Preciso trocar de sistema de uma vez?</summary><p>Não. Você importa os pacientes, conecta o WhatsApp e usa em paralelo até se sentir seguro. A gente acompanha a migração.</p></details>
+      <details><summary>Os dados são meus? Onde ficam?</summary><p>São seus. Ficam em servidores no Brasil, com backup diário, e você pode exportar tudo quando quiser.</p></details>
+      <details><summary>Tem fidelidade ou taxa de implantação?</summary><p>Nenhuma das duas. O plano anual é opcional e sai com dois meses grátis.</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="final" id="contato">
+  <div class="wrap" style="display:grid;gap:22px;justify-items:center">
+    <span class="eyebrow"><i></i>Comece hoje</span>
+    <h2>Coloque a sua equipe de I.A. para trabalhar.</h2>
+    <p class="lead" style="text-align:center">14 dias grátis, sem cartão. Em uma ligação de 20 minutos a gente configura a Luna com o seu tom de voz.</p>
+    <div class="hero-ctas" style="justify-content:center">
+      <a class="btn p" href="#planos">Testar 14 dias grátis</a>
+      <a class="btn" href="#assistentes">Agendar demonstração</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <img src="{{LOGO}}" alt="NÓS Conecta">
+    <span>Sistema odontológico com I.A. · Feito no Brasil</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Ticker: duplicate the lane once so the loop is seamless.
+  var lane = document.getElementById('lane');
+  lane.innerHTML += lane.innerHTML;
+
+  // Reveal on scroll: everything is visible first; only what is below the fold gets the pre state.
+  var rvs = [].slice.call(document.querySelectorAll('.rv'));
+  if (!reduce && 'IntersectionObserver' in window) {
+    var vh = innerHeight;
+    rvs.forEach(function(el){ if (el.getBoundingClientRect().top > vh * .9) el.classList.add('pre'); });
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if (e.isIntersecting) { e.target.classList.remove('pre'); io.unobserve(e.target); } });
+    }, { rootMargin: '0px 0px -8% 0px' });
+    rvs.forEach(function(el){ io.observe(el); });
+  }
+
+  // Chat demo
+  var msgs = [].slice.call(document.querySelectorAll('#msgs .m'));
+  var typing = document.getElementById('typing');
+  var booked = document.getElementById('booked');
+  var timers = [];
+  function clear(){ timers.forEach(clearTimeout); timers = []; }
+  function play(){
+    clear();
+    msgs.forEach(function(m){ m.classList.remove('on'); });
+    booked.classList.remove('on'); typing.classList.remove('on');
+    if (reduce) { msgs.forEach(function(m){ m.classList.add('on'); }); booked.classList.add('on'); return; }
+    var t = 300;
+    msgs.forEach(function(m, i){
+      var mine = m.classList.contains('me');
+      if (!mine) { timers.push(setTimeout(function(){ typing.classList.add('on'); msgs[i].parentNode.insertBefore(typing, msgs[i]); }, t)); t += 1100; }
+      timers.push(setTimeout(function(){ typing.classList.remove('on'); m.classList.add('on'); }, t));
+      t += mine ? 900 : 700;
+    });
+    timers.push(setTimeout(function(){ booked.classList.add('on'); }, t + 200));
+  }
+  var played = false;
+  var demo = document.getElementById('demo');
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function(es, o){ if (es[0].isIntersecting && !played) { played = true; play(); o.disconnect(); } }, { threshold: .35 }).observe(demo);
+  } else { play(); }
+  document.getElementById('replay').addEventListener('click', play);
+
+  // Pricing toggle
+  var tM = document.getElementById('tMensal'), tA = document.getElementById('tAnual');
+  function set(anual){
+    tM.setAttribute('aria-pressed', String(!anual)); tA.setAttribute('aria-pressed', String(anual));
+    document.querySelectorAll('.price b').forEach(function(b){ b.textContent = 'R$ ' + b.dataset[anual ? 'a' : 'm']; });
+    document.querySelectorAll('.plan .sub').forEach(function(s){ s.textContent = s.dataset[anual ? 'a' : 'm']; });
+  }
+  tM.addEventListener('click', function(){ set(false); });
+  tA.addEventListener('click', function(){ set(true); });
+})();
+</script>

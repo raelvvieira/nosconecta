@@ -1,0 +1,8 @@
+# Página de vendas do NÓS Conecta — só arquivos estáticos, sem código no servidor.
+# Publicar: node scripts/publicar-vendas.mjs
+name = "nos-conecta-vendas"
+compatibility_date = "2026-10-01"
+
+[assets]
+directory = "./publico"
+not_found_handling = "single-page-application"
