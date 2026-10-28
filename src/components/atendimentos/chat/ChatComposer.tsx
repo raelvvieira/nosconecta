@@ -1,4 +1,4 @@
-import { useImperativeHandle, useRef, useState } from "react";
+import { useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
@@ -42,6 +42,9 @@ import { ScheduleMessageDialog } from "./ScheduleMessageDialog";
 // motivo no tooltip — some da tela seria pior: o time não saberia que estão
 // previstos. Ligar depois é trocar o handler, a tela já existe.
 const SOON = "Em breve — falta o CRM disponibilizar esse recurso.";
+
+/** Até onde a caixa de texto cresce (umas seis linhas) antes de rolar. */
+const ALTURA_MAXIMA_DO_TEXTO = 160;
 
 /**
  * O que outra parte da tela pode pedir ao composer.
@@ -117,6 +120,19 @@ export function ChatComposer({
   // O prefixo marca templates criados automaticamente pelo fluxo de
   // campanhas ("[Digitado] ..."), que não fazem sentido como resposta rápida.
   const templates = (templatesQuery.data ?? []).filter((t) => !t.name.startsWith("[Digitado]"));
+
+  // A caixa cresce com o texto: uma linha quando vazia, até uns seis antes
+  // de rolar por dentro. Com altura fixa, uma mensagem longa ficava toda
+  // escondida numa linha só, e não dava para reler o que se escreveu antes de
+  // mandar. Medido a cada mudança do valor (digitar, colar, resposta rápida,
+  // limpar depois de enviar): `auto` primeiro para ela também ENCOLHER.
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, ALTURA_MAXIMA_DO_TEXTO)}px`;
+    el.style.overflowY = el.scrollHeight > ALTURA_MAXIMA_DO_TEXTO ? "auto" : "hidden";
+  }, [value]);
 
   const insertAtCursor = (text: string) => {
     const el = textareaRef.current;
@@ -399,7 +415,7 @@ export function ChatComposer({
           }}
           placeholder={isPrivate ? "Escreva uma nota interna" : "Escreva uma mensagem"}
           rows={1}
-          className="max-h-32 min-h-11 flex-1 resize-none rounded-xl bg-white"
+          className="max-h-40 min-h-11 flex-1 resize-none rounded-xl bg-white py-2.5 leading-6"
         />
 
         {/* IA e áudio */}
