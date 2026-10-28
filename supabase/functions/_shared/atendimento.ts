@@ -24,6 +24,7 @@ import { semTravessao } from "./sem-travessao.ts";
 import { emojiNaMedida } from "./emoji-na-medida.ts";
 import { cancelarRecuperacao, iniciarRecuperacao } from "./recuperacao-no-banco.ts";
 import { pediuParaParar } from "./recuperacao.ts";
+import { CORRECAO_VALOR_ANTES_DO_HORARIO, horarioAntesDoValor } from "./valor-antes-do-horario.ts";
 import { aClinicaJaFalou, ehEcoDaPropriaIa, oQueEuMandei } from "./historico-da-clinica.ts";
 import { blocoSemResposta, jaDisseIssoAgora } from "./nao-repetir.ts";
 import {
@@ -1170,7 +1171,29 @@ async function responderComModelo(
     .map((m) => `${m.deQuem === "clinica" ? "VOCÊ" : "PACIENTE"}: ${m.texto}`)
     .join("\n");
 
-  const resposta = await deps.responderComIa(instrucao.texto, historico, bloco);
+  let resposta = await deps.responderComIa(instrucao.texto, historico, bloco);
+
+  // ── Valor antes de horário ──────────────────────────────────────────────
+  //
+  // A instrução já diz a ordem (regra nº 8). Esta é a rede: resposta com
+  // horário para quem ainda não recebeu valor nenhum nesta conversa volta uma
+  // vez para a Luna reescrever. Se a segunda sair igual, vai assim mesmo: a
+  // pessoa esperando no WhatsApp não fica sem resposta por causa disto.
+  //
+  // Não vale quando ela está FECHANDO um horário que a pessoa escolheu: aí a
+  // escolha já foi feita, e o modo é transacional (manual, A1.14).
+  const daClinica = anteriores.filter((m) => m.deQuem === "clinica").map((m) => m.texto);
+  if (!resposta.horarioFechado && horarioAntesDoValor(resposta.texto, daClinica)) {
+    const corrigida = await deps.responderComIa(
+      instrucao.texto + "\n" + CORRECAO_VALOR_ANTES_DO_HORARIO,
+      historico,
+      bloco,
+    );
+    if (corrigida.texto) resposta = corrigida;
+    if (horarioAntesDoValor(resposta.texto, daClinica)) {
+      console.warn("[atendimento] horário antes do valor mesmo depois da correção");
+    }
+  }
 
   // O código vira vaga AQUI, contra a tabela que montou a instrução. É a
   // fronteira: daqui para baixo o que existe é uma data que veio do banco, não
