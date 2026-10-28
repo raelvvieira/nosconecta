@@ -38,6 +38,20 @@ export interface MessageAttachment {
    * para achar o orçamento.
    */
   nome: string | null;
+  /**
+   * O arquivo está com o WhatsApp, e não num endereço que o navegador abre.
+   *
+   * O evento da Evolution traz a mídia como `mmg.whatsapp.net/….enc`, o arquivo
+   * criptografado. Quem mostra pede o arquivo aberto a `wa-midia`, que decifra
+   * uma vez e guarda no depósito (`path`).
+   */
+  doWhatsapp: boolean;
+}
+
+/** O link criptografado do WhatsApp: abrir direto não mostra nada. */
+export function ehLinkCriptografado(url: string | null): boolean {
+  if (!url) return false;
+  return /^https?:\/\/mm[a-z]\.whatsapp\.net\//i.test(url) || /\.enc(\?|#|$)/i.test(url);
 }
 
 /**
@@ -80,6 +94,7 @@ export function mapAttachments(lista: unknown): MessageAttachment[] {
       thumbUrl: String(a?.thumb_url ?? url),
       // Se o CRM um dia mandar um nome de verdade, ele ganha da dedução.
       nome: (a?.file_name ?? a?.filename ?? null) || nomeDoArquivo(String(url)),
+      doWhatsapp: false,
     });
   }
   return anexos;
@@ -103,12 +118,17 @@ export function anexosDoEspelho(lista: unknown): MessageAttachment[] {
     const bruto = String(a.tipo ?? "file");
     const url = a.url ? String(a.url) : null;
     const nome = a.nome ? String(a.nome) : null;
+    // Já decifrado (`path`) ou ainda criptografado: os dois se abrem por
+    // `wa-midia`. O nome do link criptografado é um id com `.enc`, e mostrar
+    // isso é pior do que não mostrar nome.
+    const doWhatsapp = Boolean(a.path) || ehLinkCriptografado(url);
     anexos.push({
       id: String(a.id ?? url ?? anexos.length),
       tipo: (TIPOS_DE_ANEXO.has(bruto) ? bruto : "file") as MessageAttachment["tipo"],
       url,
       thumbUrl: a.thumbUrl ? String(a.thumbUrl) : url,
-      nome: nome || (url ? nomeDoArquivo(url) : null),
+      nome: nome || (url && !doWhatsapp ? nomeDoArquivo(url) : null),
+      doWhatsapp,
     });
   }
   return anexos;

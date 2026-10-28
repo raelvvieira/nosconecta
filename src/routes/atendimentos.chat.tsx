@@ -959,7 +959,12 @@ function ChatPage() {
                           embaixo da foto, e é assim que o disparo com imagem
                           legendada chegou para quem recebeu. */}
                       {m.attachments.map((a) => (
-                        <AnexoDaMensagem key={a.id} anexo={a} claro={m.fromMe && !m.isPrivate} />
+                        <AnexoDaMensagem
+                          key={a.id}
+                          anexo={a}
+                          messageId={m.id}
+                          claro={m.fromMe && !m.isPrivate}
+                        />
                       ))}
                       {m.body && <p className="mt-1 whitespace-pre-wrap break-words">{m.body}</p>}
                       <span

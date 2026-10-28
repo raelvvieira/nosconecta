@@ -499,6 +499,26 @@ async function mensagensDoEspelho(
   }
 }
 
+/**
+ * O link aberto de uma foto, áudio ou documento que chegou pelo WhatsApp.
+ *
+ * O espelho guarda o link CRIPTOGRAFADO que vem no evento da Evolution; quem
+ * decifra é `wa-midia`, uma vez por mensagem (ver o comentário de lá).
+ */
+export const abrirMidiaDoWhatsapp = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { messageId: string }) => input)
+  .handler(async ({ data, context }) => {
+    const json = await callEdgeFunction("wa-midia", {
+      ownerId: context.ownerId,
+      messageId: data.messageId,
+    });
+    return {
+      url: typeof json?.url === "string" ? json.url : null,
+      erro: typeof json?.erro === "string" ? json.erro : null,
+    };
+  });
+
 export const sendWhatsappMessage = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
   // isPrivate = nota interna: registra na conversa dentro do CRM sem enviar

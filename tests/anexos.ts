@@ -4,7 +4,12 @@
 // espelho grava `tipo`/`url`/`thumbUrl`. Ler uma com o leitor da outra não dá
 // erro: devolve lista vazia, e a foto que o paciente mandou vira uma bolha em
 // branco.
-import { anexosDoEspelho, mapAttachments, nomeDoArquivo } from "../src/lib/atendimentos/anexos.ts";
+import {
+  anexosDoEspelho,
+  ehLinkCriptografado,
+  mapAttachments,
+  nomeDoArquivo,
+} from "../src/lib/atendimentos/anexos.ts";
 
 let ok = 0;
 const falhas: string[] = [];
@@ -32,6 +37,7 @@ conferir(
       url: "https://crm/x/foto.png",
       thumbUrl: "https://crm/t.png",
       nome: "foto.png",
+      doWhatsapp: false,
     },
   ],
 );
@@ -57,6 +63,7 @@ conferir(
       url: "https://evo/foto.jpg",
       thumbUrl: "https://evo/foto.jpg",
       nome: "foto.jpg",
+      doWhatsapp: false,
     },
   ],
 );
@@ -65,7 +72,7 @@ conferir(
 conferir(
   "anexo sem url sobrevive",
   anexosDoEspelho([{ id: "ABC", tipo: "image", url: null, thumbUrl: null, nome: null }]),
-  [{ id: "ABC", tipo: "image", url: null, thumbUrl: null, nome: null }],
+  [{ id: "ABC", tipo: "image", url: null, thumbUrl: null, nome: null, doWhatsapp: false }],
 );
 conferir(
   "tipo desconhecido vira arquivo",
@@ -77,6 +84,7 @@ conferir(
       url: "https://evo/a.bin",
       thumbUrl: "https://evo/a.bin",
       nome: "a.bin",
+      doWhatsapp: false,
     },
   ],
 );
@@ -90,6 +98,7 @@ conferir(
       url: "https://evo/v.mp4",
       thumbUrl: "https://evo/v.mp4",
       nome: "v.mp4",
+      doWhatsapp: false,
     },
   ],
 );
@@ -122,6 +131,7 @@ conferir(
       url: "https://evo/f.png",
       thumbUrl: "https://evo/f.png",
       nome: "f.png",
+      doWhatsapp: false,
     },
   ],
 );
@@ -138,6 +148,24 @@ conferir(
   nomeDoArquivo("https://crm/Or%C3%A7amento%20final.pdf"),
   "Orçamento final.pdf",
 );
+
+// ── O link criptografado do WhatsApp ────────────────────────────────────
+const ENC =
+  "https://mmg.whatsapp.net/v/t62.7117-24/876_n.enc?ccb=11-4&oh=01_Q5Aa&oe=6B09&_nc_sid=5e03e0&mms3=true";
+conferir(
+  "link .enc vai para wa-midia e não vira nome",
+  anexosDoEspelho([{ id: "2A51", tipo: "audio", url: ENC }]),
+  [{ id: "2A51", tipo: "audio", url: ENC, thumbUrl: ENC, nome: null, doWhatsapp: true }],
+);
+conferir(
+  "já decifrado (path) também vai para wa-midia",
+  anexosDoEspelho([{ id: "2A51", tipo: "image", url: ENC, path: "o/recebidas/2A51.jpg" }])[0]
+    .doWhatsapp,
+  true,
+);
+conferir("ehLinkCriptografado reconhece mmg", ehLinkCriptografado(ENC), true);
+conferir("ehLinkCriptografado ignora o resto", ehLinkCriptografado("https://evo/foto.jpg"), false);
+conferir("ehLinkCriptografado sem link", ehLinkCriptografado(null), false);
 
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);

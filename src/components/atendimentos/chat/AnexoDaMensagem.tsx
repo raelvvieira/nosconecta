@@ -1,7 +1,12 @@
 import { useState } from "react";
-import { FileText, ImageOff } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
+import { FileText, ImageOff, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { MessageAttachment } from "@/lib/atendimentos/atendimentos.functions";
+import {
+  abrirMidiaDoWhatsapp,
+  type MessageAttachment,
+} from "@/lib/atendimentos/atendimentos.functions";
 
 const NOME_DO_TIPO: Record<MessageAttachment["tipo"], string> = {
   image: "Foto",
@@ -19,7 +24,82 @@ const NOME_DO_TIPO: Record<MessageAttachment["tipo"], string> = {
  * a imagem não carregou. Sumir em silêncio é como o chat chegou até aqui
  * parecendo que ninguém nunca mandou foto.
  */
-export function AnexoDaMensagem({ anexo, claro }: { anexo: MessageAttachment; claro: boolean }) {
+export function AnexoDaMensagem({
+  anexo,
+  messageId,
+  claro,
+}: {
+  anexo: MessageAttachment;
+  messageId: string;
+  claro: boolean;
+}) {
+  if (anexo.doWhatsapp)
+    return <AnexoDoWhatsapp anexo={anexo} messageId={messageId} claro={claro} />;
+  return <AnexoComLink anexo={anexo} claro={claro} />;
+}
+
+/**
+ * O anexo que chegou pelo WhatsApp: o link guardado é o arquivo criptografado,
+ * então o aberto é pedido a `wa-midia`. Da primeira vez ele decifra e guarda
+ * (um ou dois segundos); das outras é só assinar.
+ *
+ * 50 minutos de cache porque o link assinado vale uma hora: a conversa aberta
+ * por muito tempo não fica com um áudio que parou de tocar.
+ */
+function AnexoDoWhatsapp({
+  anexo,
+  messageId,
+  claro,
+}: {
+  anexo: MessageAttachment;
+  messageId: string;
+  claro: boolean;
+}) {
+  const abrir = useServerFn(abrirMidiaDoWhatsapp);
+  const consulta = useQuery({
+    queryKey: ["midia-do-whatsapp", messageId],
+    queryFn: () => abrir({ data: { messageId } }),
+    staleTime: 50 * 60_000,
+    gcTime: 55 * 60_000,
+    retry: 1,
+  });
+
+  if (consulta.isPending) {
+    return (
+      <span
+        className={cn(
+          "mt-1 flex max-w-full items-center gap-2 rounded-xl px-3 py-2 text-xs",
+          claro ? "bg-white/15 text-white/90" : "bg-muted text-muted-foreground",
+        )}
+      >
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+        <span className="truncate">Abrindo {NOME_DO_TIPO[anexo.tipo].toLowerCase()}…</span>
+      </span>
+    );
+  }
+
+  const url = consulta.data?.url ?? null;
+  if (!url) {
+    return (
+      <span
+        className={cn(
+          "mt-1 flex max-w-full items-center gap-2 rounded-xl px-3 py-2 text-xs",
+          claro ? "bg-white/15 text-white/90" : "bg-muted text-muted-foreground",
+        )}
+        title={consulta.data?.erro ?? undefined}
+      >
+        <ImageOff className="h-4 w-4 shrink-0" />
+        <span className="truncate">
+          {NOME_DO_TIPO[anexo.tipo]} não disponível. Veja no celular.
+        </span>
+      </span>
+    );
+  }
+
+  return <AnexoComLink anexo={{ ...anexo, url, thumbUrl: url, doWhatsapp: false }} claro={claro} />;
+}
+
+function AnexoComLink({ anexo, claro }: { anexo: MessageAttachment; claro: boolean }) {
   const [falhou, setFalhou] = useState(false);
 
   // Sem URL não dá para abrir nada — mas o anexo EXISTE, e dizer isso é o
