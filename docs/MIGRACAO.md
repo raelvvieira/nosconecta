@@ -173,7 +173,9 @@ Lista do ensaio:
 Todos os comandos com `NOVO_PROJETO_REF` no ambiente. O "SQL no Lovable" roda
 pelo MCP do Lovable (`query_database`).
 
-1. **Congelar o Lovable** (SQL no Lovable): `update cron.job set active = false;`
+1. **Congelar o Lovable** (SQL no Lovable):
+   `select cron.alter_job(jobid, active := false) from cron.job;`
+   (`update cron.job` é negado ao usuário do MCP).
    Anotar a hora `T` (ex.: `2026-10-27T21:00:00-03:00`).
 2. `node scripts/migracao/limpar-dados.mjs --sim` — banco novo sem dados.
 3. **Cópia final**: `DE=0 ATE=30 node scripts/migracao/sql-de-envio.mjs /tmp/onda.sql`
@@ -183,8 +185,9 @@ pelo MCP do Lovable (`query_database`).
    (`created_at::date`) — repetir não duplica.
 4. `node scripts/migracao/copiar-arquivos.mjs` (regrava tudo, ~10 min).
 5. **WhatsApp — a pessoa, na VPS**: hPanel → VPS → Gerenciador Docker →
-   Evolution → Ambiente → `WEBHOOK_URL`: trocar só `ddfteoeehsticjhojpka`
-   por `cuqbpelstbgihhxmcrfn` → salvar → reiniciar o contêiner.
+   projeto `nos-evolution` → editar o YAML → `WEBHOOK_GLOBAL_URL` (linha 29):
+   trocar só `ddfteoeehsticjhojpka` por `cuqbpelstbgihhxmcrfn` → salvar e
+   reimplantar (os 3 contêineres voltam como Running).
 6. **Acerto final**: `DESDE=<T menos 10 min> node scripts/migracao/sql-de-envio.mjs /tmp/acerto.sql`
    → rodar no Lovable. Pega o que chegou ou mudou lá desde o congelamento
    (atualiza quem já existe; conversas e contatos vão inteiros).
@@ -195,11 +198,25 @@ pelo MCP do Lovable (`query_database`).
    aparece em Conversas → a Luna responde. Entrar por `login.nosodontoesaude.com.br`.
 10. `node scripts/migracao/fechar-recepcao.mjs`.
 
+### Registro da virada (27/10, noite)
+
+- 21:03 Lovable congelado; 21:05 banco novo limpo; cópia em 467 lotes,
+  conferida até "diferenças: 0" nas 57 tabelas; 1.163 arquivos.
+- `WEBHOOK_GLOBAL_URL` trocado na VPS; acerto final desde 20:53; as 7
+  tarefas ligadas no novo; `login` e `club` no Worker.
+- `club.…/` caía no login da equipe: a raiz agora leva a `/club`
+  (`src/routes/index.tsx` e o `AuthGate`).
+- Teste real às 22:16: a mensagem do celular chegou ao banco novo em 1 s. A
+  Luna avaliou e não respondeu ("humano assumiu a conversa"), como antes.
+- `fechar-recepcao.mjs` rodado.
+- Pendente: trocar as chaves que apareceram num print (`AUTHENTICATION_API_KEY`
+  da Evolution, `WA_WEBHOOK_SECRET` na VPS e no Supabase, `POSTGRES_PASSWORD`).
+
 ### Como voltar (até 15 dias depois)
 
 1. `node scripts/migracao/trocar-dominio.mjs lovable`; `WEBHOOK_URL` da VPS de volta.
 2. `node scripts/migracao/ligar-rotinas.mjs desligar` no novo.
-3. No Lovable: `update cron.job set active = true;`
+3. No Lovable: `select cron.alter_job(jobid, active := true) from cron.job;`
 4. O que foi criado no meio-tempo fica no novo e é trazido de volta à parte.
 
 ### Fase 6 — depois de 15 dias tranquilos
