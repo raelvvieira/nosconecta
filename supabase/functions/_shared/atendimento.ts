@@ -377,7 +377,12 @@ export async function atender(
       // sessão. As duas leituras concordam no webhook, que calcula o fato do
       // mesmo anúncio; a segunda é o que sustenta a conversa a partir da
       // segunda mensagem, quando o marcador não vem mais.
-      veioDeAnuncio: entrada.veioDeAnuncio !== false || anuncio !== null,
+      //
+      // E a Luna já ter falado aqui: o filtro decide quem ENTRA, não quem
+      // continua. Quem chegou pelo site não tem anúncio guardado, e sem isto
+      // a segunda mensagem dela ficaria sem resposta no meio da conversa.
+      veioDeAnuncio:
+        entrada.veioDeAnuncio !== false || anuncio !== null || !!sessao.last_outbound_at,
       semHistorico,
       ecoDaPropriaIa,
     },

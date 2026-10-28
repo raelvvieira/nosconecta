@@ -27,6 +27,7 @@ import { enviarWhatsapp, type MidiaDeEnvio } from "./whatsapp-send.ts";
 import { pushToOwner } from "./push.ts";
 import type { MensagemEspelhada } from "./evolution-mapear.ts";
 import { anuncioDoEvento } from "./veio-de-anuncio.ts";
+import { portaDeEntrada } from "./porta-de-entrada.ts";
 import { procedimentoDoTexto, SEM_PROCEDIMENTO } from "./agendamento-da-ia.ts";
 import type { CasoComCodigo } from "./casos-da-ia.ts";
 
@@ -206,7 +207,10 @@ export async function deixarOAgenteResponder(
       // O fato para o filtro, calculado do mesmo anúncio. A partir da segunda
       // mensagem o marcador não vem mais e este fato é `false`; quem sustenta a
       // conversa daí em diante é o anúncio guardado na sessão, em `atender`.
-      veioDeAnuncio: anuncio !== null,
+      //
+      // Ou a mensagem pronta de uma porta de captação sem marcador: o botão do
+      // site, o anúncio que perdeu o clique no caminho (`porta-de-entrada.ts`).
+      veioDeAnuncio: anuncio !== null || portaDeEntrada(m.body) !== null,
     };
 
     const resultado = await atender(
