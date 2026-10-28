@@ -43,6 +43,7 @@ import { debitDailyUsage, getDailyUsage } from "../_shared/daily-quota.ts";
 import { agoraNaClinica } from "../_shared/agenda-da-clinica.ts";
 import { instrucaoDaLuna } from "../_shared/atendimento.ts";
 import { semTravessao } from "../_shared/sem-travessao.ts";
+import { emojiNaMedida } from "../_shared/emoji-na-medida.ts";
 import { jaDisseIssoAgora } from "../_shared/nao-repetir.ts";
 import { oQueEuMandei } from "../_shared/historico-da-clinica.ts";
 import { type Anuncio } from "../_shared/veio-de-anuncio.ts";
@@ -304,16 +305,21 @@ async function cuidarDaClinica(agente: {
       continue;
     }
 
-    const mensagem = semTravessao(String(texto ?? "").trim());
+    // A janela é larga aqui (48h) porque o que não pode repetir é a MENSAGEM
+    // ANTERIOR da conversa, não uma de minutos atrás. A mesma leitura decide o
+    // emoji: um follow-up também não sorri se a Luna sorriu há pouco.
+    const jaDitas = await oQueEuMandei(supabase, s.id, agora, 48 * 60);
+    const mensagem = emojiNaMedida(
+      semTravessao(String(texto ?? "").trim()),
+      jaDitas.map((m) => m.texto),
+    );
     if (!mensagem) {
       registrar("o modelo preferiu não escrever");
       continue;
     }
 
     // A mesma rede do atendimento: um follow-up que repete o que já foi dito é
-    // pior que nenhum. A janela é larga aqui (48h) porque o que não pode
-    // repetir é a MENSAGEM ANTERIOR da conversa, não uma de minutos atrás.
-    const jaDitas = await oQueEuMandei(supabase, s.id, agora, 48 * 60);
+    // pior que nenhum.
     const repetida = jaDisseIssoAgora(
       mensagem,
       jaDitas.map((m) => m.texto),

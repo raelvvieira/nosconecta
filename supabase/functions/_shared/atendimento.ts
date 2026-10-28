@@ -21,6 +21,7 @@ import { esperaDeDigitacao, normalizarRitmo, segmentar } from "./humanizacao.ts"
 import { manualEfetivo, montarInstrucao } from "./instrucao-do-agente.ts";
 import { agoraNaClinica, horariosParaOferecer } from "./agenda-da-clinica.ts";
 import { semTravessao } from "./sem-travessao.ts";
+import { emojiNaMedida } from "./emoji-na-medida.ts";
 import { aClinicaJaFalou, ehEcoDaPropriaIa, oQueEuMandei } from "./historico-da-clinica.ts";
 import { blocoSemResposta, jaDisseIssoAgora } from "./nao-repetir.ts";
 import {
@@ -544,7 +545,17 @@ export async function atender(
   // Vale para os dois modos, não só o de IA: a frase fixa também é escrita por
   // uma pessoa, e uma pessoa que colou texto de algum lugar pode ter trazido
   // travessão junto.
-  const pedacos = segmentar(semTravessao(texto), ritmo);
+  //
+  // O emoji também sai na medida aqui, olhando as últimas respostas desta
+  // conversa: um sorriso a cada três mensagens, no máximo (`emoji-na-medida.ts`).
+  const anteriores = await oQueEuMandei(supabase, sessao.id, agora, 30 * 24 * 60);
+  const pedacos = segmentar(
+    emojiNaMedida(
+      semTravessao(texto),
+      anteriores.map((m) => m.texto),
+    ),
+    ritmo,
+  );
   const enviados: string[] = [];
   for (const [indice, pedaco] of pedacos.entries()) {
     // A imagem vai no ÚLTIMO pedaço, como legenda dele.
