@@ -1,5 +1,6 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { MessagesSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { minhaFranquia } from "@/lib/plataforma/plataforma.functions";
@@ -46,9 +47,19 @@ export function ConversasDoMes() {
       </div>
       {passou && data.extras <= 0 && (
         <p className="mt-2 text-xs leading-5 text-danger">
-          O limite do mês chegou: as conversas novas ficam com a equipe até o mês virar. Fale com a
-          gente se precisar de mais.
+          O limite do mês chegou: as conversas novas ficam com a equipe até o mês virar ou até
+          entrar um pacote extra.
         </p>
+      )}
+      {/* Perto do limite, o caminho para comprar mais. A compra é pelo Asaas,
+          na tela de Plano (só quem administra paga). */}
+      {pct >= 80 && (
+        <Link
+          to="/configuracoes/plano"
+          className="press mt-3 inline-flex text-sm font-medium text-coral underline-offset-2 hover:underline"
+        >
+          Comprar mais conversas
+        </Link>
       )}
     </Bloco>
   );

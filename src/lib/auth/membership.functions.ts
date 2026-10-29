@@ -18,7 +18,7 @@ export interface MembershipStatus {
   recursos: RecursosDoConsultorio | null;
   /** O consultório inteiro parou: o teste venceu ou a plataforma suspendeu.
    *  `null` = funcionando. */
-  parado: "teste_vencido" | "suspenso" | null;
+  parado: "teste_vencido" | "suspenso" | "pagamento_atrasado" | null;
 }
 
 /**
@@ -56,8 +56,12 @@ export const getMembershipStatus = createServerFn({ method: "GET" })
       recursos: data.status === "active" ? recursosDaFicha(ficha, agora) : null,
       parado: !consultorioParado(ficha, agora)
         ? null
-        : ficha?.situacao === "suspensa" || !testeVencido(ficha?.teste_ate ?? null, agora)
+        : ficha?.situacao === "suspensa"
           ? "suspenso"
-          : "teste_vencido",
+          : ficha?.situacao === "ativa"
+            ? "pagamento_atrasado"
+            : testeVencido(ficha?.teste_ate ?? null, agora)
+              ? "teste_vencido"
+              : "suspenso",
     };
   });

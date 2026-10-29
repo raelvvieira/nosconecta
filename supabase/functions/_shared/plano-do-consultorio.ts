@@ -24,9 +24,28 @@ export interface FichaDoPlano {
   plano: Plano | string | null;
   situacao: Situacao | string | null;
   teste_ate: string | null;
+  /** Até quando a assinatura está paga (Asaas). Nulo = não se aplica: a NÓS,
+   *  quem a plataforma ativou à mão, quem está em teste. */
+  pago_ate?: string | null;
 }
 
-export type MotivoSemIa = "plano básico" | "consultório suspenso" | "teste vencido";
+export type MotivoSemIa =
+  | "plano básico"
+  | "consultório suspenso"
+  | "teste vencido"
+  | "pagamento atrasado";
+
+/** Dias de folga depois do "pago até" antes de parar: um cartão recusado
+ *  num dia não pode fechar o consultório no dia seguinte. */
+export const FOLGA_DO_PAGAMENTO_DIAS = 7;
+
+/** A assinatura venceu há mais que a folga, sem pagamento novo? */
+export function pagamentoAtrasado(pagoAte: string | null | undefined, agora: Date): boolean {
+  if (!pagoAte) return false;
+  const fim = new Date(pagoAte).getTime();
+  if (!Number.isFinite(fim)) return false;
+  return agora.getTime() > fim + FOLGA_DO_PAGAMENTO_DIAS * 86_400_000;
+}
 
 /** O consultório pode usar a assistente agora? `null` = pode. */
 export function semIaPorque(ficha: FichaDoPlano | null, agora: Date): MotivoSemIa | null {
@@ -35,6 +54,9 @@ export function semIaPorque(ficha: FichaDoPlano | null, agora: Date): MotivoSemI
   if (!ficha) return null;
   if (ficha.situacao === "suspensa") return "consultório suspenso";
   if (ficha.situacao === "teste" && testeVencido(ficha.teste_ate, agora)) return "teste vencido";
+  if (ficha.situacao === "ativa" && pagamentoAtrasado(ficha.pago_ate, agora)) {
+    return "pagamento atrasado";
+  }
   if (ficha.plano !== "ia") return "plano básico";
   return null;
 }
@@ -52,6 +74,7 @@ export function testeVencido(testeAte: string | null, agora: Date): boolean {
 export function consultorioParado(ficha: FichaDoPlano | null, agora: Date): boolean {
   if (!ficha) return false;
   if (ficha.situacao === "suspensa") return true;
+  if (ficha.situacao === "ativa" && pagamentoAtrasado(ficha.pago_ate, agora)) return true;
   return ficha.situacao === "teste" && testeVencido(ficha.teste_ate, agora);
 }
 

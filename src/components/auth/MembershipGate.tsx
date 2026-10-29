@@ -129,26 +129,47 @@ function MembershipCheck({ children }: { children: ReactNode }) {
   // tela só, e nada sai (a assistente e as rotinas também param, no
   // servidor). Os dados continuam lá: voltando a ficar ativo, tudo reabre.
   // `/plataforma` fica de fora: quem administra a plataforma nunca se tranca.
-  if (status.parado && !pathname.startsWith("/plataforma")) {
+  // A tela de Plano fica aberta para quem administra: é por ela que se paga,
+  // e é pagando que o consultório volta.
+  const podePagar = status.role === "admin";
+  if (
+    status.parado &&
+    !pathname.startsWith("/plataforma") &&
+    !(podePagar && pathname.startsWith("/configuracoes/plano"))
+  ) {
+    const titulo =
+      status.parado === "teste_vencido"
+        ? "Seu período de teste terminou"
+        : status.parado === "pagamento_atrasado"
+          ? "O pagamento do plano está em aberto"
+          : "Consultório pausado";
+    const texto =
+      status.parado === "teste_vencido"
+        ? "Seus dados estão guardados. Escolha um plano para continuar usando a NÓS Conecta."
+        : status.parado === "pagamento_atrasado"
+          ? "A assinatura venceu e não encontramos o pagamento. Seus dados estão guardados: é só pagar para tudo voltar."
+          : "O acesso a este consultório está pausado. Seus dados estão guardados. Fale com a gente para reativar.";
     return (
       <GateScreen
         icon={<ShieldAlert className="h-6 w-6 text-coral" />}
-        title={
-          status.parado === "teste_vencido"
-            ? "Seu período de teste terminou"
-            : "Consultório pausado"
-        }
+        title={titulo}
         description={
-          status.parado === "teste_vencido"
-            ? "Seus dados estão guardados. Para continuar usando a NÓS Conecta, fale com a gente e escolha um plano."
-            : "O acesso a este consultório está pausado. Seus dados estão guardados. Fale com a gente para reativar."
+          podePagar || status.parado === "suspenso"
+            ? texto
+            : `${texto} Quem administra o consultório consegue resolver.`
         }
         actions={
-          <Button variant="premium" asChild>
-            <a href="https://conecta.nosodontoesaude.com.br" target="_blank" rel="noreferrer">
-              Falar com a NÓS Conecta
-            </a>
-          </Button>
+          podePagar && status.parado !== "suspenso" ? (
+            <Button variant="premium" asChild>
+              <a href="/configuracoes/plano">Escolher o plano e pagar</a>
+            </Button>
+          ) : (
+            <Button variant="premium" asChild>
+              <a href="https://conecta.nosodontoesaude.com.br" target="_blank" rel="noreferrer">
+                Falar com a NÓS Conecta
+              </a>
+            </Button>
+          )
         }
         onSignOut={handleSignOut}
       />

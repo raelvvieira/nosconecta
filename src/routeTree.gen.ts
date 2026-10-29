@@ -40,6 +40,7 @@ import { Route as ConfiguracoesGrupoDoFinanceiroRouteImport } from './routes/con
 import { Route as ConfiguracoesIntegracoesRouteImport } from './routes/configuracoes.integracoes'
 import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
 import { Route as ConfiguracoesPessoalRouteImport } from './routes/configuracoes.pessoal'
+import { Route as ConfiguracoesPlanoRouteImport } from './routes/configuracoes.plano'
 import { Route as ConfiguracoesTagsRouteImport } from './routes/configuracoes.tags'
 import { Route as ConviteConsultorioTokenRouteImport } from './routes/convite-consultorio.$token'
 import { Route as ConviteTokenRouteImport } from './routes/convite.$token'
@@ -208,6 +209,11 @@ const ConfiguracoesPessoalRoute = ConfiguracoesPessoalRouteImport.update({
   path: '/pessoal',
   getParentRoute: () => ConfiguracoesRoute,
 } as any)
+const ConfiguracoesPlanoRoute = ConfiguracoesPlanoRouteImport.update({
+  id: '/plano',
+  path: '/plano',
+  getParentRoute: () => ConfiguracoesRoute,
+} as any)
 const ConfiguracoesTagsRoute = ConfiguracoesTagsRouteImport.update({
   id: '/tags',
   path: '/tags',
@@ -281,6 +287,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/pessoal': typeof ConfiguracoesPessoalRoute
+  '/configuracoes/plano': typeof ConfiguracoesPlanoRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
   '/convite-consultorio/$token': typeof ConviteConsultorioTokenRoute
   '/convite/$token': typeof ConviteTokenRoute
@@ -317,6 +324,7 @@ export interface FileRoutesByTo {
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/pessoal': typeof ConfiguracoesPessoalRoute
+  '/configuracoes/plano': typeof ConfiguracoesPlanoRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
   '/convite-consultorio/$token': typeof ConviteConsultorioTokenRoute
   '/convite/$token': typeof ConviteTokenRoute
@@ -359,6 +367,7 @@ export interface FileRoutesById {
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/pessoal': typeof ConfiguracoesPessoalRoute
+  '/configuracoes/plano': typeof ConfiguracoesPlanoRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
   '/convite-consultorio/$token': typeof ConviteConsultorioTokenRoute
   '/convite/$token': typeof ConviteTokenRoute
@@ -402,6 +411,7 @@ export interface FileRouteTypes {
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
     | '/configuracoes/pessoal'
+    | '/configuracoes/plano'
     | '/configuracoes/tags'
     | '/convite-consultorio/$token'
     | '/convite/$token'
@@ -438,6 +448,7 @@ export interface FileRouteTypes {
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
     | '/configuracoes/pessoal'
+    | '/configuracoes/plano'
     | '/configuracoes/tags'
     | '/convite-consultorio/$token'
     | '/convite/$token'
@@ -479,6 +490,7 @@ export interface FileRouteTypes {
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
     | '/configuracoes/pessoal'
+    | '/configuracoes/plano'
     | '/configuracoes/tags'
     | '/convite-consultorio/$token'
     | '/convite/$token'
@@ -732,6 +744,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfiguracoesPessoalRouteImport
       parentRoute: typeof ConfiguracoesRoute
     }
+    '/configuracoes/plano': {
+      id: '/configuracoes/plano'
+      path: '/plano'
+      fullPath: '/configuracoes/plano'
+      preLoaderRoute: typeof ConfiguracoesPlanoRouteImport
+      parentRoute: typeof ConfiguracoesRoute
+    }
     '/configuracoes/tags': {
       id: '/configuracoes/tags'
       path: '/tags'
@@ -852,6 +871,7 @@ interface ConfiguracoesRouteChildren {
   ConfiguracoesIntegracoesRoute: typeof ConfiguracoesIntegracoesRoute
   ConfiguracoesNotificacoesRoute: typeof ConfiguracoesNotificacoesRoute
   ConfiguracoesPessoalRoute: typeof ConfiguracoesPessoalRoute
+  ConfiguracoesPlanoRoute: typeof ConfiguracoesPlanoRoute
   ConfiguracoesTagsRoute: typeof ConfiguracoesTagsRoute
   ConfiguracoesIndexRoute: typeof ConfiguracoesIndexRoute
 }
@@ -865,6 +885,7 @@ const ConfiguracoesRouteChildren: ConfiguracoesRouteChildren = {
   ConfiguracoesIntegracoesRoute: ConfiguracoesIntegracoesRoute,
   ConfiguracoesNotificacoesRoute: ConfiguracoesNotificacoesRoute,
   ConfiguracoesPessoalRoute: ConfiguracoesPessoalRoute,
+  ConfiguracoesPlanoRoute: ConfiguracoesPlanoRoute,
   ConfiguracoesTagsRoute: ConfiguracoesTagsRoute,
   ConfiguracoesIndexRoute: ConfiguracoesIndexRoute,
 }

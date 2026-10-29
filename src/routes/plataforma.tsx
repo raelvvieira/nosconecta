@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, Copy, Loader2, Plus, Ticket, X } from "lucide-react";
 import { toast } from "sonner";
 import { Sidebar } from "@/components/finance/Sidebar";
+import { PrecosEPagamentos } from "@/components/plataforma/PrecosEPagamentos";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Button } from "@/components/ui/button";
@@ -130,6 +131,12 @@ function PaginaDaPlataforma() {
         </section>
 
         <Convites />
+
+        <PrecosEPagamentos
+          nomes={Object.fromEntries(
+            (lista.data?.consultorios ?? []).map((c) => [c.ownerId, c.nome]),
+          )}
+        />
       </main>
 
       {editando && <EditarConsultorio c={editando} onFechar={() => setEditando(null)} />}

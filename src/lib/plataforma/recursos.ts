@@ -31,7 +31,7 @@ export async function lerFichaDoSite(
 ): Promise<FichaDoSite | null> {
   const { data, error } = await supabase
     .from("clinicas")
-    .select("plano, situacao, teste_ate, club_ligado")
+    .select("plano, situacao, teste_ate, pago_ate, club_ligado")
     .eq("owner_id", ownerId)
     .maybeSingle();
   if (error) return null;

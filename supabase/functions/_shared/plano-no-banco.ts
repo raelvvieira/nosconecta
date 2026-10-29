@@ -30,7 +30,7 @@ export async function lerFicha(supabase: any, ownerId: string): Promise<FichaCom
   const { data, error } = await supabase
     .from("clinicas")
     .select(
-      "plano, situacao, teste_ate, franquia_conversas_mes, conversas_extras, aviso_franquia_mes, aviso_franquia_nivel",
+      "plano, situacao, teste_ate, pago_ate, franquia_conversas_mes, conversas_extras, aviso_franquia_mes, aviso_franquia_nivel",
     )
     .eq("owner_id", ownerId)
     .maybeSingle();

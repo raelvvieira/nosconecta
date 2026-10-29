@@ -20,3 +20,9 @@ verify_jwt = false
 
 [functions.migracao-receber]
 verify_jwt = false
+
+# O Asaas não tem como apresentar um JWT do Supabase. A porta é fechada pelo
+# segredo `ASAAS_WEBHOOK_TOKEN`, que ele manda no cabeçalho
+# `asaas-access-token` — conferido dentro da função.
+[functions.asaas-webhook]
+verify_jwt = false
