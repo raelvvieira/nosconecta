@@ -20,6 +20,7 @@ import { planoDeDias, type PlanoDeDias } from "../_shared/plano-de-dias.ts";
 import { horariosDaFila, normalizarRitmo, type Ritmo } from "../_shared/ritmo.ts";
 import { aplicarVariaveis } from "../_shared/variaveis-disparo.ts";
 import { inserirTolerandoColunaAusente } from "../_shared/coluna-ausente.ts";
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -421,6 +422,8 @@ async function handleCancel(ownerId: string, broadcastId: string) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
+  const barrado = soOSistema(req);
+  if (barrado) return barrado;
   try {
     const body = await req.json().catch(() => ({}));
     const { ownerId, action } = body as { ownerId?: string; action?: string };

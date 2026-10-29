@@ -24,6 +24,7 @@
 // `wa-enviar` e `wa-lida`.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { conexaoParaEnviar, evolutionFetch } from "../_shared/evolution-api.ts";
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -125,6 +126,8 @@ async function abrir(ownerId: string, messageId: string) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
+  const barrado = soOSistema(req);
+  if (barrado) return barrado;
   try {
     const body = await req.json().catch(() => ({}));
     const { ownerId, messageId } = (body ?? {}) as { ownerId?: string; messageId?: string };

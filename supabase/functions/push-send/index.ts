@@ -3,6 +3,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { pushToOwner, vapidConfig, type PushType } from "../_shared/push.ts";
 import { sendPush } from "../_shared/webpush.ts";
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -47,6 +48,8 @@ async function handleTest(ownerId: string) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
+  const barrado = soOSistema(req);
+  if (barrado) return barrado;
   try {
     const body = await req.json();
     const { ownerId, action } = body as { ownerId?: string; action?: string };

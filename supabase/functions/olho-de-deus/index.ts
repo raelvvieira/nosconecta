@@ -43,6 +43,7 @@ import {
   type LinhaDeAuditoria,
   type SessaoDaSemana,
 } from "../_shared/olho-de-deus.ts";
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -361,6 +362,8 @@ async function olharClinica(
 }
 
 Deno.serve(async (req) => {
+  const barrado = soOSistema(req);
+  if (barrado) return barrado;
   try {
     const body = await req.json().catch(() => ({}));
     const pedido = (body ?? {}) as { ownerId?: string; de?: string; ate?: string };

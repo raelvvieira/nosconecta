@@ -17,6 +17,7 @@
 // Um campo a menos para errar.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { evolutionFetch } from "../_shared/evolution-api.ts";
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -44,7 +45,10 @@ async function instanciaDoDono(ownerId: string): Promise<string> {
     .maybeSingle();
   if (data?.instance_name) return data.instance_name;
 
-  const nome = `nos-${ownerId.slice(0, 8)}`;
+  // O id inteiro: com só os 8 primeiros caracteres, dois consultórios podiam
+  // cair no mesmo nome, e o `upsert` abaixo entregaria a conexão de um para o
+  // outro. Quem já tem instância (a NÓS) segue com o nome antigo, lido acima.
+  const nome = `nos-${ownerId}`;
   await evolution("/instance/create", {
     method: "POST",
     body: JSON.stringify({ instanceName: nome, integration: "WHATSAPP-BAILEYS", qrcode: true }),
@@ -143,6 +147,8 @@ async function desconectar(ownerId: string) {
 }
 
 Deno.serve(async (req) => {
+  const barrado = soOSistema(req);
+  if (barrado) return barrado;
   try {
     const body = await req.json().catch(() => ({}));
     const ownerId = String(body?.ownerId ?? "");

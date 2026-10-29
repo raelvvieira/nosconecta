@@ -48,16 +48,18 @@ export function CampoDeImagem({
       return;
     }
     if (file.size > TAMANHO_MAX_MB * 1024 * 1024) {
-      toast.error(`A imagem tem ${(file.size / 1024 / 1024).toFixed(1)} MB — o limite é ${TAMANHO_MAX_MB} MB.`);
+      toast.error(
+        `A imagem tem ${(file.size / 1024 / 1024).toFixed(1)} MB — o limite é ${TAMANHO_MAX_MB} MB.`,
+      );
       return;
     }
     setEnviando(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const ownerId = userData.user?.id;
-      if (!ownerId) throw new Error("Sessão expirada — recarregue a página.");
-      // Prefixo com o id do dono: é ele que a policy do bucket usa para separar
-      // uma clínica da outra.
+      // Prefixo com o consultório (`current_owner_id`), não com quem está
+      // logado: é ele que a policy do bucket usa para separar um consultório do
+      // outro, e assim a equipe inteira vê a imagem que qualquer um subiu.
+      const { data: ownerId, error: erroDono } = await supabase.rpc("current_owner_id");
+      if (erroDono || !ownerId) throw new Error("Sessão expirada — recarregue a página.");
       const nomeSeguro = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const path = `${ownerId}/${crypto.randomUUID()}-${nomeSeguro}`;
       const { error: erroUpload } = await supabase.storage

@@ -86,6 +86,7 @@ import {
 } from "../_shared/recuperacao-prompt.ts";
 import { casoEscolhido } from "../_shared/casos-da-ia.ts";
 import { baixarCaso } from "../_shared/agente-no-webhook.ts";
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -966,6 +967,8 @@ const MINUTO_DO_FOLLOWUP_ANTIGO = 43;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
+  const barrado = soOSistema(req);
+  if (barrado) return barrado;
   try {
     const { data: agentes, error } = await supabase
       .from("ai_agents")

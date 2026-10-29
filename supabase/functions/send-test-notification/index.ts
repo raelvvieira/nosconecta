@@ -6,6 +6,7 @@
 import { sendBrevoEmail, sendBrevoSms, sendBrevoWhatsapp } from "../_shared/brevo.ts";
 import { buildAppointmentMessage, type NotificationKind } from "../_shared/appointment-messages.ts";
 import { toE164BR, toWhatsappBR } from "../_shared/phone.ts";
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 const WHATSAPP_TEMPLATE_ENV: Record<NotificationKind, string> = {
   confirmation: "BREVO_WHATSAPP_TEMPLATE_CONFIRMATION",
@@ -27,6 +28,8 @@ function placeholderMessage(kind: NotificationKind) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
+  const barrado = soOSistema(req);
+  if (barrado) return barrado;
 
   try {
     const { channel, kind, destination } = (await req.json()) as {

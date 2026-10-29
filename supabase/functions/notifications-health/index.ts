@@ -2,8 +2,11 @@
 // Never returns the secret values themselves — booleans only. Called from
 // the TanStack server (with the service role key) for the Notificações
 // admin page, same protected pattern as send-appointment-notification.
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 Deno.serve((req) => {
   if (req.method === "OPTIONS") return new Response("ok");
+  const barrado = soOSistema(req);
+  if (barrado) return barrado;
 
   const hasApiKey = !!Deno.env.get("BREVO_API_KEY");
   const email = hasApiKey && !!Deno.env.get("BREVO_SENDER_EMAIL");

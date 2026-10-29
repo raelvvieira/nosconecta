@@ -40,6 +40,7 @@ import {
   montarInstrucao,
   type ManualDeVendas,
 } from "../_shared/instrucao-do-agente.ts";
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -972,6 +973,8 @@ async function handleSimular(ownerId: string, texto: string) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
+  const barrado = soOSistema(req);
+  if (barrado) return barrado;
   try {
     const { ownerId, action, texto, conversationId } = (await req.json()) as {
       ownerId?: string;

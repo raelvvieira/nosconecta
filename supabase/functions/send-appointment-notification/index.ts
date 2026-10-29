@@ -11,6 +11,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendBrevoEmail, sendBrevoSms, sendBrevoWhatsapp } from "../_shared/brevo.ts";
 import { buildAppointmentMessage, type NotificationKind } from "../_shared/appointment-messages.ts";
 import { toE164BR, toWhatsappBR } from "../_shared/phone.ts";
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -51,6 +52,8 @@ async function recordResult(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
+  const barrado = soOSistema(req);
+  if (barrado) return barrado;
 
   try {
     const { appointmentId, kind } = (await req.json()) as {

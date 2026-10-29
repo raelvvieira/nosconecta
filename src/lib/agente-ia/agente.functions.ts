@@ -1054,8 +1054,14 @@ async function cotacaoDeHoje(
 
   const valor = (await doBancoCentral()) ?? (await daReserva());
   if (valor !== null) {
-    // `upsert` porque duas abas abertas ao mesmo tempo buscam as duas.
-    await supabase.from("cotacao_dolar").upsert({ dia: hoje, valor }, { onConflict: "dia" });
+    // `upsert` porque duas abas abertas ao mesmo tempo buscam as duas. Com a
+    // chave de serviço: a tabela é uma só para todos os consultórios, e quem
+    // está logado só lê (senão um consultório gravaria a cotação do outro).
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabela nova, fora do types.ts do Lovable
+    await (supabaseAdmin as any)
+      .from("cotacao_dolar")
+      .upsert({ dia: hoje, valor }, { onConflict: "dia" });
     return { valor, dia: hoje };
   }
 

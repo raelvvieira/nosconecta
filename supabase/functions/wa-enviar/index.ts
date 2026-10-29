@@ -29,6 +29,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { conexaoParaEnviar } from "../_shared/evolution-api.ts";
 import { explicarSemConexao } from "../_shared/evolution-rota.ts";
 import { enviarPelaEvolution } from "../_shared/whatsapp-send.ts";
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -120,6 +121,8 @@ async function handleSend(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
+  const barrado = soOSistema(req);
+  if (barrado) return barrado;
   try {
     const body = await req.json();
     const { ownerId, conversationId, content, isPrivate, attachments } = body as {

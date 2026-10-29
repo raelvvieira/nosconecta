@@ -833,12 +833,22 @@ export const criarContaDoClub = createServerFn({ method: "POST" })
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // A ficha, pelo telefone. Sem filtro de dono: o paciente não sabe o que é
-    // uma clínica dentro do sistema, e a base é de uma só — o `owner_id` da
-    // ficha encontrada é que manda daqui para a frente.
+    // A ficha, pelo telefone, só entre os consultórios que têm Club (os que
+    // configuraram o Club em `club_config`). O paciente não sabe o que é um
+    // consultório dentro do sistema, então não dá para pedir; mas sem este
+    // filtro o mesmo telefone num consultório sem Club abriria conta lá. O
+    // `owner_id` da ficha encontrada é que manda daqui para a frente.
+    const { data: comClub, error: erroDoClub } = await admin.from("club_config").select("owner_id");
+    if (erroDoClub) {
+      console.error("[club] consultórios com Club não vieram", erroDoClub.message);
+      return { ok: false, motivo: "falhou" };
+    }
+    const donos = ((comClub ?? []) as any[]).map((c) => String(c.owner_id));
+    if (!donos.length) return { ok: false, motivo: "sem_cadastro" };
     const { data: achados, error } = await admin
       .from("patients")
       .select("id, name, email, club_user_id, club_desde, owner_id")
+      .in("owner_id", donos)
       .in("phone", formas)
       .limit(5);
     if (error) {

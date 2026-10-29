@@ -33,6 +33,7 @@ import {
   promptDaLicao,
   type Desfecho,
 } from "../_shared/licoes-do-atendimento.ts";
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -228,6 +229,8 @@ async function avaliarClinica(agente: {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
+  const barrado = soOSistema(req);
+  if (barrado) return barrado;
   try {
     // Uma clínica por linha de `ai_agents`. Sem filtro por `enabled`: a Luna
     // pode ter sido pausada DEPOIS de conduzir conversas, e essas conversas

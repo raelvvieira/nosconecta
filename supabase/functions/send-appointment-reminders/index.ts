@@ -7,6 +7,7 @@
 // Edge Function environment.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { pushToOwner } from "../_shared/push.ts";
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -40,6 +41,8 @@ async function notify(appointmentId: string, kind: string) {
 }
 
 Deno.serve(async (_req) => {
+  const barrado = soOSistema(_req);
+  if (barrado) return barrado;
   const tomorrow = dateStr(1);
   const today = dateStr(0);
 

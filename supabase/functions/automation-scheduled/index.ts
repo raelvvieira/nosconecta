@@ -14,6 +14,7 @@
 // mesmo de `send-appointment-reminders`, e mandar lembrete de madrugada é
 // exatamente o que a janela de horário das automações existe para evitar.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -96,6 +97,8 @@ async function primeiraVez(
 }
 
 Deno.serve(async (_req) => {
+  const barrado = soOSistema(_req);
+  if (barrado) return barrado;
   const resultado: Record<string, number> = { despachados: 0, repetidos: 0, falhas: 0 };
 
   for (const dias of ANTECEDENCIAS) {

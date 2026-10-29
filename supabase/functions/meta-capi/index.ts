@@ -40,6 +40,7 @@ import {
 } from "../_shared/conversao-de-anuncio.ts";
 import { variantesDoNumero } from "../_shared/phone-match.ts";
 import { valeComoCompra } from "../_shared/valor-da-conversao.ts";
+import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 interface DispatchContext {
   /** Id estável do registro que converteu — compõe o event_id de dedup. */
@@ -754,6 +755,8 @@ async function handleListEvents(ownerId: string, limit: number) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
+  const barrado = soOSistema(req);
+  if (barrado) return barrado;
   try {
     const body = await req.json();
     const { ownerId, action } = body as { ownerId?: string; action?: string };

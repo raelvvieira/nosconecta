@@ -19,7 +19,8 @@
 // Public endpoint (verify_jwt = false, see supabase/config.toml): Brevo has
 // no way to present a Supabase JWT, so this function checks its own shared
 // secret (WHATSAPP_WEBHOOK_SECRET) via a ?secret= query param on the
-// webhook URL configured in Brevo Conversations > Settings > Webhooks.
+// webhook URL configured in Brevo Conversations > Settings > Webhooks, plus
+// &owner=<owner_id> naming the clinic that owns the Brevo account.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { pushToOwner } from "../_shared/push.ts";
 import { onlyDigits, phoneMatches } from "../_shared/phone-match.ts";
@@ -127,9 +128,18 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, matched: false, reason: "sem telefone no payload" }));
     }
 
+    // Só os pacientes do consultório dono da conta do Brevo, que vem no
+    // endereço do webhook (`&owner=<owner_id>`). Com vários consultórios, um
+    // telefone repetido em outro consultório não pode confirmar a consulta
+    // de lá. Sem `owner`, nada é procurado.
+    const ownerId = url.searchParams.get("owner") ?? "";
+    if (!/^[0-9a-f-]{36}$/i.test(ownerId)) {
+      return new Response(JSON.stringify({ ok: true, matched: false, reason: "webhook sem owner" }));
+    }
     const { data: patients } = await supabase
       .from("patients")
       .select("id, owner_id, phone, name")
+      .eq("owner_id", ownerId)
       .not("phone", "is", null);
     const patient = (patients ?? []).find((p: any) => phoneMatches(onlyDigits(p.phone), fromPhone));
 

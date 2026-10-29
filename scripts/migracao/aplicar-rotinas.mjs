@@ -9,8 +9,11 @@ import { readFileSync } from "node:fs";
 import { chavesDoProjeto, projetoNovo, sql } from "./api.mjs";
 
 const ref = projetoNovo();
-const { url, anon } = await chavesDoProjeto(ref);
-if (!anon) throw new Error("A chave anon do projeto novo não veio da API.");
+// A chave de SERVIÇO, não a pública: as Edge Functions só aceitam chamada do
+// próprio sistema (`supabase/functions/_shared/so-o-sistema.ts`). Ela fica só
+// no cofre do banco, que nenhum usuário lê.
+const { url, servico } = await chavesDoProjeto(ref);
+if (!servico) throw new Error("A chave de serviço do projeto novo não veio da API.");
 
 // Dólar-quoting com etiqueta própria: a chave nunca contém `$cofre$`.
 const guardar = (nome, valor) => `
@@ -21,6 +24,6 @@ const guardar = (nome, valor) => `
   END;`;
 
 await sql(ref, guardar("rotinas_url", url));
-await sql(ref, guardar("rotinas_chave", anon));
+await sql(ref, guardar("rotinas_chave", servico));
 const tarefas = await sql(ref, readFileSync(new URL("./rotinas.sql", import.meta.url), "utf8"));
 console.table(tarefas);
