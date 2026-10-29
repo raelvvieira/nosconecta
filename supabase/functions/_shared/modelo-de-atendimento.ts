@@ -20,6 +20,11 @@
 // found" no meio de um atendimento, e quem vê é o paciente esperando. Sem
 // modelo escolhido, o erro é explícito e acontece na tela de configuração,
 // onde alguém pode agir.
+//
+// A exceção é a chave da PLATAFORMA (o consultório sem chave própria, com a IA
+// incluída no plano): aí o modelo também é da plataforma, e vem do segredo
+// `OPENAI_MODELO_PADRAO`, que quem administra a plataforma escolhe na conta
+// dela. Continua não sendo chute: sem o segredo, o erro é o mesmo.
 
 import { usoDaResposta, type UsoDoModelo } from "./consumo-da-ia.ts";
 
@@ -224,7 +229,9 @@ export async function chamarModelo(p: PedidoAoModelo): Promise<string> {
   if (!chave) {
     throw new Error("A chave da IA não está configurada. Informe-a em Agente de IA → Chave da IA.");
   }
-  const modelo = p.modelo?.trim();
+  const modelo =
+    p.modelo?.trim() ||
+    (p.chave?.trim() ? "" : (Deno.env.get("OPENAI_MODELO_PADRAO")?.trim() ?? ""));
   if (!modelo) {
     throw new Error(
       "Nenhum modelo escolhido. Escolha um em Agente de IA → Chave da IA — a lista vem da sua conta OpenAI.",

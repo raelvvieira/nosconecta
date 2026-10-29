@@ -1,4 +1,9 @@
-import { areaDaRota, podeVerArea, type NivelDeAcesso } from "@/lib/auth/niveis-de-acesso";
+import {
+  areaDaRota,
+  podeVerArea,
+  type NivelDeAcesso,
+  type RecursosDoConsultorio,
+} from "@/lib/auth/niveis-de-acesso";
 import {
   ArrowDownCircle,
   ArrowUpCircle,
@@ -147,12 +152,13 @@ export const GRUPOS_DO_MAIS: { label: string; itens: ItemDoMenu[] }[] = [
 export function doNivel<T extends ItemDoMenu>(
   itens: readonly T[],
   nivel: NivelDeAcesso | null | undefined,
+  recursos?: RecursosDoConsultorio | null,
 ): T[] {
   return itens.filter((i) => {
     const area = areaDaRota(i.to);
     // Destino fora das áreas conhecidas não é escondido por nível — quem o
     // criou decide, e esconder calado seria pior que mostrar.
-    return area === null || podeVerArea(nivel, area);
+    return area === null || podeVerArea(nivel, area, recursos);
   });
 }
 

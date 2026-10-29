@@ -1,6 +1,7 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { podeVerArea, type AreaDoApp } from "@/lib/auth/niveis-de-acesso";
+import { lerFichaDoSite, recursosDaFicha } from "@/lib/plataforma/recursos";
 
 /**
  * O nível de acesso valendo no SERVIDOR.
@@ -26,7 +27,13 @@ export function exigeArea(area: AreaDoApp) {
   return createMiddleware({ type: "function" })
     .middleware([requireClinicMembership])
     .server(async ({ next, context }) => {
-      if (!podeVerArea(context.memberRole, area)) {
+      // O plano do consultório só pesa nas áreas que ele liga e desliga. Nas
+      // outras, nada a ler.
+      const recursos =
+        area === "agente_ia" || area === "club"
+          ? recursosDaFicha(await lerFichaDoSite(context.supabase, context.ownerId), new Date())
+          : null;
+      if (!podeVerArea(context.memberRole, area, recursos)) {
         // Mensagem curta e sem detalhe: quem chegou aqui ou errou o caminho,
         // ou está tentando. Nenhum dos dois ganha nada sabendo mais.
         throw new Error("Seu nível de acesso não inclui esta área.");

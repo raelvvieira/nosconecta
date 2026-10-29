@@ -584,7 +584,15 @@ export const listarModelosDaIa = createServerFn({ method: "GET" })
       .eq("owner_id", context.ownerId)
       .maybeSingle();
 
-    const chave = String(agente?.api_key ?? "").trim() || process.env.OPENAI_API_KEY || "";
+    // Sem chave própria, a lista seria a da conta da PLATAFORMA, que o
+    // consultório não vê (decisão de 29/10). Só quem administra a plataforma
+    // a recebe.
+    const propria = String(agente?.api_key ?? "").trim();
+    if (!propria) {
+      const { souDaPlataformaNoServidor } = await import("@/lib/plataforma/plataforma.server");
+      if (!(await souDaPlataformaNoServidor(context.userId))) return { modelos: [], erro: null };
+    }
+    const chave = propria || process.env.OPENAI_API_KEY || "";
     if (!chave) return { modelos: [], erro: "Cadastre a chave da OpenAI primeiro." };
 
     try {
@@ -1131,6 +1139,11 @@ async function daReserva(): Promise<number | null> {
 export const getConsumoDaIa = createServerFn({ method: "GET" })
   .middleware([exigeAgenteIa])
   .handler(async ({ context }): Promise<ConsumoDaIa> => {
+    // Custo e preço do modelo são só da plataforma (decisão de 29/10).
+    const { souDaPlataformaNoServidor } = await import("@/lib/plataforma/plataforma.server");
+    if (!(await souDaPlataformaNoServidor(context.userId))) {
+      throw new Error("Seu nível de acesso não inclui esta área.");
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- as três tabelas nasceram depois do types.ts gerado pelo Lovable
     const supabase: any = context.supabase;
 
@@ -1199,6 +1212,11 @@ export const salvarPrecoDoModelo = createServerFn({ method: "POST" })
   .middleware([exigeAgenteIa])
   .validator((d: { modelo: string; entrada: number; cache: number | null; saida: number }) => d)
   .handler(async ({ context, data }) => {
+    // Custo e preço do modelo são só da plataforma (decisão de 29/10).
+    const { souDaPlataformaNoServidor } = await import("@/lib/plataforma/plataforma.server");
+    if (!(await souDaPlataformaNoServidor(context.userId))) {
+      throw new Error("Seu nível de acesso não inclui esta área.");
+    }
     const modelo = String(data.modelo ?? "").trim();
     if (!modelo) throw new Error("Informe o modelo.");
 

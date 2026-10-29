@@ -97,10 +97,27 @@ export const AREAS_DO_NIVEL: Record<NivelDeAcesso, readonly AreaDoApp[]> = {
 /** O nível vê esta área? Nível desconhecido não vê nada além do Início —
  *  um papel que o banco tem e o código não conhece é um erro, e errar para o
  *  lado de mostrar demais é o que este arquivo existe para impedir. */
-export function podeVerArea(nivel: NivelDeAcesso | null | undefined, area: AreaDoApp): boolean {
+export function podeVerArea(
+  nivel: NivelDeAcesso | null | undefined,
+  area: AreaDoApp,
+  recursos?: RecursosDoConsultorio | null,
+): boolean {
   const areas = AREAS_DO_NIVEL[nivel as NivelDeAcesso];
   if (!areas) return area === "inicio";
-  return areas.includes(area);
+  if (!areas.includes(area)) return false;
+  // O nível diz o que a PESSOA vê; o plano diz o que o CONSULTÓRIO tem. Sem
+  // recursos informados (carregando, ou quem chama não sabe), vale só o nível.
+  if (recursos && area === "agente_ia" && !recursos.ia) return false;
+  if (recursos && area === "club" && !recursos.club) return false;
+  return true;
+}
+
+/** O que o plano do consultório liga. Ver `src/lib/plataforma/recursos.ts`. */
+export interface RecursosDoConsultorio {
+  /** A assistente (Agente de IA): plano "Com IA" dentro do prazo. */
+  ia: boolean;
+  /** O Club do paciente: só onde a plataforma ligou (a NÓS). */
+  club: boolean;
 }
 
 /**
@@ -140,10 +157,14 @@ export function areaDaRota(pathname: string): AreaDoApp | null {
 
 /** Esta pessoa pode abrir esta rota? Rota fora dos módulos (login, convite)
  *  passa sempre — quem barra ali é a autenticação, não o nível. */
-export function podeAbrir(nivel: NivelDeAcesso | null | undefined, pathname: string): boolean {
+export function podeAbrir(
+  nivel: NivelDeAcesso | null | undefined,
+  pathname: string,
+  recursos?: RecursosDoConsultorio | null,
+): boolean {
   const area = areaDaRota(pathname);
   if (!area) return true;
-  return podeVerArea(nivel, area);
+  return podeVerArea(nivel, area, recursos);
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   type UnitSetting,
 } from "@/lib/settings/settings.functions";
 import type { MemberRole } from "@/lib/auth/clinic-context.middleware";
+import type { RecursosDoConsultorio } from "@/lib/auth/niveis-de-acesso";
 import { settingsQuery } from "@/components/settings/SettingsNav";
 
 type SettingsFetcher = () => Promise<SettingsData>;
@@ -18,6 +19,9 @@ interface UnitContextValue {
   /** O nível de acesso de quem está logado. É daqui que o menu e as rotas
    *  decidem o que mostrar — ver `niveis-de-acesso.ts`. */
   nivel: MemberRole | null;
+  /** O que o plano do consultório liga. `null` enquanto carrega: aí vale só
+   *  o nível, como antes. */
+  recursos: RecursosDoConsultorio | null;
   units: UnitSetting[];
   /** Preferência de UI de qual unidade os próximos cadastros (paciente,
    *  agendamento, transação...) devem usar — só existe pra admin, que é
@@ -41,6 +45,7 @@ export function UnitProvider({ children }: { children: ReactNode }) {
   // Início", então o menu nasce curto e cresce — nunca o contrário, que seria
   // mostrar o Financeiro por um quadro para quem não pode vê-lo.
   const nivel = settingsResult.data?.nivel ?? null;
+  const recursos = settingsResult.data?.recursos ?? null;
 
   const [selectedUnitId, setSelectedUnitIdState] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -70,7 +75,9 @@ export function UnitProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <UnitContext.Provider value={{ isAdmin, nivel, units, selectedUnitId, setSelectedUnitId }}>
+    <UnitContext.Provider
+      value={{ isAdmin, nivel, recursos, units, selectedUnitId, setSelectedUnitId }}
+    >
       {children}
     </UnitContext.Provider>
   );

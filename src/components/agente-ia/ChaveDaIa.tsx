@@ -5,6 +5,7 @@ import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getEstadoDoAgente, listarModelosDaIa } from "@/lib/agente-ia/agente.functions";
+import { souDaPlataforma } from "@/lib/plataforma/plataforma.functions";
 import { useAtendimento } from "./useAtendimento";
 import { Bloco } from "./campos";
 import { cn } from "@/lib/utils";
@@ -44,13 +45,26 @@ export function ChaveDaIa() {
   const semChave = estadoQuery.data && !estadoQuery.data.temChave;
   const temPropria = !!config?.temChavePropria;
 
+  // Na chave da plataforma (a IA incluída no plano), o modelo é escolha da
+  // plataforma e não aparece para o consultório. Decisão de 29/10: o
+  // consultório não vê custo, preço nem modelo. Quem pôs a própria chave
+  // escolhe o próprio modelo, como sempre.
+  const perguntarPlataforma = useServerFn(souDaPlataforma);
+  const { data: daPlataforma = false } = useQuery({
+    queryKey: ["sou-da-plataforma"],
+    queryFn: () => perguntarPlataforma(),
+    staleTime: Infinity,
+    retry: false,
+  });
+  const veModelo = temPropria || daPlataforma;
+
   // A lista de modelos vem da CONTA, não do código — ver `listarModelosDaIa`.
   // Só é buscada quando há chave: sem ela a resposta seria sempre o mesmo erro.
   const buscarModelos = useServerFn(listarModelosDaIa);
   const modelosQuery = useQuery({
     queryKey: ["modelos-da-ia", temPropria],
     queryFn: () => buscarModelos(),
-    enabled: Boolean(temPropria || (estadoQuery.data && estadoQuery.data.temChave)),
+    enabled: Boolean(veModelo && (temPropria || (estadoQuery.data && estadoQuery.data.temChave))),
     staleTime: 10 * 60_000,
     retry: false,
   });
@@ -75,8 +89,8 @@ export function ChaveDaIa() {
           {semChave
             ? "Nenhuma chave configurada."
             : temPropria
-              ? "Chave desta clínica em uso."
-              : "Em uso a chave configurada no servidor."}
+              ? "Chave deste consultório em uso."
+              : "A IA da NÓS Conecta, incluída no plano, está em uso."}
         </p>
       </div>
 
@@ -114,8 +128,8 @@ export function ChaveDaIa() {
       </div>
 
       <p className="mt-2 text-2xs leading-4 text-muted-foreground">
-        Chave da OpenAI (começa com <span className="font-mono">sk-</span>). Fica guardada nesta
-        clínica e nunca volta inteira para a tela — nem para quem a digitou.
+        Opcional. Chave da OpenAI própria (começa com <span className="font-mono">sk-</span>). Fica
+        guardada neste consultório e nunca volta inteira para a tela — nem para quem a digitou.
       </p>
 
       {/* ── Qual modelo atende ───────────────────────────────────────────
@@ -123,7 +137,7 @@ export function ChaveDaIa() {
           código: quais existem depende do plano e do que a OpenAI lançou
           depois, e um nome fixo aqui falharia com "model not found" no meio
           de um atendimento — com o paciente esperando. */}
-      <div className="mt-5 border-t border-border pt-4">
+      <div className={cn("mt-5 border-t border-border pt-4", !veModelo && "hidden")}>
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-sm font-medium">Qual modelo atende</p>
           {modelosQuery.isFetching && (

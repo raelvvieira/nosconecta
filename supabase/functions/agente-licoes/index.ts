@@ -34,6 +34,7 @@ import {
   type Desfecho,
 } from "../_shared/licoes-do-atendimento.ts";
 import { soOSistema } from "../_shared/so-o-sistema.ts";
+import { semIaNoConsultorio } from "../_shared/plano-no-banco.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -242,7 +243,16 @@ Deno.serve(async (req) => {
     if (error) throw new Error(error.message);
 
     const resultado = [];
-    for (const a of agentes ?? []) resultado.push(await avaliarClinica(a));
+    for (const a of agentes ?? []) {
+      // Um consultório não derruba os outros.
+      try {
+        const semIa = await semIaNoConsultorio(supabase, a.owner_id, new Date());
+        resultado.push(semIa ? { ownerId: a.owner_id, motivo: semIa } : await avaliarClinica(a));
+      } catch (e) {
+        console.error(`[agente-licoes] falhou em ${a.owner_id}:`, e);
+        resultado.push({ ownerId: a.owner_id, motivo: e instanceof Error ? e.message : "falhou" });
+      }
+    }
 
     return new Response(JSON.stringify({ ok: true, clinicas: resultado }), {
       headers: { "content-type": "application/json" },

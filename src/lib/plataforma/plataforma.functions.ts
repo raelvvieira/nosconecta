@@ -26,13 +26,8 @@ async function admin(): Promise<any> {
 }
 
 async function ehDaPlataforma(userId: string): Promise<boolean> {
-  const { data, error } = await (await admin())
-    .from("plataforma_admins")
-    .select("user_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) throw new Error("Falha ao verificar seu acesso.");
-  return !!data;
+  const { souDaPlataformaNoServidor } = await import("./plataforma.server");
+  return souDaPlataformaNoServidor(userId);
 }
 
 export const exigePlataforma = createMiddleware({ type: "function" })
@@ -468,4 +463,44 @@ export const criarConsultorio = createServerFn({ method: "POST" })
     }
     const resposta = (r ?? {}) as { ok?: boolean; motivo?: string };
     return resposta.ok ? { ok: true } : { ok: false, motivo: resposta.motivo ?? "falhou" };
+  });
+
+// ── O que o consultório vê da própria franquia ──────────────────────────
+
+export interface MinhaFranquia {
+  usadas: number;
+  franquia: number;
+  extras: number;
+}
+
+/**
+ * "X de Y conversas este mês", e o saldo extra. Nada de dinheiro nem token:
+ * isso só a plataforma vê. `null` quando o consultório não tem ficha (a NÓS
+ * antes das fichas): sem franquia, sem cartão.
+ */
+export const minhaFranquia = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<MinhaFranquia | null> => {
+    const db = await admin();
+    const { data: membro } = await db
+      .from("clinic_members")
+      .select("owner_id, status")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (!membro || membro.status !== "active") return null;
+    const ownerId = String(membro.owner_id);
+    const [ficha, contagem] = await Promise.all([
+      db
+        .from("clinicas")
+        .select("franquia_conversas_mes, conversas_extras")
+        .eq("owner_id", ownerId)
+        .maybeSingle(),
+      db.rpc("conversas_do_mes", { _owner: ownerId, _desde: comecoDoMes() }),
+    ]);
+    if (ficha.error || !ficha.data) return null;
+    return {
+      usadas: Number(contagem.data ?? 0),
+      franquia: Number(ficha.data.franquia_conversas_mes ?? 0),
+      extras: Number(ficha.data.conversas_extras ?? 0),
+    };
   });

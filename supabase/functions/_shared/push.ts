@@ -27,6 +27,11 @@ const PREFERENCE_COLUMN = {
   // razão dos dois acima — e porque um relatório que ninguém sabe que chegou é
   // a mesma falha das dúvidas que a Luna encaminhava para o vazio.
   olho_relatorio: "olho_relatorio",
+  // A assistente chegou a 80% ou a 100% das conversas do mês. Usa a mesma
+  // preferência das dúvidas da Luna ("avisos da assistente"): quem quer saber
+  // que ela travou numa pergunta quer saber também que ela parou de abrir
+  // conversa nova.
+  luna_franquia: "luna_duvida",
 } as const;
 
 export type PushType = keyof typeof PREFERENCE_COLUMN;

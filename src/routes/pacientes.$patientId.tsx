@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/finance/format";
 import { localDateStr } from "@/lib/date";
+import { useUnitSelection } from "@/lib/settings/unit-context";
 import {
   getPatientDetail,
   type CareEvent,
@@ -89,6 +90,9 @@ export const Route = createFileRoute("/pacientes/$patientId")({
 function PatientDetailPage() {
   const { patientId } = Route.useParams();
   const navigate = useNavigate();
+  // A aba do Club só existe onde o Club está ligado (hoje, só na NÓS).
+  const { recursos } = useUnitSelection();
+  const temClub = recursos?.club !== false;
   const queryClient = useQueryClient();
   const fetchDetail = useServerFn(getPatientDetail);
   const { data: patient, isLoading } = useQuery(
@@ -271,7 +275,9 @@ function PatientDetailPage() {
             active={aba === "financeiro"}
             onClick={() => irParaAba("financeiro")}
           />
-          <TabButton label="Club" active={aba === "club"} onClick={() => irParaAba("club")} />
+          {temClub && (
+            <TabButton label="Club" active={aba === "club"} onClick={() => irParaAba("club")} />
+          )}
           <TabButton
             label="Arquivos"
             active={aba === "arquivos"}
@@ -282,7 +288,7 @@ function PatientDetailPage() {
         {aba === "resumo" && <Overview patient={patient} onSchedule={schedule} />}
         {aba === "clinico" && <Clinico patient={patient} />}
         {aba === "financeiro" && <Finance patient={patient} onReceive={receive} />}
-        {aba === "club" && <NosClub patientId={patient.id} />}
+        {aba === "club" && temClub && <NosClub patientId={patient.id} />}
         {aba === "arquivos" && <ArquivosDoPaciente patientId={patient.id} />}
       </main>
 

@@ -833,12 +833,16 @@ export const criarContaDoClub = createServerFn({ method: "POST" })
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // A ficha, pelo telefone, só entre os consultórios que têm Club (os que
-    // configuraram o Club em `club_config`). O paciente não sabe o que é um
-    // consultório dentro do sistema, então não dá para pedir; mas sem este
-    // filtro o mesmo telefone num consultório sem Club abriria conta lá. O
-    // `owner_id` da ficha encontrada é que manda daqui para a frente.
-    const { data: comClub, error: erroDoClub } = await admin.from("club_config").select("owner_id");
+    // A ficha, pelo telefone, só entre os consultórios com o Club ligado
+    // (`clinicas.club_ligado`, que a plataforma liga; hoje só a NÓS). O
+    // paciente não sabe o que é um consultório dentro do sistema, então não dá
+    // para pedir; mas sem este filtro o mesmo telefone num consultório sem
+    // Club abriria conta lá. O `owner_id` da ficha encontrada é que manda
+    // daqui para a frente.
+    const { data: comClub, error: erroDoClub } = await admin
+      .from("clinicas")
+      .select("owner_id")
+      .eq("club_ligado", true);
     if (erroDoClub) {
       console.error("[club] consultórios com Club não vieram", erroDoClub.message);
       return { ok: false, motivo: "falhou" };

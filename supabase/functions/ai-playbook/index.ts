@@ -41,6 +41,7 @@ import {
   type ManualDeVendas,
 } from "../_shared/instrucao-do-agente.ts";
 import { soOSistema } from "../_shared/so-o-sistema.ts";
+import { semIaNoConsultorio } from "../_shared/plano-no-banco.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -989,6 +990,18 @@ Deno.serve(async (req) => {
     }
 
     let result: unknown;
+    // O que chama a IA (ciclo, simular, sugerir) não roda para consultório sem
+    // IA no plano. `estado` e `instrucao` só leem, e seguem.
+    if (["ciclo", "simular", "sugerir"].includes(action)) {
+      const semIa = await semIaNoConsultorio(supabase, ownerId, new Date());
+      if (semIa) {
+        return new Response(JSON.stringify({ error: `Assistente indisponível: ${semIa}.` }), {
+          status: 403,
+          headers: { "content-type": "application/json" },
+        });
+      }
+    }
+
     if (action === "estado") result = await handleEstado(ownerId);
     else if (action === "ciclo") result = await handleCiclo(ownerId);
     else if (action === "instrucao") result = await handleInstrucao(ownerId);

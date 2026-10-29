@@ -95,6 +95,7 @@ function SettingsRegistryPage() {
     units: [],
     isAdmin: false,
     nivel: null,
+    recursos: { ia: true, club: true },
   };
   const [query, setQuery] = useState("");
   const [formOpen, setFormOpen] = useState(false);

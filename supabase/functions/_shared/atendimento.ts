@@ -47,6 +47,7 @@ import { cidadeDita, municipioDaUnidade, unidadeMaisProxima } from "./localizaca
 import type { ProfissionalDaClinica } from "./instrucao-do-agente.ts";
 import type { HorariosParaOferecer } from "./instrucao-do-agente.ts";
 import type { RespostaAoPaciente } from "./modelo-de-atendimento.ts";
+import { podeAtender } from "./plano-no-banco.ts";
 
 export interface MensagemDeEntrada {
   conversationId: string;
@@ -457,8 +458,20 @@ export async function atender(
     }
   }
 
-  const responde = decisao.responde && !motivoDaEspera;
-  const motivo = motivoDaEspera ?? (decisao.responde ? null : decisao.motivo);
+  // ── O plano do consultório ──────────────────────────────────────────────
+  //
+  // Depois da espera, para não gastar uma conversa do saldo extra com uma
+  // mensagem que vai desistir. Plano básico, teste vencido, consultório
+  // suspenso ou franquia do mês esgotada: a conversa fica com a equipe. A
+  // simulação da tela não conta conversa nenhuma.
+  let motivoDoPlano: string | null = null;
+  if (decisao.responde && !motivoDaEspera && deps.ignorarInterruptor !== true) {
+    const plano = await podeAtender(supabase, ownerId, sessao.id, agora);
+    if (!plano.ok) motivoDoPlano = plano.motivo;
+  }
+
+  const responde = decisao.responde && !motivoDaEspera && !motivoDoPlano;
+  const motivo = motivoDaEspera ?? motivoDoPlano ?? (decisao.responde ? null : decisao.motivo);
 
   // A mensagem entra no registro com o motivo de não ter sido respondida. É
   // isso que transforma "a IA não respondeu" de mistério em linha lida.
@@ -469,6 +482,7 @@ export async function atender(
   });
 
   if (motivoDaEspera) return { respondeu: false, motivo: motivoDaEspera, pedacos: [] };
+  if (motivoDoPlano) return { respondeu: false, motivo: motivoDoPlano, pedacos: [] };
 
   if (!decisao.responde) {
     // Mensagem da própria clínica que NÃO é da IA = uma pessoa assumiu. É o

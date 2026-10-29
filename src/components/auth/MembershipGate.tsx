@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { getMembershipStatus } from "@/lib/auth/membership.functions";
 import type { MemberRole } from "@/lib/auth/clinic-context.middleware";
-import { ROTA_INICIAL, podeAbrir } from "@/lib/auth/niveis-de-acesso";
+import { ROTA_INICIAL, podeAbrir, type RecursosDoConsultorio } from "@/lib/auth/niveis-de-acesso";
 
 /**
  * Rotas que existem antes/fora de ter uma matrícula aprovada — nunca passam
@@ -28,6 +28,7 @@ export function MembershipGate({ children }: { children: ReactNode }) {
 
 function MembershipCheck({ children }: { children: ReactNode }) {
   const fetchStatus = useServerFn(getMembershipStatus);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   const query = useQuery({
     queryKey: ["membership-status"],
@@ -116,6 +117,38 @@ function MembershipCheck({ children }: { children: ReactNode }) {
     );
   }
 
+  // ── O consultório parou ───────────────────────────────────────────────
+  //
+  // Teste vencido ou suspenso pela plataforma: o sistema inteiro fecha numa
+  // tela só, e nada sai (a assistente e as rotinas também param, no
+  // servidor). Os dados continuam lá: voltando a ficar ativo, tudo reabre.
+  // `/plataforma` fica de fora: quem administra a plataforma nunca se tranca.
+  if (status.parado && !pathname.startsWith("/plataforma")) {
+    return (
+      <GateScreen
+        icon={<ShieldAlert className="h-6 w-6 text-coral" />}
+        title={
+          status.parado === "teste_vencido"
+            ? "Seu período de teste terminou"
+            : "Consultório pausado"
+        }
+        description={
+          status.parado === "teste_vencido"
+            ? "Seus dados estão guardados. Para continuar usando a NÓS Conecta, fale com a gente e escolha um plano."
+            : "O acesso a este consultório está pausado. Seus dados estão guardados. Fale com a gente para reativar."
+        }
+        actions={
+          <Button variant="premium" asChild>
+            <a href="https://conecta.nosodontoesaude.com.br" target="_blank" rel="noreferrer">
+              Falar com a NÓS Conecta
+            </a>
+          </Button>
+        }
+        onSignOut={handleSignOut}
+      />
+    );
+  }
+
   // ── O nível, valendo também na rota ───────────────────────────────────
   //
   // Esconder o item no menu não impede ninguém de digitar `/pagamentos` na
@@ -125,13 +158,25 @@ function MembershipCheck({ children }: { children: ReactNode }) {
   // parece defeito do sistema.
   //
   // Então quem abre o que não é dele volta para o Início, sem alarde.
-  return <SoOQueENivelDela nivel={status.role}>{children}</SoOQueENivelDela>;
+  return (
+    <SoOQueENivelDela nivel={status.role} recursos={status.recursos}>
+      {children}
+    </SoOQueENivelDela>
+  );
 }
 
-function SoOQueENivelDela({ nivel, children }: { nivel: MemberRole | null; children: ReactNode }) {
+function SoOQueENivelDela({
+  nivel,
+  recursos,
+  children,
+}: {
+  nivel: MemberRole | null;
+  recursos: RecursosDoConsultorio | null;
+  children: ReactNode;
+}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
-  const liberado = podeAbrir(nivel, pathname);
+  const liberado = podeAbrir(nivel, pathname, recursos);
 
   useEffect(() => {
     if (!liberado) navigate({ to: ROTA_INICIAL, replace: true });

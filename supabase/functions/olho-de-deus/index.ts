@@ -44,6 +44,7 @@ import {
   type SessaoDaSemana,
 } from "../_shared/olho-de-deus.ts";
 import { soOSistema } from "../_shared/so-o-sistema.ts";
+import { semIaNoConsultorio } from "../_shared/plano-no-banco.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -392,6 +393,11 @@ Deno.serve(async (req) => {
     const resultados = [];
     for (const agente of (agentes ?? []) as Agente[]) {
       try {
+        const semIa = await semIaNoConsultorio(supabase, agente.owner_id, new Date());
+        if (semIa) {
+          resultados.push({ ownerId: agente.owner_id, motivo: semIa });
+          continue;
+        }
         resultados.push(await olharClinica(agente, janela, !!pedido.ownerId));
       } catch (e) {
         // Uma clínica não derruba as outras.

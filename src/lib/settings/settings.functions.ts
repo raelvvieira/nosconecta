@@ -3,6 +3,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership, type MemberRole } from "@/lib/auth/clinic-context.middleware";
 import { exigeConfiguracoes } from "@/lib/auth/area.middleware";
 import { resolveUnitId } from "@/lib/auth/resolve-unit";
+import type { RecursosDoConsultorio } from "@/lib/auth/niveis-de-acesso";
+import { lerFichaDoSite, recursosDaFicha } from "@/lib/plataforma/recursos";
 import { especialidadesEmTexto, especialidadesValidas } from "@/lib/settings/especialidades";
 
 // "members" e "professionals" saíram da navegação em 20/10: viraram a tela
@@ -78,6 +80,8 @@ export interface SettingsData {
    * passa a saber quais módulos mostrar. Ver `niveis-de-acesso.ts`.
    */
   nivel: MemberRole | null;
+  /** O que o plano do consultório liga (assistente, Club). */
+  recursos: RecursosDoConsultorio;
 }
 
 export type SettingsRecord = ProfessionalSetting | ChairSetting | ProcedureSetting | UnitSetting;
@@ -93,11 +97,12 @@ export const getSettings = createServerFn({ method: "GET" })
     const unitFilter = context.isAdmin ? null : context.unitId;
     const cu = (q: any) => (unitFilter ? q.eq("unit_id", unitFilter) : q);
 
-    const [professionals, chairs, procedures, units] = await Promise.all([
+    const [professionals, chairs, procedures, units, ficha] = await Promise.all([
       cu(supabase.from("professionals").select("*").eq("owner_id", context.ownerId)).order("name"),
       cu(supabase.from("clinic_chairs").select("*").eq("owner_id", context.ownerId)).order("name"),
       supabase.from("clinic_procedures").select("*").eq("owner_id", context.ownerId).order("name"),
       supabase.from("clinic_units").select("*").eq("owner_id", context.ownerId).order("name"),
+      lerFichaDoSite(supabase, context.ownerId),
     ]);
 
     return {
@@ -141,6 +146,7 @@ export const getSettings = createServerFn({ method: "GET" })
       })),
       isAdmin: context.isAdmin,
       nivel: context.memberRole,
+      recursos: recursosDaFicha(ficha, new Date()),
     };
   });
 

@@ -87,6 +87,7 @@ import {
 import { casoEscolhido } from "../_shared/casos-da-ia.ts";
 import { baixarCaso } from "../_shared/agente-no-webhook.ts";
 import { soOSistema } from "../_shared/so-o-sistema.ts";
+import { semIaNoConsultorio } from "../_shared/plano-no-banco.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -980,8 +981,18 @@ Deno.serve(async (req) => {
     const minuto = new Date().getUTCMinutes();
     const resultado = [];
     for (const a of (agentes ?? []) as Agente[]) {
-      if (configDoAgente(a)) resultado.push(await recuperarDaClinica(a));
-      else if (minuto === MINUTO_DO_FOLLOWUP_ANTIGO) resultado.push(await cuidarDaClinica(a));
+      // Um consultório não derruba os outros: o erro de um vira a linha dele
+      // no resultado, e a rodada segue.
+      try {
+        // Plano básico, suspenso ou teste vencido: ninguém é retomado.
+        const semIa = await semIaNoConsultorio(supabase, a.owner_id, new Date());
+        if (semIa) resultado.push({ ownerId: a.owner_id, motivo: semIa });
+        else if (configDoAgente(a)) resultado.push(await recuperarDaClinica(a));
+        else if (minuto === MINUTO_DO_FOLLOWUP_ANTIGO) resultado.push(await cuidarDaClinica(a));
+      } catch (e) {
+        console.error(`[agente-followup] falhou em ${a.owner_id}:`, e);
+        resultado.push({ ownerId: a.owner_id, motivo: e instanceof Error ? e.message : "falhou" });
+      }
     }
 
     return new Response(JSON.stringify({ ok: true, clinicas: resultado }), {

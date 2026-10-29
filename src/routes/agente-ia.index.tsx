@@ -26,6 +26,8 @@ import { Procedimentos } from "@/components/agente-ia/Procedimentos";
 import { LicoesDaLuna } from "@/components/agente-ia/LicoesDaLuna";
 import { OlhoDeDeus } from "@/components/agente-ia/OlhoDeDeus";
 import { ConsumoDaIa } from "@/components/agente-ia/ConsumoDaIa";
+import { ConversasDoMes } from "@/components/agente-ia/ConversasDoMes";
+import { souDaPlataforma } from "@/lib/plataforma/plataforma.functions";
 import { OQueAprendeu } from "@/components/agente-ia/OQueAprendeu";
 
 export const Route = createFileRoute("/agente-ia/")({
@@ -80,6 +82,14 @@ function AgentePage() {
   const buscarAtendimento = useServerFn(getAtendimento);
   const salvar = useServerFn(salvarConfiguracaoDoAgente);
   const aprender = useServerFn(aprenderAgora);
+  // O custo da IA só aparece para quem administra a plataforma (29/10).
+  const perguntarPlataforma = useServerFn(souDaPlataforma);
+  const { data: daPlataforma = false } = useQuery({
+    queryKey: ["sou-da-plataforma"],
+    queryFn: () => perguntarPlataforma(),
+    staleTime: Infinity,
+    retry: false,
+  });
 
   const estadoQuery = useQuery({ queryKey: ["agente-ia"], queryFn: () => buscarEstado() });
   const painelQuery = useQuery({ queryKey: ["agente-ia-painel"], queryFn: () => buscarPainel() });
@@ -154,6 +164,7 @@ function AgentePage() {
               Primeiro de tudo porque é o que destrava o resto: sem ela a IA
               não responde e as sugestões não aparecem no chat. */}
           <ChaveDaIa />
+          <ConversasDoMes />
 
           {/* ── 2. O manual ─────────────────────────────────────────────────
               Antes do aprendizado de propósito. Este texto é o que a clínica
@@ -239,7 +250,7 @@ function AgentePage() {
               Depois das lições e antes do funil: é a última pergunta que se
               faz sobre um agente que já se entendeu. Em cima da tela ele
               roubaria a atenção de quem veio configurar o comportamento. */}
-          <ConsumoDaIa />
+          {daPlataforma && <ConsumoDaIa />}
 
           {/* ── 6. O funil ─────────────────────────────────────────────── */}
           <PainelDoFunil painel={painelQuery.data} carregando={painelQuery.isPending} />
