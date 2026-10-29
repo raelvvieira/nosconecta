@@ -101,15 +101,6 @@ function soAdmin(context: { isAdmin: boolean }) {
   if (!context.isAdmin) throw new Error("Só quem administra o consultório cuida do pagamento.");
 }
 
-async function clienteDe(userId: string): Promise<Record<string, string | null>> {
-  const { data } = await (await admin())
-    .from("clinic_members")
-    .select("name, email, phone")
-    .eq("user_id", userId)
-    .maybeSingle();
-  return { nome: data?.name ?? null, email: data?.email ?? null, telefone: data?.phone ?? null };
-}
-
 /** Abre o checkout da assinatura e devolve o link do Asaas. */
 export const assinarPlano = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
@@ -126,7 +117,6 @@ export const assinarPlano = createServerFn({ method: "POST" })
       plano: data.plano,
       ciclo: data.ciclo,
       criadoPor: context.userId,
-      cliente: await clienteDe(context.userId),
     });
     return { link: String(r.link) };
   });
@@ -140,7 +130,6 @@ export const comprarConversas = createServerFn({ method: "POST" })
       action: "pacote",
       ownerId: context.ownerId,
       criadoPor: context.userId,
-      cliente: await clienteDe(context.userId),
     });
     return { link: String(r.link) };
   });

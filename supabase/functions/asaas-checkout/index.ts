@@ -31,12 +31,6 @@ const supabase = createClient(
 
 const SITE = Deno.env.get("SITE_URL") || "https://login.nosodontoesaude.com.br";
 
-interface Cliente {
-  nome?: string | null;
-  email?: string | null;
-  telefone?: string | null;
-}
-
 async function preco(
   chave: string,
 ): Promise<{ nome: string; valor: number; conversas: number | null }> {
@@ -54,15 +48,6 @@ async function preco(
   };
 }
 
-function dadosDoCliente(c: Cliente | undefined) {
-  const d: Record<string, string> = {};
-  if (c?.nome?.trim()) d.name = c.nome.trim();
-  if (c?.email?.trim()) d.email = c.email.trim();
-  const fone = String(c?.telefone ?? "").replace(/\D/g, "");
-  if (fone.length >= 10) d.phone = fone.slice(-11);
-  return d;
-}
-
 /** O nome do item tem no máximo 30 caracteres no Asaas. */
 function nomeDoItem(nome: string): string {
   return nome.length > 30 ? `${nome.slice(0, 29)}…` : nome;
@@ -78,7 +63,6 @@ async function abrirCheckout(e: {
   nome: string;
   referencia: string;
   criadoPor: string | null;
-  cliente?: Cliente;
 }): Promise<{ link: string }> {
   const recorrente = e.tipo === "assinatura";
   const corpo: Record<string, unknown> = {
@@ -104,8 +88,10 @@ async function abrirCheckout(e: {
   if (recorrente) {
     corpo.subscription = { cycle: cicloDoAsaas(e.ciclo!), nextDueDate: hojeNoBrasil(new Date()) };
   }
-  const cliente = dadosDoCliente(e.cliente);
-  if (Object.keys(cliente).length) corpo.customerData = cliente;
+  // Sem `customerData` de propósito: mandando parte dos dados (nome e
+  // e-mail), o Asaas exige todos (CPF/CNPJ, telefone, endereço, CEP, bairro)
+  // e recusa o checkout — foi o erro do primeiro teste, em 29/10. Sem nada,
+  // quem paga preenche os dados na própria página do Asaas.
 
   const checkout = await asaas("/checkouts", { method: "POST", body: corpo });
   const link = String(checkout?.link ?? "");
@@ -159,7 +145,6 @@ Deno.serve(async (req) => {
       plano?: Plano;
       ciclo?: Ciclo;
       criadoPor?: string | null;
-      cliente?: Cliente;
     };
     const ownerId = String(pedido.ownerId ?? "");
     if (!ownerId) return Response.json({ error: "ownerId é obrigatório" }, { status: 400 });
@@ -181,7 +166,6 @@ Deno.serve(async (req) => {
           nome: p.nome,
           referencia: referenciaDaAssinatura(ownerId, plano, ciclo),
           criadoPor: pedido.criadoPor ?? null,
-          cliente: pedido.cliente,
         }),
       );
     }
@@ -199,7 +183,6 @@ Deno.serve(async (req) => {
           nome: p.nome,
           referencia: referenciaDoPacote(ownerId, conversas),
           criadoPor: pedido.criadoPor ?? null,
-          cliente: pedido.cliente,
         }),
       );
     }
