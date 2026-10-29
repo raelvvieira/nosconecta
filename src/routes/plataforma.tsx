@@ -6,6 +6,7 @@ import { Building2, Copy, Loader2, Plus, Ticket, X } from "lucide-react";
 import { toast } from "sonner";
 import { Sidebar } from "@/components/finance/Sidebar";
 import { PrecosEPagamentos } from "@/components/plataforma/PrecosEPagamentos";
+import { Cupons } from "@/components/plataforma/Cupons";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Button } from "@/components/ui/button";
@@ -131,6 +132,8 @@ function PaginaDaPlataforma() {
         </section>
 
         <Convites />
+
+        <Cupons />
 
         <PrecosEPagamentos
           nomes={Object.fromEntries(

@@ -22,6 +22,7 @@ import {
   type Plano,
 } from "../_shared/asaas.ts";
 import { IMAGEM_DO_ITEM } from "../_shared/asaas-imagem.ts";
+import { avaliarCupom, codigoDoCupom, cupomDaLinha } from "../_shared/cupom.ts";
 import { soOSistema } from "../_shared/so-o-sistema.ts";
 
 const supabase = createClient(
@@ -63,6 +64,7 @@ async function abrirCheckout(e: {
   nome: string;
   referencia: string;
   criadoPor: string | null;
+  cupom?: { codigo: string; valorCheioCentavos: number; soPrimeira: boolean } | null;
 }): Promise<{ link: string }> {
   const recorrente = e.tipo === "assinatura";
   const corpo: Record<string, unknown> = {
@@ -110,9 +112,41 @@ async function abrirCheckout(e: {
     link,
     status: "aberto",
     criado_por: e.criadoPor,
+    cupom: e.cupom?.codigo ?? null,
+    valor_cheio_centavos: e.cupom?.valorCheioCentavos ?? null,
+    so_primeira: e.cupom?.soPrimeira ?? false,
   });
   if (error) console.warn("[asaas-checkout] registro do checkout falhou:", error.message);
   return { link };
+}
+
+/** Cupom recusado é erro de quem digitou, não do Asaas: volta 400 e a
+ *  frase vai direto para a tela. */
+class CupomRecusado extends Error {}
+
+/**
+ * O preço com o cupom, se veio um. O valor sempre sai do banco (preço e
+ * cupom); o pedido só diz o código.
+ */
+async function comCupom(
+  codigo: string | null | undefined,
+  uso: "assinatura" | "pacote",
+  valorCentavos: number,
+) {
+  const c = codigoDoCupom(codigo);
+  if (!c) return { valorCentavos, cupom: null };
+  const { data, error } = await supabase
+    .from("plataforma_cupons")
+    .select("*")
+    .eq("codigo", c)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const av = avaliarCupom(cupomDaLinha(data), uso, valorCentavos, new Date());
+  if (!av.ok) throw new CupomRecusado(av.motivo);
+  return {
+    valorCentavos: av.valorFinalCentavos,
+    cupom: { codigo: c, valorCheioCentavos: valorCentavos, soPrimeira: av.soPrimeira },
+  };
 }
 
 async function cancelar(ownerId: string) {
@@ -145,6 +179,7 @@ Deno.serve(async (req) => {
       plano?: Plano;
       ciclo?: Ciclo;
       criadoPor?: string | null;
+      cupom?: string | null;
     };
     const ownerId = String(pedido.ownerId ?? "");
     if (!ownerId) return Response.json({ error: "ownerId é obrigatório" }, { status: 400 });
@@ -156,13 +191,15 @@ Deno.serve(async (req) => {
       if (!plano || !ciclo)
         return Response.json({ error: "plano ou ciclo inválido" }, { status: 400 });
       const p = await preco(chaveDoPreco(plano, ciclo));
+      const desconto = await comCupom(pedido.cupom, "assinatura", Math.round(p.valor * 100));
       return Response.json(
         await abrirCheckout({
           ownerId,
           tipo: "assinatura",
           plano,
           ciclo,
-          valor: p.valor,
+          valor: desconto.valorCentavos / 100,
+          cupom: desconto.cupom,
           nome: p.nome,
           referencia: referenciaDaAssinatura(ownerId, plano, ciclo),
           criadoPor: pedido.criadoPor ?? null,
@@ -174,12 +211,14 @@ Deno.serve(async (req) => {
       const p = await preco("pacote_conversas");
       const conversas = p.conversas ?? 0;
       if (conversas <= 0) throw new Error("O pacote não diz quantas conversas dá.");
+      const desconto = await comCupom(pedido.cupom, "pacote", Math.round(p.valor * 100));
       return Response.json(
         await abrirCheckout({
           ownerId,
           tipo: "pacote",
           conversas,
-          valor: p.valor,
+          valor: desconto.valorCentavos / 100,
+          cupom: desconto.cupom,
           nome: p.nome,
           referencia: referenciaDoPacote(ownerId, conversas),
           criadoPor: pedido.criadoPor ?? null,
@@ -194,7 +233,7 @@ Deno.serve(async (req) => {
     console.error("[asaas-checkout]", e);
     return Response.json(
       { error: e instanceof Error ? e.message : "falhou ao falar com o Asaas" },
-      { status: 502 },
+      { status: e instanceof CupomRecusado ? 400 : 502 },
     );
   }
 });

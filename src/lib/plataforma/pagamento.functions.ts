@@ -2,6 +2,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { exigePlataforma } from "@/lib/plataforma/plataforma.functions";
+import {
+  avaliarCupom,
+  codigoDoCupom,
+  cupomDaLinha,
+} from "../../../supabase/functions/_shared/cupom";
 
 /**
  * O plano do consultório e o pagamento pelo Asaas.
@@ -104,10 +109,10 @@ function soAdmin(context: { isAdmin: boolean }) {
 /** Abre o checkout da assinatura e devolve o link do Asaas. */
 export const assinarPlano = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
-  .inputValidator((input: { plano: Plano; ciclo: Ciclo }) => {
+  .inputValidator((input: { plano: Plano; ciclo: Ciclo; cupom?: string | null }) => {
     if (input.plano !== "basico" && input.plano !== "ia") throw new Error("Plano inválido.");
     if (input.ciclo !== "mensal" && input.ciclo !== "anual") throw new Error("Ciclo inválido.");
-    return { plano: input.plano, ciclo: input.ciclo };
+    return { plano: input.plano, ciclo: input.ciclo, cupom: codigoDoCupom(input.cupom) || null };
   })
   .handler(async ({ data, context }): Promise<{ link: string }> => {
     soAdmin(context);
@@ -117,6 +122,7 @@ export const assinarPlano = createServerFn({ method: "POST" })
       plano: data.plano,
       ciclo: data.ciclo,
       criadoPor: context.userId,
+      cupom: data.cupom,
     });
     return { link: String(r.link) };
   });
@@ -124,12 +130,16 @@ export const assinarPlano = createServerFn({ method: "POST" })
 /** Abre o checkout do pacote de conversas. */
 export const comprarConversas = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
-  .handler(async ({ context }): Promise<{ link: string }> => {
+  .inputValidator((input: { cupom?: string | null } | undefined) => ({
+    cupom: codigoDoCupom(input?.cupom) || null,
+  }))
+  .handler(async ({ data, context }): Promise<{ link: string }> => {
     soAdmin(context);
     const r = await chamarCheckout({
       action: "pacote",
       ownerId: context.ownerId,
       criadoPor: context.userId,
+      cupom: data.cupom,
     });
     return { link: String(r.link) };
   });
@@ -208,4 +218,159 @@ export const listarPagamentos = createServerFn({ method: "GET" })
       ciclo: p.ciclo ?? null,
       criadoEm: p.criado_em,
     }));
+  });
+
+// ── Cupons ──────────────────────────────────────────────────────────────
+
+export interface PreviaDoCupom {
+  ok: boolean;
+  motivo?: string;
+  /** Preço com desconto, por chave de preço ("ia_mensal", "pacote_conversas"…). */
+  precos?: Record<string, number>;
+  soPrimeira?: boolean;
+  descricao?: string;
+}
+
+/**
+ * O que o cupom faz com cada preço, para a tela mostrar antes de abrir o
+ * checkout. Quem decide de verdade é o `asaas-checkout`, de novo, na hora de
+ * abrir: esta prévia não vale como desconto.
+ */
+export const verCupom = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { cupom: string }) => ({ cupom: codigoDoCupom(input.cupom) }))
+  .handler(async ({ data }): Promise<PreviaDoCupom> => {
+    if (!data.cupom) return { ok: false, motivo: "Digite o cupom." };
+    const db = await admin();
+    const { data: linha } = await db
+      .from("plataforma_cupons")
+      .select("*")
+      .eq("codigo", data.cupom)
+      .maybeSingle();
+    const cupom = cupomDaLinha(linha);
+    const agora = new Date();
+    const precos: Record<string, number> = {};
+    let motivo = "Cupom não encontrado.";
+    let soPrimeira = false;
+    for (const p of await lerPrecos()) {
+      const uso = p.chave === "pacote_conversas" ? "pacote" : "assinatura";
+      const av = avaliarCupom(cupom, uso, p.valorCentavos, agora);
+      if (av.ok) {
+        precos[p.chave] = av.valorFinalCentavos;
+        soPrimeira = soPrimeira || av.soPrimeira;
+      } else motivo = av.motivo;
+    }
+    if (!Object.keys(precos).length) return { ok: false, motivo };
+    return { ok: true, precos, soPrimeira, descricao: String(linha?.descricao ?? "") };
+  });
+
+export interface CupomDaPlataforma {
+  codigo: string;
+  descricao: string;
+  tipo: "percentual" | "valor";
+  valor: number;
+  aplicaEm: "assinatura" | "pacote" | "tudo";
+  soPrimeira: boolean;
+  validoAte: string | null;
+  maxUsos: number | null;
+  usos: number;
+  ativo: boolean;
+}
+
+export const listarCupons = createServerFn({ method: "GET" })
+  .middleware([exigePlataforma])
+  .handler(async (): Promise<CupomDaPlataforma[]> => {
+    const { data, error } = await (await admin())
+      .from("plataforma_cupons")
+      .select("*")
+      .order("criado_em", { ascending: false });
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as any[]).map((l) => ({
+      ...cupomDaLinha(l)!,
+      descricao: String(l.descricao ?? ""),
+    }));
+  });
+
+export const criarCupom = createServerFn({ method: "POST" })
+  .middleware([exigePlataforma])
+  .inputValidator(
+    (input: {
+      codigo: string;
+      descricao?: string;
+      tipo: "percentual" | "valor";
+      valor: number;
+      aplicaEm: "assinatura" | "pacote" | "tudo";
+      soPrimeira: boolean;
+      validoAte?: string | null;
+      maxUsos?: number | null;
+    }) => {
+      const codigo = codigoDoCupom(input.codigo);
+      if (!/^[A-Z0-9_-]{3,30}$/.test(codigo)) {
+        throw new Error("O código tem de 3 a 30 letras, números, - ou _.");
+      }
+      const tipo = input.tipo === "valor" ? "valor" : "percentual";
+      // Percentual em %, valor em reais: guardado em centavos.
+      const valor =
+        tipo === "percentual"
+          ? Math.round(Number(input.valor))
+          : Math.round(Number(input.valor) * 100);
+      if (tipo === "percentual" && (valor < 1 || valor > 99)) {
+        throw new Error("O percentual vai de 1 a 99.");
+      }
+      if (tipo === "valor" && !(valor > 0)) throw new Error("Valor inválido.");
+      const maxUsos =
+        input.maxUsos === null || input.maxUsos === undefined || !Number(input.maxUsos)
+          ? null
+          : Math.floor(Number(input.maxUsos));
+      const validoAte = input.validoAte ? new Date(input.validoAte) : null;
+      if (validoAte && Number.isNaN(validoAte.getTime())) throw new Error("Data inválida.");
+      return {
+        codigo,
+        descricao:
+          String(input.descricao ?? "")
+            .trim()
+            .slice(0, 120) || null,
+        tipo,
+        valor,
+        aplicaEm: ["assinatura", "pacote"].includes(input.aplicaEm) ? input.aplicaEm : "tudo",
+        soPrimeira: !!input.soPrimeira,
+        validoAte: validoAte ? validoAte.toISOString() : null,
+        maxUsos,
+      };
+    },
+  )
+  .handler(async ({ data }) => {
+    const { error } = await (await admin()).from("plataforma_cupons").insert({
+      codigo: data.codigo,
+      descricao: data.descricao,
+      tipo: data.tipo,
+      valor: data.valor,
+      aplica_em: data.aplicaEm,
+      so_primeira: data.soPrimeira,
+      valido_ate: data.validoAte,
+      max_usos: data.maxUsos,
+    });
+    if (error) {
+      throw new Error(
+        /duplicate|unique/i.test(error.message)
+          ? "Já existe um cupom com esse código."
+          : error.message,
+      );
+    }
+    return { ok: true };
+  });
+
+export const ligarCupom = createServerFn({ method: "POST" })
+  .middleware([exigePlataforma])
+  .inputValidator((input: { codigo: string; ativo: boolean }) => ({
+    codigo: codigoDoCupom(input.codigo),
+    ativo: !!input.ativo,
+  }))
+  .handler(async ({ data }) => {
+    const { error } = await (await admin())
+      .from("plataforma_cupons")
+      .update({ ativo: data.ativo })
+      .eq("codigo", data.codigo);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });

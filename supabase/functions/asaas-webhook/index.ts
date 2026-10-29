@@ -75,6 +75,54 @@ function referenciaDaLinha(l: any): Referencia | null {
   return null;
 }
 
+/** O uso do cupom conta quando paga, não quando o checkout abre. Quem chama
+ *  já passou pela trava de "aberto" → "pago", então conta uma vez só. */
+async function contarCupom(codigo: unknown) {
+  const c = String(codigo ?? "").trim();
+  if (!c) return;
+  const { error } = await supabase.rpc("usar_cupom", { _codigo: c });
+  if (error) console.warn("[asaas-webhook] uso do cupom não contado:", c, error.message);
+}
+
+/**
+ * Cupom "só na primeira": a assinatura nasceu com o valor com desconto. Paga
+ * a primeira cobrança, ela volta ao valor cheio no Asaas, para as próximas.
+ * `updatePendingPayments` ajusta também a cobrança seguinte, se já existir.
+ */
+async function voltarAoValorCheio(ownerId: string, subscriptionId: string) {
+  const { data: linhas } = await supabase
+    .from("asaas_pagamentos")
+    .select("id, valor_cheio_centavos")
+    .eq("owner_id", ownerId)
+    .eq("tipo", "assinatura")
+    .eq("so_primeira", true)
+    .eq("valor_restaurado", false)
+    .eq("status", "pago")
+    .not("checkout_id", "is", null)
+    .order("criado_em", { ascending: false })
+    .limit(1);
+  const l = (linhas ?? [])[0];
+  if (!l?.valor_cheio_centavos) return;
+  // Marca antes, com trava: dois eventos juntos não ajustam duas vezes.
+  const { data: marcou } = await supabase
+    .from("asaas_pagamentos")
+    .update({ valor_restaurado: true, atualizado_em: new Date().toISOString() })
+    .eq("id", l.id)
+    .eq("valor_restaurado", false)
+    .select("id");
+  if (!(marcou ?? []).length) return;
+  try {
+    await asaas(`/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+      method: "POST",
+      body: { value: Number(l.valor_cheio_centavos) / 100, updatePendingPayments: true },
+    });
+  } catch (e) {
+    // Desfaz a marca: na próxima cobrança paga, tenta de novo.
+    await supabase.from("asaas_pagamentos").update({ valor_restaurado: false }).eq("id", l.id);
+    console.warn("[asaas-webhook] assinatura não voltou ao valor cheio:", subscriptionId, e);
+  }
+}
+
 /** Soma o pacote uma vez só: só quem passa a linha de "aberto" para "pago". */
 async function creditarPacote(checkoutId: string, ref: Extract<Referencia, { tipo: "pacote" }>) {
   const { data: virou } = await supabase
@@ -82,8 +130,9 @@ async function creditarPacote(checkoutId: string, ref: Extract<Referencia, { tip
     .update({ status: "pago", atualizado_em: new Date().toISOString() })
     .eq("checkout_id", checkoutId)
     .eq("status", "aberto")
-    .select("valor_centavos");
+    .select("valor_centavos, cupom");
   if (!(virou ?? []).length) return { motivo: "pacote já creditado ou checkout desconhecido" };
+  await contarCupom(virou![0].cupom);
   const { error } = await supabase.rpc("somar_conversas_extras", {
     _owner: ref.ownerId,
     _conversas: ref.conversas,
@@ -172,11 +221,15 @@ async function tratar(corpo: any): Promise<unknown> {
     if (!ref) return { ignorado: "checkout sem referência nossa" };
     if (ref.tipo === "pacote") return creditarPacote(checkoutId, ref);
 
-    await supabase
+    const { data: virou } = await supabase
       .from("asaas_pagamentos")
       .update({ status: "pago", atualizado_em: new Date().toISOString() })
-      .eq("checkout_id", checkoutId);
+      .eq("checkout_id", checkoutId)
+      .eq("status", "aberto")
+      .select("cupom");
+    if ((virou ?? []).length) await contarCupom(virou![0].cupom);
     const subscriptionId = idDe(ck.subscription);
+    if (subscriptionId) await voltarAoValorCheio(ref.ownerId, subscriptionId);
     return renovar(ref.ownerId, ref.ciclo, hojeNoBrasil(new Date()), {
       plano: ref.plano,
       ...(subscriptionId ? { asaas_subscription_id: subscriptionId } : {}),
@@ -213,7 +266,11 @@ async function tratar(corpo: any): Promise<unknown> {
       { onConflict: "payment_id" },
     );
     const vencimento = String(p.dueDate ?? hojeNoBrasil(new Date()));
-    return renovar(dono.ownerId, ciclo, vencimento, { asaas_subscription_id: subscriptionId });
+    const renovado = await renovar(dono.ownerId, ciclo, vencimento, {
+      asaas_subscription_id: subscriptionId,
+    });
+    await voltarAoValorCheio(dono.ownerId, subscriptionId);
+    return renovado;
   }
 
   if (evento === "PAYMENT_OVERDUE") {

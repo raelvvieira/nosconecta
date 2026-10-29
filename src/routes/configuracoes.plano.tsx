@@ -6,6 +6,7 @@ import { CreditCard, Loader2, MessagesSquare } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { cn } from "@/lib/utils";
 import {
@@ -13,6 +14,7 @@ import {
   cancelarAssinatura,
   comprarConversas,
   getMeuPlano,
+  verCupom,
   type Ciclo,
   type MeuPlano,
   type Plano,
@@ -72,10 +74,43 @@ function PaginaDoPlano() {
   const assinar = useServerFn(assinarPlano);
   const comprar = useServerFn(comprarConversas);
   const cancelar = useServerFn(cancelarAssinatura);
+  const conferirCupom = useServerFn(verCupom);
   const qc = useQueryClient();
   const plano = useQuery({ queryKey: ["meu-plano"], queryFn: () => buscar() });
   const [ciclo, setCiclo] = useState<Ciclo>("mensal");
   const [abrindo, setAbrindo] = useState<string | null>(null);
+  // O cupom aceito (com os preços já com desconto) ou nada. A prévia é só
+  // para mostrar: quem aplica de verdade é o servidor, ao abrir o checkout.
+  const [textoDoCupom, setTextoDoCupom] = useState("");
+  const [cupom, setCupom] = useState<{
+    codigo: string;
+    precos: Record<string, number>;
+    soPrimeira: boolean;
+  } | null>(null);
+  const [conferindo, setConferindo] = useState(false);
+  const [abrirCupom, setAbrirCupom] = useState(false);
+
+  async function aplicarCupom() {
+    setConferindo(true);
+    try {
+      const r = await conferirCupom({ data: { cupom: textoDoCupom } });
+      if (!r.ok || !r.precos) {
+        setCupom(null);
+        toast.error(r.motivo ?? "Cupom não aceito.");
+        return;
+      }
+      setCupom({
+        codigo: textoDoCupom.trim().toUpperCase(),
+        precos: r.precos,
+        soPrimeira: !!r.soPrimeira,
+      });
+      toast.success("Cupom aplicado.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível conferir o cupom.");
+    } finally {
+      setConferindo(false);
+    }
+  }
 
   // Voltou do Asaas: o webhook pode levar alguns segundos. Pergunta de novo
   // três vezes, e a ficha atualiza sozinha quando o pagamento entrar.
@@ -168,7 +203,12 @@ function PaginaDoPlano() {
                 <h3 className="text-base font-semibold">{NOME_DO_PLANO[pl]}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{RESUMO_DO_PLANO[pl]}</p>
                 <p className="mt-4 text-2xl font-semibold tabular-nums">
-                  {preco ? reais(preco.valorCentavos) : "—"}
+                  {preco && cupom?.precos[preco.chave] !== undefined && (
+                    <span className="mr-2 text-base font-normal text-muted-foreground line-through">
+                      {reais(preco.valorCentavos)}
+                    </span>
+                  )}
+                  {preco ? reais(cupom?.precos[preco.chave] ?? preco.valorCentavos) : "—"}
                   <span className="ml-1 text-sm font-normal text-muted-foreground">
                     {ciclo === "anual" ? "/ano" : "/mês"}
                   </span>
@@ -177,7 +217,11 @@ function PaginaDoPlano() {
                   className="mt-4"
                   variant={atual ? "outline" : "premium"}
                   disabled={!preco || atual || abrindo !== null}
-                  onClick={() => void irPara(pl, () => assinar({ data: { plano: pl, ciclo } }))}
+                  onClick={() =>
+                    void irPara(pl, () =>
+                      assinar({ data: { plano: pl, ciclo, cupom: cupom?.codigo ?? null } }),
+                    )
+                  }
                 >
                   {abrindo === pl && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {atual ? "Plano atual" : "Assinar"}
@@ -190,6 +234,54 @@ function PaginaDoPlano() {
           <CreditCard className="h-3.5 w-3.5" /> Pagamento seguro pelo Asaas, no cartão. Sem
           fidelidade: dá para cancelar quando quiser.
         </p>
+
+        {/* O cupom: o Checkout do Asaas não tem esse campo, então ele mora aqui. */}
+        <div className="mt-4">
+          {!abrirCupom && !cupom ? (
+            <button
+              type="button"
+              className="text-sm font-medium text-coral underline-offset-2 hover:underline"
+              onClick={() => setAbrirCupom(true)}
+            >
+              Tenho um cupom
+            </button>
+          ) : cupom ? (
+            <p className="text-sm">
+              Cupom <strong>{cupom.codigo}</strong> aplicado
+              {cupom.soPrimeira ? " na primeira cobrança da assinatura" : ""}.{" "}
+              <button
+                type="button"
+                className="text-muted-foreground underline-offset-2 hover:underline"
+                onClick={() => {
+                  setCupom(null);
+                  setTextoDoCupom("");
+                }}
+              >
+                Tirar
+              </button>
+            </p>
+          ) : (
+            <div className="flex max-w-sm gap-2">
+              <Input
+                value={textoDoCupom}
+                onChange={(e) => setTextoDoCupom(e.target.value)}
+                placeholder="Código do cupom"
+                aria-label="Código do cupom"
+                className="uppercase"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void aplicarCupom();
+                }}
+              />
+              <Button
+                variant="outline"
+                disabled={conferindo || !textoDoCupom.trim()}
+                onClick={() => void aplicarCupom()}
+              >
+                {conferindo ? "Conferindo…" : "Aplicar"}
+              </Button>
+            </div>
+          )}
+        </div>
       </section>
 
       {pacote && p.plano === "ia" && (
@@ -206,10 +298,12 @@ function PaginaDoPlano() {
           <Button
             variant="outline"
             disabled={abrindo !== null}
-            onClick={() => void irPara("pacote", () => comprar())}
+            onClick={() =>
+              void irPara("pacote", () => comprar({ data: { cupom: cupom?.codigo ?? null } }))
+            }
           >
             {abrindo === "pacote" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Comprar por {reais(pacote.valorCentavos)}
+            Comprar por {reais(cupom?.precos[pacote.chave] ?? pacote.valorCentavos)}
           </Button>
         </section>
       )}
