@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { formatBRL } from "@/lib/finance/format";
 import { useGreetingUser } from "@/components/home/use-greeting-user";
 import type { HomeData } from "@/components/home/home-data";
+import { PrimeirosPassos } from "@/components/home/PrimeirosPassos";
 
 export function DesktopHome({ dados }: { dados: HomeData }) {
   const navigate = useNavigate();
@@ -33,6 +34,8 @@ export function DesktopHome({ dados }: { dados: HomeData }) {
         </div>
         <SinoDeAvisos className="h-11 w-11 shrink-0" />
       </header>
+
+      <PrimeirosPassos />
 
       <GrupoDeKpis>
         <KpiCard

@@ -211,8 +211,13 @@ function AuthGate({ children }: { children: ReactNode }) {
     // `/club` é a área do PACIENTE, aberta pelo QR Code do cartão: quem chega
     // ali normalmente não tem sessão nenhuma, e mandá-lo para o login da
     // equipe seria o fim do passeio.
+    // `/comecar` é o "Testar grátis" da página de vendas: quem chega ali ainda
+    // não tem conta.
     const isPublicRoute =
-      isAuthRoute || pathname.startsWith("/convite") || pathname.startsWith("/club");
+      isAuthRoute ||
+      pathname.startsWith("/convite") ||
+      pathname.startsWith("/club") ||
+      pathname.startsWith("/comecar");
     if (!authed && !isPublicRoute) {
       router.navigate({
         to: "/auth",
@@ -239,6 +244,7 @@ function AuthGate({ children }: { children: ReactNode }) {
     pathname.startsWith("/auth") ||
     pathname.startsWith("/convite") ||
     pathname.startsWith("/club") ||
+    pathname.startsWith("/comecar") ||
     (pathname === "/" && ehDominioDoClube());
   if (!authed && !isPublicRoute) return null;
   return <>{children}</>;

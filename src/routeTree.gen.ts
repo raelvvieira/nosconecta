@@ -15,6 +15,7 @@ import { Route as AgenteIaRouteImport } from './routes/agente-ia'
 import { Route as AtendimentosRouteImport } from './routes/atendimentos'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ClubRouteImport } from './routes/club'
+import { Route as ComecarRouteImport } from './routes/comecar'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as FinanceiroRouteImport } from './routes/financeiro'
 import { Route as InicioRouteImport } from './routes/inicio'
@@ -76,6 +77,11 @@ const AuthRoute = AuthRouteImport.update({
 const ClubRoute = ClubRouteImport.update({
   id: '/club',
   path: '/club',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComecarRoute = ComecarRouteImport.update({
+  id: '/comecar',
+  path: '/comecar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
@@ -253,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
   '/club': typeof ClubRoute
+  '/comecar': typeof ComecarRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
@@ -291,6 +298,7 @@ export interface FileRoutesByTo {
   '/agenda': typeof AgendaRoute
   '/auth': typeof AuthRoute
   '/club': typeof ClubRoute
+  '/comecar': typeof ComecarRoute
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
   '/nos-club': typeof NosClubRoute
@@ -329,6 +337,7 @@ export interface FileRoutesById {
   '/atendimentos': typeof AtendimentosRouteWithChildren
   '/auth': typeof AuthRoute
   '/club': typeof ClubRoute
+  '/comecar': typeof ComecarRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/financeiro': typeof FinanceiroRoute
   '/inicio': typeof InicioRoute
@@ -371,6 +380,7 @@ export interface FileRouteTypes {
     | '/atendimentos'
     | '/auth'
     | '/club'
+    | '/comecar'
     | '/configuracoes'
     | '/financeiro'
     | '/inicio'
@@ -409,6 +419,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/auth'
     | '/club'
+    | '/comecar'
     | '/financeiro'
     | '/inicio'
     | '/nos-club'
@@ -446,6 +457,7 @@ export interface FileRouteTypes {
     | '/atendimentos'
     | '/auth'
     | '/club'
+    | '/comecar'
     | '/configuracoes'
     | '/financeiro'
     | '/inicio'
@@ -487,6 +499,7 @@ export interface RootRouteChildren {
   AtendimentosRoute: typeof AtendimentosRouteWithChildren
   AuthRoute: typeof AuthRoute
   ClubRoute: typeof ClubRoute
+  ComecarRoute: typeof ComecarRoute
   ConfiguracoesRoute: typeof ConfiguracoesRouteWithChildren
   FinanceiroRoute: typeof FinanceiroRoute
   InicioRoute: typeof InicioRoute
@@ -542,6 +555,13 @@ declare module '@tanstack/react-router' {
       path: '/club'
       fullPath: '/club'
       preLoaderRoute: typeof ClubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/comecar': {
+      id: '/comecar'
+      path: '/comecar'
+      fullPath: '/comecar'
+      preLoaderRoute: typeof ComecarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/configuracoes': {
@@ -874,6 +894,7 @@ const rootRouteChildren: RootRouteChildren = {
   AtendimentosRoute: AtendimentosRouteWithChildren,
   AuthRoute: AuthRoute,
   ClubRoute: ClubRoute,
+  ComecarRoute: ComecarRoute,
   ConfiguracoesRoute: ConfiguracoesRouteWithChildren,
   FinanceiroRoute: FinanceiroRoute,
   InicioRoute: InicioRoute,

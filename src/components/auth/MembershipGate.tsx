@@ -16,7 +16,8 @@ import { ROTA_INICIAL, podeAbrir, type RecursosDoConsultorio } from "@/lib/auth/
  */
 // `/club` entra aqui porque o paciente é exatamente o que este portão barra:
 // alguém autenticado que NÃO é da equipe. Ver o comentário em `club.tsx`.
-const MEMBERSHIP_EXEMPT_PREFIXES = ["/auth", "/convite", "/club"];
+// `/comecar` cria o consultório de quem ainda não tem nenhum.
+const MEMBERSHIP_EXEMPT_PREFIXES = ["/auth", "/convite", "/club", "/comecar"];
 
 export function MembershipGate({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -77,8 +78,13 @@ function MembershipCheck({ children }: { children: ReactNode }) {
     return (
       <GateScreen
         icon={<ShieldAlert className="h-6 w-6 text-destructive" />}
-        title="Sua conta não está vinculada a nenhuma clínica"
-        description="O acesso à NÓS Conecta é por convite: peça um link para quem administra a clínica. Se já recebeu um, abra o link de novo com esta conta."
+        title="Sua conta não está vinculada a nenhum consultório"
+        description="Para entrar na equipe de um consultório, peça um link para quem o administra e abra com esta conta. Para começar o seu, teste 14 dias grátis."
+        actions={
+          <Button variant="premium" asChild>
+            <a href="/comecar">Criar meu consultório</a>
+          </Button>
+        }
         onSignOut={handleSignOut}
       />
     );

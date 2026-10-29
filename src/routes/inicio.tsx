@@ -8,6 +8,7 @@ import { RouteSkeleton } from "@/components/layout/RouteSkeleton";
 import { getFinanceOverview } from "@/lib/finance/queries.functions";
 import { getHomeToday } from "@/lib/agenda/agenda.functions";
 import { homeOverviewOptions, homeTodayOptions, useHomeData } from "@/components/home/useHomeData";
+import { BoasVindas } from "@/components/home/PrimeirosPassos";
 
 export const Route = createFileRoute("/inicio")({
   ssr: false,
@@ -41,6 +42,9 @@ function InicioPage() {
     <div className="app-bg h-dvh flex overflow-hidden">
       <Sidebar />
 
+      {/* Uma vez só, fora das duas casas (celular e computador): as duas
+          ficam montadas, e cada uma abriria o seu. */}
+      <BoasVindas />
       {dados && <MobileHome dados={dados} />}
 
       <main className="hidden lg:block flex-1 min-w-0 overflow-y-auto sem-arrasto-lateral custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 pb-nav lg:pb-8">

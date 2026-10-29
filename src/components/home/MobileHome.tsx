@@ -30,6 +30,7 @@ import type { HomeData } from "@/components/home/home-data";
 import { formatBRL } from "@/lib/finance/format";
 import { useGreetingUser } from "@/components/home/use-greeting-user";
 import { cn } from "@/lib/utils";
+import { PrimeirosPassos } from "@/components/home/PrimeirosPassos";
 
 // Esta tela era escrita em estilo inline linha a linha — 53 blocos de `style`,
 // com raio, sombra, cor e tamanho de texto cravados um a um. Era o lugar do
@@ -354,6 +355,7 @@ export function MobileHome({ dados }: { dados: HomeData }) {
   return (
     <div className="app-bg custom-scroll w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-nav lg:hidden">
       <Cabecalho />
+      <PrimeirosPassos className="mx-4 mb-4" />
       <Resumo dados={dados} />
       <ProximosAtendimentos dados={dados} />
       <AcoesRapidas />
