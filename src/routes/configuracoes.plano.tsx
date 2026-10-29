@@ -234,6 +234,12 @@ function PaginaDoPlano() {
           <CreditCard className="h-3.5 w-3.5" /> Pagamento seguro pelo Asaas, no cartão. Sem
           fidelidade: dá para cancelar quando quiser.
         </p>
+        {/* Quem chega pela NÓS Conecta e encontra outro nome na página de
+            pagamento estranha (29/10). Avisar antes tira a surpresa. */}
+        <p className="mt-1 text-xs text-muted-foreground">
+          Na página de pagamento e na fatura, a cobrança aparece em nome da{" "}
+          <strong>HYPA E-COM Negócios Digitais</strong>, a empresa responsável pela NÓS Conecta.
+        </p>
 
         {/* O cupom: o Checkout do Asaas não tem esse campo, então ele mora aqui. */}
         <div className="mt-4">

@@ -80,7 +80,12 @@ async function abrirCheckout(e: {
     items: [
       {
         name: nomeDoItem(e.nome),
-        description: e.nome.slice(0, 150),
+        // O topo da página do Asaas mostra a empresa que cobra (HYPA E-COM),
+        // não a marca: a descrição diz de quem é o produto.
+        description: `${e.nome} · NÓS Conecta, cobrado por HYPA E-COM Negócios Digitais`.slice(
+          0,
+          150,
+        ),
         quantity: 1,
         value: e.valor,
         imageBase64: IMAGEM_DO_ITEM,
