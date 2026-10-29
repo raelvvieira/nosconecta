@@ -250,7 +250,7 @@ export async function porNaAgenda(
       type: "consultation",
       expected_revenue: procedimento.preco ?? 0,
       generate_financial: true,
-      notes: `Agendado pela Luna na conversa do WhatsApp. Horário ${vaga.hora} de ${vaga.date}, confirmado pela paciente. Confira antes de marcar como confirmado.`,
+      notes: `Agendado pela assistente na conversa do WhatsApp. Horário ${vaga.hora} de ${vaga.date}, confirmado pela paciente. Confira antes de marcar como confirmado.`,
     })
     .select("id")
     .maybeSingle();

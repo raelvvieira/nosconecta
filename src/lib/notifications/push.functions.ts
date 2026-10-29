@@ -32,7 +32,7 @@ export const PUSH_TYPE_LABEL: Record<PushType, { title: string; description: str
     description: "Quando uma automação com a ação \u201cNotificar a equipe\u201d dispara.",
   },
   luna_duvida: {
-    title: "A Luna precisa de uma confirmação",
+    title: "A assistente precisa de uma confirmação",
     description:
       "Quando ela encaminha uma dúvida para a equipe. Sem este aviso, ninguém fica sabendo e o paciente espera.",
   },

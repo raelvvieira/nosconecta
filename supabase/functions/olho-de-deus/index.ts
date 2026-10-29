@@ -83,6 +83,7 @@ function janelaDaSemana(agora: Date): { de: string; ate: string } {
 interface Agente {
   id: string;
   owner_id: string;
+  name: string | null;
   api_key: string | null;
   model: string | null;
   instrucao_base: string | null;
@@ -230,6 +231,7 @@ async function olharClinica(
         de: janela.de,
         ate: janela.ate,
         numeros,
+        assistente: agente.name,
         licoes: asLicoes,
         secoesDoManual: secoesDoManual(agente.instrucao_base),
         gargaloAnterior,
@@ -294,6 +296,7 @@ async function olharClinica(
     de: janela.de,
     ate: janela.ate,
     numeros,
+    assistente: agente.name,
     relatorio,
     praticas,
     motivoSemPraticas,
@@ -383,7 +386,7 @@ Deno.serve(async (req) => {
     let busca = supabase
       .from("ai_agents")
       .select(
-        "id, owner_id, api_key, model, instrucao_base, olho_ligado, olho_modelo, olho_na_web",
+        "id, owner_id, name, api_key, model, instrucao_base, olho_ligado, olho_modelo, olho_na_web",
       );
     if (pedido.ownerId) busca = busca.eq("owner_id", pedido.ownerId);
 

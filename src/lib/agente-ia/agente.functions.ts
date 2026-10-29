@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { CAMPOS_DO_MANUAL, type ManualDeVendas } from "./manual";
 import { precoDoModelo, somarPorMes, type PrecoDoModelo, type SomaDoMes } from "./consumo";
 import { exigeAgenteIa } from "@/lib/auth/area.middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
 export type { ManualDeVendas };
 
@@ -55,6 +56,24 @@ async function chamar(body: unknown): Promise<any> {
   return json;
 }
 
+/**
+ * O nome da assistente deste consultório, para as telas falarem dela pelo
+ * nome que o consultório escolheu ("Luna" é o padrão). Qualquer pessoa da
+ * equipe lê: o chat, que a recepção usa, também fala dela.
+ */
+export const getNomeDaAssistente = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .handler(async ({ context }): Promise<string> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- colunas novas, fora do types.ts do Lovable
+    const supabase: any = context.supabase;
+    const { data } = await supabase
+      .from("ai_agents")
+      .select("name")
+      .eq("owner_id", context.ownerId)
+      .maybeSingle();
+    return String(data?.name ?? "").trim() || "Luna";
+  });
+
 export const getEstadoDoAgente = createServerFn({ method: "GET" })
   .middleware([exigeAgenteIa])
   .handler(async ({ context }): Promise<EstadoDoAgente> => {
@@ -63,7 +82,7 @@ export const getEstadoDoAgente = createServerFn({ method: "GET" })
     const p = json.playbook ?? {};
     return {
       agenteId: String(a.id ?? ""),
-      nome: a.name ?? "Assistente da NÓS",
+      nome: a.name ?? "Luna",
       ligado: !!a.enabled,
       etapasDeVitoria: Array.isArray(a.winning_stage_ids) ? a.winning_stage_ids.map(String) : [],
       aprenderDeGanhos: a.learn_from_won !== false,
@@ -125,7 +144,7 @@ export const salvarConfiguracaoDoAgente = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
     const campos: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (data.nome !== undefined) campos.name = data.nome.trim() || "Assistente da NÓS";
+    if (data.nome !== undefined) campos.name = data.nome.trim() || "Luna";
     if (data.ligado !== undefined) campos.enabled = data.ligado;
     if (data.etapasDeVitoria !== undefined) campos.winning_stage_ids = data.etapasDeVitoria;
     if (data.aprenderDeGanhos !== undefined) campos.learn_from_won = data.aprenderDeGanhos;

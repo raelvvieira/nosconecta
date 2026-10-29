@@ -42,6 +42,7 @@ import {
 } from "../_shared/instrucao-do-agente.ts";
 import { soOSistema } from "../_shared/so-o-sistema.ts";
 import { semIaNoConsultorio } from "../_shared/plano-no-banco.ts";
+import { identidadeDoConsultorio } from "../_shared/identidade-do-consultorio.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -766,8 +767,11 @@ async function contextoDaClinica(ownerId: string, agente: any) {
     principal: u.is_default === true,
   }));
 
+  const identidade = await identidadeDoConsultorio(supabase, ownerId);
   return {
-    clinica: listaDeUnidades[0]?.nome || "NÓS Odontologia",
+    clinica: listaDeUnidades[0]?.nome || identidade.nome,
+    responsavel: identidade.responsavel,
+    assistente: agente?.name ?? null,
     unidades: listaDeUnidades,
     manual: manualEfetivo(playbook.learned, playbook.overrides),
     instrucaoBase: agente?.instrucao_base ?? null,

@@ -62,6 +62,7 @@ const MENSAGENS_DA_TRANSCRICAO = 60;
 async function avaliarClinica(agente: {
   id: string;
   owner_id: string;
+  name?: string | null;
   api_key: string | null;
   model: string | null;
   instrucao_base: string | null;
@@ -166,6 +167,7 @@ async function avaliarClinica(agente: {
         modelo: agente.model,
         pergunta: promptDaLicao({
           desfecho,
+          assistente: agente.name ?? null,
           nomeDoContato: s.contact_name ?? null,
           anuncio: anuncio?.copy ?? null,
           transcricao,
@@ -239,7 +241,7 @@ Deno.serve(async (req) => {
     // pausada.
     const { data: agentes, error } = await supabase
       .from("ai_agents")
-      .select("id, owner_id, api_key, model, instrucao_base");
+      .select("id, owner_id, name, api_key, model, instrucao_base");
     if (error) throw new Error(error.message);
 
     const resultado = [];

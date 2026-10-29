@@ -15,6 +15,7 @@ import {
 } from "@/lib/agente-ia/agente.functions";
 import { PainelDoFunil } from "@/components/agente-ia/PainelDoFunil";
 import { ChaveDaIa } from "@/components/agente-ia/ChaveDaIa";
+import { NomeDaAssistente } from "@/components/agente-ia/NomeDaAssistente";
 import { ManualDaLuna } from "@/components/agente-ia/ManualDaLuna";
 import { PacienteModelo } from "@/components/agente-ia/PacienteModelo";
 import { ComQuemFala } from "@/components/agente-ia/ComQuemFala";
@@ -163,6 +164,7 @@ function AgentePage() {
           {/* ── 1. A chave ──────────────────────────────────────────────────
               Primeiro de tudo porque é o que destrava o resto: sem ela a IA
               não responde e as sugestões não aparecem no chat. */}
+          {estado && <NomeDaAssistente nome={estado.nome} />}
           <ChaveDaIa />
           <ConversasDoMes />
 

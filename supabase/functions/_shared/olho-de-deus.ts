@@ -43,6 +43,8 @@
 
 // ── O que entra ───────────────────────────────────────────────────────────
 
+import { nomeDaAssistente } from "./identidade-do-consultorio.ts";
+
 /** Uma lição já gravada por `agente-licoes`. */
 export interface LicaoDaSemana {
   desfecho: string;
@@ -416,6 +418,8 @@ export interface PedidoDoOlho {
   de: string;
   ate: string;
   numeros: NumerosDaSemana;
+  /** O nome da assistente deste consultório ("Luna" se não escolheu). */
+  assistente?: string | null;
   licoes: LicaoDaSemana[];
   /** Os TÍTULOS das seções do manual que está valendo. Só os títulos — ver
    *  `secoesDoManual` para o motivo. */
@@ -448,10 +452,11 @@ export interface PedidoDoOlho {
  */
 export function promptDoOlho(p: PedidoDoOlho): string {
   const n = p.numeros;
+  const a = nomeDaAssistente(p.assistente);
   const linhas: string[] = [];
 
   linhas.push(
-    "Você é o supervisor da Luna, a assistente que atende os pacientes desta",
+    `Você é o supervisor da ${a}, a assistente que atende os pacientes desta`,
     "clínica odontológica pelo WhatsApp. Você NÃO está atendendo ninguém: você",
     "está lendo a semana dela e escrevendo um relatório para a dona da clínica.",
     "",
@@ -461,7 +466,7 @@ export function promptDoOlho(p: PedidoDoOlho): string {
     "",
     "Estes números foram CONTADOS no banco de dados, um por um. São fatos.",
     "",
-    `- Conversas novas: ${n.conversas}, e a Luna falou em ${n.conversasAtendidas} delas.`,
+    `- Conversas novas: ${n.conversas}, e a ${a} falou em ${n.conversasAtendidas} delas.`,
     `- Mensagens de paciente que ela respondeu: ${n.mensagensRespondidas}.`,
     `- Mensagens de paciente que ela deixou sem resposta: ${n.mensagensIgnoradas}.`,
     `- Respostas que ofereceram horário: ${n.respostasComHorario}.`,
@@ -530,7 +535,7 @@ export function promptDoOlho(p: PedidoDoOlho): string {
       "",
       "## As conversas, nas palavras dela",
       "",
-      "A própria Luna avaliou cada uma destas. Use-as para falar de ABORDAGEM,",
+      `A própria ${a} avaliou cada uma destas. Use-as para falar de ABORDAGEM,`,
       "tom e condução — é o único material que você tem para isso, e citar é",
       "melhor que generalizar:",
       "",
@@ -757,6 +762,8 @@ export interface RelatorioCompleto {
   de: string;
   ate: string;
   numeros: NumerosDaSemana;
+  /** O nome da assistente deste consultório ("Luna" se não escolheu). */
+  assistente?: string | null;
   relatorio: Relatorio;
   /** As práticas de fora, quando a busca rodou. */
   praticas: BoasPraticas | null;
@@ -861,7 +868,7 @@ export function markdownDoRelatorio(r: RelatorioCompleto): string {
     "| | |",
     "|---|---|",
     `| Conversas novas | ${n.conversas} |`,
-    `| Conversas em que a Luna falou | ${n.conversasAtendidas} |`,
+    `| Conversas em que a ${nomeDaAssistente(r.assistente)} falou | ${n.conversasAtendidas} |`,
     `| Mensagens de paciente respondidas | ${n.mensagensRespondidas} |`,
     `| Mensagens de paciente sem resposta | ${n.mensagensIgnoradas} |`,
     `| Respostas que ofereceram horário | ${n.respostasComHorario} |`,
@@ -873,7 +880,7 @@ export function markdownDoRelatorio(r: RelatorioCompleto): string {
     `| Consultas criadas | ${n.consultasCriadas} |`,
     `| Consultas concluídas | ${n.consultasConcluidas} |`,
     `| Consultas por conversa atendida | ${n.conversaoPorcento === null ? "não houve conversa atendida" : `${n.conversaoPorcento}%`} |`,
-    `| Conversas avaliadas pela própria Luna | ${n.licoes} |`,
+    `| Conversas avaliadas pela própria ${nomeDaAssistente(r.assistente)} | ${n.licoes} |`,
     `| Dessas, fechadas por ela sozinha | ${n.licoesQueFecharam} |`,
     "",
   );

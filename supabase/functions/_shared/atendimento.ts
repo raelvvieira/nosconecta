@@ -48,6 +48,7 @@ import type { ProfissionalDaClinica } from "./instrucao-do-agente.ts";
 import type { HorariosParaOferecer } from "./instrucao-do-agente.ts";
 import type { RespostaAoPaciente } from "./modelo-de-atendimento.ts";
 import { podeAtender } from "./plano-no-banco.ts";
+import { identidadeDoConsultorio } from "./identidade-do-consultorio.ts";
 
 export interface MensagemDeEntrada {
   conversationId: string;
@@ -1031,10 +1032,13 @@ export async function instrucaoDaLuna(
   // valida o código que a IA devolve. Reconsultar a agenda depois da resposta
   // daria uma tabela diferente — meia hora passou, e a vaga que ela ofereceu
   // pode não estar mais na lista.
+  const identidade = await identidadeDoConsultorio(supabase, ownerId);
   const texto = montarInstrucao({
     anuncio,
     horarios,
-    clinica: unidade?.nome || "NÓS Odontologia",
+    clinica: unidade?.nome || identidade.nome,
+    responsavel: identidade.responsavel,
+    assistente: agente.name ?? null,
     unidades: listaDeUnidades,
     manual: manualEfetivo(playbook?.learned, playbook?.overrides),
     procedimentos: procedimentos.map((p) => ({

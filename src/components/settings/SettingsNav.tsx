@@ -72,7 +72,7 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
         kind: "link",
         to: "/configuracoes/casos",
         label: "Biblioteca de casos",
-        description: "Antes e depois que a Luna pode enviar",
+        description: "Antes e depois que a assistente pode enviar",
         icon: Images,
       },
       {

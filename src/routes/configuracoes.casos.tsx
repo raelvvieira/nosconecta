@@ -48,7 +48,7 @@ export const Route = createFileRoute("/configuracoes/casos")({
       { title: "Biblioteca de casos · Configurações · NÓS Conecta" },
       {
         name: "description",
-        content: "Casos de antes e depois que a Luna pode enviar no WhatsApp.",
+        content: "Casos de antes e depois que a assistente pode enviar no WhatsApp.",
       },
     ],
   }),
@@ -141,7 +141,7 @@ function CasosPage() {
           <>
             <p className="mt-6 text-xs text-muted-foreground">
               {ativos} de {casos.length}{" "}
-              {casos.length === 1 ? "caso disponível" : "casos disponíveis"} para a Luna
+              {casos.length === 1 ? "caso disponível" : "casos disponíveis"} para a assistente
             </p>
             <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {casos.map((c) => (

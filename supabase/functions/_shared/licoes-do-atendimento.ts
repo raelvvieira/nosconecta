@@ -27,6 +27,8 @@
 // duas lições da mesma conversa se contradizendo é pior que nenhuma. Por isso o
 // silêncio é parte da definição de fim.
 
+import { nomeDaAssistente } from "./identidade-do-consultorio.ts";
+
 /**
  * Quanto tempo de silêncio conta como conversa encerrada.
  *
@@ -166,6 +168,8 @@ export function licaoDoJson(bruto: unknown): Licao {
 
 export interface EntradaDaLicao {
   desfecho: Desfecho;
+  /** O nome da assistente deste consultório ("Luna" se não escolheu). */
+  assistente?: string | null;
   /** O nome que a pessoa usa no WhatsApp, quando há. */
   nomeDoContato: string | null;
   /** O texto do anúncio que trouxe ela, quando veio de um. */
@@ -200,7 +204,7 @@ export function promptDaLicao(e: EntradaDaLicao): string {
   const partes: string[] = [];
 
   partes.push(
-    "Você é a Luna, a atendente de WhatsApp desta clínica de odontologia.",
+    `Você é a ${nomeDaAssistente(e.assistente)}, a atendente de WhatsApp desta clínica de odontologia.`,
     "",
     "A conversa abaixo é SUA. Ela terminou, e você vai olhar para ela para",
     "atender melhor na próxima. Não é relatório para ninguém ler por obrigação:",

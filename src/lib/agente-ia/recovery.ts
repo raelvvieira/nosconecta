@@ -42,7 +42,7 @@ export {
 export const NOME_DA_TRILHA: Record<Trilha, { nome: string; quando: string }> = {
   INITIAL_NO_RESPONSE: {
     nome: "Nunca respondeu",
-    quando: "A Luna respondeu a primeira mensagem e a pessoa não voltou.",
+    quando: "A assistente respondeu a primeira mensagem e a pessoa não voltou.",
   },
   ACTIVE_CONVERSATION_DROP: {
     nome: "Parou no meio da conversa",

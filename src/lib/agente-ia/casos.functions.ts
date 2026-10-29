@@ -41,7 +41,7 @@ function validar(input: {
   ativo?: boolean;
 }) {
   const titulo = input.titulo?.trim();
-  if (!titulo) throw new Error("Dê um título ao caso — é por ele que a Luna o reconhece.");
+  if (!titulo) throw new Error("Dê um título ao caso — é por ele que a assistente o reconhece.");
   if (titulo.length > MAX_TITULO) throw new Error(`Título muito longo (máx. ${MAX_TITULO}).`);
   const mediaPath = input.mediaPath?.trim();
   if (!mediaPath) throw new Error("Envie a imagem do caso.");

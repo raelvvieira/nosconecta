@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { localDateStr } from "@/lib/date";
 import { useAtendimento } from "./useAtendimento";
 import { Bloco } from "./campos";
+import { useNomeDaAssistente } from "@/components/agente-ia/useNomeDaAssistente";
 
 /**
  * A edição de paciente modelo que está aberta — ou não.
@@ -28,6 +29,7 @@ import { Bloco } from "./campos";
  * defeito.
  */
 export function PacienteModelo() {
+  const luna = useNomeDaAssistente();
   const { config, gravar } = useAtendimento();
   const [ate, setAte] = useState("");
   const [texto, setTexto] = useState("");
@@ -54,7 +56,7 @@ export function PacienteModelo() {
   return (
     <Bloco
       titulo="Vaga de paciente modelo"
-      descricao="A edição da mentoria que a Luna pode oferecer. Fora dela, ela não cita valor nenhum."
+      descricao={`A edição da mentoria que a ${luna} pode oferecer. Fora dela, ela não cita valor nenhum.`}
       acao={
         <span
           className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -73,19 +75,19 @@ export function PacienteModelo() {
         <p className="text-xs leading-5 text-muted-foreground">
           {aberta ? (
             <>
-              A Luna está oferecendo a vaga e pode citar os valores do texto abaixo.{" "}
+              A {luna} está oferecendo a vaga e pode citar os valores do texto abaixo.{" "}
               <strong>Depois do último dia ela para sozinha</strong> — você não precisa voltar aqui
               para desligar.
             </>
           ) : venceu ? (
             <>
-              A última edição terminou e a Luna <strong>não</strong> oferece mais a vaga nem cita os
-              valores. Para abrir a próxima, troque a data e revise o texto.
+              A última edição terminou e a {luna} <strong>não</strong> oferece mais a vaga nem cita
+              os valores. Para abrir a próxima, troque a data e revise o texto.
             </>
           ) : (
             <>
-              Sem data e sem texto, a Luna responde que vai confirmar quando abre a próxima e passa
-              a conversa para uma pessoa. Preencha os dois para ela voltar a oferecer.
+              Sem data e sem texto, a {luna} responde que vai confirmar quando abre a próxima e
+              passa a conversa para uma pessoa. Preencha os dois para ela voltar a oferecer.
             </>
           )}
         </p>
@@ -97,7 +99,7 @@ export function PacienteModelo() {
             Último dia da edição
           </label>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            O último dia da mentoria. Até ele a Luna oferece; no dia seguinte, para.
+            O último dia da mentoria. Até ele a {luna} oferece; no dia seguinte, para.
           </p>
           <Input
             id="pm-ate"
@@ -118,7 +120,7 @@ export function PacienteModelo() {
             Endereço do local da mentoria
           </label>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Onde esta edição acontece. É o endereço que a Luna dá quando perguntarem, e ele{" "}
+            Onde esta edição acontece. É o endereço que a {luna} dá quando perguntarem, e ele{" "}
             <strong>substitui</strong> o da clínica nessas conversas. Em branco, ela passa a
             conversa para uma pessoa em vez de arriscar a cidade errada.
           </p>
@@ -134,11 +136,11 @@ export function PacienteModelo() {
 
         <div>
           <label htmlFor="pm-texto" className="text-sm font-medium">
-            O que a Luna pode dizer
+            O que a {luna} pode dizer
           </label>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Cidade, dias, valores e como funciona a reserva. Estes valores são só da mentoria — a
-            lista de preços da clínica continua valendo para todo mundo, e a Luna sabe separar as
+            lista de preços da clínica continua valendo para todo mundo, e a {luna} sabe separar as
             duas.
           </p>
           <Textarea

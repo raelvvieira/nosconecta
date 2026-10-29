@@ -12,6 +12,7 @@ import {
   getRelatoriosDoOlho,
   type RelatorioDoOlho,
 } from "@/lib/agente-ia/olho.functions";
+import { useNomeDaAssistente } from "@/components/agente-ia/useNomeDaAssistente";
 
 /**
  * O Olho de Deus: a semana da Luna somada, com o que mudar.
@@ -32,6 +33,7 @@ import {
  * de cima. Sem eles o relatório é opinião bem escrita.
  */
 export function OlhoDeDeus() {
+  const luna = useNomeDaAssistente();
   const { config, gravar } = useAtendimento();
   const queryClient = useQueryClient();
   const buscar = useServerFn(getRelatoriosDoOlho);
@@ -76,7 +78,7 @@ export function OlhoDeDeus() {
   return (
     <Bloco
       titulo="Olho de Deus"
-      descricao="Toda segunda ele lê a semana inteira da Luna — as conversas, as lições dela e os motivos de cada silêncio — e escreve o que mudar."
+      descricao={`Toda segunda ele lê a semana inteira da ${luna} — as conversas, as lições dela e os motivos de cada silêncio — e escreve o que mudar.`}
       acao={
         <Button
           type="button"
@@ -117,7 +119,7 @@ export function OlhoDeDeus() {
             O modelo que lê a semana
           </label>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Em branco, ele usa o mesmo da Luna
+            Em branco, ele usa o mesmo da {luna}
             {config?.modelo ? (
               <>
                 {" "}
@@ -137,7 +139,7 @@ export function OlhoDeDeus() {
               className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2 font-mono text-sm disabled:opacity-60"
             >
               <option value="">
-                {modelos.length ? "O mesmo da Luna" : "Cadastre a chave para ver a lista"}
+                {modelos.length ? `O mesmo da ${luna}` : "Cadastre a chave para ver a lista"}
               </option>
               {/* O gravado entra na lista mesmo que a conta não o devolva
                   mais: sem isto, um modelo descontinuado apareceria como "o

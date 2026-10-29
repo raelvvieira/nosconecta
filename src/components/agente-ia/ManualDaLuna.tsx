@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAtendimento } from "./useAtendimento";
 import { Bloco } from "./campos";
+import { useNomeDaAssistente } from "@/components/agente-ia/useNomeDaAssistente";
 
 /**
  * O manual de condução da Luna, escrito pela clínica.
@@ -30,6 +31,7 @@ import { Bloco } from "./campos";
  * prévia.
  */
 export function ManualDaLuna() {
+  const luna = useNomeDaAssistente();
   const { config, gravar } = useAtendimento();
   const [rascunho, setRascunho] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -45,7 +47,7 @@ export function ManualDaLuna() {
 
   return (
     <Bloco
-      titulo="O manual da Luna"
+      titulo={`O manual da ${luna}`}
       descricao="Como ela conduz a conversa. É este texto que vira a instrução dela."
       acao={
         <span className="shrink-0 text-xs text-muted-foreground">
@@ -67,7 +69,7 @@ export function ManualDaLuna() {
         onChange={(e) => setRascunho(e.target.value)}
         rows={18}
         spellCheck={false}
-        placeholder="Escreva como a Luna deve conduzir a conversa: quem ela é, o tom, as etapas, o que ela nunca faz."
+        placeholder={`Escreva como a ${luna} deve conduzir a conversa: quem ela é, o tom, as etapas, o que ela nunca faz.`}
         className="mt-4 resize-y rounded-xl border-border font-mono text-xs leading-5"
       />
 

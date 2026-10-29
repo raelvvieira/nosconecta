@@ -5,6 +5,7 @@ import { Check, Loader2, Sticker } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { aprovarFigurinha, idsDasFigurinhas } from "@/lib/agente-ia/recovery.functions";
+import { useNomeDaAssistente } from "@/components/agente-ia/useNomeDaAssistente";
 
 /**
  * "Usar nos follow-ups", embaixo de uma figurinha do chat.
@@ -15,6 +16,7 @@ import { aprovarFigurinha, idsDasFigurinhas } from "@/lib/agente-ia/recovery.fun
  * some.
  */
 export function UsarFigurinha({ messageId, claro }: { messageId: string; claro: boolean }) {
+  const luna = useNomeDaAssistente();
   const queryClient = useQueryClient();
   const buscar = useServerFn(idsDasFigurinhas);
   const aprovar = useServerFn(aprovarFigurinha);
@@ -38,7 +40,7 @@ export function UsarFigurinha({ messageId, claro }: { messageId: string; claro: 
         try {
           await aprovar({ data: { messageId } });
           await queryClient.invalidateQueries({ queryKey: ["figurinhas-da-luna"] });
-          toast.success("Figurinha liberada para os follow-ups da Luna.");
+          toast.success(`Figurinha liberada para os follow-ups da ${luna}.`);
         } catch (e) {
           toast.error(e instanceof Error ? e.message : "Não foi possível aprovar.");
         } finally {
@@ -58,7 +60,7 @@ export function UsarFigurinha({ messageId, claro }: { messageId: string; claro: 
       ) : (
         <Sticker className="h-3 w-3" />
       )}
-      {aprovada ? "Nos follow-ups da Luna" : "Usar nos follow-ups"}
+      {aprovada ? `Nos follow-ups da ${luna}` : "Usar nos follow-ups"}
     </button>
   );
 }

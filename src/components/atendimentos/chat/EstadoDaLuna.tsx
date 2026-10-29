@@ -8,6 +8,7 @@ import {
   getEstadoDaLunaNaConversa,
   resolverDuvidaDaLuna,
 } from "@/lib/agente-ia/agente.functions";
+import { useNomeDaAssistente } from "@/components/agente-ia/useNomeDaAssistente";
 
 /**
  * A faixa que diz o que a Luna está fazendo nesta conversa — e deixa agir.
@@ -39,6 +40,7 @@ import {
  * é ruído que se aprende a ignorar — inclusive quando deixa de dizer isso.
  */
 export function EstadoDaLuna({ conversationId }: { conversationId: string }) {
+  const luna = useNomeDaAssistente();
   const queryClient = useQueryClient();
   const buscar = useServerFn(getEstadoDaLunaNaConversa);
   const devolver = useServerFn(devolverParaIa);
@@ -57,7 +59,7 @@ export function EstadoDaLuna({ conversationId }: { conversationId: string }) {
     mutationFn: (sessionId: string) => devolver({ data: { sessionId } }),
     onSuccess: async () => {
       await invalidar();
-      toast.success("A Luna voltou a atender esta conversa.");
+      toast.success(`A ${luna} voltou a atender esta conversa.`);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -85,11 +87,11 @@ export function EstadoDaLuna({ conversationId }: { conversationId: string }) {
       <Faixa
         tom="warning"
         icone={<BotOff className="h-4 w-4 shrink-0" strokeWidth={1.75} />}
-        titulo="Luna pausada"
+        titulo={`${luna} pausada`}
         texto={
           dados.agenteLigado
             ? `A equipe respondeu ${quando(dados.humanoAssumiuEm)}; desde então ela não fala aqui.`
-            : `A equipe respondeu ${quando(dados.humanoAssumiuEm)}. A Luna também está desligada no geral.`
+            : `A equipe respondeu ${quando(dados.humanoAssumiuEm)}. A ${luna} também está desligada no geral.`
         }
         rotuloDaAcao={aoDevolver.isPending ? "Devolvendo…" : "Devolver"}
         ocupado={aoDevolver.isPending}

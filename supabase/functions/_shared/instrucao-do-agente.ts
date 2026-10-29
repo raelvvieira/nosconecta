@@ -24,6 +24,7 @@
 // são as que estão valendo. Melhor uma ida ao servidor do que essa mentira.
 
 /** Uma etapa da conversa, como o aprendizado a reconheceu. */
+import { nomeDaAssistente, quemAvalia } from "./identidade-do-consultorio.ts";
 import { secaoDoAnuncio, type Anuncio } from "./veio-de-anuncio.ts";
 import { catalogoDeVagas, comoReportarFechamento } from "./agendamento-da-ia.ts";
 import { comoUsarOsCasos, type CasoComCodigo } from "./casos-da-ia.ts";
@@ -102,6 +103,8 @@ export interface ProcedimentoDoAgente {
   aPartirDe?: boolean;
 }
 
+export { nomeDaAssistente, quemAvalia };
+
 export interface EntradaDaInstrucao {
   clinica: string;
   manual: ManualDeVendas;
@@ -175,6 +178,14 @@ export interface EntradaDaInstrucao {
    * sozinho o que fez na mensagem anterior.
    */
   duvidaPendente?: string | null;
+  /**
+   * Quem faz a avaliação no consultório, como a assistente fala dela ("Dra.
+   * Mariane", na NÓS). Vem de `clinicas.responsavel_avaliacao`. Vazio: "a
+   * equipe", e nenhum nome é inventado.
+   */
+  responsavel?: string | null;
+  /** O nome da assistente (`ai_agents.name`, "Luna" na NÓS). */
+  assistente?: string | null;
 }
 
 export interface UnidadeDaClinica {
@@ -640,7 +651,12 @@ function enderecoDaEdicao(local?: string | null): string[] {
   ];
 }
 
-export function secaoDePacienteModelo(pm: PacienteModelo | null | undefined, hoje: string): string {
+export function secaoDePacienteModelo(
+  pm: PacienteModelo | null | undefined,
+  hoje: string,
+  responsavel?: string | null,
+): string {
+  const quem = quemAvalia(responsavel);
   const partes = ["## Harmonização facial e paciente modelo"];
 
   // Calculado ANTES da proibição, não depois, porque é ele que decide como a
@@ -654,7 +670,7 @@ export function secaoDePacienteModelo(pm: PacienteModelo | null | undefined, hoj
     "Para quem procura harmonização facial, preenchimento ou bioestimulador:",
     'você NUNCA dá valor por aqui, nem faixa, nem "a partir de", nem compara',
     "com outro procedimento. O valor depende do rosto da pessoa e sai da",
-    "avaliação com a Dra. Mariane. Explique o procedimento se perguntarem, e",
+    `avaliação com ${quem}. Explique o procedimento se perguntarem, e`,
     "conduza para a avaliação.",
     "",
     // Sem esta frase a seção contradiz a tabela de preços logo acima, que tem o
@@ -725,11 +741,11 @@ export function secaoDePacienteModelo(pm: PacienteModelo | null | undefined, hoj
       "",
       "Os horários que você tem para oferecer são da agenda normal da clínica.",
       "A vaga de paciente modelo não é um deles: ela acontece nos dias da",
-      "mentoria, e quem confirma é a Dra. Mariane.",
+      `mentoria, e quem confirma é ${quem}.`,
       "",
       "Então, numa conversa de paciente modelo, você NÃO oferece horário e NÃO",
       "preenche o campo de horário fechado — nem se a pessoa disser que quer a",
-      "vaga. O que você faz é dizer que a Dra. Mariane entra em contato por",
+      `vaga. O que você faz é dizer que ${quem} entra em contato por`,
       "este mesmo número para finalizar.",
     );
   } else {
@@ -766,7 +782,10 @@ export function secaoDePacienteModelo(pm: PacienteModelo | null | undefined, hoj
  * agente diria "não temos horário" nos três casos — e no terceiro isso é falso,
  * porque domingo na NÓS não é fechado: é confirmar com a Dra.
  */
-export function secaoDeHorarios(h: HorariosParaOferecer | null | undefined): string {
+export function secaoDeHorarios(
+  h: HorariosParaOferecer | null | undefined,
+  responsavel?: string | null,
+): string {
   if (!h) {
     return [
       "## Horários",
@@ -857,11 +876,11 @@ export function secaoDeHorarios(h: HorariosParaOferecer | null | undefined): str
   if (h.diasSobConsulta.length) {
     partes.push(
       "",
-      "Estes dias são só SOB CONSULTA com a Dra. Mariane:",
+      `Estes dias são só SOB CONSULTA com ${quemAvalia(responsavel)}:`,
       ...h.diasSobConsulta.map((d) => `- ${diaDaSemanaEmTexto(d)}, ${diaMesEmTexto(d)}`),
       "Não ofereça nenhum deles por conta própria — e também NÃO diga que a",
       "clínica não atende nesse dia, porque atende. Se a pessoa pedir um desses,",
-      "diga que precisa confirmar com a Dra. e passe a conversa para uma pessoa.",
+      `diga que precisa confirmar com ${quemAvalia(responsavel)} e passe a conversa para uma pessoa.`,
     );
   }
 
@@ -987,6 +1006,8 @@ export function montarInstrucao({
   cidade,
   profissionais,
   duvidaPendente,
+  responsavel,
+  assistente,
 }: EntradaDaInstrucao): string {
   const daClinica = String(instrucaoBase ?? "").trim();
 
@@ -1079,13 +1100,13 @@ export function montarInstrucao({
   if (quemAtende) partes.push("", quemAtende);
 
   partes.push("", tabelaDePrecos(procedimentos, parcelamento));
-  partes.push("", secaoDeHorarios(horarios));
+  partes.push("", secaoDeHorarios(horarios, responsavel));
   // Depois dos preços e dos horários de propósito: é a seção que RESTRINGE os
   // dois, e uma restrição lida antes da regra que ela restringe se perde.
   // `9999-12-31` quando quem chamou não informou a data: nenhuma edição real é
   // maior que isso, então a oferta nasce FECHADA. Falha fechada de propósito —
   // convidar para uma mentoria que já passou é pior que não convidar.
-  partes.push("", secaoDePacienteModelo(pacienteModelo, hoje ?? "9999-12-31"));
+  partes.push("", secaoDePacienteModelo(pacienteModelo, hoje ?? "9999-12-31", responsavel));
 
   // A biblioteca de casos entra DEPOIS da seção de prova e de paciente modelo,
   // e antes das regras invioláveis: é uma ferramenta de venda, e o lugar dela
@@ -1167,7 +1188,7 @@ export function montarInstrucao({
     "     diga isso, sem inventar orçamento, e lembre que a avaliação é sem custo.",
     "",
     "   O que não fazer, porque aconteceu de verdade:",
-    "   - Responder 'Oii, aqui é a Luna 😊 O combo fica R$ 399, em até 10x,",
+    `   - Responder 'Oii, aqui é a ${nomeDaAssistente(assistente)} 😊 O combo fica R$ X, em até 10x,`,
     "     tenho hoje às 17h ou 17h30' na PRIMEIRA mensagem. A pessoa mal disse",
     "     o que queria e recebeu preço, prazo e duas datas: um folheto.",
     "   - A pessoa disse 'Quero agendar uma avaliação', depois 'Clareamento',",

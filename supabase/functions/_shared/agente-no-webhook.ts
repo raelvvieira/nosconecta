@@ -147,7 +147,7 @@ export async function deixarOAgenteResponder(
     // ambiente, que é onde ela morava antes de a tela existir.
     const { data: agente } = await supabase
       .from("ai_agents")
-      .select("api_key, novo_ate_dias, model")
+      .select("api_key, novo_ate_dias, model, name")
       .eq("owner_id", ownerId)
       .maybeSingle();
     const chave: string | null = agente?.api_key ?? null;
@@ -276,7 +276,7 @@ export async function deixarOAgenteResponder(
             ownerId,
             "luna_duvida",
             {
-              title: `A Luna precisa de você: ${String(m.contactName ?? "").trim() || m.phone || "contato"}`,
+              title: `A ${String(agente?.name ?? "").trim() || "Luna"} precisa de você: ${String(m.contactName ?? "").trim() || m.phone || "contato"}`,
               body: pergunta.length > 160 ? `${pergunta.slice(0, 157)}…` : pergunta,
               url: "/atendimentos/chat",
             },

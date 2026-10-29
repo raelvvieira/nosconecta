@@ -36,6 +36,7 @@ import {
   type Trilha,
 } from "@/lib/agente-ia/recovery";
 import { Bloco, Chave } from "./campos";
+import { useNomeDaAssistente } from "@/components/agente-ia/useNomeDaAssistente";
 
 /**
  * O Recovery Engine: quando a Luna volta em quem parou de responder.
@@ -63,6 +64,7 @@ export function SoSemRecovery({ children }: { children: React.ReactNode }) {
 }
 
 export function RecoveryEngine() {
+  const luna = useNomeDaAssistente();
   const queryClient = useQueryClient();
   const buscar = useServerFn(getRecovery);
   const salvar = useServerFn(salvarRecovery);
@@ -84,7 +86,10 @@ export function RecoveryEngine() {
 
   if (!rascunho) {
     return (
-      <Bloco titulo="Recovery Engine" descricao="Quando a Luna volta em quem parou de responder.">
+      <Bloco
+        titulo="Recovery Engine"
+        descricao={`Quando a ${luna} volta em quem parou de responder.`}
+      >
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
         </div>
@@ -119,7 +124,7 @@ export function RecoveryEngine() {
   return (
     <Bloco
       titulo="Recovery Engine"
-      descricao="Quando a Luna volta em quem parou de responder. Os tempos valem a partir da resposta dela que ficou sem retorno."
+      descricao={`Quando a ${luna} volta em quem parou de responder. Os tempos valem a partir da resposta dela que ficou sem retorno.`}
     >
       <div className="grid gap-5">
         <Chave
@@ -378,6 +383,7 @@ function Etapa({
   onMudar: (e: EtapaConfig) => void;
   onRemover: () => void;
 }) {
+  const luna = useNomeDaAssistente();
   const m = etapa.momento;
   return (
     <li
@@ -408,7 +414,7 @@ function Etapa({
               className="h-9 w-20 text-right tabular-nums"
               aria-label="Minutos"
             />
-            <span className="text-xs text-muted-foreground">min após a resposta da Luna</span>
+            <span className="text-xs text-muted-foreground">min após a resposta da {luna}</span>
           </>
         )}
         {m.tipo === "dia" && (
@@ -500,6 +506,7 @@ function Previa({
   trilha: Trilha;
   dias: number[];
 }) {
+  const luna = useNomeDaAssistente();
   const exemplos = useMemo(() => {
     const hoje = proximoDiaUtil(dias);
     if (!hoje) return [];
@@ -536,7 +543,7 @@ function Previa({
       {exemplos.map((ex) => (
         <div key={ex.hora} className="rounded-xl bg-muted/40 p-3">
           <p className="text-xs font-semibold">
-            Se a Luna responder às {ex.hora.replace(":", "h")}
+            Se a {luna} responder às {ex.hora.replace(":", "h")}
             {trilha === "PROMISED_CALLBACK" && " e o retorno for daqui a 2 dias"}
           </p>
           {ex.linhas.length ? (

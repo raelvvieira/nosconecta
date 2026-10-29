@@ -1,5 +1,6 @@
 import { useAtendimento } from "./useAtendimento";
 import { Bloco, Campo, Chave } from "./campos";
+import { useNomeDaAssistente } from "@/components/agente-ia/useNomeDaAssistente";
 
 /**
  * O follow-up: a Luna voltando em quem sumiu.
@@ -21,13 +22,14 @@ import { Bloco, Campo, Chave } from "./campos";
  * tomada. Explicação que mora na documentação não é lida por quem clica.
  */
 export function VoltarEmQuemSumiu() {
+  const luna = useNomeDaAssistente();
   const { config, gravar } = useAtendimento();
   const ligado = config?.followupLigado === true;
 
   return (
     <Bloco
       titulo="Voltar em quem sumiu"
-      descricao="A Luna manda uma mensagem quando a pessoa para de responder. Dois toques, e depois ela para."
+      descricao={`A ${luna} manda uma mensagem quando a pessoa para de responder. Dois toques, e depois ela para.`}
     >
       <div className="grid gap-4">
         <Chave
@@ -57,7 +59,7 @@ export function VoltarEmQuemSumiu() {
               <span className="font-medium text-foreground">
                 Ligar não mexe nas conversas que já estavam paradas.
               </span>{" "}
-              A Luna só volta no que parar de agora em diante
+              A {luna} só volta no que parar de agora em diante
               {config?.followupLigadoDesde && (
                 <> (ligado em {quando(config.followupLigadoDesde)})</>
               )}
