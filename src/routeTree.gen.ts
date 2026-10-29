@@ -22,6 +22,7 @@ import { Route as NosClubRouteImport } from './routes/nos-club'
 import { Route as PacientesRouteImport } from './routes/pacientes'
 import { Route as PagamentosRouteImport } from './routes/pagamentos'
 import { Route as PlanejamentoRouteImport } from './routes/planejamento'
+import { Route as PlataformaRouteImport } from './routes/plataforma'
 import { Route as RecebimentosRouteImport } from './routes/recebimentos'
 import { Route as AgenteIaIndexRouteImport } from './routes/agente-ia.index'
 import { Route as AtendimentosIndexRouteImport } from './routes/atendimentos.index'
@@ -39,6 +40,7 @@ import { Route as ConfiguracoesIntegracoesRouteImport } from './routes/configura
 import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
 import { Route as ConfiguracoesPessoalRouteImport } from './routes/configuracoes.pessoal'
 import { Route as ConfiguracoesTagsRouteImport } from './routes/configuracoes.tags'
+import { Route as ConviteConsultorioTokenRouteImport } from './routes/convite-consultorio.$token'
 import { Route as ConviteTokenRouteImport } from './routes/convite.$token'
 import { Route as PacientesIndexRouteImport } from './routes/pacientes.index'
 import { Route as PacientesPatientIdRouteImport } from './routes/pacientes.$patientId'
@@ -109,6 +111,11 @@ const PagamentosRoute = PagamentosRouteImport.update({
 const PlanejamentoRoute = PlanejamentoRouteImport.update({
   id: '/planejamento',
   path: '/planejamento',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlataformaRoute = PlataformaRouteImport.update({
+  id: '/plataforma',
+  path: '/plataforma',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecebimentosRoute = RecebimentosRouteImport.update({
@@ -200,6 +207,11 @@ const ConfiguracoesTagsRoute = ConfiguracoesTagsRouteImport.update({
   path: '/tags',
   getParentRoute: () => ConfiguracoesRoute,
 } as any)
+const ConviteConsultorioTokenRoute = ConviteConsultorioTokenRouteImport.update({
+  id: '/convite-consultorio/$token',
+  path: '/convite-consultorio/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ConviteTokenRoute = ConviteTokenRouteImport.update({
   id: '/convite/$token',
   path: '/convite/$token',
@@ -248,6 +260,7 @@ export interface FileRoutesByFullPath {
   '/pacientes': typeof PacientesRouteWithChildren
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
+  '/plataforma': typeof PlataformaRoute
   '/recebimentos': typeof RecebimentosRoute
   '/atendimentos/automacoes': typeof AtendimentosAutomacoesRouteWithChildren
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
@@ -262,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/pessoal': typeof ConfiguracoesPessoalRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
+  '/convite-consultorio/$token': typeof ConviteConsultorioTokenRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/agente-ia/': typeof AgenteIaIndexRoute
@@ -282,6 +296,7 @@ export interface FileRoutesByTo {
   '/nos-club': typeof NosClubRoute
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
+  '/plataforma': typeof PlataformaRoute
   '/recebimentos': typeof RecebimentosRoute
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
   '/atendimentos/chat': typeof AtendimentosChatRoute
@@ -295,6 +310,7 @@ export interface FileRoutesByTo {
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/pessoal': typeof ConfiguracoesPessoalRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
+  '/convite-consultorio/$token': typeof ConviteConsultorioTokenRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/agente-ia': typeof AgenteIaIndexRoute
@@ -320,6 +336,7 @@ export interface FileRoutesById {
   '/pacientes': typeof PacientesRouteWithChildren
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
+  '/plataforma': typeof PlataformaRoute
   '/recebimentos': typeof RecebimentosRoute
   '/atendimentos/automacoes': typeof AtendimentosAutomacoesRouteWithChildren
   '/atendimentos/campanhas': typeof AtendimentosCampanhasRoute
@@ -334,6 +351,7 @@ export interface FileRoutesById {
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/pessoal': typeof ConfiguracoesPessoalRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
+  '/convite-consultorio/$token': typeof ConviteConsultorioTokenRoute
   '/convite/$token': typeof ConviteTokenRoute
   '/pacientes/$patientId': typeof PacientesPatientIdRoute
   '/agente-ia/': typeof AgenteIaIndexRoute
@@ -360,6 +378,7 @@ export interface FileRouteTypes {
     | '/pacientes'
     | '/pagamentos'
     | '/planejamento'
+    | '/plataforma'
     | '/recebimentos'
     | '/atendimentos/automacoes'
     | '/atendimentos/campanhas'
@@ -374,6 +393,7 @@ export interface FileRouteTypes {
     | '/configuracoes/notificacoes'
     | '/configuracoes/pessoal'
     | '/configuracoes/tags'
+    | '/convite-consultorio/$token'
     | '/convite/$token'
     | '/pacientes/$patientId'
     | '/agente-ia/'
@@ -394,6 +414,7 @@ export interface FileRouteTypes {
     | '/nos-club'
     | '/pagamentos'
     | '/planejamento'
+    | '/plataforma'
     | '/recebimentos'
     | '/atendimentos/campanhas'
     | '/atendimentos/chat'
@@ -407,6 +428,7 @@ export interface FileRouteTypes {
     | '/configuracoes/notificacoes'
     | '/configuracoes/pessoal'
     | '/configuracoes/tags'
+    | '/convite-consultorio/$token'
     | '/convite/$token'
     | '/pacientes/$patientId'
     | '/agente-ia'
@@ -431,6 +453,7 @@ export interface FileRouteTypes {
     | '/pacientes'
     | '/pagamentos'
     | '/planejamento'
+    | '/plataforma'
     | '/recebimentos'
     | '/atendimentos/automacoes'
     | '/atendimentos/campanhas'
@@ -445,6 +468,7 @@ export interface FileRouteTypes {
     | '/configuracoes/notificacoes'
     | '/configuracoes/pessoal'
     | '/configuracoes/tags'
+    | '/convite-consultorio/$token'
     | '/convite/$token'
     | '/pacientes/$patientId'
     | '/agente-ia/'
@@ -470,7 +494,9 @@ export interface RootRouteChildren {
   PacientesRoute: typeof PacientesRouteWithChildren
   PagamentosRoute: typeof PagamentosRoute
   PlanejamentoRoute: typeof PlanejamentoRoute
+  PlataformaRoute: typeof PlataformaRoute
   RecebimentosRoute: typeof RecebimentosRoute
+  ConviteConsultorioTokenRoute: typeof ConviteConsultorioTokenRoute
   ConviteTokenRoute: typeof ConviteTokenRoute
 }
 
@@ -565,6 +591,13 @@ declare module '@tanstack/react-router' {
       path: '/planejamento'
       fullPath: '/planejamento'
       preLoaderRoute: typeof PlanejamentoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plataforma': {
+      id: '/plataforma'
+      path: '/plataforma'
+      fullPath: '/plataforma'
+      preLoaderRoute: typeof PlataformaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/recebimentos': {
@@ -685,6 +718,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/configuracoes/tags'
       preLoaderRoute: typeof ConfiguracoesTagsRouteImport
       parentRoute: typeof ConfiguracoesRoute
+    }
+    '/convite-consultorio/$token': {
+      id: '/convite-consultorio/$token'
+      path: '/convite-consultorio/$token'
+      fullPath: '/convite-consultorio/$token'
+      preLoaderRoute: typeof ConviteConsultorioTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/convite/$token': {
       id: '/convite/$token'
@@ -841,7 +881,9 @@ const rootRouteChildren: RootRouteChildren = {
   PacientesRoute: PacientesRouteWithChildren,
   PagamentosRoute: PagamentosRoute,
   PlanejamentoRoute: PlanejamentoRoute,
+  PlataformaRoute: PlataformaRoute,
   RecebimentosRoute: RecebimentosRoute,
+  ConviteConsultorioTokenRoute: ConviteConsultorioTokenRoute,
   ConviteTokenRoute: ConviteTokenRoute,
 }
 export const routeTree = rootRouteImport

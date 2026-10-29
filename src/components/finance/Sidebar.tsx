@@ -1,4 +1,5 @@
 import {
+  Building2,
   Home,
   Users,
   LogOut,
@@ -9,6 +10,9 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
+import { souDaPlataforma } from "@/lib/plataforma/plataforma.functions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -78,6 +82,14 @@ export function Sidebar() {
   // tudo — a recepção abria o faturamento da clínica pelo menu lateral. Ver
   // `niveis-de-acesso.ts`.
   const modulos = useMemo(() => doNivel(MODULOS, nivel), [nivel]);
+  // O painel de todos os consultórios: só para quem administra a plataforma.
+  const perguntarPlataforma = useServerFn(souDaPlataforma);
+  const { data: daPlataforma = false } = useQuery({
+    queryKey: ["sou-da-plataforma"],
+    queryFn: () => perguntarPlataforma(),
+    staleTime: Infinity,
+    retry: false,
+  });
 
   const collapsed = !aberto;
 
@@ -364,6 +376,23 @@ export function Sidebar() {
           {isAdmin &&
             units.length > 1 &&
             maybeTooltip(<UnitSwitcher collapsed={collapsed} />, "Unidade")}
+
+          {daPlataforma &&
+            maybeTooltip(
+              <Link
+                to="/plataforma"
+                className={cn(
+                  "press flex items-center rounded-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                  collapsed ? "h-10 w-10 justify-center" : "h-11 w-full px-3 gap-3",
+                  pathname.startsWith("/plataforma") && "bg-surface-muted text-foreground",
+                )}
+                aria-label="Consultórios"
+              >
+                <Building2 className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
+                {!collapsed && <span className="text-sm font-medium">Consultórios</span>}
+              </Link>,
+              "Consultórios",
+            )}
 
           {/* Aparência ao lado de Sair, para todo nível: quem não é
               administrador não vê Configurações, e a cor é dela também. */}
