@@ -1,5 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+// Pixel, token e gatilhos são configuração do consultório: só quem tem a área
+// Configurações muda (ou vê, mesmo mascarado). O registro de eventos e o
+// reenvio de uma conversão seguem para toda a equipe.
+import { exigeConfiguracoes } from "@/lib/auth/area.middleware";
 
 // Eventos internos que a tela de Integrações oferece como gatilho. A lista
 // aqui é a fonte da verdade — cada valor precisa ter um dispatchMetaCapiEvent
@@ -90,14 +94,14 @@ function mapTrigger(row: any): MetaCapiTrigger {
 }
 
 export const getMetaCapiSettings = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeConfiguracoes])
   .handler(async ({ context }): Promise<MetaCapiSettings> => {
     const json = await callEdgeFunction({ ownerId: context.ownerId, action: "get-settings" });
     return json.settings as MetaCapiSettings;
   });
 
 export const saveMetaCapiSettings = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeConfiguracoes])
   .inputValidator(
     (input: {
       pixelId: string;
@@ -130,7 +134,7 @@ export const saveMetaCapiSettings = createServerFn({ method: "POST" })
   });
 
 export const sendMetaCapiTestEvent = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeConfiguracoes])
   .handler(async ({ context }) => {
     const json = await callEdgeFunction({ ownerId: context.ownerId, action: "test-connection" });
     return { ok: true, testMode: Boolean(json.testMode) };
@@ -158,7 +162,7 @@ export const getMetaCapiEventLog = createServerFn({ method: "GET" })
 // Gatilhos não guardam segredo, então falam direto com o Supabase pela RLS
 // de dono — sem passar pela Edge Function.
 export const listMetaCapiTriggers = createServerFn({ method: "GET" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeConfiguracoes])
   .handler(async ({ context }): Promise<MetaCapiTrigger[]> => {
     const supabase: any = context.supabase;
     const { data, error } = await supabase
@@ -171,7 +175,7 @@ export const listMetaCapiTriggers = createServerFn({ method: "GET" })
   });
 
 export const saveMetaCapiTrigger = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeConfiguracoes])
   .inputValidator((input: Partial<MetaCapiTrigger> & { name: string }) => {
     if (!input.name?.trim()) throw new Error("Dê um nome ao gatilho.");
     if (!input.systemEvent) throw new Error("Escolha quando o gatilho dispara.");
@@ -202,7 +206,7 @@ export const saveMetaCapiTrigger = createServerFn({ method: "POST" })
   });
 
 export const deleteMetaCapiTrigger = createServerFn({ method: "POST" })
-  .middleware([requireClinicMembership])
+  .middleware([exigeConfiguracoes])
   .inputValidator((input: { id: string }) => input)
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
