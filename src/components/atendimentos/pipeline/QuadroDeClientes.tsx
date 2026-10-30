@@ -70,7 +70,7 @@ function Coluna({
   const podemReceber = quantosPodemReceber(clientes.map(paraContato));
 
   return (
-    <div className="flex w-[280px] shrink-0 flex-col">
+    <div className="flex min-h-0 w-[280px] shrink-0 flex-col">
       <div className="flex items-center gap-2 px-1 pb-2">
         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: regra.cor }} />
         <h3 className="truncate text-sm font-semibold">{regra.nome}</h3>
@@ -92,7 +92,7 @@ function Coluna({
         </Button>
       )}
 
-      <div className="custom-scroll flex-1 space-y-2 overflow-y-auto overflow-x-hidden rounded-2xl bg-surface-subtle p-2">
+      <div className="custom-scroll min-h-0 flex-1 space-y-2 overflow-y-auto overflow-x-hidden rounded-2xl bg-surface-subtle p-2">
         {!clientes.length ? (
           <p className="py-6 text-center text-2xs text-muted-foreground">Vazio</p>
         ) : (
@@ -146,8 +146,8 @@ export function QuadroDeClientes({ busca }: { busca: string }) {
       <section className="surface-card mt-4 p-5">
         <p className="text-sm font-medium text-foreground">Funil de clientes ainda não ativado</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Falta aplicar as migrations pendentes no Lovable — é a migration que cria os sinais
-          que as regras leem.
+          Falta aplicar as migrations pendentes no Lovable — é a migration que cria os sinais que as
+          regras leem.
         </p>
       </section>
     );
@@ -159,7 +159,7 @@ export function QuadroDeClientes({ busca }: { busca: string }) {
 
   return (
     <>
-      <div className="custom-scroll mt-4 flex flex-1 gap-3 overflow-x-auto pb-2">
+      <div className="custom-scroll mt-4 flex min-h-0 flex-1 gap-3 overflow-x-auto pb-2">
         {(funil.data?.regras ?? [])
           .filter((r) => r.ativa)
           .map((regra) => (

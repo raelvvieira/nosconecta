@@ -128,7 +128,7 @@ function Coluna({
   const podemReceber = quantosPodemReceber(leads.map(paraContato));
 
   return (
-    <div className="flex w-[280px] shrink-0 flex-col">
+    <div className="flex min-h-0 w-[280px] shrink-0 flex-col">
       <div className="flex items-center gap-2 px-1 pb-2">
         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: regra.cor }} />
         <h3 className="truncate text-sm font-semibold">{regra.nome}</h3>
@@ -152,7 +152,7 @@ function Coluna({
         </Button>
       )}
 
-      <div className="custom-scroll flex-1 space-y-2 overflow-y-auto overflow-x-hidden rounded-2xl bg-surface-subtle p-2">
+      <div className="custom-scroll min-h-0 flex-1 space-y-2 overflow-y-auto overflow-x-hidden rounded-2xl bg-surface-subtle p-2">
         {!leads.length ? (
           <p className="py-6 text-center text-2xs text-muted-foreground">Vazio</p>
         ) : (
@@ -378,7 +378,7 @@ export function QuadroDeLeads({ busca }: { busca: string }) {
         </button>
       </div>
 
-      <div className="custom-scroll mt-3 flex flex-1 gap-3 overflow-x-auto pb-2">
+      <div className="custom-scroll mt-3 flex min-h-0 flex-1 gap-3 overflow-x-auto pb-2">
         {colunas.map((regra) => (
           <Coluna
             key={regra.id}

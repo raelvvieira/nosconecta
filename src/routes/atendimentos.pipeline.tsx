@@ -327,7 +327,7 @@ function PipelinePage() {
         {/* Leads saiu do quadro manual (funnel_cards, que nunca teve um card)
             para o calculado em 30/10: a coluna vem da conversa e da agenda. */}
         {funil === "clientes" ? (
-          <div className="flex-1 px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
+          <div className="flex min-h-0 flex-1 flex-col px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
             <QuadroDeClientes busca={query} />
           </div>
         ) : funil === "perdidos" ? (
@@ -341,7 +341,7 @@ function PipelinePage() {
             />
           </div>
         ) : (
-          <div className="flex flex-1 flex-col px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
+          <div className="flex min-h-0 flex-1 flex-col px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
             <QuadroDeLeads busca={query} />
           </div>
         )}
