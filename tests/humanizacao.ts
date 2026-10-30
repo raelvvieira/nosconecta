@@ -27,6 +27,7 @@ import {
   RITMO_PADRAO,
   esperaDeDigitacao,
   normalizarRitmo,
+  prepararBolhas,
   segmentar,
 } from "../supabase/functions/_shared/humanizacao.ts";
 
@@ -151,6 +152,44 @@ conferir(
   esperaDeDigitacao("abc", ritmo({ msPorCaractere: 0 })),
   0,
 );
+
+// ── As bolhas da V4.2 ───────────────────────────────────────────────────────
+{
+  const r = RITMO_PADRAO;
+  conferir(
+    "duas bolhas planejadas saem como duas (T60)",
+    prepararBolhas(
+      ["Oii, aqui é a Luna, auxiliar da Dra. Mariane.", "Qual procedimento você quer avaliar?"],
+      r,
+    ),
+    ["Oii, aqui é a Luna, auxiliar da Dra. Mariane.", "Qual procedimento você quer avaliar?"],
+  );
+  conferir("uma bolha curta continua uma (T59)", prepararBolhas(["É a laser, sim."], r), [
+    "É a laser, sim.",
+  ]);
+  conferir(
+    "preço partido entre bolhas emenda (T61)",
+    prepararBolhas(["O combo fica R$", "399 à vista, ou 10x de R$", "39,90."], r),
+    ["O combo fica R$ 399 à vista, ou 10x de R$ 39,90."],
+  );
+  conferir("horário partido emenda", prepararBolhas(["Tenho quinta às", "14h ou 16h30."], r), [
+    "Tenho quinta às 14h ou 16h30.",
+  ]);
+  conferir(
+    "marcador e bolha vazia saem",
+    prepararBolhas(["Bolha 1: Oi!", "  ", "Bolha 2 - Tudo bem?"], r),
+    ["Oi!", "Tudo bem?"],
+  );
+  const cinco = prepararBolhas(["Um.", "Dois.", "Três.", "Quatro.", "Cinco."], r);
+  conferir("no máximo quatro", cinco.length, 4);
+  conferir("o resto vai na última", cinco[3], "Quatro.\n\nCinco.");
+  const longa = "Frase de teste com bastante texto. ".repeat(15).trim();
+  conferir(
+    "bolha longa demais ainda é cortada pelo tamanho",
+    prepararBolhas([longa], r).every((b) => b.length <= r.limite),
+    true,
+  );
+}
 
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);

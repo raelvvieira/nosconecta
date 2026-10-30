@@ -165,6 +165,52 @@ function fechaBem(pedaco: string): boolean {
   return !NAO_FECHAM_MENSAGEM.has(ultima);
 }
 
+/**
+ * As bolhas que a IA planejou, prontas para sair (V4.2, seção E12).
+ *
+ * Desde a V4.2 a Luna escreve a resposta já dividida em bolhas de WhatsApp —
+ * a divisão é pelo SENTIDO (apresentação numa, pergunta na outra), coisa que
+ * cortar por quantidade de caracteres nunca acerta. O que sobra para o
+ * código é conferir antes de enviar:
+ *
+ * 1. Bolha vazia sai, e marcador "Bolha 1:" escrito pelo modelo também.
+ * 2. Bolha que termina em "R$", "às", "de"… emenda na seguinte: preço, hora
+ *    e data nunca ficam partidos entre duas mensagens.
+ * 3. No máximo `MAXIMO_DE_BOLHAS`; o que passar disso vai para a última.
+ * 4. Só uma bolha maior que o teto do ritmo ainda é cortada por tamanho —
+ *    com as proteções de `segmentar`. Bolha única e curta continua uma só.
+ */
+export const MAXIMO_DE_BOLHAS = 4;
+
+const MARCADOR_DE_BOLHA = /^\s*(bolha|mensagem)\s*\d+\s*[:.)\-–]\s*/i;
+
+export function prepararBolhas(bolhas: string[], ritmo: Ritmo): string[] {
+  const limpas = bolhas
+    .map((b) =>
+      String(b ?? "")
+        .replace(MARCADOR_DE_BOLHA, "")
+        .trim(),
+    )
+    .filter(Boolean);
+
+  const emendadas: string[] = [];
+  for (const b of limpas) {
+    const anterior = emendadas[emendadas.length - 1];
+    if (anterior !== undefined && !fechaBem(anterior)) {
+      emendadas[emendadas.length - 1] = `${anterior} ${b}`;
+    } else {
+      emendadas.push(b);
+    }
+  }
+
+  if (emendadas.length > MAXIMO_DE_BOLHAS) {
+    const resto = emendadas.splice(MAXIMO_DE_BOLHAS - 1).join("\n\n");
+    emendadas.push(resto);
+  }
+
+  return emendadas.flatMap((b) => (b.length > ritmo.limite ? segmentar(b, ritmo) : [b]));
+}
+
 function dividirAoMeio(texto: string, limite: number): string[] {
   const meio = Math.floor(texto.length / 2);
 

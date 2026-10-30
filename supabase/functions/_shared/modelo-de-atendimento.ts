@@ -355,8 +355,9 @@ export function pedidoDeResposta(historico: string, mensagens: string[]): string
     "preço ou o horário já estão acima marcados com VOCÊ, a pessoa já leu:",
     "siga de onde parou em vez de recomeçar.",
     "",
-    "Responda como a clínica responderia. Só a mensagem, sem aspas e sem",
-    "explicar o que você está fazendo.",
+    "Responda como a clínica responderia, no campo bolhas: a mensagem dividida",
+    "em bolhas de WhatsApp pelo sentido, sem aspas e sem explicar o que você",
+    "está fazendo.",
   ].join("\n");
 }
 
@@ -371,7 +372,15 @@ export function pedidoDeResposta(historico: string, mensagens: string[]): string
  */
 /** O que a IA devolve: a fala, e o código do horário quando ela fechou um. */
 export interface RespostaAoPaciente {
+  /** As bolhas juntas, separadas por linha em branco. É o que o resto do
+   *  sistema compara e registra (repetição, histórico). */
   texto: string;
+  /**
+   * A resposta já dividida em bolhas de WhatsApp, na ordem (V4.2, seção E12).
+   * Quem divide é a Luna, pelo sentido; o código só confere — ver
+   * `prepararBolhas`.
+   */
+  bolhas: string[];
   /** `H1`, `R2`… ou vazio. Validado em `agendamento-da-ia.ts`, não aqui. */
   horarioFechado: string;
   /** `C1`, `C2`… ou vazio. Validado em `casos-da-ia.ts`, não aqui — e aqui é
@@ -435,7 +444,7 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
     type: "object",
     additionalProperties: false,
     required: [
-      "resposta",
+      "bolhas",
       "horarioFechado",
       "casoEnviado",
       "duvidaEncaminhada",
@@ -445,9 +454,11 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
       "retornoCombinado",
     ],
     properties: {
-      resposta: {
-        type: "string",
-        description: "A mensagem para o paciente, como a clínica escreveria.",
+      bolhas: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "A resposta ao paciente dividida em bolhas de WhatsApp, na ordem em que saem. Normalmente uma a três; quatro só quando fizer sentido; uma só quando a resposta é simples. Divida pelo sentido (apresentação numa, pergunta na outra). Nunca parta preço, parcela, data, horário, endereço ou orientação clínica entre bolhas. Sem marcadores como 'Bolha 1'.",
       },
       horarioFechado: {
         type: "string",
@@ -532,6 +543,7 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
   const cru = String(bruto ?? "").trim();
   const vazia = {
     texto: "",
+    bolhas: [] as string[],
     horarioFechado: "",
     casoEnviado: "",
     duvidaEncaminhada: "",
@@ -543,6 +555,7 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
   if (!cru) return vazia;
   try {
     const obj = JSON.parse(cru) as {
+      bolhas?: unknown;
       resposta?: unknown;
       horarioFechado?: unknown;
       casoEnviado?: unknown;
@@ -552,8 +565,15 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
       perguntaAberta?: unknown;
       retornoCombinado?: unknown;
     };
-    if (!obj || typeof obj !== "object") return { ...vazia, texto: cru };
-    const texto = typeof obj.resposta === "string" ? obj.resposta.trim() : "";
+    if (!obj || typeof obj !== "object") return { ...vazia, texto: cru, bolhas: [cru] };
+    // `resposta` (um texto só) era o formato até a V4.2; continua aceito para
+    // que uma resposta no formato antigo não se perca.
+    const bolhas = Array.isArray(obj.bolhas)
+      ? obj.bolhas.map((b) => (typeof b === "string" ? b.trim() : "")).filter(Boolean)
+      : typeof obj.resposta === "string" && obj.resposta.trim()
+        ? [obj.resposta.trim()]
+        : [];
+    const texto = bolhas.join("\n\n");
     const codigo = typeof obj.horarioFechado === "string" ? obj.horarioFechado.trim() : "";
     const caso = typeof obj.casoEnviado === "string" ? obj.casoEnviado.trim() : "";
     // Teto curto: é uma frase para uma pessoa ler na tela, não um relatório. Um
@@ -561,15 +581,16 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
     // e o aviso no celular de quem atende.
     const duvida =
       typeof obj.duvidaEncaminhada === "string" ? obj.duvidaEncaminhada.trim().slice(0, 300) : "";
-    // JSON válido sem o campo `resposta` não é a resposta: é outro objeto. Cai
-    // para o texto cru, que ao menos é algo que alguém escreveu — e sem caso
-    // nenhum: num objeto que não entendemos, mandar foto é o pior palpite.
+    // JSON válido sem fala não é a resposta: é outro objeto, e não vai para o
+    // paciente (ver o fim desta função) — nem com caso nenhum: num objeto que
+    // não entendemos, mandar foto é o pior palpite.
     const cidade = typeof obj.cidadeConfirmada === "string" ? obj.cidadeConfirmada.trim() : "";
     const curto = (v: unknown, teto: number) =>
       typeof v === "string" ? v.trim().slice(0, teto) : "";
     return texto
       ? {
           texto,
+          bolhas,
           horarioFechado: codigo,
           casoEnviado: caso,
           duvidaEncaminhada: duvida,
@@ -578,8 +599,11 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
           perguntaAberta: curto(obj.perguntaAberta, 200),
           retornoCombinado: curto(obj.retornoCombinado, 10),
         }
-      : { ...vazia, texto: cru };
+      : // JSON sem fala nenhuma: mandar o próprio JSON seria pior que calar
+        // (V4.2, E12: "não passar JSON bruto ao paciente"). Vazio vira "resposta
+        // vazia" no atendimento, fica registrado, e a equipe vê.
+        vazia;
   } catch {
-    return { ...vazia, texto: cru };
+    return { ...vazia, texto: cru, bolhas: [cru] };
   }
 }

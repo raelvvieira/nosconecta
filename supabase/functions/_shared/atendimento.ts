@@ -17,7 +17,7 @@
 // referência, um arquivo em que ninguém achava mais o filtro que importava.
 import { aConversaAindaEDaIa } from "./conversa-nova.ts";
 import { decidirSeResponde, registrarFalha, registrarSucesso } from "./filtros-do-agente.ts";
-import { esperaDeDigitacao, normalizarRitmo, segmentar } from "./humanizacao.ts";
+import { esperaDeDigitacao, normalizarRitmo, prepararBolhas } from "./humanizacao.ts";
 import { manualEfetivo, montarInstrucao } from "./instrucao-do-agente.ts";
 import { agoraNaClinica, horariosParaOferecer } from "./agenda-da-clinica.ts";
 import { semTravessao } from "./sem-travessao.ts";
@@ -506,6 +506,8 @@ export async function atender(
     .eq("id", sessao.id);
 
   let texto: string;
+  // As bolhas que a Luna planejou. No modo frase fixa é uma só, o texto.
+  let bolhas: string[] = [];
   // A vaga que a IA fechou nesta resposta, se fechou alguma. Fica guardada e só
   // é registrada DEPOIS do envio — ver o comentário no fim desta função.
   let vagaFechadaAqui: VagaComCodigo | null = null;
@@ -540,6 +542,7 @@ export async function atender(
         unidadeDaSessao,
       );
       texto = r.texto;
+      bolhas = r.bolhas;
       vagaFechadaAqui = r.vaga;
       caso = r.caso;
       duvidaNova = r.duvida;
@@ -547,6 +550,7 @@ export async function atender(
       recuperacao = r.recuperacao;
     } else {
       texto = String(agente.echo_message ?? "").trim();
+      bolhas = [texto];
     }
     if (!texto) return { respondeu: false, motivo: "resposta vazia", pedacos: [] };
   } catch (e) {
@@ -611,11 +615,16 @@ export async function atender(
   // O emoji também sai na medida aqui, olhando as últimas respostas desta
   // conversa: um sorriso a cada três mensagens, no máximo (`emoji-na-medida.ts`).
   const anteriores = await oQueEuMandei(supabase, sessao.id, agora, 30 * 24 * 60);
-  const pedacos = segmentar(
-    emojiNaMedida(
-      semTravessao(texto),
-      anteriores.map((m) => m.texto),
-    ),
+  // Bolha por bolha, porque o emoji olha o que já saiu: a segunda bolha conta
+  // a primeira como "anterior", e o sorriso não aparece duas vezes no mesmo
+  // turno.
+  const jaSaiu = anteriores.map((m) => m.texto);
+  const pedacos = prepararBolhas(
+    bolhas.map((b) => {
+      const pronta = emojiNaMedida(semTravessao(b), jaSaiu);
+      jaSaiu.push(pronta);
+      return pronta;
+    }),
     ritmo,
   );
   const enviados: string[] = [];
@@ -636,6 +645,24 @@ export async function atender(
     // Uma leitura por pedaço, numa tabela de 50 linhas. É barata e é a
     // diferença entre calar no meio e a dentista ter de escrever "desculpa
     // nossa ia" para o paciente.
+    // ── A pessoa escreveu no meio do lote? (V4.2, T62) ───────────────────
+    //
+    // As bolhas são um turno só. Se ela mandou mensagem depois que a Luna
+    // começou, o resto deste lote responderia a uma conversa que já mudou: a
+    // execução da mensagem nova responde com tudo na mão, e esta para aqui.
+    if (
+      indice > 0 &&
+      !deps.ignorarEspera &&
+      (await chegouMensagemMaisNova(supabase, ownerId, entrada, new Date()))
+    ) {
+      await registrar(supabase, ownerId, sessao.id, {
+        direction: "ignorada",
+        content: pedaco,
+        skipped_reason: "a pessoa escreveu no meio das bolhas",
+      });
+      break;
+    }
+
     if (await humanoAssumiuAgora(supabase, sessao.id)) {
       await registrar(supabase, ownerId, sessao.id, {
         direction: "ignorada",
@@ -1156,6 +1183,8 @@ async function responderComModelo(
   unidadeConfirmadaId: string | null,
 ): Promise<{
   texto: string;
+  /** A resposta já em bolhas, como a Luna planejou (V4.2). */
+  bolhas: string[];
   vaga: VagaComCodigo | null;
   caso: CasoComCodigo | null;
   /** A dúvida que ela encaminhou nesta resposta. Vazio é o normal. */
@@ -1247,6 +1276,7 @@ async function responderComModelo(
   const cidade = unidadeEscolhida({ codigo: resposta.cidadeConfirmada }, instrucao.unidades);
   return {
     texto: resposta.texto,
+    bolhas: resposta.bolhas?.length ? resposta.bolhas : [resposta.texto],
     vaga,
     caso,
     duvida: resposta.duvidaEncaminhada,
