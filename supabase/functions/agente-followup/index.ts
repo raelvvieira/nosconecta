@@ -46,7 +46,7 @@ import { semTravessao } from "../_shared/sem-travessao.ts";
 import { emojiNaMedida } from "../_shared/emoji-na-medida.ts";
 import { jaDisseIssoAgora } from "../_shared/nao-repetir.ts";
 import { oQueEuMandei } from "../_shared/historico-da-clinica.ts";
-import { type Anuncio } from "../_shared/veio-de-anuncio.ts";
+import { anuncioGuardado, type Anuncio } from "../_shared/veio-de-anuncio.ts";
 import {
   decidirFollowup,
   dentroDaJanela,
@@ -218,6 +218,11 @@ async function cuidarDaClinica(agente: {
     .not("anuncio", "is", null)
     .lt("followups_enviados", ritmo.maximoDeToques)
     .gte("created_at", desde)
+    // Só o que parou DEPOIS de ligar. Sem este corte no banco, as 100 mais
+    // antigas eram todas de antes de 28/10, a regra pura recusava as 100
+    // ("já estava parada antes de o follow-up ser ligado") e as conversas
+    // novas nunca entravam na lista: dois dias ligado e zero follow-ups (30/10).
+    .gte("last_outbound_at", ritmo.ligadoDesde)
     .order("last_outbound_at", { ascending: true })
     .limit(100);
   if (error) return { ownerId, erro: error.message };
@@ -264,7 +269,9 @@ async function cuidarDaClinica(agente: {
         criadaEm: s.created_at,
         followupsEnviados: Number(s.followups_enviados ?? 0),
         ultimoFollowupEm: s.ultimo_followup_em,
-        veioDeAnuncio: !!s.anuncio,
+        // `{}` quer dizer "procurei e não era de anúncio" — ver
+        // `anuncioGuardado`. Com `!!` ele contava como anúncio.
+        veioDeAnuncio: anuncioGuardado(s.anuncio) !== null,
         jaAgendou,
       },
       ritmo,
