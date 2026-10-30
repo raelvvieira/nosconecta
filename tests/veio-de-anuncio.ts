@@ -20,7 +20,9 @@ import {
   anuncioGuardado,
   jaProcurouAnuncio,
   secaoDoAnuncio,
+  SEM_CLIQUE,
 } from "../supabase/functions/_shared/veio-de-anuncio.ts";
+import { validoComoClickId } from "../supabase/functions/_shared/conversao-de-anuncio.ts";
 import { montarInstrucao } from "../supabase/functions/_shared/instrucao-do-agente.ts";
 
 let ok = 0;
@@ -221,6 +223,31 @@ conferir("sem anúncio, sem seção", secaoDoAnuncio(null), "");
     false,
   );
 }
+
+// O formato novo (29/10): sem `externalAdReply`, só a origem.
+const semClique = anuncioDoEvento({
+  contextInfo: {
+    conversionSource: "FB_Ads",
+    entryPointConversionSource: "ctwa_ad",
+    entryPointConversionApp: "instagram",
+    ctwaPayload: { 0: 65, 1: 102 },
+  },
+  message: { conversation: "Quero agendar uma avaliação!" },
+});
+conferir("formato novo conta como anúncio", semClique?.rede, "instagram");
+conferir("sem o clique de verdade", semClique?.clickId, SEM_CLIQUE);
+conferir("e é guardado como anúncio", anuncioGuardado(semClique) !== null, true);
+conferir("o marcador não passa por clique na Meta", validoComoClickId(semClique?.clickId), false);
+conferir(
+  "só origem FB_Ads também vale",
+  anuncioDoEvento({ contextInfo: { conversionSource: "FB_Ads" } })?.clickId,
+  SEM_CLIQUE,
+);
+conferir(
+  "contexto comum continua não sendo anúncio",
+  anuncioDoEvento({ contextInfo: { mentionedJid: [], stanzaId: "x" } }),
+  null,
+);
 
 if (falhas.length) {
   console.error(`${falhas.length} falha(s):`);

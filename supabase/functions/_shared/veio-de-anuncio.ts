@@ -86,8 +86,42 @@ export function anuncioDoEvento(payload: unknown): Anuncio | null {
       url: texto(ad.sourceUrl),
     };
   }
+
+  // ── O formato novo, sem `externalAdReply` (29/10) ──────────────────────
+  //
+  // Desde 29/10 às 19:36 parte das mensagens de anúncio chega SEM
+  // `externalAdReply`: só com a origem (`conversionSource: "FB_Ads"`,
+  // `entryPointConversionSource: "ctwa_ad"`, `entryPointConversionApp`).
+  // Medido em 30/10: quatro conversas com "Quero agendar uma avaliação!",
+  // o texto pronto do anúncio, ficaram sem a Luna por "não veio de anúncio".
+  //
+  // A origem é da própria Meta e só aparece em clique de anúncio, então vale
+  // como prova. O que não vem é o `ctwaClid` — e por isso o `clickId` aqui é
+  // `SEM_CLIQUE`, curto de propósito: `validoComoClickId` o recusa, e a
+  // conversão para a Meta sai sem a marcação de mensageria em vez de levar
+  // um identificador que não é o do clique.
+  for (const ctx of candidatos) {
+    const c = (ctx ?? null) as Record<string, any> | null;
+    if (!c) continue;
+    const origem = texto(c.conversionSource);
+    const entrada = texto(c.entryPointConversionSource);
+    if (origem !== "FB_Ads" && entrada !== "ctwa_ad") continue;
+    return {
+      clickId: SEM_CLIQUE,
+      anuncioId: null,
+      rede: texto(c.entryPointConversionApp),
+      copy: null,
+      titulo: null,
+      saudacao: null,
+      url: null,
+    };
+  }
   return null;
 }
+
+/** O `clickId` de quem veio de anúncio no formato sem `ctwaClid`. Não é um
+ *  clique de verdade e não serve para a Meta — ver `anuncioDoEvento`. */
+export const SEM_CLIQUE = "sem-clique";
 
 /**
  * Lê o anúncio que ficou GUARDADO na sessão.
