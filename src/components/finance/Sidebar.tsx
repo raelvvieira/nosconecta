@@ -26,7 +26,7 @@ import { ItemDeMenu } from "@/components/layout/ItemDeMenu";
 import { BotaoDaIlha, LinkDaIlha } from "@/components/layout/ItemDaIlha";
 import { PilulaDaIlha } from "@/components/layout/PilulaDaIlha";
 import { IlhaDoMais } from "@/components/layout/IlhaDoMais";
-import { Popover, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   ACOES_DA_AGENDA,
   ITENS_ATENDIMENTOS,
@@ -182,17 +182,63 @@ export function Sidebar() {
     navigate({ to: "/auth", replace: true });
   };
 
-  const maybeTooltip = (trigger: React.ReactNode, label: string) => {
-    if (!collapsed) return trigger;
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-        <TooltipContent side="right" className="font-medium">
-          {label}
-        </TooltipContent>
-      </Tooltip>
-    );
-  };
+
+  // As ações da conta: ícones com o nome na dica. A unidade só para quem
+  // administra mais de uma; Consultórios só para quem é da plataforma.
+  const acaoDaConta =
+    "press grid h-9 w-9 place-items-center rounded-xl text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+  const comDica = (rotulo: string, gatilho: React.ReactNode) => (
+    <Tooltip>
+      <TooltipTrigger asChild>{gatilho}</TooltipTrigger>
+      <TooltipContent side="top" className="font-medium">
+        {rotulo}
+      </TooltipContent>
+    </Tooltip>
+  );
+  const cartaoDaConta = (
+    <div className="rounded-2xl border border-border/60 bg-surface-subtle/70 p-3">
+      <div className="flex items-center gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-surface-muted text-xs font-semibold">
+          {userInitial}
+        </span>
+        <span className="flex min-w-0 flex-col leading-tight">
+          <span className="truncate text-sm font-medium text-foreground">{userName}</span>
+          <span className="truncate text-2xs text-muted-foreground">{papel}</span>
+        </span>
+      </div>
+      <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-2">
+        {isAdmin && units.length > 1 && <UnitSwitcher collapsed icone />}
+        {daPlataforma &&
+          comDica(
+            "Consultórios",
+            <Link
+              to="/plataforma"
+              className={cn(
+                acaoDaConta,
+                pathname.startsWith("/plataforma") && "bg-surface-muted text-foreground",
+              )}
+              aria-label="Consultórios"
+            >
+              <Building2 className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            </Link>,
+          )}
+        {/* Aparência para todo nível: quem não administra não vê
+            Configurações, e a cor é dela também. */}
+        {comDica(
+          "Aparência",
+          <Link to="/configuracoes/aparencia" className={acaoDaConta} aria-label="Aparência">
+            <Palette className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          </Link>,
+        )}
+        {comDica(
+          "Sair",
+          <button type="button" onClick={handleSignOut} className={acaoDaConta} aria-label="Sair">
+            <LogOut className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          </button>,
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -340,91 +386,29 @@ export function Sidebar() {
           ))}
         </nav>
 
-        {/* Footer (pinned bottom) */}
-        <div
-          className={cn(
-            "flex gap-3 mt-auto",
-            collapsed ? "flex-col items-center" : "flex-col items-stretch",
-          )}
-        >
-          {maybeTooltip(
-            <div
-              className={cn(
-                "flex items-center",
-                collapsed
-                  ? "h-10 w-10 rounded-full bg-surface-muted border border-border text-foreground justify-center text-xs font-semibold"
-                  : "h-12 w-full rounded-xl px-3 gap-3",
-              )}
-            >
-              {collapsed ? (
-                userInitial
-              ) : (
-                <>
-                  <span className="h-8 w-8 rounded-full bg-surface-muted border border-border grid place-items-center text-xs font-semibold shrink-0">
-                    {userInitial}
-                  </span>
-                  <span className="flex flex-col text-left leading-tight min-w-0">
-                    <span className="text-sm font-medium text-foreground truncate">{userName}</span>
-                    <span className="text-2xs text-muted-foreground truncate">{papel}</span>
-                  </span>
-                </>
-              )}
-            </div>,
-            `${userName} · ${papel}`,
-          )}
-
-          {isAdmin &&
-            units.length > 1 &&
-            maybeTooltip(<UnitSwitcher collapsed={collapsed} />, "Unidade")}
-
-          {daPlataforma &&
-            maybeTooltip(
-              <Link
-                to="/plataforma"
-                className={cn(
-                  "press flex items-center rounded-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                  collapsed ? "h-10 w-10 justify-center" : "h-11 w-full px-3 gap-3",
-                  pathname.startsWith("/plataforma") && "bg-surface-muted text-foreground",
-                )}
-                aria-label="Consultórios"
-              >
-                <Building2 className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-                {!collapsed && <span className="text-sm font-medium">Consultórios</span>}
-              </Link>,
-              "Consultórios",
-            )}
-
-          {/* Aparência ao lado de Sair, para todo nível: quem não é
-              administrador não vê Configurações, e a cor é dela também. */}
-          {maybeTooltip(
-            <Link
-              to="/configuracoes/aparencia"
-              className={cn(
-                "press flex items-center rounded-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                collapsed ? "h-10 w-10 justify-center" : "h-11 w-full px-3 gap-3",
-              )}
-              aria-label="Aparência"
-            >
-              <Palette className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-              {!collapsed && <span className="text-sm font-medium">Aparência</span>}
-            </Link>,
-            "Aparência",
-          )}
-
-          {maybeTooltip(
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className={cn(
-                "press flex items-center rounded-xl text-muted-foreground hover:bg-surface-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                collapsed ? "h-10 w-10 justify-center" : "h-11 w-full px-3 gap-3",
-              )}
-              aria-label="Sair"
-            >
-              <LogOut className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-              {!collapsed && <span className="text-sm font-medium">Sair</span>}
-            </button>,
-            "Sair",
+        {/* ── O cartão da conta ────────────────────────────────────────────
+            Uma peça só no pé do menu, no lugar de quatro linhas soltas
+            (pedido de 30/10): quem está logado em cima, e as ações da conta
+            numa fileira de ícones embaixo. Com o menu recolhido, só o avatar,
+            que abre o mesmo cartão. */}
+        <div className={cn("mt-auto", collapsed && "flex justify-center")}>
+          {collapsed ? (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="press grid h-10 w-10 place-items-center rounded-full border border-border bg-surface-muted text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  aria-label={`${userName} · ${papel}`}
+                >
+                  {userInitial}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="right" align="end" className="w-64 rounded-2xl p-0">
+                {cartaoDaConta}
+              </PopoverContent>
+            </Popover>
+          ) : (
+            cartaoDaConta
           )}
         </div>
       </aside>

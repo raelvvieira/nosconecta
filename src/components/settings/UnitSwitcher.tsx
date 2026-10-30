@@ -15,7 +15,14 @@ import {
  * preferência de UI (fica no localStorage): os formulários de criação usam
  * ela como sugestão, o servidor sempre confirma a unidade de verdade.
  */
-export function UnitSwitcher({ collapsed }: { collapsed: boolean }) {
+export function UnitSwitcher({
+  collapsed,
+  icone = false,
+}: {
+  collapsed: boolean;
+  /** Só o ícone, quadradinho: o jeito do cartão da conta no rodapé do menu. */
+  icone?: boolean;
+}) {
   const { isAdmin, units, selectedUnitId, setSelectedUnitId } = useUnitSelection();
 
   if (!isAdmin || units.length < 2) return null;
@@ -30,16 +37,24 @@ export function UnitSwitcher({ collapsed }: { collapsed: boolean }) {
           type="button"
           className={cn(
             "flex items-center rounded-2xl text-muted-foreground hover:bg-surface-subtle hover:text-foreground transition-colors",
-            collapsed ? "h-10 w-10 justify-center" : "h-11 w-full px-3 gap-3",
+            icone
+              ? "h-9 w-9 justify-center rounded-xl"
+              : collapsed
+                ? "h-10 w-10 justify-center"
+                : "h-11 w-full px-3 gap-3",
           )}
           aria-label={`Unidade: ${label}`}
+          title={icone ? `Unidade: ${label}` : undefined}
         >
           <Building2 className="h-[18px] w-[18px] shrink-0" strokeWidth={1.75} />
-          {!collapsed && <span className="truncate text-sm font-medium">{label}</span>}
+          {!collapsed && !icone && <span className="truncate text-sm font-medium">{label}</span>}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuItem onClick={() => setSelectedUnitId(null)} className={cn(!selectedUnitId && "font-semibold")}>
+        <DropdownMenuItem
+          onClick={() => setSelectedUnitId(null)}
+          className={cn(!selectedUnitId && "font-semibold")}
+        >
           Todas as unidades
         </DropdownMenuItem>
         {units.map((unit) => (
