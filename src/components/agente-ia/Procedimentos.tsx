@@ -65,21 +65,22 @@ export function Procedimentos() {
   return (
     <Bloco
       titulo="Preços que ela pode falar"
-      descricao={
-        liberados === 0
-          ? "Nenhum liberado — ela passa toda pergunta de preço para uma pessoa."
-          : `${liberados} de ${lista.length} liberados. Fora da lista, ela chama uma pessoa.`
-      }
+      descricao="Os procedimentos cujo preço ela pode dizer. Fora da lista, ela passa a pergunta para uma pessoa."
       acao={
         lista.length > 0 ? (
-          <div className="relative w-48 shrink-0">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar"
-              className="pl-9"
-            />
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="hidden shrink-0 rounded-full bg-surface-subtle px-2.5 py-1 text-2xs font-medium tabular-nums text-muted-foreground sm:inline">
+              {liberados} de {lista.length}
+            </span>
+            <div className="relative w-40 shrink-0">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar"
+                className="h-9 pl-9"
+              />
+            </div>
           </div>
         ) : null
       }
@@ -97,11 +98,11 @@ export function Procedimentos() {
           .
         </p>
       ) : (
-        <ul className="grid gap-2.5 sm:grid-cols-2 2xl:grid-cols-3">
+        <ul className="grid gap-2 sm:grid-cols-2">
           {filtrados.map((p) => (
             <li
               key={p.id}
-              className="flex items-center gap-4 rounded-2xl border border-border bg-white px-4 py-3.5"
+              className="flex items-center gap-3 rounded-xl border border-border/70 bg-card px-3 py-2.5"
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{p.nome}</p>

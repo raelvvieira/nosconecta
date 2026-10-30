@@ -1,19 +1,23 @@
-import { createFileRoute } from "@tanstack/react-router";
+import type { ReactNode } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 import {
   aprenderAgora,
   getAtendimento,
   getEstadoDoAgente,
-  getPainelDoFunil,
+  listarLicoesDaLuna,
   salvarConfiguracaoDoAgente,
 } from "@/lib/agente-ia/agente.functions";
-import { PainelDoFunil } from "@/components/agente-ia/PainelDoFunil";
+import { getRelatoriosDoOlho } from "@/lib/agente-ia/olho.functions";
+import { minhaFranquia } from "@/lib/plataforma/plataforma.functions";
 import { ChaveDaIa } from "@/components/agente-ia/ChaveDaIa";
 import { NomeDaAssistente } from "@/components/agente-ia/NomeDaAssistente";
 import { ManualDaLuna } from "@/components/agente-ia/ManualDaLuna";
@@ -31,7 +35,21 @@ import { ConversasDoMes } from "@/components/agente-ia/ConversasDoMes";
 import { souDaPlataforma } from "@/lib/plataforma/plataforma.functions";
 import { OQueAprendeu } from "@/components/agente-ia/OQueAprendeu";
 
+const ABAS = [
+  { value: "atendimento", label: "Atendimento" },
+  { value: "conhecimento", label: "O que ela sabe" },
+  { value: "aprendizado", label: "Aprendizado" },
+  { value: "configuracao", label: "Configuração" },
+] as const;
+type Aba = (typeof ABAS)[number]["value"];
+
+const searchSchema = z.object({
+  /** Na URL para o F5 voltar na mesma aba. */
+  aba: z.enum(["atendimento", "conhecimento", "aprendizado", "configuracao"]).optional(),
+});
+
 export const Route = createFileRoute("/agente-ia/")({
+  validateSearch: searchSchema,
   errorComponent: ({ error }) => (
     <ResponsiveRouteState
       error={error}
@@ -47,39 +65,38 @@ export const Route = createFileRoute("/agente-ia/")({
 });
 
 /**
- * A página do Agente de IA — tudo sobre ele, num lugar só.
+ * A página do Agente de IA.
  *
- * ── Por que deixou de ter submenu ──────────────────────────────────────
+ * ── O redesenho de 30/10 ───────────────────────────────────────────────
  *
- * Era dividida em quatro: Agente, Aprendizado, Atendimento e Procedimentos.
- * Parecia organizado e escondia coisa. O caso concreto: a chave da IA morava
- * em "Atendimento", DENTRO do modo Inteligência — então uma clínica em modo
- * frase fixa, que é o padrão, não tinha onde cadastrá-la. Para achar o campo
- * era preciso adivinhar a aba e depois mudar o comportamento do agente só
- * para digitar uma senha.
+ * Eram dezesseis cartões numa rolagem só, cada um com uma frase explicando o
+ * que é. Agora: no topo, quatro números que respondem "como ela está indo"
+ * sem abrir nada; embaixo, quatro abas na ordem do uso.
  *
- * Agora é uma página só, na ordem em que as perguntas aparecem: primeiro o que
- * liga a IA (a chave), depois o que MANDA nela (o manual escrito pela clínica),
- * depois com quem ela fala e em que ritmo, o que ela pode citar, e por último o
- * que se LÊ — a matéria-prima do manual e as lições de cada conversa.
+ *   Atendimento   — com quem fala, ritmo, voltar em quem sumiu, e o teste ao
+ *                   lado (é onde se ajusta e confere na mesma tela).
+ *   O que ela sabe — o manual, os preços e a vaga de paciente modelo.
+ *   Aprendizado   — lições, Olho de Deus e a matéria-prima do manual.
+ *   Configuração  — nome, chave, conversas do mês e (plataforma) o custo.
  *
- * ── E o que saiu em 28/09 ──────────────────────────────────────────────
+ * As explicações foram para o "i" de cada título (`Ajuda`, em `campos.tsx`).
  *
- * Três blocos, quando ela foi ligada de verdade: o modo "frase fixa" (existia
- * para provar o caminho antes de envolver o modelo), as "regras de
- * comportamento" (gravavam numa tabela que nenhum código lê) e a barra de
- * progresso do aprendizado com as fontes do funil (o aprendido deixou de ser a
- * instrução quando o manual da clínica entrou, então a barra media o que já não
- * decide nada). Tela que promete e não faz é pior que a ausência dela.
+ * Saiu o "Seu funil hoje": contava `pipeline_deals` (5 linhas em 30/10) e o
+ * texto dizia que era "o material que o agente tem para aprender", o que
+ * deixou de ser verdade quando o manual escrito pela clínica passou a mandar.
+ * O funil de verdade agora é o Pipeline, que se organiza sozinho.
  *
- * Cada bloco mora no seu arquivo em `src/components/agente-ia/` — a página só
- * compõe. Foi o que evitou um arquivo de mil e trezentas linhas ao juntar as
- * quatro telas.
+ * Cada bloco continua no seu arquivo em `src/components/agente-ia/` — a
+ * página só compõe.
  */
 function AgentePage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const aba: Aba = Route.useSearch().aba ?? "atendimento";
+  const irPara = (proxima: Aba) =>
+    navigate({ to: "/agente-ia", search: { aba: proxima }, replace: true });
+
   const buscarEstado = useServerFn(getEstadoDoAgente);
-  const buscarPainel = useServerFn(getPainelDoFunil);
   const buscarAtendimento = useServerFn(getAtendimento);
   const salvar = useServerFn(salvarConfiguracaoDoAgente);
   const aprender = useServerFn(aprenderAgora);
@@ -93,7 +110,6 @@ function AgentePage() {
   });
 
   const estadoQuery = useQuery({ queryKey: ["agente-ia"], queryFn: () => buscarEstado() });
-  const painelQuery = useQuery({ queryKey: ["agente-ia-painel"], queryFn: () => buscarPainel() });
   const atendimentoQuery = useQuery({
     queryKey: ["agente-ia-atendimento"],
     queryFn: () => buscarAtendimento(),
@@ -115,7 +131,6 @@ function AgentePage() {
     mutationFn: () => aprender(),
     onSuccess: (r) => {
       invalidar();
-      queryClient.invalidateQueries({ queryKey: ["agente-ia-painel"] });
       if (r.aprendeu) toast.success(`Leu ${r.novas} conversa(s) e atualizou o aprendizado.`);
       else toast.info(r.motivo ?? "Nada novo para aprender.");
     },
@@ -132,18 +147,25 @@ function AgentePage() {
         className="pr-16 lg:pr-0"
         icon={Sparkles}
         title="Agente de IA"
-        subtitle="Atende pelo manual que a clínica escreveu, e só quem chega pelos anúncios."
         actions={
           estado && (
-            <div className="flex items-center gap-3 rounded-2xl border border-border bg-white/70 px-4 py-2.5">
-              <span className="text-sm font-medium">{estado.ligado ? "Ativo" : "Pausado"}</span>
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-full border border-border/70 bg-card px-3.5 py-2 shadow-1">
+              <span
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  estado.ligado ? "bg-success" : "bg-muted-foreground/40",
+                )}
+              />
+              <span className="text-sm font-medium">
+                {estado.nome || "Luna"} · {estado.ligado ? "ativa" : "pausada"}
+              </span>
               <Switch
                 checked={estado.ligado}
                 disabled={ligarDesligar.isPending}
                 onCheckedChange={(v) => ligarDesligar.mutate(v)}
                 aria-label="Ativar o agente"
               />
-            </div>
+            </label>
           )
         }
       />
@@ -153,7 +175,7 @@ function AgentePage() {
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="mt-5 grid gap-3 lg:mt-8 lg:gap-4">
+        <div className="mt-5 grid gap-4 lg:mt-7">
           {disjuntorAberto && (
             <p className="flex items-center gap-2.5 rounded-2xl bg-warning-soft px-4 py-3 text-sm">
               <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
@@ -161,103 +183,206 @@ function AgentePage() {
             </p>
           )}
 
-          {/* ── 1. A chave ──────────────────────────────────────────────────
-              Primeiro de tudo porque é o que destrava o resto: sem ela a IA
-              não responde e as sugestões não aparecem no chat. */}
-          {estado && <NomeDaAssistente nome={estado.nome} />}
-          <ChaveDaIa />
-          <ConversasDoMes />
+          <VisaoGeral onAprendizado={() => irPara("aprendizado")} />
 
-          {/* ── 2. O manual ─────────────────────────────────────────────────
-              Antes do aprendizado de propósito. Este texto é o que a clínica
-              escreveu e o que de fato manda na conversa; o aprendizado abaixo é
-              o que a IA extraiu lendo as conversas, e hoje serve de matéria para
-              melhorar o manual, não de instrução paralela. Na ordem inversa,
-              alguém editaria o aprendizado achando que muda o comportamento. */}
-          <ManualDaLuna />
-
-          {/* ── 3. Como ela atende ──────────────────────────────────────────
-              Com quem ela fala e em que ritmo de um lado; o teste do outro.
-
-              O modo "frase fixa" saiu daqui: ele existia para provar o caminho
-              (vínculo, entrega, autenticação) antes de envolver o modelo. Com
-              ela atendendo de verdade, o botão só serviria para calar a
-              inteligência e mandar a mesma frase a todo mundo que vem do
-              anúncio.
-
-              As "regras de comportamento" saíram pelo motivo oposto: elas nunca
-              funcionaram. Gravavam linhas numa tabela que NENHUM código lê, e
-              duas das quatro (follow-up por silêncio, mover no funil) são ações
-              que o motor ainda não tem. Uma tela que promete e não faz é pior
-              que a ausência dela: alguém escreve a regra e confia. */}
-          <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
-            <div className="grid gap-4">
-              <ComQuemFala />
-              <Ritmo />
-              {/* Depois do ritmo de propósito: é a única coisa da tela que faz
-                  a Luna escrever sem ninguém ter escrito para ela, e quem
-                  chega aqui já entendeu com quem ela fala e como. */}
-              <RecoveryEngine />
-              <SoSemRecovery>
-                <VoltarEmQuemSumiu />
-              </SoSemRecovery>
-            </div>
-            <div className="grid gap-4">
-              <Testar />
-            </div>
+          <div
+            role="tablist"
+            className="flex w-full gap-1 overflow-x-auto rounded-full border border-border/70 bg-card p-1 shadow-1 sm:w-fit"
+          >
+            {ABAS.map((a) => (
+              <button
+                key={a.value}
+                type="button"
+                role="tab"
+                aria-selected={aba === a.value}
+                onClick={() => irPara(a.value)}
+                className={cn(
+                  "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+                  aba === a.value
+                    ? "bg-foreground text-white"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {a.label}
+              </button>
+            ))}
           </div>
 
-          {/* ── 4. O que ela pode citar ─────────────────────────────────── */}
-          <Procedimentos />
+          {aba === "atendimento" && (
+            // O teste ao lado de propósito: muda o ritmo ou com quem ela fala
+            // e confere na mesma tela.
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:items-start">
+              <div className="grid gap-4">
+                <ComQuemFala />
+                <Ritmo />
+                <RecoveryEngine />
+                <SoSemRecovery>
+                  <VoltarEmQuemSumiu />
+                </SoSemRecovery>
+              </div>
+              <div className="xl:sticky xl:top-6">
+                <Testar />
+              </div>
+            </div>
+          )}
 
-          {/* ── 4b. A edição de paciente modelo ──────────────────────────
-              Logo depois dos procedimentos porque é a mesma pergunta — "o que
-              a Luna pode oferecer, e por quanto" — só que com prazo. É a única
-              informação dela que VENCE: as duas colunas já eram lidas pela
-              instrução e não apareciam em tela nenhuma, e foi assim que a
-              campanha de pacientes modelos de outubro foi ao ar com a Luna
-              programada para recusar o assunto. */}
-          <PacienteModelo />
+          {aba === "conhecimento" && (
+            <div className="grid gap-4">
+              <ManualDaLuna />
+              <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+                <Procedimentos />
+                <PacienteModelo />
+              </div>
+            </div>
+          )}
 
-          {/* ── 5. A matéria-prima do manual ─────────────────────────────
-              O que ela extraiu lendo as conversas reais. Desde que o manual
-              escrito pela clínica entrou, isto NÃO manda mais na conversa:
-              `montarInstrucao` usa o texto da clínica e ignora o aprendido.
-              Fica porque é de onde saem as frases para melhorar o manual —
-              e o próprio bloco diz isso, para ninguém editar aqui achando
-              que muda o comportamento dela. */}
-          <OQueAprendeu
-            aprender={() => rodarCiclo.mutate()}
-            aprendendo={rodarCiclo.isPending}
-            aprendidoEm={estado?.aprendidoEm ?? null}
-            conversasLidas={Number(estado?.vendas ?? 0) + Number(estado?.conversas ?? 0)}
-          />
+          {aba === "aprendizado" && (
+            <div className="grid gap-4">
+              <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+                <LicoesDaLuna />
+                <OlhoDeDeus />
+              </div>
+              <OQueAprendeu
+                aprender={() => rodarCiclo.mutate()}
+                aprendendo={rodarCiclo.isPending}
+                aprendidoEm={estado?.aprendidoEm ?? null}
+                conversasLidas={Number(estado?.vendas ?? 0) + Number(estado?.conversas ?? 0)}
+              />
+            </div>
+          )}
 
-          {/* ── 5b. O que ela aprendeu com o RESULTADO ───────────────────
-              Depois do manual aprendido, e não junto: um vem de ler as
-              conversas da clínica, o outro de ver o que aconteceu com as
-              conversas dela. Misturar os dois faria parecer que o manual já
-              foi corrigido pelas lições — e ninguém corrigiu. */}
-          <LicoesDaLuna />
-
-          {/* ── 5c. O Olho de Deus ──────────────────────────────────────
-              DEPOIS das lições, de propósito: ele é a soma delas. As lições
-              são uma linha por conversa, e eram 117 em 16/10 — o padrão só
-              aparece agrupando, e 72 das 117 sugestões diziam a mesma coisa.
-              Em cima das lições, o relatório pareceria outra análise solta;
-              embaixo, ele é a resposta do que está logo acima. */}
-          <OlhoDeDeus />
-
-          {/* ── 5c. O que isso custa ──────────────────────────────────────
-              Depois das lições e antes do funil: é a última pergunta que se
-              faz sobre um agente que já se entendeu. Em cima da tela ele
-              roubaria a atenção de quem veio configurar o comportamento. */}
-          {daPlataforma && <ConsumoDaIa />}
-
-          {/* ── 6. O funil ─────────────────────────────────────────────── */}
-          <PainelDoFunil painel={painelQuery.data} carregando={painelQuery.isPending} />
+          {aba === "configuracao" && (
+            <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+              <div className="grid gap-4">
+                {estado && <NomeDaAssistente nome={estado.nome} />}
+                <ConversasDoMes />
+              </div>
+              <ChaveDaIa />
+              {daPlataforma && (
+                <div className="xl:col-span-2">
+                  <ConsumoDaIa />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </main>
+  );
+}
+
+function Numero({
+  rotulo,
+  children,
+  rodape,
+  onClick,
+}: {
+  rotulo: string;
+  children: ReactNode;
+  rodape?: ReactNode;
+  onClick?: () => void;
+}) {
+  const Tag = onClick ? "button" : "div";
+  return (
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={cn(
+        "flex min-w-0 flex-col rounded-2xl border border-border/70 bg-card p-4 text-left shadow-1",
+        onClick && "press transition-shadow hover:shadow-2",
+      )}
+    >
+      <span className="text-3xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
+        {rotulo}
+      </span>
+      <span className="mt-1.5 min-w-0">{children}</span>
+      {rodape && <span className="mt-auto pt-2">{rodape}</span>}
+    </Tag>
+  );
+}
+
+/**
+ * Como ela está indo, sem abrir nada. As consultas são as mesmas dos blocos
+ * (mesma chave de cache), então abrir a aba depois não busca de novo.
+ */
+function VisaoGeral({ onAprendizado }: { onAprendizado: () => void }) {
+  const buscarFranquia = useServerFn(minhaFranquia);
+  const buscarLicoes = useServerFn(listarLicoesDaLuna);
+  const buscarOlho = useServerFn(getRelatoriosDoOlho);
+  const { data: franquia } = useQuery({
+    queryKey: ["minha-franquia"],
+    queryFn: () => buscarFranquia(),
+    staleTime: 60_000,
+  });
+  const { data: licoes } = useQuery({
+    queryKey: ["licoes-da-luna"],
+    queryFn: () => buscarLicoes(),
+  });
+  const { data: olho } = useQuery({
+    queryKey: ["olho-de-deus"],
+    queryFn: () => buscarOlho(),
+    staleTime: 60_000,
+  });
+
+  const total = (licoes?.fechou ?? 0) + (licoes?.naoFechou ?? 0);
+  const taxa = total ? Math.round(((licoes?.fechou ?? 0) / total) * 100) : null;
+  const motivo = licoes?.motivos?.[0] ?? null;
+  const gargalo = olho?.[0]?.gargalo ?? null;
+  const pct = franquia?.franquia
+    ? Math.min(100, Math.round((franquia.usadas / franquia.franquia) * 100))
+    : 0;
+
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <Numero
+        rotulo="Conversas no mês"
+        rodape={
+          franquia?.franquia ? (
+            <span className="block h-1 overflow-hidden rounded-full bg-surface-subtle">
+              <span
+                className={cn(
+                  "block h-full rounded-full",
+                  pct >= 100 ? "bg-danger" : pct >= 80 ? "bg-warning" : "bg-coral",
+                )}
+                style={{ width: `${pct}%` }}
+              />
+            </span>
+          ) : null
+        }
+      >
+        <span className="text-2xl font-semibold tabular-nums tracking-tight">
+          {franquia?.usadas ?? "—"}
+        </span>
+        {franquia?.franquia ? (
+          <span className="text-sm text-muted-foreground"> / {franquia.franquia}</span>
+        ) : null}
+      </Numero>
+
+      <Numero rotulo="Fechou sozinha" onClick={onAprendizado}>
+        <span className="text-2xl font-semibold tabular-nums tracking-tight">
+          {taxa === null ? "—" : `${taxa}%`}
+        </span>
+        {total > 0 && (
+          <span className="block text-2xs text-muted-foreground">
+            {licoes?.fechou} de {total} conversas
+          </span>
+        )}
+      </Numero>
+
+      <Numero rotulo="Mais perde por" onClick={onAprendizado}>
+        <span className="line-clamp-2 text-sm font-semibold leading-snug tracking-tight">
+          {motivo?.motivo ?? "—"}
+        </span>
+        {motivo && (
+          <span className="block text-2xs text-muted-foreground">{motivo.quantas} conversas</span>
+        )}
+      </Numero>
+
+      <Numero rotulo="Gargalo da semana" onClick={onAprendizado}>
+        <span className="line-clamp-3 text-sm leading-snug">
+          {gargalo ?? <span className="text-muted-foreground">Sem relatório ainda</span>}
+        </span>
+      </Numero>
+    </div>
   );
 }

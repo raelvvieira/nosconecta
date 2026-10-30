@@ -35,7 +35,7 @@ import {
   type EtapaConfig,
   type Trilha,
 } from "@/lib/agente-ia/recovery";
-import { Bloco, Chave } from "./campos";
+import { Ajuda, Bloco, Chave } from "./campos";
 import { useNomeDaAssistente } from "@/components/agente-ia/useNomeDaAssistente";
 
 /**
@@ -140,7 +140,10 @@ export function RecoveryEngine() {
 
         {/* ── Janela ───────────────────────────────────────────────────── */}
         <div className="grid gap-3 rounded-2xl bg-muted/40 p-4">
-          <p className="text-sm font-medium">Quando pode sair mensagem</p>
+          <p className="flex items-center gap-1.5 text-sm font-medium">
+            Quando pode sair mensagem
+            <Ajuda texto="As etapas que caírem fora do horário não se acumulam para a manhã: viram no máximo uma retomada no dia seguinte, e só se aquele dia ainda não tiver a despedida. Etapa atrasada além do tolerado é descartada." />
+          </p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-3 text-sm">
             <Hora
               rotulo="Das"
@@ -179,11 +182,6 @@ export function RecoveryEngine() {
               <span className="text-xs text-muted-foreground">min</span>
             </label>
           </div>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            As etapas que caírem fora do horário não são acumuladas para a manhã: viram no máximo
-            uma retomada no dia seguinte, e só se aquele dia ainda não tiver a despedida. Etapa
-            atrasada além do tolerado (servidor fora do ar, por exemplo) é descartada.
-          </p>
         </div>
 
         <Figurinhas />

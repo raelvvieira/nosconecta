@@ -74,7 +74,7 @@ export function ChaveDaIa() {
   return (
     <Bloco
       titulo="A chave da IA"
-      descricao="É ela que faz a IA pensar — tanto o agente quanto as sugestões no chat."
+      descricao="É ela que faz a IA pensar — o agente e as sugestões no chat. Chave própria é opcional (começa com sk-): fica guardada neste consultório e nunca volta inteira para a tela."
       acao={
         temPropria ? (
           <span className="shrink-0 font-mono text-xs text-muted-foreground">
@@ -126,11 +126,6 @@ export function ChaveDaIa() {
           {salvando ? "Salvando…" : "Salvar"}
         </Button>
       </div>
-
-      <p className="mt-2 text-2xs leading-4 text-muted-foreground">
-        Opcional. Chave da OpenAI própria (começa com <span className="font-mono">sk-</span>). Fica
-        guardada neste consultório e nunca volta inteira para a tela — nem para quem a digitou.
-      </p>
 
       {/* ── Qual modelo atende ───────────────────────────────────────────
           A lista é a da SUA conta. Nenhum nome de modelo está escrito no

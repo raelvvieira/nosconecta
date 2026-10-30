@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAtendimento } from "./useAtendimento";
@@ -48,22 +47,13 @@ export function ManualDaLuna() {
   return (
     <Bloco
       titulo={`O manual da ${luna}`}
-      descricao="Como ela conduz a conversa. É este texto que vira a instrução dela."
+      descricao="Como ela conduz a conversa: é este texto que vira a instrução dela. Preços, horários e a vaga de paciente modelo não vêm daqui — o sistema anexa do catálogo e da agenda."
       acao={
         <span className="shrink-0 text-xs text-muted-foreground">
           {linhas ? `${linhas} linhas` : "vazio"}
         </span>
       }
     >
-      <div className="flex items-start gap-2">
-        <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-        <p className="text-xs leading-5 text-muted-foreground">
-          Preços, horários e a oferta de paciente modelo <strong>não</strong> vêm daqui: o sistema
-          anexa cada um a partir do catálogo e da agenda. Escrever um preço neste texto criaria uma
-          segunda tabela, que ninguém manteria igual.
-        </p>
-      </div>
-
       <Textarea
         value={rascunho}
         onChange={(e) => setRascunho(e.target.value)}

@@ -811,61 +811,6 @@ export const resolverDuvidaDaLuna = createServerFn({ method: "POST" })
 
 // ── Painel ─────────────────────────────────────────────────────────────────
 
-export interface PainelDoFunil {
-  ganhos: number;
-  perdidos: number;
-  emNegociacao: number;
-  /** Ganhos ÷ (ganhos + perdidos). Nulo enquanto não houver desfecho nenhum. */
-  conversao: number | null;
-  valorGanho: number;
-  /** Os motivos de perda mais frequentes, do maior para o menor. */
-  motivosDePerda: { motivo: string; quantos: number }[];
-}
-
-/**
- * O retrato do funil, calculado sem IA nenhuma.
- *
- * É contagem e aritmética sobre `pipeline_deals`, que é local. Não chama
- * modelo e não vai ao CRM: um painel que custa uma chamada de IA por abertura
- * de página é um painel que ninguém deixa aberto.
- */
-export const getPainelDoFunil = createServerFn({ method: "GET" })
-  .middleware([exigeAgenteIa])
-  .handler(async ({ context }): Promise<PainelDoFunil> => {
-    const supabase: any = context.supabase;
-    const { data, error } = await supabase
-      .from("pipeline_deals")
-      .select("status, value, loss_reason")
-      .eq("owner_id", context.ownerId);
-    if (error) throw new Error(error.message);
-
-    const linhas = data ?? [];
-    const ganhos = linhas.filter((d: any) => d.status === "won");
-    const perdidos = linhas.filter((d: any) => d.status === "lost");
-
-    const porMotivo = new Map<string, number>();
-    for (const p of perdidos) {
-      const m = String(p.loss_reason ?? "").trim();
-      if (!m) continue;
-      porMotivo.set(m, (porMotivo.get(m) ?? 0) + 1);
-    }
-
-    const desfechos = ganhos.length + perdidos.length;
-    return {
-      ganhos: ganhos.length,
-      perdidos: perdidos.length,
-      emNegociacao: linhas.filter((d: any) => d.status === "negotiating").length,
-      // Nulo, não zero: sem desfecho nenhum a taxa não existe, e mostrar 0%
-      // faria parecer que a clínica não fecha nada.
-      conversao: desfechos > 0 ? ganhos.length / desfechos : null,
-      valorGanho: ganhos.reduce((s: number, d: any) => s + Number(d.value ?? 0), 0),
-      motivosDePerda: [...porMotivo.entries()]
-        .map(([motivo, quantos]) => ({ motivo, quantos }))
-        .sort((a, b) => b.quantos - a.quantos)
-        .slice(0, 4),
-    };
-  });
-
 // ── Sugestões de fala no chat ──────────────────────────────────────────────
 
 export interface SugestaoDeFala {
