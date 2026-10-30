@@ -146,6 +146,11 @@ export function temFotoDoEspelho(m: MensagemEspelhada): boolean {
   return m.attachments.some((a) => (a as { tipo?: string } | undefined)?.tipo === "image");
 }
 
+/** A mensagem traz um áudio (gravado no WhatsApp ou arquivo de áudio)? */
+export function temAudioDoEspelho(m: MensagemEspelhada): boolean {
+  return m.attachments.some((a) => (a as { tipo?: string } | undefined)?.tipo === "audio");
+}
+
 /**
  * Um evento `messages.upsert` virando a linha do espelho.
  *

@@ -27,14 +27,23 @@
 
 import { anotarConsumo } from "./consumo-da-ia.ts";
 import { agoraNaClinica } from "./agenda-da-clinica.ts";
-import { chamarModelo } from "./modelo-de-atendimento.ts";
+import { chamarModelo, chaveEmUso } from "./modelo-de-atendimento.ts";
 import { enviarWhatsapp } from "./whatsapp-send.ts";
 import { evolutionFetch, conexaoParaEnviar } from "./evolution-api.ts";
-import { temFotoDoEspelho, type MensagemEspelhada } from "./evolution-mapear.ts";
-import { desfazerLancamento, lancarNoFinanceiro } from "./lancar-no-financeiro.ts";
+import { temAudioDoEspelho, temFotoDoEspelho, type MensagemEspelhada } from "./evolution-mapear.ts";
+import {
+  darBaixaNaPrevista,
+  desfazerBaixa,
+  desfazerLancamento,
+  lancarNoFinanceiro,
+} from "./lancar-no-financeiro.ts";
 import {
   catalogoDeCategorias,
   catalogoDeContas,
+  catalogoDePrevistas,
+  TETO_SEM_CONFERIR,
+  recadoDaBaixa,
+  recadoDaPrevista,
   completarGasto,
   comoLerOGasto,
   ehCancelamento,
@@ -273,6 +282,36 @@ async function lerAMensagem(
   );
 
   const hoje = agoraNaClinica().date;
+
+  // As contas a pagar que já estão previstas e ainda em aberto, perto de hoje
+  // (20 dias para trás, 25 para a frente). É a lista de onde o modelo escolhe
+  // quando o comprovante é o pagamento de uma delas (o aluguel, a luz).
+  const somar = (dias: number) => {
+    const d = new Date(`${hoje}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + dias);
+    return d.toISOString().slice(0, 10);
+  };
+  const { data: abertas } = await supabase
+    .from("financial_transactions")
+    .select("id, description, amount, due_date, supplier_name")
+    .eq("owner_id", ownerId)
+    .eq("type", "payable")
+    .in("status", ["pending", "overdue"])
+    .gte("due_date", somar(-20))
+    .lte("due_date", somar(25))
+    .order("due_date")
+    .limit(30);
+  const previstas = catalogoDePrevistas(
+    // deno-lint-ignore no-explicit-any
+    ((abertas ?? []) as any[]).map((t) => ({
+      id: String(t.id),
+      descricao: String(t.description ?? ""),
+      valor: Number(t.amount ?? 0),
+      vencimento: String(t.due_date ?? ""),
+      fornecedor: t.supplier_name ?? null,
+    })),
+  );
+
   const pergunta = foto
     ? `Mensagem do grupo: "${texto || "(sem legenda)"}"\n\nA imagem é o comprovante. Leia o valor nela.`
     : `Mensagem do grupo: "${texto}"`;
@@ -280,7 +319,7 @@ async function lerAMensagem(
   const bruto = await chamarModelo({
     chave: agente?.api_key ?? null,
     modelo: agente?.model ?? null,
-    instrucao: comoLerOGasto(catalogo, contas, hoje),
+    instrucao: comoLerOGasto(catalogo, contas, hoje, previstas),
     pergunta,
     imagem: foto,
     maxTokens: 500,
@@ -299,10 +338,79 @@ async function lerAMensagem(
     json = null;
   }
 
-  const leitura = gastoLido(json as never, catalogo, contas, hoje);
+  const leitura = gastoLido(json as never, catalogo, contas, hoje, TETO_SEM_CONFERIR, previstas);
   return leitura.ok
     ? { gasto: leitura.gasto, motivo: "lido", contas }
     : { gasto: null, motivo: leitura.motivo, contas };
+}
+
+/** Despesa nova, ou baixa na conta que já estava prevista. */
+function registrar(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  ownerId: string,
+  unitId: string,
+  gasto: GastoConferido,
+  origem: { quem: string | null; mensagem: string },
+) {
+  return gasto.prevista
+    ? darBaixaNaPrevista(supabase, ownerId, gasto, origem)
+    : lancarNoFinanceiro(supabase, ownerId, unitId, gasto, origem);
+}
+
+function recadoDoFeito(gasto: GastoConferido): string {
+  return gasto.prevista ? recadoDaBaixa(gasto) : recadoDoLancamento(gasto);
+}
+
+/**
+ * O áudio virando texto.
+ *
+ * Quem está na rua manda "paguei 47 de estacionamento no pix do Inter" por
+ * voz. O áudio é baixado decifrado (o mesmo caminho da foto) e transcrito
+ * pela OpenAI, com a chave do consultório ou a da plataforma. Daí em diante
+ * é uma mensagem de texto como outra qualquer. `null` em qualquer tropeço.
+ */
+async function transcrever(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  ownerId: string,
+  messageId: string,
+): Promise<string | null> {
+  try {
+    const audio = await baixarAFoto(supabase, ownerId, messageId);
+    if (!audio) return null;
+    const { data: agente } = await supabase
+      .from("ai_agents")
+      .select("api_key")
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    const chave = chaveEmUso(agente?.api_key ?? null);
+    if (!chave) return null;
+    const bin = atob(audio.base64.replace(/^data:[^,]*,/, ""));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const tipo = audio.mimetype.split(";")[0] || "audio/ogg";
+    const form = new FormData();
+    form.append("file", new Blob([bytes], { type: tipo }), `audio.${tipo.split("/")[1] || "ogg"}`);
+    form.append("model", Deno.env.get("OPENAI_MODELO_TRANSCRICAO") || "gpt-4o-mini-transcribe");
+    form.append("language", "pt");
+    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { authorization: `Bearer ${chave}` },
+      body: form,
+      signal: AbortSignal.timeout(45_000),
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      console.error("[robo-financeiro] transcrição falhou:", json?.error?.message ?? res.status);
+      return null;
+    }
+    const texto = String(json?.text ?? "").trim();
+    return texto || null;
+  } catch (e) {
+    console.error("[robo-financeiro] não deu para transcrever o áudio:", e);
+    return null;
+  }
 }
 
 /**
@@ -325,7 +433,7 @@ export async function deixarORoboRegistrar(
     const grupo = await grupoCadastrado(supabase, ownerId, jid);
     if (!grupo) return;
 
-    const texto = String(m.body ?? "").trim();
+    let texto = String(m.body ?? "").trim();
     // O próprio recado do robô voltando. Tem valor e data; sem esta linha ele
     // leria a si mesmo e lançaria a despesa de novo.
     if (m.fromMe && ehRecadoDoRobo(texto)) return;
@@ -341,12 +449,28 @@ export async function deixarORoboRegistrar(
       return;
     }
 
+    // Áudio: vira texto antes de tudo, e daí segue o caminho de uma mensagem
+    // escrita (inclusive "sim" e "apaga" falados).
+    if (temAudioDoEspelho(m) && !m.fromMe) {
+      const falado = await transcrever(supabase, ownerId, m.crmMessageId);
+      if (!falado) {
+        await falarNoGrupo(
+          supabase,
+          ownerId,
+          jid,
+          "⚠️ Não consegui ouvir esse áudio. Me escreve o valor que eu lanço.",
+        );
+        return;
+      }
+      texto = [texto, falado].filter(Boolean).join(" ");
+    }
+
     // ── "sim" ────────────────────────────────────────────────────────────
     if (ehConfirmacao(texto)) {
       const pendente = await ultimoDoGrupo(supabase, ownerId, jid, "pendente", 60);
       if (!pendente) return;
       const gasto = pendente.proposta as GastoConferido;
-      const r = await lancarNoFinanceiro(supabase, ownerId, grupo.unitId, gasto, {
+      const r = await registrar(supabase, ownerId, grupo.unitId, gasto, {
         quem,
         mensagem: texto,
       });
@@ -357,7 +481,7 @@ export async function deixarORoboRegistrar(
       }
       await anotar(supabase, pendente.id, { estado: "lancado", transaction_id: r.transactionId });
       await anotar(supabase, reserva, { estado: "ignorado" });
-      await falarNoGrupo(supabase, ownerId, jid, recadoDoLancamento(gasto));
+      await falarNoGrupo(supabase, ownerId, jid, recadoDoFeito(gasto));
       return;
     }
 
@@ -367,14 +491,21 @@ export async function deixarORoboRegistrar(
       // "apaga" quase sempre está olhando o ✅ que acabou de chegar.
       const lancado = await ultimoDoGrupo(supabase, ownerId, jid, "lancado", 24 * 60);
       if (lancado?.transaction_id) {
-        const foi = await desfazerLancamento(supabase, ownerId, String(lancado.transaction_id));
+        // Baixa numa conta prevista volta a deixá-la em aberto; despesa nova
+        // é apagada.
+        const feito = lancado.proposta as GastoConferido | null;
+        const foi = feito?.prevista
+          ? await desfazerBaixa(supabase, ownerId, feito)
+          : await desfazerLancamento(supabase, ownerId, String(lancado.transaction_id));
         await anotar(supabase, lancado.id, { estado: foi ? "cancelado" : "lancado" });
         await falarNoGrupo(
           supabase,
           ownerId,
           jid,
           foi
-            ? "🗑️ Apaguei o último lançamento."
+            ? feito?.prevista
+              ? `↩️ Desfiz a baixa: ${feito.prevista.descricao} voltou a ficar em aberto.`
+              : "🗑️ Apaguei o último lançamento."
             : "⚠️ Não consegui apagar. Dá para remover em Pagamentos.",
         );
         return;
@@ -431,7 +562,7 @@ export async function deixarORoboRegistrar(
           await falarNoGrupo(supabase, ownerId, jid, recadoDoQueFalta(junto, contas));
           return;
         }
-        const feito = await lancarNoFinanceiro(supabase, ownerId, grupo.unitId, junto, {
+        const feito = await registrar(supabase, ownerId, grupo.unitId, junto, {
           quem,
           mensagem: texto,
         });
@@ -444,7 +575,7 @@ export async function deixarORoboRegistrar(
           proposta: junto,
           transaction_id: feito.transactionId,
         });
-        await falarNoGrupo(supabase, ownerId, jid, recadoDoLancamento(junto));
+        await falarNoGrupo(supabase, ownerId, jid, recadoDoFeito(junto));
         return;
       }
 
@@ -481,11 +612,18 @@ export async function deixarORoboRegistrar(
     // inteiro. Nos dois casos a proposta fica guardada esperando um "sim".
     if (foto || gasto.precisaConferir) {
       await anotar(supabase, reserva, { estado: "pendente", proposta: gasto });
-      await falarNoGrupo(supabase, ownerId, jid, recadoParaConferir(gasto, Boolean(foto)));
+      await falarNoGrupo(
+        supabase,
+        ownerId,
+        jid,
+        gasto.prevista
+          ? recadoDaPrevista(gasto, Boolean(foto))
+          : recadoParaConferir(gasto, Boolean(foto)),
+      );
       return;
     }
 
-    const r = await lancarNoFinanceiro(supabase, ownerId, grupo.unitId, gasto, {
+    const r = await registrar(supabase, ownerId, grupo.unitId, gasto, {
       quem,
       mensagem: texto,
     });
@@ -498,7 +636,7 @@ export async function deixarORoboRegistrar(
       proposta: gasto,
       transaction_id: r.transactionId,
     });
-    await falarNoGrupo(supabase, ownerId, jid, recadoDoLancamento(gasto));
+    await falarNoGrupo(supabase, ownerId, jid, recadoDoFeito(gasto));
   } catch (e) {
     console.error("[robo-financeiro] falhou:", e instanceof Error ? e.message : e);
   }

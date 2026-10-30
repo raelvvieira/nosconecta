@@ -116,6 +116,48 @@ export function catalogoDeCategorias(
   return saida;
 }
 
+// ── Contas já previstas ──────────────────────────────────────────────────
+//
+// O aluguel, a luz, o contador: contas que já estão no sistema como "a
+// pagar", com vencimento. Quando o comprovante é o pagamento de uma delas,
+// lançar uma despesa nova duplicaria a conta (a prevista continuaria aberta).
+// O certo é dar baixa nela, com o valor e a data de verdade.
+//
+// Quem reconhece é o modelo, porque o nome raramente bate: o aluguel aparece
+// no comprovante como o nome da imobiliária, a luz como o nome da
+// distribuidora. Ele recebe a lista com códigos (P1, P2…) e devolve um deles,
+// do mesmo jeito que as categorias (G) e as contas (C).
+
+export interface ContaPrevista {
+  id: string;
+  descricao: string;
+  valor: number;
+  /** "YYYY-MM-DD". */
+  vencimento: string;
+  fornecedor: string | null;
+}
+
+export interface PrevistaComCodigo extends ContaPrevista {
+  codigo: string;
+}
+
+/** As que entram na lista: no máximo 30, na ordem em que vieram (o chamador
+ *  já ordena por vencimento). */
+export function catalogoDePrevistas(
+  previstas: ContaPrevista[] | null | undefined,
+  maximo = 30,
+): PrevistaComCodigo[] {
+  const saida: PrevistaComCodigo[] = [];
+  for (const p of Array.isArray(previstas) ? previstas : []) {
+    if (saida.length >= Math.max(0, maximo)) break;
+    const id = String(p?.id ?? "").trim();
+    const descricao = String(p?.descricao ?? "").trim();
+    if (!id || !descricao || !/^\d{4}-\d{2}-\d{2}$/.test(String(p?.vencimento ?? ""))) continue;
+    saida.push({ ...p, id, descricao, codigo: `P${saida.length + 1}` });
+  }
+  return saida;
+}
+
 /**
  * Vale a pena perguntar ao modelo?
  *
@@ -149,6 +191,8 @@ export interface LeituraBruta {
   descricao?: unknown;
   fornecedor?: unknown;
   pago?: unknown;
+  /** O código P da conta prevista que este pagamento quita, ou "". */
+  prevista?: unknown;
 }
 
 /** O que a mensagem não disse e o robô não pode inventar. */
@@ -190,6 +234,16 @@ export interface GastoConferido {
   pago: boolean;
   /** `true` quando o valor passou do teto e alguém precisa confirmar. */
   precisaConferir: boolean;
+  /**
+   * A conta prevista que este pagamento quita, quando o modelo reconheceu uma.
+   * Com ela, o robô dá baixa nessa conta em vez de lançar despesa nova.
+   */
+  prevista?: {
+    id: string;
+    descricao: string;
+    valorPrevisto: number;
+    vencimento: string;
+  } | null;
 }
 
 /** Por que uma leitura foi recusada. Vai para o log, nunca para o grupo. */
@@ -304,6 +358,7 @@ export function gastoLido(
   contas: ContaComCodigo[],
   hoje: string,
   tetoSemConferir: number = TETO_SEM_CONFERIR,
+  previstas: PrevistaComCodigo[] = [],
 ): Leitura {
   if (bruto?.ehGasto !== true) return { ok: false, motivo: "não é gasto" };
 
@@ -373,6 +428,17 @@ export function gastoLido(
   // dar errado — o modelo manda 500 como total, ou multiplica errado — e as
   // duas somem no meio de um extrato. Quando os números não fecham, ninguém
   // grava sozinho.
+  // A conta prevista: código fora da lista não vira nada, como categoria e
+  // conta. Só vale para despesa paga — "vai vencer" não dá baixa em nada.
+  const pedidoDaPrevista = String(bruto.prevista ?? "")
+    .trim()
+    .toUpperCase();
+  const achada =
+    bruto.pago === false
+      ? null
+      : ((Array.isArray(previstas) ? previstas : []).find((p) => p.codigo === pedidoDaPrevista) ??
+        null);
+
   const parcelaLida = valorEmReais(bruto.valorDaParcela);
   const contaNaoFecha =
     parcelas !== null &&
@@ -401,7 +467,18 @@ export function gastoLido(
       // "pago" é o padrão: quem escreve num grupo de gastos quase sempre
       // acabou de pagar. Conta a vencer é o caso raro e precisa ser dito.
       pago: bruto.pago !== false,
-      precisaConferir: valor > Math.max(0, tetoSemConferir) || contaNaoFecha,
+      // Dar baixa numa conta que já existe sempre passa por um "sim": quem
+      // reconheceu a conta foi a máquina, e baixa na conta errada esconde a
+      // conta certa, que continua aberta como se tivesse sido paga.
+      precisaConferir: valor > Math.max(0, tetoSemConferir) || contaNaoFecha || achada !== null,
+      prevista: achada
+        ? {
+            id: achada.id,
+            descricao: achada.descricao,
+            valorPrevisto: achada.valor,
+            vencimento: achada.vencimento,
+          }
+        : null,
     },
   };
 }
@@ -601,9 +678,13 @@ export function recadoDoQueFalta(gasto: GastoConferido, contas: ContaComCodigo[]
   }
   const partes = [
     `Anotei ${emReais(gasto.valor)} · ${gasto.descricao} · ${quandoCurto(gasto.data)}`,
-    "",
-    `Só falta: ${juntarPerguntas(perguntas)}?`,
   ];
+  if (gasto.prevista) {
+    partes.push(
+      `Vou dar baixa em: ${gasto.prevista.descricao} (previsto ${emReais(gasto.prevista.valorPrevisto)}, vence ${dataCurta(gasto.prevista.vencimento)}).`,
+    );
+  }
+  partes.push("", `Só falta: ${juntarPerguntas(perguntas)}?`);
   if (gasto.faltando.includes("conta") && contas.length) {
     partes.push("", `Contas: ${contas.map((c) => c.nome).join(", ")}`);
   }
@@ -623,6 +704,43 @@ export function recadoDoQueFalta(gasto: GastoConferido, contas: ContaComCodigo[]
  * Nos dois casos ninguém conferiu o número: na foto quem leu foi a máquina, no
  * valor alto o estrago de um zero a mais é grande demais para arriscar.
  */
+/** O recado de que o pagamento parece ser de uma conta prevista. */
+export function recadoDaPrevista(gasto: GastoConferido, deFoto: boolean): string {
+  const p = gasto.prevista!;
+  const partes = [
+    deFoto ? "📄 Li o comprovante." : "Entendi.",
+    `É o pagamento de *${p.descricao}* (previsto ${emReais(p.valorPrevisto)}, vence ${dataCurta(p.vencimento)})?`,
+    "",
+    `Dou baixa como paga: ${emReais(gasto.valor)} · ${quandoCurto(gasto.data)} · ${
+      rotuloDoPagamento(gasto.forma, gasto.parcelas) || "forma não informada"
+    } · ${gasto.contaNome ?? "conta não informada"}`,
+  ];
+  if (Math.abs(gasto.valor - p.valorPrevisto) >= 0.01) {
+    partes.push(
+      `O valor da conta passa de ${emReais(p.valorPrevisto)} para ${emReais(gasto.valor)}.`,
+    );
+  }
+  partes.push("", 'Responde "sim" que eu dou baixa.');
+  return partes.join("\n");
+}
+
+/** O recado de que a baixa foi dada. */
+export function recadoDaBaixa(gasto: GastoConferido): string {
+  const p = gasto.prevista!;
+  const partes = [
+    `✅ Baixa dada: ${p.descricao} · pago ${emReais(gasto.valor)} · ${quandoCurto(gasto.data)}`,
+    [
+      rotuloDoPagamento(gasto.forma, gasto.parcelas) || "forma não informada",
+      gasto.contaNome ?? "conta não informada",
+    ].join(" · "),
+  ];
+  if (Math.abs(gasto.valor - p.valorPrevisto) >= 0.01) {
+    partes.push(`Previsto era ${emReais(p.valorPrevisto)}; ficou o valor pago.`);
+  }
+  partes.push('Se estiver errado, responde "apaga" que a conta volta a ficar em aberto.');
+  return partes.join("\n");
+}
+
 export function recadoParaConferir(gasto: GastoConferido, deFoto: boolean): string {
   const partes = [
     deFoto ? "📄 Li o comprovante:" : "Só conferindo, que o valor é alto:",
@@ -651,6 +769,7 @@ export function comoLerOGasto(
   catalogo: CategoriaComCodigo[],
   contas: ContaComCodigo[],
   hoje: string,
+  previstas: PrevistaComCodigo[] = [],
 ): string {
   const linhas = [
     "Você lê as mensagens do grupo do financeiro de uma clínica e transforma",
@@ -671,7 +790,8 @@ export function comoLerOGasto(
     '  "quando": "hoje", "ontem", "anteontem" ou a data em AAAA-MM-DD,',
     '  "descricao": do que foi o gasto, curto, como num extrato,',
     '  "fornecedor": onde foi gasto, se der para saber, senão "",',
-    '  "pago": true se já foi pago, false se é conta a vencer',
+    '  "pago": true se já foi pago, false se é conta a vencer,',
+    '  "prevista": o código P da conta prevista que este pagamento quita, ou ""',
     "}",
     "",
     "Categorias desta clínica:",
@@ -682,6 +802,15 @@ export function comoLerOGasto(
 
   linhas.push("", "Contas desta clínica:", "");
   for (const c of contas) linhas.push(`- ${c.codigo} · ${c.nome}`);
+
+  if (previstas.length) {
+    linhas.push("", "Contas a pagar já previstas no sistema (vencimento · valor previsto):", "");
+    for (const p of previstas) {
+      linhas.push(
+        `- ${p.codigo} · ${p.descricao}${p.fornecedor ? ` (${p.fornecedor})` : ""} · vence ${p.vencimento} · R$ ${p.valor.toFixed(2)}`,
+      );
+    }
+  }
 
   linhas.push(
     "",
@@ -714,6 +843,13 @@ export function comoLerOGasto(
     "  vencer; aí `pago` é false.",
     "- `descricao` é o que a pessoa escreveu, limpo. Não invente detalhe que a",
     "  mensagem não tem.",
+    "- `prevista` é o código P quando a mensagem ou o comprovante é o PAGAMENTO",
+    "  de uma das contas previstas acima. O nome quase nunca bate: o aluguel",
+    "  aparece como o nome da imobiliária, a luz como o da distribuidora, o",
+    "  contador como o escritório. O valor pode vir diferente do previsto",
+    "  (reajuste, desconto, juros) e o dia também, alguns dias antes ou depois.",
+    '  Use quando o tipo de conta e a época baterem. Na dúvida, "": uma despesa',
+    "  nova é corrigível; dar baixa na conta errada esconde a conta certa.",
     "",
     "Nada além do JSON.",
   );

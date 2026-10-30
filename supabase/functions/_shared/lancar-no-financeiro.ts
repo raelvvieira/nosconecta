@@ -138,3 +138,100 @@ export async function desfazerLancamento(
   }
   return true;
 }
+
+/**
+ * Dá baixa numa conta que já estava prevista: o aluguel, a luz.
+ *
+ * Em vez de inserir uma despesa nova (que duplicaria a conta: a prevista
+ * continuaria aberta), atualiza a prevista com o que de fato aconteceu: pago,
+ * na data do pagamento, com o valor pago (o comprovante manda, não a
+ * previsão), de qual conta saiu e como. A nota de antes não se perde: o
+ * registro do grupo vai embaixo dela.
+ *
+ * Só baixa o que ainda está em aberto (pendente ou vencido): duas
+ * confirmações seguidas não pagam a mesma conta duas vezes.
+ */
+export async function darBaixaNaPrevista(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  ownerId: string,
+  gasto: GastoConferido,
+  origem: { quem: string | null; mensagem: string },
+): Promise<Lancado> {
+  const prevista = gasto.prevista;
+  if (!prevista) return { ok: false, transactionId: null, motivo: "sem conta prevista" };
+  if (gasto.faltando.length) {
+    return { ok: false, transactionId: null, motivo: `falta ${gasto.faltando.join(" e ")}` };
+  }
+  if (!gasto.data) return { ok: false, transactionId: null, motivo: "falta data" };
+
+  const { data: atual } = await supabase
+    .from("financial_transactions")
+    .select("notes")
+    .eq("id", prevista.id)
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  const nota = [
+    String(atual?.notes ?? "").trim(),
+    `Paga pelo grupo do financeiro${origem.quem ? ` por ${origem.quem}` : ""}` +
+      (Math.abs(gasto.valor - prevista.valorPrevisto) >= 0.01
+        ? ` (previsto R$ ${prevista.valorPrevisto.toFixed(2)}).`
+        : "."),
+    `Mensagem: "${origem.mensagem.slice(0, 200)}"`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const { data, error } = await supabase
+    .from("financial_transactions")
+    .update({
+      status: "paid",
+      paid_date: gasto.data,
+      amount: gasto.valor,
+      account_id: gasto.contaId,
+      payment_method: gasto.paymentMethod,
+      notes: nota,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", prevista.id)
+    .eq("owner_id", ownerId)
+    .in("status", ["pending", "overdue"])
+    .select("id");
+  if (error) {
+    console.error("[financeiro-do-grupo] não deu para dar baixa:", error.message);
+    return { ok: false, transactionId: null, motivo: error.message };
+  }
+  if (!(data ?? []).length) {
+    return { ok: false, transactionId: null, motivo: "essa conta já não está em aberto" };
+  }
+  return { ok: true, transactionId: prevista.id, motivo: "baixa dada" };
+}
+
+/**
+ * Desfaz uma baixa: a conta volta a ficar em aberto, com o valor previsto de
+ * antes. Não apaga a linha — ela existia antes do robô e continua existindo.
+ */
+export async function desfazerBaixa(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  ownerId: string,
+  gasto: GastoConferido,
+): Promise<boolean> {
+  const prevista = gasto.prevista;
+  if (!prevista) return false;
+  const { error } = await supabase
+    .from("financial_transactions")
+    .update({
+      status: "pending",
+      paid_date: null,
+      amount: prevista.valorPrevisto,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", prevista.id)
+    .eq("owner_id", ownerId);
+  if (error) {
+    console.error("[financeiro-do-grupo] não deu para desfazer a baixa:", error.message);
+    return false;
+  }
+  return true;
+}
