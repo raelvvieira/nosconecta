@@ -173,7 +173,40 @@ export function catalogoDePrevistas(
  */
 export function pareceGasto(texto: unknown, temImagem = false): boolean {
   if (temImagem) return true;
-  return /\d/.test(String(texto ?? ""));
+  const t = String(texto ?? "");
+  if (/\d/.test(t)) return true;
+  // "Aluguel pago", "paguei a luz": sem número, mas é a baixa de uma conta
+  // prevista, com o valor que já estava no sistema (30/10).
+  return /\b(pag[oa]s?|paguei|pagamos|pagou|quitei|quitad[oa]s?|quitamos)\b/i.test(t);
+}
+
+/**
+ * A data numa resposta curta: "hoje", "de hoje", "foi ontem", "09/10".
+ *
+ * O robô perguntou "de quando é?" e a pessoa respondeu. Relida pelo modelo
+ * como se fosse um gasto, a resposta "hoje" não é gasto nenhum, e o robô
+ * perguntava de novo, em laço (30/10). Lida aqui, sem modelo, ela só
+ * completa a data.
+ */
+export function dataDaResposta(texto: unknown, hoje: string): string | null {
+  const t = String(texto ?? "")
+    .toLowerCase()
+    .replace(/[.!?,]/g, " ")
+    .replace(/(^|\s)(de|foi|é|e|dia|no|na|em)(?=\s|$)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!t) return null;
+  for (const palavra of ["anteontem", "ontem", "hoje"]) {
+    if (new RegExp(`\\b${palavra}\\b`).test(t)) return dataDoGasto(palavra, hoje);
+  }
+  const m = t.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+  if (!m) return null;
+  const dia = m[1].padStart(2, "0");
+  const mes = m[2].padStart(2, "0");
+  let ano = m[3] ? (m[3].length === 2 ? `20${m[3]}` : m[3]) : hoje.slice(0, 4);
+  // "28/12" dito em janeiro é do ano passado: data no futuro não é gasto.
+  if (!m[3] && `${ano}-${mes}-${dia}` > hoje) ano = String(Number(ano) - 1);
+  return dataDoGasto(`${ano}-${mes}-${dia}`, hoje);
 }
 
 /** O que o modelo devolve ao ler uma mensagem do grupo. */
@@ -362,13 +395,25 @@ export function gastoLido(
 ): Leitura {
   if (bruto?.ehGasto !== true) return { ok: false, motivo: "não é gasto" };
 
-  if (bruto.valor === undefined || bruto.valor === null || bruto.valor === "") {
-    return { ok: false, motivo: "sem valor" };
-  }
-  const valor = valorEmReais(bruto.valor);
+  // A conta prevista: código fora da lista não vira nada, como categoria e
+  // conta. Só vale para despesa paga — "vai vencer" não dá baixa em nada.
+  const pedidoDaPrevista = String(bruto.prevista ?? "")
+    .trim()
+    .toUpperCase();
+  const achada =
+    bruto.pago === false
+      ? null
+      : ((Array.isArray(previstas) ? previstas : []).find((p) => p.codigo === pedidoDaPrevista) ??
+        null);
+
+  // Sem valor só passa quando é a baixa de uma conta prevista: "aluguel
+  // pago" (30/10) quer dizer o valor que já estava previsto.
+  const semValor = bruto.valor === undefined || bruto.valor === null || bruto.valor === "";
+  if (semValor && !achada) return { ok: false, motivo: "sem valor" };
+  const valor = semValor ? achada!.valor : valorEmReais(bruto.valor);
   if (valor === null) return { ok: false, motivo: "valor inválido" };
 
-  const descricao = String(bruto.descricao ?? "")
+  const descricao = (String(bruto.descricao ?? "").trim() || achada?.descricao || "")
     .trim()
     .slice(0, MAX_DESCRICAO);
   // Sem descrição a linha fica "R$ 240,00" no extrato e ninguém lembra do quê.
@@ -428,17 +473,6 @@ export function gastoLido(
   // dar errado — o modelo manda 500 como total, ou multiplica errado — e as
   // duas somem no meio de um extrato. Quando os números não fecham, ninguém
   // grava sozinho.
-  // A conta prevista: código fora da lista não vira nada, como categoria e
-  // conta. Só vale para despesa paga — "vai vencer" não dá baixa em nada.
-  const pedidoDaPrevista = String(bruto.prevista ?? "")
-    .trim()
-    .toUpperCase();
-  const achada =
-    bruto.pago === false
-      ? null
-      : ((Array.isArray(previstas) ? previstas : []).find((p) => p.codigo === pedidoDaPrevista) ??
-        null);
-
   const parcelaLida = valorEmReais(bruto.valorDaParcela);
   const contaNaoFecha =
     parcelas !== null &&
@@ -850,6 +884,9 @@ export function comoLerOGasto(
     "  (reajuste, desconto, juros) e o dia também, alguns dias antes ou depois.",
     '  Use quando o tipo de conta e a época baterem. Na dúvida, "": uma despesa',
     "  nova é corrigível; dar baixa na conta errada esconde a conta certa.",
+    '- Mensagem que só diz que uma conta prevista foi paga ("aluguel pago",',
+    '  "paguei a luz"), sem valor: ehGasto true, `prevista` com o código e',
+    '  `valor` "" (vale o valor previsto). Sem conta prevista que bata, false.',
     "",
     "Nada além do JSON.",
   );

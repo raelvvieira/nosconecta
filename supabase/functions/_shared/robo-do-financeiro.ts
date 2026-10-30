@@ -46,6 +46,7 @@ import {
   recadoDaPrevista,
   completarGasto,
   comoLerOGasto,
+  dataDaResposta,
   ehCancelamento,
   ehConfirmacao,
   gastoLido,
@@ -249,6 +250,7 @@ async function lerAMensagem(
   ownerId: string,
   texto: string,
   foto: { base64: string; mimetype: string } | null,
+  respondendo: GastoConferido | null = null,
 ): Promise<{ gasto: GastoConferido | null; motivo: string; contas: ContaComCodigo[] }> {
   const { data: agente } = await supabase
     .from("ai_agents")
@@ -312,9 +314,13 @@ async function lerAMensagem(
     })),
   );
 
-  const pergunta = foto
-    ? `Mensagem do grupo: "${texto || "(sem legenda)"}"\n\nA imagem é o comprovante. Leia o valor nela.`
-    : `Mensagem do grupo: "${texto}"`;
+  // Respondendo a uma pergunta do robô, a mensagem sozinha ("pix do Inter")
+  // não é gasto nenhum: o modelo precisa saber qual gasto ela completa.
+  const pergunta = respondendo
+    ? `O robô anotou este gasto e perguntou o que faltava: R$ ${respondendo.valor.toFixed(2)} · ${respondendo.descricao}. Faltava: ${respondendo.faltando.join(", ")}.\n\nA mensagem do grupo é a RESPOSTA a essa pergunta: "${texto}"\n\nDevolva ehGasto true com o mesmo valor e a mesma descrição, e preencha só o que a resposta disser (conta, forma, quando).`
+    : foto
+      ? `Mensagem do grupo: "${texto || "(sem legenda)"}"\n\nA imagem é o comprovante. Leia o valor nela.`
+      : `Mensagem do grupo: "${texto}"`;
 
   const bruto = await chamarModelo({
     chave: agente?.api_key ?? null,
@@ -546,16 +552,25 @@ export async function deixarORoboRegistrar(
     let gasto: GastoConferido | null = null;
     let contas: ContaComCodigo[] = [];
     try {
-      const r = await lerAMensagem(supabase, ownerId, texto, foto);
+      const guardado = completando ? (esperando.proposta as GastoConferido) : null;
+      const r = await lerAMensagem(supabase, ownerId, texto, foto, guardado);
       contas = r.contas;
       gasto = r.gasto;
 
-      if (completando) {
+      if (guardado) {
         // A resposta curta só contribui com o que faltava. Valor, data e
         // descrição continuam sendo os da mensagem original — ver
-        // `completarGasto`.
-        const guardado = esperando.proposta as GastoConferido;
-        const junto = completarGasto(guardado, gasto);
+        // `completarGasto`. A data dita ("hoje", "09/10") é lida aqui, sem
+        // modelo: relida como gasto, "hoje" não virava nada e o robô
+        // perguntava de novo, em laço (30/10).
+        const dataFalada = guardado.faltando.includes("data")
+          ? dataDaResposta(texto, agoraNaClinica().date)
+          : null;
+        const novo = gasto ?? (dataFalada ? guardado : null);
+        const junto = completarGasto(
+          guardado,
+          novo ? { ...novo, data: dataFalada ?? novo.data } : null,
+        );
         await anotar(supabase, reserva, { estado: "ignorado" });
         if (junto.faltando.length) {
           await anotar(supabase, esperando.id, { proposta: junto });

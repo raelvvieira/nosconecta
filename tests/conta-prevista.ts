@@ -7,7 +7,9 @@
 import {
   catalogoDePrevistas,
   comoLerOGasto,
+  dataDaResposta,
   gastoLido,
+  pareceGasto,
   recadoDaBaixa,
   recadoDaPrevista,
   recadoDoQueFalta,
@@ -117,6 +119,45 @@ if (faltaConta.ok) {
     true,
   );
 }
+
+// "Aluguel pago", sem valor: a conta prevista dá o valor e a descrição.
+const semValor = gastoLido(
+  { ...comprovante, valor: "", descricao: "" },
+  cat,
+  contas,
+  HOJE,
+  TETO_SEM_CONFERIR,
+  previstas,
+);
+conferir("sem valor, mas prevista: lê", semValor.ok, true);
+if (semValor.ok) {
+  conferir("usa o valor previsto", semValor.gasto.valor, 1708.4);
+  conferir("usa a descrição prevista", semValor.gasto.descricao, "Aluguel da Sala");
+}
+conferir(
+  "sem valor e sem prevista: não lê",
+  gastoLido(
+    { ...comprovante, valor: "", prevista: "" },
+    cat,
+    contas,
+    HOJE,
+    TETO_SEM_CONFERIR,
+    previstas,
+  ).ok,
+  false,
+);
+conferir('"Aluguel pago" parece gasto', pareceGasto("Aluguel pago", false), true);
+conferir('"paguei a luz" parece gasto', pareceGasto("paguei a luz", false), true);
+conferir('"bom dia" não parece', pareceGasto("bom dia", false), false);
+
+// A resposta à pergunta "de quando é?" (o laço de 30/10).
+conferir("hoje", dataDaResposta("hoje", HOJE), HOJE);
+conferir("de hoje", dataDaResposta("de hoje", HOJE), HOJE);
+conferir("Foi ontem.", dataDaResposta("Foi ontem.", HOJE), "2026-10-29");
+conferir("anteontem", dataDaResposta("anteontem", HOJE), "2026-10-28");
+conferir("dia 09/10", dataDaResposta("dia 09/10", HOJE), "2026-10-09");
+conferir("28/12 é do ano passado", dataDaResposta("28/12", HOJE), "2025-12-28");
+conferir("pix do inter não é data", dataDaResposta("pix do inter", HOJE), null);
 
 const instrucao = comoLerOGasto(cat, contas, HOJE, previstas);
 conferir("instrução lista as previstas", instrucao.includes("P1 · Aluguel da Sala"), true);
