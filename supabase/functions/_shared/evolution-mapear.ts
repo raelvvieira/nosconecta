@@ -85,8 +85,7 @@ export interface AnexoDaEvolution {
  */
 export function anexoDaMensagem(message: any): AnexoDaEvolution | null {
   if (!message || typeof message !== "object") return null;
-  const m =
-    message.ephemeralMessage?.message ?? message.viewOnceMessage?.message ?? message;
+  const m = message.ephemeralMessage?.message ?? message.viewOnceMessage?.message ?? message;
 
   const mapa: Array<[string, AnexoDaEvolution["tipo"]]> = [
     ["imageMessage", "image"],
@@ -173,12 +172,24 @@ export function mensagemDoEvento(data: any): MensagemEspelhada | null {
     body: textoDaMensagem(data?.message),
     sentAt: dataDaMensagem(data?.messageTimestamp),
     attachments: anexo
-      ? [{ id: String(id), tipo: anexo.tipo, url: anexo.url, thumbUrl: anexo.url, nome: anexo.nome }]
+      ? [
+          {
+            id: String(id),
+            tipo: anexo.tipo,
+            url: anexo.url,
+            thumbUrl: anexo.url,
+            nome: anexo.nome,
+          },
+        ]
       : [],
     phone: telefoneDoJid(jid),
     // `pushName` é o nome que a pessoa pôs no próprio WhatsApp. Só vale para
     // mensagem RECEBIDA: no que a clínica manda, ele é o nome da clínica.
-    contactName: data?.key?.fromMe === true ? null : (data?.pushName ?? null),
+    // Em GRUPO também não vale: ali ele é o nome de quem escreveu, e gravá-lo
+    // no contato do grupo fazia a conversa "#NÓS Floripa - Financeiro"
+    // aparecer como "Mariane Botti" ou "Rael Vieira", conforme quem falou por
+    // último (30/10). O nome do grupo vem da Evolution, à parte (`wa-webhook`).
+    contactName: data?.key?.fromMe === true || ehGrupo(jid) ? null : (data?.pushName ?? null),
     ehGrupo: ehGrupo(jid),
   };
 }

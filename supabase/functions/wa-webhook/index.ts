@@ -28,6 +28,7 @@ import {
   telefoneDoJid,
 } from "../_shared/evolution-mapear.ts";
 import { gravarMensagemEspelhada } from "../_shared/espelho-evolution.ts";
+import { conexaoParaEnviar, evolutionFetch } from "../_shared/evolution-api.ts";
 import { pushToOwner } from "../_shared/push.ts";
 import { deixarOAgenteResponder } from "../_shared/agente-no-webhook.ts";
 import { deixarORoboRegistrar } from "../_shared/robo-do-financeiro.ts";
@@ -66,6 +67,40 @@ async function marcarSinalDeVida(nome: string, extra: Record<string, unknown> = 
       ...extra,
     })
     .eq("instance_name", nome);
+}
+
+/**
+ * O nome de um grupo, pedido à Evolution uma vez só.
+ *
+ * O evento da mensagem não traz o nome do grupo (só o de quem escreveu).
+ * Quando o contato do grupo ainda não tem nome, a Evolution é perguntada
+ * (`findGroupInfos`) e o `subject` vira o nome. Com nome gravado, nada a
+ * fazer: a pergunta acontece na primeira mensagem do grupo, não em todas.
+ */
+async function garantirNomeDoGrupo(ownerId: string, jid: string) {
+  const { data: contato } = await supabase
+    .from("wa_contacts")
+    .select("name")
+    .eq("owner_id", ownerId)
+    .eq("origem", "evolution")
+    .eq("crm_contact_id", jid)
+    .maybeSingle();
+  if (String(contato?.name ?? "").trim()) return;
+  const { instancia } = await conexaoParaEnviar(supabase, ownerId);
+  if (!instancia) return;
+  const info = await evolutionFetch(
+    `/group/findGroupInfos/${encodeURIComponent(instancia)}?groupJid=${encodeURIComponent(jid)}`,
+    { method: "GET" },
+    10_000,
+  );
+  const nome = String(info?.subject ?? "").trim();
+  if (!nome) return;
+  await supabase
+    .from("wa_contacts")
+    .update({ name: nome, synced_at: new Date().toISOString() })
+    .eq("owner_id", ownerId)
+    .eq("origem", "evolution")
+    .eq("crm_contact_id", jid);
 }
 
 /**
@@ -135,9 +170,17 @@ async function gravarMensagem(ownerId: string, data: any) {
   // lançamento.
   const doFinanceiro = deixarORoboRegistrar(supabase, ownerId, m, data);
 
+  // O nome do grupo, quando ainda não se sabe. Também fora do caminho da
+  // resposta, e sem poder derrubar nada.
+  const doNome = m.ehGrupo
+    ? garantirNomeDoGrupo(ownerId, m.crmContactId).catch((e) =>
+        console.warn("[wa-webhook] nome do grupo:", e instanceof Error ? e.message : e),
+      )
+    : Promise.resolve();
+
   // deno-lint-ignore no-explicit-any
   const runtime = (globalThis as any).EdgeRuntime;
-  const tudo = Promise.all([doAgente, doFinanceiro]);
+  const tudo = Promise.all([doAgente, doFinanceiro, doNome]);
   if (runtime?.waitUntil) runtime.waitUntil(tudo);
   else await tudo;
 
