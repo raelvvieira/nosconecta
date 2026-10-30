@@ -6,9 +6,20 @@ import {
   REGRAS_LEADS_PADRAO,
   REGRAS_PERDIDOS_PADRAO,
   classificar,
+  colunasDosLeads,
   regrasOuPadrao,
   type RegraDeFunil,
 } from "@/lib/atendimentos/funnelRules";
+import {
+  DIAS_PARA_PARADO,
+  faixaDaNota,
+  leituraGuardada,
+  notaDoLead,
+  riscoDoLead,
+  type Faixa,
+  type Ritmo,
+  type SituacaoNaAgenda,
+} from "../../../supabase/functions/_shared/inteligencia-do-lead.ts";
 
 // O funil de Clientes.
 //
@@ -141,23 +152,28 @@ export const getFunilDeClientes = createServerFn({ method: "GET" })
  *  Perdidos — que classifica no cliente, com os sinais que já tem em mãos. */
 export const getRegrasDosFunis = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
-  .handler(async ({ context }): Promise<{ clientes: RegraDeFunil[]; perdidos: RegraDeFunil[] }> => {
-    const supabase: any = context.supabase;
-    const { data, error } = await supabase
-      .from("clinic_funnel_rules")
-      .select("clientes, perdidos")
-      .eq("owner_id", context.ownerId)
-      .maybeSingle();
-    if (error && !ausente(error)) throw new Error(error.message);
-    return {
-      clientes: regrasOuPadrao(data?.clientes, REGRAS_CLIENTES_PADRAO),
-      perdidos: regrasOuPadrao(data?.perdidos, REGRAS_PERDIDOS_PADRAO),
-    };
-  });
+  .handler(
+    async ({
+      context,
+    }): Promise<{ clientes: RegraDeFunil[]; perdidos: RegraDeFunil[]; leads: RegraDeFunil[] }> => {
+      const supabase: any = context.supabase;
+      const { data, error } = await supabase
+        .from("clinic_funnel_rules")
+        .select("clientes, perdidos, leads")
+        .eq("owner_id", context.ownerId)
+        .maybeSingle();
+      if (error && !ausente(error)) throw new Error(error.message);
+      return {
+        clientes: regrasOuPadrao(data?.clientes, REGRAS_CLIENTES_PADRAO),
+        perdidos: regrasOuPadrao(data?.perdidos, REGRAS_PERDIDOS_PADRAO),
+        leads: regrasOuPadrao(data?.leads, REGRAS_LEADS_PADRAO),
+      };
+    },
+  );
 
 export const salvarRegrasDoFunil = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
-  .inputValidator((input: { funil: "clientes" | "perdidos"; regras: RegraDeFunil[] }) => {
+  .inputValidator((input: { funil: "clientes" | "perdidos" | "leads"; regras: RegraDeFunil[] }) => {
     if (!input.regras?.length) throw new Error("O funil precisa de ao menos uma etapa.");
     if (!input.regras.some((r) => r.ativa)) {
       throw new Error("Ao menos uma etapa precisa estar ligada — senão nenhum card teria coluna.");
@@ -195,33 +211,62 @@ export interface LeadNoFunil {
   diasEmSilencio: number | null;
   temAgendamento: boolean;
   stage: string;
+  /** Calado há mais de `DIAS_PARA_PARADO` dias, sem horário à frente. Fica na
+   *  coluna onde parou; o quadro esconde até alguém pedir. */
+  parado: boolean;
+  /** A nota de 0 a 100. `null` enquanto a conversa não foi lida. */
+  nota: number | null;
+  faixa: Faixa | null;
+  /** Os motivos que mais pesaram na nota. */
+  motivos: string[];
+  procedimento: string | null;
+  /** Em reais. */
+  valor: number | null;
+  valorFonte: "conversa" | "tabela" | null;
+  valorAPartirDe: boolean;
+  porque: string | null;
+  proximaAcao: string | null;
+  risco: { nivel: "alto" | "medio" | "baixo"; motivo: string | null };
+  /** A conversa mais recente, para abrir no chat. */
+  conversationId: string | null;
+}
+
+export interface ResumoDaColuna {
+  ativos: number;
+  parados: number;
+  /** A soma dos valores de todos (ativos e parados), em reais. */
+  valor: number;
 }
 
 export interface FunilDeLeads {
+  /** Na ordem do quadro (o caminho), já só as ativas. */
+  colunas: RegraDeFunil[];
   regras: RegraDeFunil[];
   leads: LeadNoFunil[];
   contagem: Record<string, number>;
+  resumo: Record<string, ResumoDaColuna>;
+  /** Quantos leads já têm leitura da conversa. */
+  lidos: number;
   /** `true` quando a view ainda não existe — migration pendente. */
   indisponivel: boolean;
 }
 
 /**
- * Todos os leads já classificados, com a contagem por coluna.
+ * Todos os leads já classificados, com a contagem e o valor por coluna.
  *
- * ── O que mudou em 14/10 ────────────────────────────────────────────────
+ * ── O que mudou em 30/10 ────────────────────────────────────────────────
  *
- * Antes o quadro de Leads era alimentado À MÃO, card a card, pela tela de
- * conversas — e tinha ZERO linhas. Um funil que depende de alguém lembrar de
- * alimentá-lo não é um funil.
+ * Até aqui a coluna saía só da agenda e do tempo de silêncio. Agora sai do
+ * ponto da conversa (lido pela rotina `inteligencia-do-lead`) e da agenda,
+ * que vence sempre: Novo Contato → Interessado → Proposta → Horário
+ * Oferecido → Agendado → Não Compareceu.
  *
- * A clínica definiu a regra: lead é quem **chamou no WhatsApp** e ainda não
- * tem **atendimento confirmado**. Agendar não basta, porque agendar não é vir.
+ * Quem sumiu não muda de coluna: fica onde parou, marcado como parado. A
+ * coluna "Esfriando" escondia em que ponto a pessoa tinha parado, que é
+ * justamente o que diz quanto ela valia.
  *
- * Quem sai daqui sai por dois caminhos, e os dois são explícitos: confirmar o
- * atendimento na agenda (vira cliente) ou ser marcado como desqualificado
- * (vira perdido). Silêncio NÃO tira ninguém — quem sumiu continua aqui, numa
- * coluna fria, ao alcance de uma campanha de recuperação. Era a alternativa
- * que mais limpava a lista e a que mais escondia gente.
+ * Quem sai daqui continua saindo pelos dois caminhos explícitos: confirmar o
+ * atendimento na agenda (vira cliente) ou ser desqualificado (vira perdido).
  */
 export const getFunilDeLeads = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
@@ -234,6 +279,16 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
       .eq("owner_id", context.ownerId)
       .maybeSingle();
     const regras = regrasOuPadrao(erroConfig ? null : config?.leads, REGRAS_LEADS_PADRAO);
+    const colunas = colunasDosLeads(regras);
+    const vazio = (indisponivel: boolean): FunilDeLeads => ({
+      colunas,
+      regras,
+      leads: [],
+      contagem: {},
+      resumo: {},
+      lidos: 0,
+      indisponivel,
+    });
 
     const linhas: any[] = [];
     for (let pagina = 0; ; pagina++) {
@@ -241,7 +296,7 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
         supabase
           .from("lead_funnel_signals")
           .select(
-            "fone, crm_contact_id, name, ultima_mensagem, dias_em_silencio, tem_agendamento, teve_consulta, desqualificado",
+            "fone, crm_contact_id, name, ultima_mensagem, dias_em_silencio, tem_agendamento, teve_consulta, desqualificado, proximo_agendamento, faltou_em",
           ),
         context,
       )
@@ -252,22 +307,70 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
         .order("ultima_mensagem", { ascending: false, nullsFirst: false })
         .range(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA - 1);
       if (error) {
-        if (ausente(error)) return { regras, leads: [], contagem: {}, indisponivel: true };
+        if (ausente(error)) return vazio(true);
         throw new Error(error.message);
       }
       linhas.push(...(data ?? []));
       if (!data || data.length < POR_PAGINA) break;
     }
 
-    const contagem: Record<string, number> = {};
-    for (const regra of regras) contagem[regra.id] = 0;
+    // A leitura de cada conversa. Sem ela (plano sem IA, ou ainda não lida)
+    // o lead fica em Novo Contato, ou onde a agenda disser.
+    const lidas = new Map<string, any>();
+    for (let pagina = 0; ; pagina++) {
+      const { data, error } = await supabase
+        .from("lead_inteligencia")
+        .select("fone, conversation_id, leitura, ritmo")
+        .eq("owner_id", context.ownerId)
+        .range(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA - 1);
+      if (error) {
+        if (ausente(error)) break;
+        throw new Error(error.message);
+      }
+      for (const l of data ?? []) lidas.set(String(l.fone), l);
+      if (!data || data.length < POR_PAGINA) break;
+    }
 
+    const agora = new Date();
+    const contagem: Record<string, number> = {};
+    const resumo: Record<string, ResumoDaColuna> = {};
+    for (const regra of regras) {
+      contagem[regra.id] = 0;
+      resumo[regra.id] = { ativos: 0, parados: 0, valor: 0 };
+    }
+
+    let lidos = 0;
     const leads: LeadNoFunil[] = linhas.map((row) => {
+      const lida = lidas.get(String(row.fone));
+      const leitura = leituraGuardada(lida?.leitura);
+      const ritmo = (lida?.ritmo ?? null) as Ritmo | null;
+      if (leitura) lidos++;
+
+      const situacao: SituacaoNaAgenda = row.proximo_agendamento
+        ? "agendado"
+        : row.faltou_em
+          ? "nao_compareceu"
+          : null;
       const stage = classificar(regras, {
         temAgendamento: !!row.tem_agendamento,
         diasEmSilencio: row.dias_em_silencio ?? null,
+        situacaoNaAgenda: situacao,
+        etapaDaConversa: leitura?.etapa ?? null,
       });
+      const parado =
+        situacao !== "agendado" &&
+        row.dias_em_silencio !== null &&
+        row.dias_em_silencio !== undefined &&
+        row.dias_em_silencio > DIAS_PARA_PARADO;
+      const nota = leitura || ritmo ? notaDoLead(leitura, ritmo, situacao) : null;
+      const valor = leitura?.valor ?? null;
+
       contagem[stage] = (contagem[stage] ?? 0) + 1;
+      const r = (resumo[stage] ??= { ativos: 0, parados: 0, valor: 0 });
+      if (parado) r.parados++;
+      else r.ativos++;
+      r.valor += valor ?? 0;
+
       return {
         fone: String(row.fone),
         crmContactId: row.crm_contact_id ?? null,
@@ -276,8 +379,76 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
         diasEmSilencio: row.dias_em_silencio ?? null,
         temAgendamento: !!row.tem_agendamento,
         stage,
+        parado,
+        nota: nota?.total ?? null,
+        faixa: nota ? faixaDaNota(nota.total) : null,
+        motivos: nota?.motivos ?? [],
+        procedimento: leitura?.procedimentoNome ?? null,
+        valor,
+        valorFonte: leitura?.valorFonte ?? null,
+        valorAPartirDe: leitura?.valorAPartirDe ?? false,
+        porque: leitura?.porque || null,
+        proximaAcao: leitura?.proximaAcao || null,
+        risco: parado
+          ? { nivel: "baixo", motivo: null }
+          : riscoDoLead(leitura, ritmo, situacao, agora),
+        conversationId: lida?.conversation_id ?? null,
       };
     });
 
-    return { regras, leads, contagem, indisponivel: false };
+    // A melhor oportunidade primeiro; sem nota, pela mensagem mais recente
+    // (a ordem que já veio do banco).
+    leads.sort((a, b) => (b.nota ?? -1) - (a.nota ?? -1));
+
+    for (const r of Object.values(resumo)) r.valor = Math.round(r.valor * 100) / 100;
+    return { colunas, regras, leads, contagem, resumo, lidos, indisponivel: false };
+  });
+
+export interface EvidenciaDoLead {
+  fato: string;
+  texto: string | null;
+  em: string | null;
+  daClinica: boolean;
+}
+
+/**
+ * As provas de uma leitura: cada fato com a mensagem que o comprova. Fica
+ * fora da lista do quadro para ela não carregar o texto de mil conversas.
+ */
+export const getEvidenciasDoLead = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { fone: string }) => {
+    if (!/^\d{10,13}$/.test(String(input?.fone ?? ""))) throw new Error("Telefone inválido.");
+    return input;
+  })
+  .handler(async ({ data, context }): Promise<EvidenciaDoLead[]> => {
+    const supabase: any = context.supabase;
+    const { data: lida, error } = await supabase
+      .from("lead_inteligencia")
+      .select("leitura")
+      .eq("owner_id", context.ownerId)
+      .eq("fone", data.fone)
+      .maybeSingle();
+    if (error) {
+      if (ausente(error)) return [];
+      throw new Error(error.message);
+    }
+    const leitura = leituraGuardada(lida?.leitura);
+    if (!leitura?.evidencias.length) return [];
+    const ids = leitura.evidencias.map((e) => e.mensagemId);
+    const { data: msgs } = await supabase
+      .from("wa_messages")
+      .select("id, body, sent_at, from_me")
+      .eq("owner_id", context.ownerId)
+      .in("id", ids);
+    const porId = new Map<string, any>((msgs ?? []).map((m: any) => [String(m.id), m]));
+    return leitura.evidencias.map((e) => {
+      const m = porId.get(e.mensagemId);
+      return {
+        fato: e.fato,
+        texto: m ? String(m.body ?? "").slice(0, 400) : null,
+        em: m?.sent_at ?? null,
+        daClinica: !!m?.from_me,
+      };
+    });
   });

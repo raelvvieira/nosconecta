@@ -2,9 +2,13 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Sparkles, MoreHorizontal, Plus, Users, UserX } from "lucide-react";
+import { Bot, MessageCircle, Sparkles, MoreHorizontal, Plus, Users, UserX } from "lucide-react";
 import { getRegrasDosFunis } from "@/lib/atendimentos/funis.functions";
-import { REGRAS_CLIENTES_PADRAO, REGRAS_PERDIDOS_PADRAO } from "@/lib/atendimentos/funnelRules";
+import {
+  REGRAS_CLIENTES_PADRAO,
+  REGRAS_LEADS_PADRAO,
+  REGRAS_PERDIDOS_PADRAO,
+} from "@/lib/atendimentos/funnelRules";
 import {
   MODELOS,
   type ModeloDeAutomacao,
@@ -187,6 +191,13 @@ function AutomacoesPage() {
     staleTime: 5 * 60_000,
   });
   const FUNIS_EDITAVEIS = [
+    {
+      funil: "leads" as const,
+      titulo: "Movimentação do funil de Leads",
+      entrada: "Todo mundo que chamou no WhatsApp e ainda não veio",
+      icone: MessageCircle,
+      etapas: (regrasQuery.data?.leads ?? REGRAS_LEADS_PADRAO).filter((r) => r.ativa).length,
+    },
     {
       funil: "clientes" as const,
       titulo: "Movimentação do funil de Clientes",

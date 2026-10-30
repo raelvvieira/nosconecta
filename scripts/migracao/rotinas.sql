@@ -50,6 +50,7 @@ SELECT cron.schedule('ai-playbook-diario', '0 7 * * *', $$
 $$);
 SELECT cron.schedule('atendimento-automations-tick', '* * * * *', $$SELECT public.chamar_rotina('atendimento-automations', '{"action":"tick"}'::jsonb)$$);
 SELECT cron.schedule('automation-scheduled-daily', '0 11 * * *', $$SELECT public.chamar_rotina('automation-scheduled')$$);
+SELECT cron.schedule('inteligencia-do-lead', '*/10 * * * *', $$SELECT public.chamar_rotina('inteligencia-do-lead')$$);
 SELECT cron.schedule('olho-de-deus-semanal', '38 11 * * 1', $$SELECT public.chamar_rotina('olho-de-deus')$$);
 SELECT cron.schedule('whatsapp-broadcast-tick', '* * * * *', $$SELECT public.chamar_rotina('whatsapp-broadcast', '{"action":"tick"}'::jsonb)$$);
 

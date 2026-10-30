@@ -91,7 +91,9 @@ export type ParaQue =
   | "olho"
   /** O robô que lê comprovante no grupo do financeiro: gasto dele, não da
    *  leitura da confirmação do paciente. */
-  | "financeiro-do-grupo";
+  | "financeiro-do-grupo"
+  /** A Inteligência do Lead: a leitura de cada conversa para o funil. */
+  | "lead";
 
 /**
  * Grava o consumo de uma chamada.

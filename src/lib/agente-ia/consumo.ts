@@ -118,6 +118,7 @@ export const NOME_DO_USO: Record<string, string> = {
   followup: "Voltar em quem sumiu",
   olho: "Olho de Deus (relatório semanal)",
   "financeiro-do-grupo": "Ler comprovante no grupo",
+  lead: "Organizar o funil de leads",
 };
 
 export function nomeDoUso(para: string): string {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search, Settings2, Trash2, Workflow, Send } from "lucide-react";
@@ -20,6 +20,7 @@ import { chaveDoTelefone } from "@/lib/atendimentos/funil";
 import { getSalesAssistant } from "@/lib/atendimentos/insights.functions";
 import { getDeals, type Deal } from "@/lib/atendimentos/deals.functions";
 import { QuadroDeClientes } from "@/components/atendimentos/pipeline/QuadroDeClientes";
+import { QuadroDeLeads } from "@/components/atendimentos/pipeline/QuadroDeLeads";
 import { useDisparoDeColuna } from "@/components/atendimentos/pipeline/useDisparoDeColuna";
 import type { ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
 import { QuadroDePerdidos } from "@/components/atendimentos/pipeline/QuadroDePerdidos";
@@ -277,18 +278,20 @@ function PipelinePage() {
           title="Pipeline"
           className="px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7"
           actions={
-            <>
-              {configured && (
-                <Button variant="outline" className="gap-2" onClick={() => setConfigOpen(true)}>
+            // As colunas de Leads e Clientes são calculadas: o que se ajusta é
+            // a regra de cada etapa, na tela de movimentação do funil.
+            funil === "perdidos" ? undefined : (
+              <Button asChild variant="outline" className="gap-2">
+                <Link to="/atendimentos/automacoes/funil/$funil" params={{ funil }}>
                   <Settings2 className="h-4 w-4" />
-                  Configurar etapas
-                </Button>
-              )}
-            </>
+                  Regras das etapas
+                </Link>
+              </Button>
+            )
           }
         />
 
-        {configured && stages.length > 0 && (
+        {
           <div className="flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6 lg:px-10">
             <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -319,32 +322,11 @@ function PipelinePage() {
               ))}
             </div>
           </div>
-        )}
+        }
 
-        {/* Sem etapa nenhuma, o convite é criar a primeira — e não "criar o
-            funil". O funil é nosso e já existe; o que faltava do outro lado era
-            uma entidade no CRM, que deixou de existir junto com ele. */}
-        {!configured ? (
-          <div className="flex flex-1 items-center justify-center px-4 pb-10 sm:px-6 lg:px-10">
-            <section className="surface-card w-full max-w-[440px] px-6 py-8 text-center sm:px-10 sm:py-10">
-              <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-coral-soft text-coral">
-                <Workflow className="h-6 w-6" />
-              </span>
-              <h2 className="mt-5 text-xl font-semibold">Montar o funil</h2>
-              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-                Crie as etapas do seu atendimento — "Primeiro contato", "Orçamento enviado", o que
-                fizer sentido aqui. Depois é só arrastar as pessoas entre elas.
-              </p>
-              <Button
-                className="mt-5 gap-2 bg-gradient-primary text-white"
-                onClick={() => setConfigOpen(true)}
-              >
-                <Plus className="h-4 w-4" />
-                Criar a primeira etapa
-              </Button>
-            </section>
-          </div>
-        ) : funil === "clientes" ? (
+        {/* Leads saiu do quadro manual (funnel_cards, que nunca teve um card)
+            para o calculado em 30/10: a coluna vem da conversa e da agenda. */}
+        {funil === "clientes" ? (
           <div className="flex-1 px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
             <QuadroDeClientes busca={query} />
           </div>
@@ -359,93 +341,8 @@ function PipelinePage() {
             />
           </div>
         ) : (
-          <div className="flex-1 overflow-x-auto px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
-            <div className="flex h-full min-w-max gap-4">
-              {stages.length === 0 && (
-                <p className="mt-4 text-sm text-muted-foreground">
-                  Nenhuma etapa cadastrada — clique em "Configurar etapas".
-                </p>
-              )}
-              {stages.map((stage) => {
-                const stageItems = visibleItems.filter((i) => i.stageId === stage.id);
-                const total = stageItems.reduce(
-                  (sum, item) => sum + (dealByItem.get(item.id)?.value ?? 0),
-                  0,
-                );
-                return (
-                  <div key={stage.id} className="flex w-[280px] shrink-0 flex-col">
-                    <div className="mb-2 flex items-center gap-2 px-1">
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: stage.color ?? "var(--foreground-subtle)" }}
-                      />
-                      <span className="truncate text-sm font-semibold">{stage.name}</span>
-                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                        {stageItems.length}
-                        {total > 0 && ` · ${formatBRL(total)}`}
-                      </span>
-                    </div>
-                    {/* Mesma peça dos outros dois funis: o disparo não pode se
-                        comportar diferente dependendo de qual quadro a pessoa
-                        estava olhando. */}
-                    {(() => {
-                      const alvos = stageItems
-                        .map(paraContatoDoLead)
-                        .filter((c): c is ContatoSelecionado => c !== null);
-                      if (!alvos.length) return null;
-                      return (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="mb-2 h-8 w-full gap-1.5 text-2xs"
-                          onClick={() => abrirDisparo(alvos)}
-                        >
-                          <Send className="h-3 w-3" />
-                          Disparar para {alvos.length}
-                        </Button>
-                      );
-                    })()}
-                    <div
-                      ref={(el) => registerColumn(stage.id, el)}
-                      className={cn(
-                        "surface-card flex-1 space-y-2 overflow-y-auto overflow-x-clip p-2 transition-colors",
-                        drag && overStageId === stage.id && "ring-2 ring-pink/40",
-                      )}
-                    >
-                      {stageItems.map((item) => (
-                        <PipelineCard
-                          key={item.id}
-                          item={item}
-                          stage={stage}
-                          stages={stages}
-                          deal={dealByItem.get(item.id) ?? null}
-                          extras={extrasFor(item)}
-                          dragging={drag?.itemId === item.id}
-                          onOpen={() => setOpenItemId(item.id)}
-                          onMove={(toStageId) =>
-                            moveMutation.mutate({ itemId: item.id, newStageId: toStageId })
-                          }
-                          onDragStart={(event) =>
-                            handlers.start(event, {
-                              id: item.id,
-                              stageId: stage.id,
-                              title: item.title ?? "Sem nome",
-                            })
-                          }
-                          onDragMove={handlers.move}
-                          onDragEnd={handlers.end}
-                        />
-                      ))}
-                      {stageItems.length === 0 && (
-                        <p className="px-2 py-4 text-center text-xs text-muted-foreground">
-                          {query ? "Nada aqui com essa busca" : "Vazio"}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="flex flex-1 flex-col px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
+            <QuadroDeLeads busca={query} />
           </div>
         )}
       </main>

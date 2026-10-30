@@ -42,6 +42,16 @@ export type CondicaoPerdido =
  */
 export type CondicaoLead =
   | "agendou_sem_confirmar"
+  /** A agenda: horário de hoje em diante. */
+  | "tem_horario_marcado"
+  /** A agenda: o horário passou e não foi confirmado como realizado. */
+  | "nao_compareceu"
+  /** A conversa (Inteligência do Lead). Cumulativas: "recebeu proposta" vale
+   *  também para quem já recebeu horários, para que desligar uma etapa mande
+   *  o lead para a anterior, e não para o fim do funil. */
+  | "recebeu_horarios"
+  | "recebeu_proposta"
+  | "mostrou_interesse"
   | "falou_ha_menos_de_dias"
   | "calado_ha_mais_de_dias"
   | "sempre";
@@ -66,6 +76,11 @@ export const CONDICOES: Record<Condicao, { rotulo: string; parametro: string | n
   agendou_sem_confirmar: { rotulo: "Agendou e falta confirmar", parametro: null },
   falou_ha_menos_de_dias: { rotulo: "Falou há menos de", parametro: "dias" },
   calado_ha_mais_de_dias: { rotulo: "Calado há mais de", parametro: "dias" },
+  tem_horario_marcado: { rotulo: "Tem horário marcado (de hoje em diante)", parametro: null },
+  nao_compareceu: { rotulo: "O horário passou e não foi confirmado", parametro: null },
+  recebeu_horarios: { rotulo: "A clínica ofereceu horários", parametro: null },
+  recebeu_proposta: { rotulo: "A clínica falou o valor", parametro: null },
+  mostrou_interesse: { rotulo: "Disse o procedimento que quer", parametro: null },
   sempre: { rotulo: "Todos os demais", parametro: null },
 };
 
@@ -155,45 +170,74 @@ export const REGRAS_CLIENTES_PADRAO: RegraDeFunil[] = [
   },
 ];
 
+/**
+ * O funil de Leads, desde 30/10: o caminho da conversa e o que a agenda diz.
+ *
+ * A ordem aqui é a da CLASSIFICAÇÃO (a primeira que casar vence), do mais
+ * avançado para o começo. O quadro mostra as colunas na ordem inversa, que é
+ * a do caminho: Novo Contato → Interessado → Proposta → Horário Oferecido →
+ * Agendado → Não Compareceu. Ver `colunasDosLeads`.
+ *
+ * As três do meio vêm da leitura das conversas (`inteligencia-do-lead`); as
+ * duas do fim, só da agenda. Quem sumiu NÃO muda de coluna: fica onde parou,
+ * marcado como parado.
+ */
 export const REGRAS_LEADS_PADRAO: RegraDeFunil[] = [
   {
-    // Primeiro de propósito: é quem está a um passo de virar cliente, e ficaria
-    // escondido no meio de mil conversas se caísse por tempo de silêncio.
-    id: "agendou",
-    nome: "Agendou, falta confirmar",
+    id: "nao_compareceu",
+    nome: "Não Compareceu",
+    cor: "#EF4444",
+    condicao: "nao_compareceu",
+    ativa: true,
+    explica: "O horário passou e o atendimento não foi confirmado",
+  },
+  {
+    id: "agendado",
+    nome: "Agendado",
+    cor: "#22C55E",
+    condicao: "tem_horario_marcado",
+    ativa: true,
+    explica: "Tem horário marcado de hoje em diante",
+  },
+  {
+    id: "horario_oferecido",
+    nome: "Horário Oferecido",
     cor: "#F59E0B",
-    condicao: "agendou_sem_confirmar",
+    condicao: "recebeu_horarios",
     ativa: true,
-    explica: "Tem horário marcado e nenhum atendimento confirmado",
+    explica: "Recebeu horários e ainda não marcou",
   },
   {
-    id: "conversando",
-    nome: "Conversando",
-    cor: "#0EA5E9",
-    condicao: "falou_ha_menos_de_dias",
-    valor: 7,
-    ativa: true,
-    explica: "Falou nos últimos 7 dias",
-  },
-  {
-    id: "esfriando",
-    nome: "Esfriando",
+    id: "proposta",
+    nome: "Proposta",
     cor: "#8B5CF6",
-    condicao: "calado_ha_mais_de_dias",
-    valor: 30,
+    condicao: "recebeu_proposta",
     ativa: true,
-    explica: "Calado há mais de 30 dias",
+    explica: "A clínica falou o valor",
   },
   {
-    // O resto: entre 8 e 30 dias, e quem não tem data de mensagem.
-    id: "aguardando",
-    nome: "Aguardando resposta",
+    id: "interessado",
+    nome: "Interessado",
+    cor: "#0EA5E9",
+    condicao: "mostrou_interesse",
+    ativa: true,
+    explica: "Disse o procedimento que quer",
+  },
+  {
+    id: "novo_contato",
+    nome: "Novo Contato",
     cor: "#94A3B8",
     condicao: "sempre",
     ativa: true,
-    explica: "Sem resposta recente, ainda dentro do mês",
+    explica: "Chamou e ainda não disse o que quer",
   },
 ];
+
+/** As colunas do quadro de Leads, na ordem do caminho (a inversa da
+ *  classificação). Só as ativas. */
+export function colunasDosLeads(regras: RegraDeFunil[]): RegraDeFunil[] {
+  return [...regras].filter((r) => r.ativa).reverse();
+}
 
 export const REGRAS_PERDIDOS_PADRAO: RegraDeFunil[] = [
   {
@@ -257,6 +301,10 @@ export interface SinaisDoCliente {
 export interface SinaisDoLead {
   /** Tem horário na agenda, mas nenhum confirmado como realizado. */
   temAgendamento: boolean;
+  /** O que a agenda diz: horário à frente, ou horário que passou sem vir. */
+  situacaoNaAgenda?: "agendado" | "nao_compareceu" | null;
+  /** O ponto da conversa, lido pela Inteligência do Lead. */
+  etapaDaConversa?: "novo" | "interessado" | "proposta" | "horario_oferecido" | null;
   /** `null` quando não há mensagem datada — que é diferente de "há muito". */
   diasEmSilencio: number | null;
 }
@@ -304,6 +352,20 @@ function casa(regra: RegraDeFunil, s: Sinais): boolean {
       return cliente.diasSemConsulta > n;
     case "agendou_sem_confirmar":
       return !!lead.temAgendamento;
+    case "tem_horario_marcado":
+      return lead.situacaoNaAgenda === "agendado";
+    case "nao_compareceu":
+      return lead.situacaoNaAgenda === "nao_compareceu";
+    case "recebeu_horarios":
+      return lead.etapaDaConversa === "horario_oferecido";
+    case "recebeu_proposta":
+      return lead.etapaDaConversa === "proposta" || lead.etapaDaConversa === "horario_oferecido";
+    case "mostrou_interesse":
+      return (
+        lead.etapaDaConversa === "interessado" ||
+        lead.etapaDaConversa === "proposta" ||
+        lead.etapaDaConversa === "horario_oferecido"
+      );
     case "falou_ha_menos_de_dias":
       // Sem data de mensagem não casa: `null` é ausência de informação, não um
       // número pequeno. Quem não tem data cai na última regra, que é o resto.

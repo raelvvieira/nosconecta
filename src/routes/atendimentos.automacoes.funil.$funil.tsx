@@ -2,16 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Plus, Users, UserX } from "lucide-react";
+import { ArrowLeft, MessageCircle, Plus, Users, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { CardDeRegra } from "@/components/atendimentos/automations/CardDeRegra";
-import {
-  CONDICOES,
-  type Condicao,
-  type RegraDeFunil,
-} from "@/lib/atendimentos/funnelRules";
+import { CONDICOES, type Condicao, type RegraDeFunil } from "@/lib/atendimentos/funnelRules";
 import { getRegrasDosFunis, salvarRegrasDoFunil } from "@/lib/atendimentos/funis.functions";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +28,20 @@ import {
 const searchSchema = z.object({});
 
 const FUNIS = {
+  leads: {
+    titulo: "Movimentação do funil de Leads",
+    entrada: "Todo mundo que chamou no WhatsApp e ainda não veio",
+    icone: MessageCircle,
+    condicoes: [
+      "nao_compareceu",
+      "tem_horario_marcado",
+      "recebeu_horarios",
+      "recebeu_proposta",
+      "mostrou_interesse",
+      "falou_ha_menos_de_dias",
+      "calado_ha_mais_de_dias",
+    ] as Condicao[],
+  },
   clientes: {
     titulo: "Movimentação do funil de Clientes",
     entrada: "Todo paciente da base",
@@ -75,7 +85,7 @@ export const Route = createFileRoute("/atendimentos/automacoes/funil/$funil")({
     <ResponsiveRouteState
       notFound
       title="Funil não encontrado"
-      description="Só existem dois: Clientes e Perdidos."
+      description="Só existem três: Leads, Clientes e Perdidos."
       semSidebar
     />
   ),
@@ -94,7 +104,9 @@ function avisos(regras: RegraDeFunil[]): string[] {
   for (const r of ativas) {
     const chave = `${r.condicao}:${r.valor ?? ""}`;
     if (vistas.has(chave)) {
-      lista.push(`"${r.nome}" testa exatamente o mesmo que uma etapa acima — nunca vai receber ninguém.`);
+      lista.push(
+        `"${r.nome}" testa exatamente o mesmo que uma etapa acima — nunca vai receber ninguém.`,
+      );
     }
     vistas.add(chave);
     if (CONDICOES[r.condicao as Condicao]?.parametro && !r.valor) {
@@ -117,7 +129,9 @@ function FunilPage() {
   const buscar = useServerFn(getRegrasDosFunis);
   const salvar = useServerFn(salvarRegrasDoFunil);
 
-  const chave = (funil === "perdidos" ? "perdidos" : "clientes") as Funil;
+  const chave = (
+    funil === "perdidos" ? "perdidos" : funil === "leads" ? "leads" : "clientes"
+  ) as Funil;
   const meta = FUNIS[chave];
   const Icone = meta.icone;
 
@@ -180,6 +194,7 @@ function FunilPage() {
       for (const aviso of avisos(regras)) toast.warning(aviso, { duration: 8000 });
       queryClient.invalidateQueries({ queryKey: ["regras-dos-funis"] });
       queryClient.invalidateQueries({ queryKey: ["funil-clientes"] });
+      queryClient.invalidateQueries({ queryKey: ["funil-leads"] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -204,8 +219,8 @@ function FunilPage() {
               {meta.titulo}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              A primeira condição que combinar decide a etapa. As de baixo só são consultadas
-              quando as de cima não combinam.
+              A primeira condição que combinar decide a etapa. As de baixo só são consultadas quando
+              as de cima não combinam.
             </p>
           </div>
         </div>
@@ -267,16 +282,16 @@ function FunilPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
               <p className="mt-2 text-2xs text-muted-foreground">
-                Só aparecem as condições que o sistema consegue calcular sozinho — e que ainda
-                não estão em uso neste fluxo.
+                Só aparecem as condições que o sistema consegue calcular sozinho — e que ainda não
+                estão em uso neste fluxo.
               </p>
             </div>
           )}
 
           <p className="mt-6 text-2xs leading-snug text-muted-foreground">
-            Esta movimentação não dispara mensagem: ela só decide em que coluna cada pessoa
-            aparece no Pipeline. Para mandar mensagem quando alguém muda de etapa, use uma
-            automação com gatilho.
+            Esta movimentação não dispara mensagem: ela só decide em que coluna cada pessoa aparece
+            no Pipeline. Para mandar mensagem quando alguém muda de etapa, use uma automação com
+            gatilho.
           </p>
         </div>
       )}
