@@ -16,6 +16,12 @@ import { exigeFinanceiro } from "@/lib/auth/area.middleware";
 
 export interface GrupoConhecido {
   jid: string;
+  /** O nome do grupo, quando o sistema já o buscou na Evolution (a partir de
+   *  30/10, na primeira mensagem de cada grupo). */
+  nome: string | null;
+  /** As últimas mensagens, com quem mandou: é por elas que a pessoa
+   *  reconhece o grupo quando o nome ainda não veio. */
+  recentes: { quem: string | null; texto: string }[];
   /** A última mensagem, que é como a pessoa reconhece o grupo. */
   ultimaMensagem: string | null;
   ultimaEm: string | null;
@@ -57,8 +63,59 @@ export const listarGruposConhecidos = createServerFn({ method: "GET" })
     );
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const jids = ((conversas ?? []) as any[]).map((c) => String(c.crm_conversation_id));
+    const [contatos, mensagens] = jids.length
+      ? await Promise.all([
+          supabase
+            .from("wa_contacts")
+            .select("crm_contact_id, name")
+            .eq("owner_id", context.ownerId)
+            .in("crm_contact_id", jids),
+          supabase
+            .from("wa_messages")
+            .select("crm_conversation_id, body, from_me, sent_at, payload->>pushName, attachments")
+            .eq("owner_id", context.ownerId)
+            .in("crm_conversation_id", jids)
+            .gte("sent_at", new Date(Date.now() - 45 * 86_400_000).toISOString())
+            .order("sent_at", { ascending: false })
+            .limit(600),
+        ])
+      : [{ data: [] }, { data: [] }];
+    const nomes = new Map<string, string>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const k of (contatos.data ?? []) as any[]) {
+      const nome = String(k.name ?? "").trim();
+      if (nome) nomes.set(String(k.crm_contact_id), nome);
+    }
+    const recentes = new Map<string, { quem: string | null; texto: string }[]>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const m of (mensagens.data ?? []) as any[]) {
+      const jid = String(m.crm_conversation_id);
+      const lista = recentes.get(jid) ?? [];
+      if (lista.length >= 3) continue;
+      const anexo = Array.isArray(m.attachments) ? m.attachments[0]?.tipo : null;
+      const texto =
+        String(m.body ?? "").trim() ||
+        (anexo === "image"
+          ? "📷 Foto"
+          : anexo === "audio"
+            ? "🎤 Áudio"
+            : anexo
+              ? "📎 Arquivo"
+              : "");
+      if (!texto) continue;
+      lista.push({
+        quem: m.from_me ? "Você" : String(m.pushName ?? "").trim() || null,
+        texto: texto.slice(0, 90),
+      });
+      recentes.set(jid, lista);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return ((conversas ?? []) as any[]).map((c) => ({
       jid: String(c.crm_conversation_id),
+      nome: nomes.get(String(c.crm_conversation_id)) ?? null,
+      recentes: recentes.get(String(c.crm_conversation_id)) ?? [],
       ultimaMensagem: c.last_message_preview ? String(c.last_message_preview).slice(0, 90) : null,
       ultimaEm: c.last_message_at ?? null,
       mensagens: 0,

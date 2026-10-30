@@ -170,8 +170,8 @@ function GrupoDoFinanceiroPage() {
         <div>
           <h2 className="text-sm font-medium">Ligar um grupo</h2>
           <p className="text-xs text-muted-foreground">
-            O WhatsApp não mostra o nome do grupo para o sistema, então a lista vem pela última
-            mensagem. Reconheça o seu pelo que foi escrito nele.
+            Cada grupo aparece com o nome (quando o sistema já sabe) e as últimas mensagens, com
+            quem mandou.
           </p>
         </div>
 
@@ -197,8 +197,22 @@ function GrupoDoFinanceiroPage() {
               >
                 <MessageSquare className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm">{g.ultimaMensagem ?? "(sem mensagens)"}</p>
-                  <p className="text-xs text-muted-foreground">
+                  {/* O nome, quando o sistema já sabe; senão, as últimas
+                      mensagens com quem mandou, que é como se reconhece um
+                      grupo. "📷 Foto" sozinho não dizia nada (30/10). */}
+                  <p className="truncate text-sm font-medium">
+                    {g.nome ?? (g.recentes.length ? "Grupo sem nome ainda" : "(sem mensagens)")}
+                  </p>
+                  {g.recentes.map((r, i) => (
+                    <p key={i} className="truncate text-xs text-muted-foreground">
+                      {r.quem ? (
+                        <span className="font-medium text-foreground/80">{r.quem}: </span>
+                      ) : null}
+                      {r.texto}
+                    </p>
+                  ))}
+                  <p className="mt-0.5 text-2xs text-muted-foreground">
+                    Última mensagem:{" "}
                     {g.ultimaEm ? new Date(g.ultimaEm).toLocaleString("pt-BR") : "sem data"}
                   </p>
                 </div>
