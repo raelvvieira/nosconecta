@@ -585,7 +585,11 @@ export function faixaDaNota(total: number): Faixa {
 export interface Risco {
   nivel: "alto" | "medio" | "baixo";
   motivo: string | null;
+  /** O mesmo, em duas ou três palavras, para caber no card. */
+  curto: string | null;
 }
+
+const SEM_RISCO: Risco = { nivel: "baixo", motivo: null, curto: null };
 
 /** Horas com a bola na mão da clínica até virar alerta. */
 export const HORAS_ESPERANDO_A_CLINICA = 2;
@@ -605,21 +609,30 @@ export function riscoDoLead(
   agenda: SituacaoNaAgenda,
   agora: Date,
 ): Risco {
-  if (agenda === "nao_compareceu") return { nivel: "medio", motivo: "Não compareceu: remarcar" };
-  if (agenda === "agendado") return { nivel: "baixo", motivo: null };
+  if (agenda === "nao_compareceu") {
+    return { nivel: "medio", motivo: "Não compareceu: remarcar", curto: "Remarcar" };
+  }
+  if (agenda === "agendado") return SEM_RISCO;
 
   const ultima = ritmo?.ultimaEm ? new Date(ritmo.ultimaEm).getTime() : NaN;
   const horas = Number.isFinite(ultima) ? (agora.getTime() - ultima) / 3_600_000 : null;
-  if (horas !== null && horas / 24 > DIAS_PARA_PARADO) return { nivel: "baixo", motivo: null };
+  if (horas !== null && horas / 24 > DIAS_PARA_PARADO) return SEM_RISCO;
 
   if (ritmo?.ultimaFoiDaPessoa && horas !== null && horas >= HORAS_ESPERANDO_A_CLINICA) {
-    const quanto = horas >= 48 ? `${Math.floor(horas / 24)} dias` : `${Math.floor(horas)}h`;
-    return { nivel: "alto", motivo: `Esperando resposta da clínica há ${quanto}` };
+    const dias = Math.floor(horas / 24);
+    const quanto = horas >= 48 ? `${dias} dias` : `${Math.floor(horas)}h`;
+    return {
+      nivel: "alto",
+      motivo: `Esperando resposta da clínica há ${quanto}`,
+      curto: `Responder · ${horas >= 48 ? `${dias}d` : `${Math.floor(horas)}h`}`,
+    };
   }
   if (leitura && leitura.objecao !== "nenhuma" && !leitura.objecaoResolvida) {
+    const objecao = NOME_DA_OBJECAO[leitura.objecao];
     return {
       nivel: "medio",
-      motivo: `Objeção de ${NOME_DA_OBJECAO[leitura.objecao]} sem resposta`,
+      motivo: `Objeção de ${objecao} sem resposta`,
+      curto: `Objeção: ${objecao}`,
     };
   }
   if (
@@ -629,10 +642,12 @@ export function riscoDoLead(
     horas !== null &&
     horas / 24 >= DIAS_SUMIU_DEPOIS_DA_PROPOSTA
   ) {
+    const doValor = leitura.etapa === "proposta";
     return {
       nivel: "medio",
-      motivo: leitura.etapa === "proposta" ? "Sumiu depois do valor" : "Sumiu depois dos horários",
+      motivo: doValor ? "Sumiu depois do valor" : "Sumiu depois dos horários",
+      curto: doValor ? "Sumiu após valor" : "Sumiu após horários",
     };
   }
-  return { nivel: "baixo", motivo: null };
+  return SEM_RISCO;
 }

@@ -226,7 +226,7 @@ export interface LeadNoFunil {
   valorAPartirDe: boolean;
   porque: string | null;
   proximaAcao: string | null;
-  risco: { nivel: "alto" | "medio" | "baixo"; motivo: string | null };
+  risco: { nivel: "alto" | "medio" | "baixo"; motivo: string | null; curto: string | null };
   /** A conversa mais recente, para abrir no chat. */
   conversationId: string | null;
 }
@@ -390,7 +390,7 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
         porque: leitura?.porque || null,
         proximaAcao: leitura?.proximaAcao || null,
         risco: parado
-          ? { nivel: "baixo", motivo: null }
+          ? { nivel: "baixo", motivo: null, curto: null }
           : riscoDoLead(leitura, ritmo, situacao, agora),
         conversationId: lida?.conversation_id ?? null,
       };

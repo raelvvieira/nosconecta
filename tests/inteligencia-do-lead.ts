@@ -180,6 +180,7 @@ const esperando = ritmoDaConversa([
 conferir("pessoa esperando a clínica", riscoDoLead(lida, esperando, null, agora), {
   nivel: "alto",
   motivo: "Esperando resposta da clínica há 4h",
+  curto: "Responder · 4h",
 });
 conferir(
   "sumiu depois dos horários",

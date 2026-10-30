@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, MessageCircle, Send, Sparkles } from "lucide-react";
+import { ChevronDown, Clock, MessageCircle, Send, Sparkles } from "lucide-react";
 import {
   POR_COLUNA,
   getEvidenciasDoLead,
@@ -28,14 +28,45 @@ import {
 // escondido até alguém pedir "ver parados" — o valor dele continua somando no
 // topo, que é o que diz quanto ficou para trás.
 
+// ── Peças ──────────────────────────────────────────────────────────────────
+
+/** A cor da nota: verde quente, âmbar morno, cinza frio. */
 const COR_DA_FAIXA = {
-  quente: "bg-success-soft text-success",
-  morno: "bg-warning-soft text-warning",
-  frio: "bg-surface-subtle text-muted-foreground",
+  quente: "var(--success)",
+  morno: "var(--warning)",
+  frio: "var(--foreground-subtle, #94A3B8)",
 } as const;
 
 function valorCurto(valor: number): string {
   return formatBRL(valor, { compact: true });
+}
+
+function valorDoLead(l: LeadNoFunil): string | null {
+  if (!l.valor) return null;
+  return `${l.valorAPartirDe ? "a partir de " : ""}${valorCurto(l.valor)}`;
+}
+
+/** "agora", "5h", "3d" — quanto tempo desde a última mensagem. */
+function haQuanto(iso: string | null): string | null {
+  if (!iso) return null;
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return null;
+  const horas = Math.floor(ms / 3_600_000);
+  if (horas < 1) return "agora";
+  if (horas < 24) return `${horas}h`;
+  return `${Math.floor(horas / 24)}d`;
+}
+
+function iniciais(nome: string): string {
+  const partes = nome
+    .normalize("NFKD")
+    .replace(/[^\p{L}\s]/gu, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!partes.length) return "·";
+  const [a, b] = [partes[0], partes.length > 1 ? partes[partes.length - 1] : ""];
+  return (a[0] + (b[0] ?? "")).toUpperCase();
 }
 
 function paraContato(l: LeadNoFunil): ContatoSelecionado {
@@ -49,63 +80,141 @@ function paraContato(l: LeadNoFunil): ContatoSelecionado {
   };
 }
 
-function Nota({ lead, grande }: { lead: LeadNoFunil; grande?: boolean }) {
-  if (lead.nota === null || !lead.faixa) return null;
+function Avatar({ nome, cor, grande }: { nome: string; cor: string; grande?: boolean }) {
   return (
     <span
+      aria-hidden
       className={cn(
-        "shrink-0 rounded-full font-semibold tabular-nums",
-        grande ? "px-3 py-1 text-base" : "px-2 py-0.5 text-2xs",
-        COR_DA_FAIXA[lead.faixa],
+        "grid shrink-0 place-items-center rounded-full font-semibold tracking-tight text-foreground",
+        grande ? "h-12 w-12 text-base" : "h-8 w-8 text-2xs",
       )}
-      title="Nota do lead, de 0 a 100"
+      style={{ background: `color-mix(in srgb, ${cor} 16%, transparent)` }}
     >
-      {lead.nota}
+      {iniciais(nome)}
     </span>
   );
 }
 
-function Card({ lead, onAbrir }: { lead: LeadNoFunil; onAbrir: () => void }) {
-  const detalhe = [
-    lead.procedimento,
-    lead.valor ? `${lead.valorAPartirDe ? "a partir de " : ""}${formatBRL(lead.valor)}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+/**
+ * A nota como um anel: o número no meio e o arco dizendo quanto falta para
+ * 100. Bate o olho e entende, sem precisar de rótulo em cada card.
+ */
+function AnelDoScore({ lead, tamanho = 34 }: { lead: LeadNoFunil; tamanho?: number }) {
+  if (lead.nota === null || !lead.faixa) return null;
+  const traco = tamanho >= 56 ? 5 : 3;
+  const raio = (tamanho - traco) / 2;
+  const volta = 2 * Math.PI * raio;
+  const grande = tamanho >= 56;
+  return (
+    <span
+      className="relative grid shrink-0 place-items-center"
+      style={{ width: tamanho, height: tamanho }}
+      title={`Score ${lead.nota} de 100`}
+    >
+      <svg width={tamanho} height={tamanho} className="-rotate-90">
+        <circle
+          cx={tamanho / 2}
+          cy={tamanho / 2}
+          r={raio}
+          fill="none"
+          stroke="var(--border)"
+          strokeWidth={traco}
+        />
+        <circle
+          cx={tamanho / 2}
+          cy={tamanho / 2}
+          r={raio}
+          fill="none"
+          stroke={COR_DA_FAIXA[lead.faixa]}
+          strokeWidth={traco}
+          strokeLinecap="round"
+          strokeDasharray={volta}
+          strokeDashoffset={volta * (1 - lead.nota / 100)}
+        />
+      </svg>
+      <span className="absolute inset-0 grid place-items-center leading-none">
+        <span
+          className={cn(
+            "font-semibold tabular-nums tracking-tight",
+            grande ? "text-lg" : "text-2xs",
+          )}
+        >
+          {lead.nota}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+function Sinal({ lead }: { lead: LeadNoFunil }) {
+  if (lead.risco.curto) {
+    const alto = lead.risco.nivel === "alto";
+    return (
+      <span
+        className={cn(
+          "inline-flex min-w-0 items-center gap-1 truncate rounded-full px-2 py-0.5 text-3xs font-medium",
+          alto ? "bg-danger-soft text-danger" : "bg-warning-soft text-warning",
+        )}
+        title={lead.risco.motivo ?? undefined}
+      >
+        <span
+          className={cn("h-1.5 w-1.5 shrink-0 rounded-full", alto ? "bg-danger" : "bg-warning")}
+        />
+        <span className="truncate">{lead.risco.curto}</span>
+      </span>
+    );
+  }
+  const ha = haQuanto(lead.ultimaMensagem);
+  if (!ha) return null;
+  return (
+    <span className="inline-flex items-center gap-1 text-3xs text-muted-foreground">
+      <Clock className="h-3 w-3" />
+      {ha}
+    </span>
+  );
+}
+
+/**
+ * O card: quem é, quanto vale, quão quente está e se pede atenção.
+ *
+ * Inspirado nos cards de negócio dos CRMs de venda (Pipedrive, Attio): o
+ * nome e o valor são o que se lê primeiro; o score fica no anel à direita;
+ * embaixo, um sinal só — o alerta, se houver, ou há quanto tempo falou.
+ */
+function Card({ lead, cor, onAbrir }: { lead: LeadNoFunil; cor: string; onAbrir: () => void }) {
+  const valor = valorDoLead(lead);
   return (
     <button
       type="button"
       onClick={onAbrir}
       className={cn(
-        "press surface-card block w-full px-3 py-2.5 text-left transition-colors hover:border-coral focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-        lead.parado && "opacity-70",
+        "press block w-full rounded-2xl border border-border/70 bg-card p-3 text-left shadow-1 transition-[box-shadow,border-color] hover:border-border hover:shadow-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        lead.parado && "opacity-60",
       )}
     >
-      <div className="flex items-center gap-2">
-        <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{lead.name}</p>
-        <Nota lead={lead} />
+      <div className="flex items-center gap-2.5">
+        <Avatar nome={lead.name} cor={cor} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-semibold tracking-tight text-foreground">
+            {lead.name}
+          </p>
+          <p className="truncate text-2xs text-muted-foreground">
+            {lead.procedimento ?? (lead.nota === null ? "Ainda não lido" : "Sem procedimento")}
+          </p>
+        </div>
+        <AnelDoScore lead={lead} />
       </div>
-      {detalhe && <p className="mt-0.5 truncate text-2xs text-muted-foreground">{detalhe}</p>}
-      {lead.risco.motivo ? (
-        <p
+      <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+        <span
           className={cn(
-            "mt-1 flex items-center gap-1.5 truncate text-2xs font-medium",
-            lead.risco.nivel === "alto" ? "text-danger" : "text-warning",
+            "shrink-0 text-[13px] font-semibold tabular-nums tracking-tight",
+            valor ? "text-foreground" : "text-muted-foreground/60",
           )}
         >
-          <span
-            className={cn(
-              "h-1.5 w-1.5 shrink-0 rounded-full",
-              lead.risco.nivel === "alto" ? "bg-danger" : "bg-warning",
-            )}
-          />
-          {lead.risco.motivo}
-        </p>
-      ) : lead.parado && lead.diasEmSilencio !== null ? (
-        <p className="mt-1 truncate text-2xs text-muted-foreground">
-          Parado há {lead.diasEmSilencio} dias
-        </p>
-      ) : null}
+          {valor ?? "R$ —"}
+        </span>
+        <Sinal lead={lead} />
+      </div>
     </button>
   );
 }
@@ -158,7 +267,7 @@ function Coluna({
         ) : (
           <>
             {visiveis.map((l) => (
-              <Card key={l.fone} lead={l} onAbrir={() => onAbrir(l)} />
+              <Card key={l.fone} lead={l} cor={regra.cor} onAbrir={() => onAbrir(l)} />
             ))}
             {visiveis.length < leads.length && (
               <Button
@@ -190,126 +299,180 @@ function quando(iso: string | null): string {
   });
 }
 
-function Detalhe({ lead, etapa }: { lead: LeadNoFunil; etapa: string | null }) {
+function Dado({ rotulo, children }: { rotulo: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col items-center justify-center gap-1 px-2 py-3 text-center">
+      {children}
+      <span className="text-3xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
+        {rotulo}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * O painel do lead. Primeiro o que se entende batendo o olho (score, valor,
+ * quando falou, o alerta e a próxima ação); a leitura completa e as provas
+ * ficam um toque abaixo, para quem quer conferir.
+ */
+function Detalhe({ lead, etapa }: { lead: LeadNoFunil; etapa: RegraDeFunil | null }) {
+  const [aberto, setAberto] = useState(false);
   const buscar = useServerFn(getEvidenciasDoLead);
   const provas = useQuery({
     queryKey: ["evidencias-do-lead", lead.fone],
     queryFn: () => buscar({ data: { fone: lead.fone } }),
     staleTime: 60_000,
+    enabled: aberto,
   });
+  const cor = etapa?.cor ?? "#94A3B8";
+  const valor = lead.valor
+    ? `${lead.valorAPartirDe ? "a partir de " : ""}${formatBRL(lead.valor)}`
+    : null;
+  const ha = haQuanto(lead.ultimaMensagem);
 
   return (
-    <div className="mt-4 space-y-5">
-      <div className="flex items-center gap-3">
-        <Nota lead={lead} grande />
-        <div className="min-w-0">
-          <p className="text-sm font-semibold">{etapa}</p>
-          <p className="text-2xs text-muted-foreground">
-            {lead.parado && lead.diasEmSilencio !== null
-              ? `Parado há ${lead.diasEmSilencio} dias`
-              : lead.diasEmSilencio === 0
-                ? "Falou hoje"
-                : lead.diasEmSilencio !== null
-                  ? `Última mensagem há ${lead.diasEmSilencio} dias`
-                  : ""}
-          </p>
+    <div className="flex min-h-full flex-col">
+      <div className="flex-1 space-y-5 px-6 pb-6 pt-8">
+        {/* Quem é */}
+        <div className="flex items-center gap-3.5">
+          <Avatar nome={lead.name} cor={cor} grande />
+          <div className="min-w-0">
+            <h2 className="truncate text-xl font-semibold tracking-[-0.01em]">{lead.name}</h2>
+            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: cor }} />
+              <span className="truncate">{etapa?.nome}</span>
+              {lead.procedimento && (
+                <>
+                  <span>·</span>
+                  <span className="truncate">{lead.procedimento}</span>
+                </>
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* O que se lê de relance */}
+        <div className="grid grid-cols-3 divide-x divide-border rounded-2xl bg-surface-subtle">
+          <Dado rotulo="Score">
+            {lead.nota === null ? (
+              <span className="text-lg font-semibold text-muted-foreground/60">—</span>
+            ) : (
+              <AnelDoScore lead={lead} tamanho={56} />
+            )}
+          </Dado>
+          <Dado rotulo={lead.valorFonte === "tabela" ? "Valor · tabela" : "Valor"}>
+            <span
+              className={cn(
+                "max-w-full truncate text-lg font-semibold tabular-nums tracking-tight",
+                !valor && "text-muted-foreground/60",
+              )}
+            >
+              {valor ?? "—"}
+            </span>
+          </Dado>
+          <Dado rotulo="Última msg">
+            <span className="text-lg font-semibold tabular-nums tracking-tight">{ha ?? "—"}</span>
+          </Dado>
+        </div>
+
+        {lead.risco.motivo && (
+          <div
+            className={cn(
+              "flex items-center gap-2 rounded-2xl px-3.5 py-2.5 text-sm font-medium",
+              lead.risco.nivel === "alto"
+                ? "bg-danger-soft text-danger"
+                : "bg-warning-soft text-warning",
+            )}
+          >
+            <span
+              className={cn(
+                "h-2 w-2 shrink-0 rounded-full",
+                lead.risco.nivel === "alto" ? "bg-danger" : "bg-warning",
+              )}
+            />
+            {lead.risco.motivo}
+          </div>
+        )}
+
+        {lead.proximaAcao && (
+          <div className="rounded-2xl border border-border p-4">
+            <p className="flex items-center gap-1.5 text-3xs font-semibold uppercase tracking-[0.06em] text-coral">
+              <Sparkles className="h-3.5 w-3.5" />
+              Próxima ação
+            </p>
+            <p className="mt-1.5 text-[15px] font-medium leading-snug tracking-tight">
+              {lead.proximaAcao}
+            </p>
+          </div>
+        )}
+
+        {lead.motivos.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {lead.motivos.map((m) => (
+              <span
+                key={m}
+                className="rounded-full bg-surface-subtle px-2.5 py-1 text-2xs text-muted-foreground"
+              >
+                {m}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {lead.nota === null && (
+          <p className="text-sm text-muted-foreground">
+            A conversa ainda não foi lida. A etapa vem só da agenda por enquanto.
+          </p>
+        )}
+
+        {/* A leitura completa, para quem quer conferir */}
+        {(lead.porque || lead.nota !== null) && (
+          <div className="border-t border-border pt-3">
+            <button
+              type="button"
+              onClick={() => setAberto((v) => !v)}
+              className="flex w-full items-center justify-between py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+              aria-expanded={aberto}
+            >
+              Por que este score
+              <ChevronDown className={cn("h-4 w-4 transition-transform", aberto && "rotate-180")} />
+            </button>
+            {aberto && (
+              <div className="mt-2 space-y-3">
+                {lead.porque && (
+                  <p className="text-sm leading-6 text-muted-foreground">{lead.porque}</p>
+                )}
+                {provas.isLoading && <p className="text-xs text-muted-foreground">Carregando…</p>}
+                {!!provas.data?.length && (
+                  <ul className="space-y-2.5">
+                    {provas.data.map((p, i) => (
+                      <li key={i} className="border-l-2 border-border pl-3">
+                        <p className="text-xs font-medium">{p.fato}</p>
+                        {p.texto && (
+                          <p className="mt-0.5 line-clamp-2 text-2xs text-muted-foreground">
+                            {p.daClinica ? "Clínica" : "Lead"}
+                            {p.em ? ` · ${quando(p.em)}` : ""} — “{p.texto}”
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {lead.nota === null && (
-        <p className="rounded-2xl bg-surface-subtle p-3 text-sm text-muted-foreground">
-          Esta conversa ainda não foi lida pela assistente. A coluna vem só da agenda.
-        </p>
-      )}
-
-      {lead.risco.motivo && (
-        <p
-          className={cn(
-            "rounded-2xl p-3 text-sm font-medium",
-            lead.risco.nivel === "alto"
-              ? "bg-danger-soft text-danger"
-              : "bg-warning-soft text-warning",
-          )}
-        >
-          {lead.risco.motivo}
-        </p>
-      )}
-
-      {(lead.procedimento || lead.valor) && (
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <p className="text-2xs text-muted-foreground">Procedimento</p>
-            <p className="text-sm font-medium">{lead.procedimento ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-2xs text-muted-foreground">
-              {lead.valorFonte === "conversa" ? "Valor dito na conversa" : "Valor da tabela"}
-            </p>
-            <p className="text-sm font-medium">
-              {lead.valor
-                ? `${lead.valorAPartirDe ? "a partir de " : ""}${formatBRL(lead.valor)}`
-                : "—"}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {lead.porque && (
-        <div>
-          <p className="text-2xs text-muted-foreground">Por quê</p>
-          <p className="mt-1 text-sm leading-6">{lead.porque}</p>
-          {lead.motivos.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {lead.motivos.map((m) => (
-                <span
-                  key={m}
-                  className="rounded-full bg-surface-subtle px-2.5 py-1 text-2xs text-muted-foreground"
-                >
-                  {m}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {lead.proximaAcao && (
-        <div className="flex items-start gap-2 rounded-2xl bg-coral-soft p-3">
-          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-coral" />
-          <div>
-            <p className="text-2xs font-semibold text-coral">Próxima ação</p>
-            <p className="text-sm">{lead.proximaAcao}</p>
-          </div>
-        </div>
-      )}
-
-      {!!provas.data?.length && (
-        <div>
-          <p className="text-2xs text-muted-foreground">O que comprova</p>
-          <ul className="mt-2 space-y-2">
-            {provas.data.map((p, i) => (
-              <li key={i} className="rounded-2xl border border-border p-3">
-                <p className="text-2xs font-semibold">{p.fato}</p>
-                {p.texto && (
-                  <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">
-                    <span className="font-medium">{p.daClinica ? "Clínica" : "Lead"}</span>
-                    {p.em ? ` · ${quando(p.em)}` : ""}: “{p.texto}”
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {lead.conversationId && (
-        <Button asChild variant="premium" className="w-full gap-2">
-          <Link to="/atendimentos/chat" search={{ conversationId: lead.conversationId }}>
-            <MessageCircle className="h-4 w-4" />
-            Abrir conversa
-            <ArrowUpRight className="h-4 w-4" />
-          </Link>
-        </Button>
+        <div className="sticky bottom-0 border-t border-border/60 bg-card/80 px-6 py-4 backdrop-blur-xl">
+          <Button asChild variant="premium" className="h-11 w-full gap-2 rounded-2xl">
+            <Link to="/atendimentos/chat" search={{ conversationId: lead.conversationId }}>
+              <MessageCircle className="h-4 w-4" />
+              Abrir conversa
+            </Link>
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -359,7 +522,7 @@ export function QuadroDeLeads({ busca }: { busca: string }) {
   }
 
   const colunas = funil.data?.colunas ?? [];
-  const etapaAberta = aberto ? (colunas.find((c) => c.id === aberto.stage)?.nome ?? null) : null;
+  const etapaAberta = aberto ? (colunas.find((c) => c.id === aberto.stage) ?? null) : null;
 
   return (
     <>
@@ -393,11 +556,12 @@ export function QuadroDeLeads({ busca }: { busca: string }) {
       {dialogo}
 
       <Sheet open={!!aberto} onOpenChange={(open) => !open && setAberto(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle className="truncate">{aberto?.name}</SheetTitle>
+        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-[420px]">
+          {/* O título fica para leitores de tela; o visível é o cabeçalho do painel. */}
+          <SheetHeader className="sr-only">
+            <SheetTitle>{aberto?.name}</SheetTitle>
           </SheetHeader>
-          {aberto && <Detalhe lead={aberto} etapa={etapaAberta} />}
+          {aberto && <Detalhe key={aberto.fone} lead={aberto} etapa={etapaAberta} />}
         </SheetContent>
       </Sheet>
     </>
