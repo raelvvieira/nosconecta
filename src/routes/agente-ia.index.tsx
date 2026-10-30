@@ -24,8 +24,7 @@ import { ManualDaLuna } from "@/components/agente-ia/ManualDaLuna";
 import { PacienteModelo } from "@/components/agente-ia/PacienteModelo";
 import { ComQuemFala } from "@/components/agente-ia/ComQuemFala";
 import { Ritmo } from "@/components/agente-ia/Ritmo";
-import { VoltarEmQuemSumiu } from "@/components/agente-ia/VoltarEmQuemSumiu";
-import { RecoveryEngine, SoSemRecovery } from "@/components/agente-ia/RecoveryEngine";
+import { RecoveryEngine } from "@/components/agente-ia/RecoveryEngine";
 import { Testar } from "@/components/agente-ia/Testar";
 import { Procedimentos } from "@/components/agente-ia/Procedimentos";
 import { LicoesDaLuna } from "@/components/agente-ia/LicoesDaLuna";
@@ -73,7 +72,7 @@ export const Route = createFileRoute("/agente-ia/")({
  * que é. Agora: no topo, quatro números que respondem "como ela está indo"
  * sem abrir nada; embaixo, quatro abas na ordem do uso.
  *
- *   Atendimento   — com quem fala, ritmo, voltar em quem sumiu, e o teste ao
+ *   Atendimento   — com quem fala, ritmo, o Recovery Engine, e o teste ao
  *                   lado (é onde se ajusta e confere na mesma tela).
  *   O que ela sabe — o manual, os preços e a vaga de paciente modelo.
  *   Aprendizado   — lições, Olho de Deus e a matéria-prima do manual.
@@ -216,9 +215,6 @@ function AgentePage() {
                 <ComQuemFala />
                 <Ritmo />
                 <RecoveryEngine />
-                <SoSemRecovery>
-                  <VoltarEmQuemSumiu />
-                </SoSemRecovery>
               </div>
               <div className="xl:sticky xl:top-6">
                 <Testar />

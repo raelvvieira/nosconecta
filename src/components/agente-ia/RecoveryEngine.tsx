@@ -52,17 +52,6 @@ import { useNomeDaAssistente } from "@/components/agente-ia/useNomeDaAssistente"
  * resto da tela, salvaria uma cadência pela metade enquanto alguém ainda
  * está mexendo nela, e o motor roda a cada minuto.
  */
-/**
- * O follow-up antigo só aparece enquanto o Recovery Engine está desligado.
- * Com os dois na tela e os dois ligados, a pessoa receberia retomada dobrada.
- */
-export function SoSemRecovery({ children }: { children: React.ReactNode }) {
-  const buscar = useServerFn(getRecovery);
-  const query = useQuery({ queryKey: ["agente-ia-recovery"], queryFn: () => buscar() });
-  if (!query.data || query.data.config.ligado) return null;
-  return <>{children}</>;
-}
-
 export function RecoveryEngine() {
   const luna = useNomeDaAssistente();
   const queryClient = useQueryClient();
@@ -129,11 +118,7 @@ export function RecoveryEngine() {
       <div className="grid gap-5">
         <Chave
           rotulo="Ligar o Recovery Engine"
-          dica={
-            query.data?.followupAntigo
-              ? "Ao ligar, o follow-up antigo (20h e 72h) é desligado, para a pessoa não receber retomada dobrada."
-              : "Só age em conversa que parar depois de ligar. Conversas antigas não são acordadas."
-          }
+          dica="É o único jeito de a Luna voltar em quem sumiu. Só age em conversa que parar depois de ligar: conversas antigas não são acordadas."
           ligada={rascunho.ligado}
           onMudar={(v) => void gravar({ ...rascunho, ligado: v })}
         />

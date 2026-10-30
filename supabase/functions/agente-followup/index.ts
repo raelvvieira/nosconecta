@@ -1,37 +1,27 @@
-// A Luna voltando em quem sumiu.
+// A Luna voltando em quem sumiu: o Recovery Engine.
 //
 // ── O que roda aqui ─────────────────────────────────────────────────────
 //
-// De hora em hora: acha as conversas de anúncio em que a Luna falou e a pessoa
-// não voltou, e manda UMA mensagem retomando. Dois toques por conversa, e
-// depois ela para.
+// A cada minuto: para cada consultório com o Recovery Engine ligado, executa
+// a etapa de retomada que venceu em cada conversa. O calendário de cada
+// conversa nasce em `atendimento.ts`, quando a Luna responde; as regras estão
+// em `_shared/recuperacao.ts` (com `tests/recuperacao.ts`).
 //
-// ── Por que função própria, e não uma automação ─────────────────────────
+// ── O que saiu em 30/10 ──────────────────────────────────────────────────
 //
-// `atendimento-automations` reage a EVENTO: agendamento criado, resposta
-// recebida. Follow-up é o contrário — reage à AUSÊNCIA de evento, e nada
-// dispara quando nada acontece. Precisa de alguém varrendo o relógio.
+// O follow-up simples (um toque em 20h e outro em 72h) morava aqui também,
+// de hora em hora, para quem não tinha ligado o motor novo. Fazia o mesmo
+// com menos — e, por um filtro errado, não tinha mandado nada desde que foi
+// ligado. Ficou um caminho só.
 //
-// E, como as lições, um cron não tem dono: varre todas as clínicas. Enfiar
-// isso no `ai-playbook`, que é o que a tela chama, obrigaria a inventar um
-// `ownerId` fixo no agendamento do cron.
+// ── Os freios ───────────────────────────────────────────────────────────
 //
-// ── Os três freios, e por que cada um existe ────────────────────────────
-//
-// **Nasce desligado** (`followup_ligado` default false). Uma coisa nova que
-// manda mensagem no WhatsApp de gente real não se liga sozinha.
-//
-// **Ligar não acorda o passado** (`followup_ligado_desde`). Sem isso, o dia em
-// que a clínica ligasse a chave, 262 conversas paradas receberiam mensagem ao
-// mesmo tempo — muitas de dois meses atrás. Isso não é follow-up, é disparo, e
-// disparo que a pessoa não espera vira bloqueio.
-//
-// **Teto por rodada** (`POR_RODADA`). Mesmo tudo estando certo, uma rodada não
-// manda mais que isto. É o que transforma um defeito numa dor de cabeça em vez
-// de num número de WhatsApp queimado.
-//
-// E o quarto, que é de fora: a cota diária que o disparo e as campanhas já
-// respeitam. Follow-up entra no mesmo caixa.
+// **Nasce desligado**: quem liga é a clínica, na tela do Agente.
+// **Ligar não acorda o passado** (`ligadoDesde`): só conversa que parar
+// depois de ligar recebe retomada.
+// **Teto por minuto** (`POR_MINUTO`) e a cota diária do número, a mesma do
+// disparo e das campanhas.
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { chamarModelo } from "../_shared/modelo-de-atendimento.ts";
 import { anotarConsumo } from "../_shared/consumo-da-ia.ts";
@@ -40,20 +30,12 @@ import { variantesDoNumero } from "../_shared/phone-match.ts";
 import { telefoneDoJid } from "../_shared/evolution-mapear.ts";
 import { enviarFigurinha, enviarWhatsapp } from "../_shared/whatsapp-send.ts";
 import { debitDailyUsage, getDailyUsage } from "../_shared/daily-quota.ts";
-import { agoraNaClinica } from "../_shared/agenda-da-clinica.ts";
 import { instrucaoDaLuna } from "../_shared/atendimento.ts";
 import { semTravessao } from "../_shared/sem-travessao.ts";
 import { emojiNaMedida } from "../_shared/emoji-na-medida.ts";
 import { jaDisseIssoAgora } from "../_shared/nao-repetir.ts";
 import { oQueEuMandei } from "../_shared/historico-da-clinica.ts";
-import { anuncioGuardado, type Anuncio } from "../_shared/veio-de-anuncio.ts";
-import {
-  decidirFollowup,
-  dentroDaJanela,
-  promptDoFollowup,
-  RITMO_PADRAO_DO_FOLLOWUP,
-  type DiaDaJornada,
-} from "../_shared/followup-do-agente.ts";
+import { type Anuncio } from "../_shared/veio-de-anuncio.ts";
 import {
   conferirAntesDeEnviar,
   depoisDe,
@@ -94,17 +76,8 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-/**
- * Quantas mensagens por rodada, por clínica.
- *
- * Três é pouco de propósito. O cron roda de hora em hora, então são até 72 por
- * dia — mais que o follow-up de uma clínica precisa, e pouco o bastante para um
- * defeito não virar centena de mensagens antes de alguém perceber.
- */
-const POR_RODADA = 3;
-
-/** A conversa inteira vai ao modelo: um follow-up que erra o que já foi
- *  combinado é pior que nenhum. */
+/** A conversa inteira vai ao modelo: uma retomada que erra o que já foi
+ *  combinado é pior que nenhuma. */
 const MENSAGENS_DO_HISTORICO = 30;
 
 const MAX_TOKENS = 600;
@@ -125,333 +98,6 @@ type Agente = {
   recovery_config: unknown;
   recovery_figurinhas: unknown;
 };
-
-async function cuidarDaClinica(agente: {
-  id: string;
-  owner_id: string;
-  api_key: string | null;
-  model: string | null;
-  instrucao_base: string | null;
-  parcelamento: string | null;
-  enabled: boolean | null;
-  circuit_open_until: string | null;
-  followup_ligado: boolean | null;
-  followup_horas_1: number | null;
-  followup_horas_2: number | null;
-  followup_ligado_desde: string | null;
-}) {
-  const ownerId = agente.owner_id;
-
-  const ritmo = {
-    ...RITMO_PADRAO_DO_FOLLOWUP,
-    ligado: agente.followup_ligado === true,
-    horasParaOPrimeiro: agente.followup_horas_1 ?? RITMO_PADRAO_DO_FOLLOWUP.horasParaOPrimeiro,
-    horasParaOSegundo: agente.followup_horas_2 ?? RITMO_PADRAO_DO_FOLLOWUP.horasParaOSegundo,
-    ligadoDesde: agente.followup_ligado_desde ?? null,
-  };
-
-  if (!ritmo.ligado) return { ownerId, motivo: "follow-up desligado" };
-  if (!agente.model) return { ownerId, motivo: "sem modelo escolhido" };
-
-  // A Luna pausada não volta em ninguém: pausar tem de calar todos os
-  // caminhos, não só o que responde.
-  if (!agente.enabled) return { ownerId, motivo: "agente pausado" };
-  if (agente.circuit_open_until && new Date(agente.circuit_open_until) > new Date()) {
-    return { ownerId, motivo: "disjuntor aberto" };
-  }
-
-  // Ligar a chave sem data é o caso perigoso: seria "sem limite para trás".
-  // Tratado como "ligou agora", que não manda nada nesta rodada e passa a
-  // valer da próxima em diante.
-  if (!ritmo.ligadoDesde) {
-    await supabase
-      .from("ai_agents")
-      .update({ followup_ligado_desde: new Date().toISOString() })
-      .eq("id", agente.id);
-    return { ownerId, motivo: "follow-up acabou de ser ligado; vale de agora em diante" };
-  }
-
-  // ── A janela de horário ─────────────────────────────────────────────
-  //
-  // Antes de qualquer consulta: fora do horário nada vai sair, e não há por que
-  // ler a agenda e as conversas para descobrir isso.
-  const { data: jornada } = await supabase
-    .from("clinic_business_hours")
-    .select("weekday, modo, opens_at, closes_at")
-    .eq("owner_id", ownerId);
-
-  const dias: DiaDaJornada[] = (jornada ?? []).map((j: Record<string, unknown>) => ({
-    weekday: Number(j.weekday),
-    modo: String(j.modo),
-    abre: j.opens_at ? String(j.opens_at) : null,
-    fecha: j.closes_at ? String(j.closes_at) : null,
-  }));
-
-  const agora = new Date();
-  const naClinica = agoraNaClinica(agora);
-  const hora = Number(naClinica.hora.slice(0, 2));
-  // `date` vem como AAAA-MM-DD no fuso da clínica; o dia da semana sai dela com
-  // meio-dia UTC para nenhum fuso empurrar a data para o dia anterior.
-  const weekday = new Date(`${naClinica.date}T12:00:00Z`).getUTCDay();
-
-  if (!dentroDaJanela(hora, weekday, dias)) {
-    return { ownerId, motivo: `fora da janela (${naClinica.hora}, dia ${weekday})` };
-  }
-
-  // ── A cota do número ────────────────────────────────────────────────
-  const { limit, usedToday } = await getDailyUsage(supabase, ownerId);
-  if (usedToday >= limit) return { ownerId, motivo: "cota diária do número esgotada" };
-
-  // ── As candidatas ───────────────────────────────────────────────────
-  //
-  // Só de anúncio e só as em que a Luna falou. `human_took_over_at` nulo entra
-  // no filtro do banco além da checagem pura: é o corte que tira mais linhas.
-  const desde = new Date(agora.getTime() - ritmo.diasDeValidade * 86_400_000).toISOString();
-  const { data: sessoes, error } = await supabase
-    .from("ai_agent_sessions")
-    .select(
-      "id, conversation_id, contact_id, contact_name, created_at, last_inbound_at, last_outbound_at, human_took_over_at, anuncio, followups_enviados, ultimo_followup_em",
-    )
-    .eq("agent_id", agente.id)
-    .is("human_took_over_at", null)
-    .not("last_outbound_at", "is", null)
-    .not("anuncio", "is", null)
-    .lt("followups_enviados", ritmo.maximoDeToques)
-    .gte("created_at", desde)
-    // Só o que parou DEPOIS de ligar. Sem este corte no banco, as 100 mais
-    // antigas eram todas de antes de 28/10, a regra pura recusava as 100
-    // ("já estava parada antes de o follow-up ser ligado") e as conversas
-    // novas nunca entravam na lista: dois dias ligado e zero follow-ups (30/10).
-    .gte("last_outbound_at", ritmo.ligadoDesde)
-    .order("last_outbound_at", { ascending: true })
-    .limit(100);
-  if (error) return { ownerId, erro: error.message };
-  if (!sessoes?.length) return { ownerId, motivo: "nenhuma conversa candidata" };
-
-  let enviados = 0;
-  const recusas: Record<string, number> = {};
-  const registrar = (m: string) => (recusas[m] = (recusas[m] ?? 0) + 1);
-
-  for (const s of sessoes) {
-    if (enviados >= POR_RODADA) break;
-    if (usedToday + enviados >= limit) {
-      registrar("cota diária do número esgotada");
-      break;
-    }
-
-    // ── Virou consulta? ───────────────────────────────────────────────
-    //
-    // A MESMA RPC que as lições usam. Duas leituras de "agendou?" divergiriam,
-    // e a que erra aqui manda mensagem de cobrança para quem já marcou.
-    const variantes = variantesDoNumero(telefoneDoJid(s.conversation_id));
-    let jaAgendou = false;
-    if (variantes.length) {
-      const { data: achados, error: erroRpc } = await supabase.rpc("agendamento_criado_apos", {
-        _owner: ownerId,
-        _variantes: variantes,
-        _desde: s.created_at,
-      });
-      // Erro de leitura NÃO pode virar "não agendou": mandaria follow-up para
-      // quem já tem consulta marcada. Sem saber, esta conversa espera a
-      // próxima hora.
-      if (erroRpc) {
-        registrar("não deu para conferir se agendou");
-        continue;
-      }
-      jaAgendou = (achados ?? []).length > 0;
-    }
-
-    const decisao = decidirFollowup(
-      {
-        humanoAssumiu: !!s.human_took_over_at,
-        ultimaEntrada: s.last_inbound_at,
-        ultimaSaida: s.last_outbound_at,
-        criadaEm: s.created_at,
-        followupsEnviados: Number(s.followups_enviados ?? 0),
-        ultimoFollowupEm: s.ultimo_followup_em,
-        // `{}` quer dizer "procurei e não era de anúncio" — ver
-        // `anuncioGuardado`. Com `!!` ele contava como anúncio.
-        veioDeAnuncio: anuncioGuardado(s.anuncio) !== null,
-        jaAgendou,
-      },
-      ritmo,
-      agora,
-    );
-
-    if (!decisao.volta) {
-      registrar(decisao.motivo);
-      continue;
-    }
-
-    // ── Escrever o toque ──────────────────────────────────────────────
-    const falas = await historicoDoEspelho(
-      supabase,
-      ownerId,
-      s.conversation_id,
-      MENSAGENS_DO_HISTORICO,
-    );
-    if (!falas.length) {
-      registrar("conversa sem mensagem legível");
-      continue;
-    }
-
-    // A MESMA instrução do atendimento, montada pela mesma função. Ver o
-    // comentário em `instrucaoDaLuna`: eu tinha copiado estas consultas para
-    // cá e errado duas delas — a Luna do follow-up citaria preço de
-    // procedimento que a clínica tirou da lista de propósito.
-    // `.texto` e não o objeto: `instrucaoDaLuna` devolve `{ texto, horarios,
-    // casos }`, porque o atendimento valida o código do horário contra a MESMA
-    // tabela que montou a instrução. Aqui estava sendo passado o objeto inteiro
-    // para `chamarModelo`, que espera uma string — a chamada iria com um objeto
-    // no lugar do `system` e a OpenAI recusaria. Nunca apareceu porque o
-    // follow-up nasceu desligado e nunca rodou: `bunx tsc` não alcança os
-    // arquivos do Deno, e `checar-edge-functions` só pega identificador que não
-    // existe. Achado em 16/10, implementando a Etapa 1.
-    // A cidade que a pessoa confirmou, quando confirmou: é ela que decide de
-    // qual unidade saem os horários da instrução. Leitura à parte, e tolerante,
-    // em vez de entrar no `select` da lista acima: a coluna nasce numa
-    // migration que o Lovable aplica em passo separado deste deploy, e um
-    // `select` com coluna inexistente derrubaria a rodada inteira de follow-up.
-    // Erro aqui é "não sei a cidade", e aí a Luna pergunta — que é o que ela
-    // faria mesmo.
-    let unidadeDaSessao: string | null = null;
-    try {
-      const { data: comCidade } = await supabase
-        .from("ai_agent_sessions")
-        .select("unidade_id")
-        .eq("id", s.id)
-        .maybeSingle();
-      unidadeDaSessao = comCidade?.unidade_id ? String(comCidade.unidade_id) : null;
-    } catch (e) {
-      console.warn("[followup] cidade da sessão indisponível:", e instanceof Error ? e.message : e);
-    }
-
-    const { texto: instrucao } = await instrucaoDaLuna(
-      supabase,
-      ownerId,
-      agente,
-      (s.anuncio as Anuncio | null) ?? null,
-      agora,
-      // Sessão e dúvida pendente seguem fora, como antes desta mudança: o que
-      // entrou aqui foi só a cidade.
-      null,
-      null,
-      unidadeDaSessao,
-    );
-
-    const horasDeSilencio = (agora.getTime() - new Date(s.last_outbound_at).getTime()) / 3_600_000;
-
-    let texto: string;
-    try {
-      texto = await chamarModelo({
-        chave: agente.api_key,
-        modelo: agente.model,
-        instrucao,
-        pergunta: promptDoFollowup({
-          toque: decisao.toque,
-          historico: falas
-            .map((f) => `${f.deQuem === "clinica" ? "VOCÊ" : "PACIENTE"}: ${f.texto}`)
-            .join("\n"),
-          horasDeSilencio,
-        }),
-        maxTokens: MAX_TOKENS,
-        anotarUso: (uso) => void anotarConsumo(supabase, ownerId, "followup", uso, s.id),
-      });
-    } catch (e) {
-      console.error(`[followup] modelo falhou em ${s.conversation_id}:`, e);
-      registrar("modelo falhou");
-      continue;
-    }
-
-    // A janela é larga aqui (48h) porque o que não pode repetir é a MENSAGEM
-    // ANTERIOR da conversa, não uma de minutos atrás. A mesma leitura decide o
-    // emoji: um follow-up também não sorri se a Luna sorriu há pouco.
-    const jaDitas = await oQueEuMandei(supabase, s.id, agora, 48 * 60);
-    const mensagem = emojiNaMedida(
-      semTravessao(String(texto ?? "").trim()),
-      jaDitas.map((m) => m.texto),
-    );
-    if (!mensagem) {
-      registrar("o modelo preferiu não escrever");
-      continue;
-    }
-
-    // A mesma rede do atendimento: um follow-up que repete o que já foi dito é
-    // pior que nenhum.
-    const repetida = jaDisseIssoAgora(
-      mensagem,
-      jaDitas.map((m) => m.texto),
-    );
-    if (repetida) {
-      registrar("o toque saiu igual ao que já foi dito");
-      // Conta como toque gasto: insistir com o mesmo texto na hora seguinte
-      // daria no mesmo, e deixaria a conversa presa neste laço para sempre.
-      await marcarToque(s.id, Number(s.followups_enviados ?? 0), agora);
-      continue;
-    }
-
-    // ── Mandar ────────────────────────────────────────────────────────
-    //
-    // Última checagem antes do envio: alguém pode ter assumido a conversa nos
-    // segundos que a chamada do modelo levou.
-    const { data: agoraMesmo } = await supabase
-      .from("ai_agent_sessions")
-      .select("human_took_over_at, followups_enviados")
-      .eq("id", s.id)
-      .maybeSingle();
-    if (agoraMesmo?.human_took_over_at) {
-      registrar("humano assumiu enquanto eu escrevia");
-      continue;
-    }
-    // Duas rodadas sobrepostas não podem mandar dois toques. O contador do
-    // banco é quem decide.
-    if (Number(agoraMesmo?.followups_enviados ?? 0) !== Number(s.followups_enviados ?? 0)) {
-      registrar("outra rodada já cuidou desta");
-      continue;
-    }
-
-    try {
-      const envio = await enviarWhatsapp(
-        supabase,
-        ownerId,
-        { conversation_id: s.conversation_id, phone: telefoneDoJid(s.conversation_id) },
-        mensagem,
-      );
-      await supabase.from("ai_agent_messages").insert({
-        owner_id: ownerId,
-        session_id: s.id,
-        direction: "saida",
-        content: mensagem,
-        wa_message_id: typeof envio?.messageId === "string" ? envio.messageId : null,
-        skipped_reason: null,
-      });
-      await marcarToque(s.id, Number(s.followups_enviados ?? 0), agora);
-      // O mesmo caixa do disparo e das campanhas.
-      await debitDailyUsage(supabase, ownerId, `followup:${agente.id}`, 1);
-      enviados++;
-    } catch (e) {
-      console.error(`[followup] não deu para enviar em ${s.conversation_id}:`, e);
-      registrar("falha no envio");
-    }
-  }
-
-  return { ownerId, enviados, recusas };
-}
-
-/** O contador e o relógio do próximo toque, numa escrita só. `last_outbound_at`
- *  também avança: para todo o resto do sistema este toque É uma mensagem da
- *  clínica, e a caixa de entrada precisa vê-lo como tal. */
-async function marcarToque(sessionId: string, quantosJa: number, agora: Date) {
-  await supabase
-    .from("ai_agent_sessions")
-    .update({
-      followups_enviados: quantosJa + 1,
-      ultimo_followup_em: agora.toISOString(),
-      last_outbound_at: agora.toISOString(),
-      updated_at: agora.toISOString(),
-    })
-    .eq("id", sessionId);
-}
 
 // ═════════════════════════════════════════════════════════════════════════
 // O Recovery Engine
@@ -962,17 +608,6 @@ async function executarEtapa(
   };
 }
 
-/**
- * O minuto em que o follow-up ANTIGO roda.
- *
- * A rotina passou a ser chamada a cada minuto por causa do Recovery Engine. O
- * follow-up antigo (20h e 72h, para quem ainda não ligou o motor novo) foi
- * escrito para rodar de hora em hora, com teto de três por rodada; rodando a
- * cada minuto ele mandaria até 180 por hora. Então ele só roda neste minuto,
- * o mesmo de antes.
- */
-const MINUTO_DO_FOLLOWUP_ANTIGO = 43;
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok");
   const barrado = soOSistema(req);
@@ -985,7 +620,6 @@ Deno.serve(async (req) => {
       );
     if (error) throw new Error(error.message);
 
-    const minuto = new Date().getUTCMinutes();
     const resultado = [];
     for (const a of (agentes ?? []) as Agente[]) {
       // Um consultório não derruba os outros: o erro de um vira a linha dele
@@ -994,8 +628,11 @@ Deno.serve(async (req) => {
         // Plano básico, suspenso ou teste vencido: ninguém é retomado.
         const semIa = await semIaNoConsultorio(supabase, a.owner_id, new Date());
         if (semIa) resultado.push({ ownerId: a.owner_id, motivo: semIa });
+        // Só o Recovery Engine. O follow-up simples (20h e 72h) saiu em 30/10:
+        // fazia o mesmo com menos, e os dois ligados juntos mandariam
+        // retomada dobrada.
         else if (configDoAgente(a)) resultado.push(await recuperarDaClinica(a));
-        else if (minuto === MINUTO_DO_FOLLOWUP_ANTIGO) resultado.push(await cuidarDaClinica(a));
+        else resultado.push({ ownerId: a.owner_id, motivo: "Recovery Engine desligado" });
       } catch (e) {
         console.error(`[agente-followup] falhou em ${a.owner_id}:`, e);
         resultado.push({ ownerId: a.owner_id, motivo: e instanceof Error ? e.message : "falhou" });
