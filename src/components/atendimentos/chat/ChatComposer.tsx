@@ -6,6 +6,7 @@ import {
   CalendarClock,
   CalendarPlus,
   FileText,
+  GalleryHorizontalEnd,
   Image as ImageIcon,
   Mic,
   Plus,
@@ -37,6 +38,7 @@ import { EmojiPicker } from "./EmojiPicker";
 import { AiAssistDialog } from "./AiAssistDialog";
 import { AttachmentTray, type PendingAttachment } from "./AttachmentTray";
 import { ScheduleMessageDialog } from "./ScheduleMessageDialog";
+import { CasosParaEnviar } from "./CasosParaEnviar";
 
 // Recursos ainda sem caminho no CRM ficam visíveis mas desabilitados, com o
 // motivo no tooltip — some da tela seria pior: o time não saberia que estão
@@ -107,6 +109,7 @@ export function ChatComposer({
   const [aiOpen, setAiOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [casosOpen, setCasosOpen] = useState(false);
   const [mobileEmojiOpen, setMobileEmojiOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
 
@@ -320,6 +323,10 @@ export function ChatComposer({
               <ImageIcon className="mr-2 h-4 w-4" />
               Fotos e Vídeos
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setCasosOpen(true)}>
+              <GalleryHorizontalEnd className="mr-2 h-4 w-4" />
+              Casos (antes e depois)
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onScheduleAppointment()}>
               <CalendarPlus className="mr-2 h-4 w-4" />
               Agendar consulta
@@ -519,6 +526,14 @@ export function ChatComposer({
 
       <AiAssistDialog open={aiOpen} onOpenChange={setAiOpen} />
 
+      <CasosParaEnviar
+        open={casosOpen}
+        onOpenChange={setCasosOpen}
+        onEscolher={async (arquivo) => {
+          onAttachmentsChange([...attachments, await fileToPendingAttachment(arquivo)]);
+          textareaRef.current?.focus();
+        }}
+      />
       <ScheduleMessageDialog
         open={scheduleOpen}
         onOpenChange={setScheduleOpen}

@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { exigeAgenteIa } from "@/lib/auth/area.middleware";
+import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 
 /**
  * A biblioteca de casos de antes e depois.
@@ -138,4 +139,53 @@ export const excluirCaso = createServerFn({ method: "POST" })
       .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+export interface CasoParaEnviar {
+  id: string;
+  titulo: string;
+  quandoUsar: string | null;
+  /** URL assinada, curta: serve para a miniatura e para baixar a foto na
+   *  hora de anexar. */
+  url: string | null;
+}
+
+/**
+ * Os casos ativos, para a equipe anexar na conversa à mão (menu "+").
+ *
+ * Fora de `exigeAgenteIa` de propósito: quem atende no chat nem sempre tem
+ * acesso à área do agente, e mandar um antes e depois é coisa de quem
+ * atende. Só lê; cadastrar e apagar continuam lá.
+ */
+export const listarCasosParaEnviar = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .handler(async ({ context }): Promise<CasoParaEnviar[]> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase: any = context.supabase;
+    const { data, error } = await supabase
+      .from("ai_agent_casos")
+      .select("id, titulo, media_path, quando_usar")
+      .eq("owner_id", context.ownerId)
+      .eq("ativo", true)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const linhas = (data ?? []) as any[];
+    if (!linhas.length) return [];
+    const { data: assinadas } = await supabase.storage.from("crm-campaign-media").createSignedUrls(
+      linhas.map((r) => String(r.media_path)),
+      60 * 30,
+    );
+    const porCaminho = new Map<string, string>(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ((assinadas ?? []) as any[])
+        .filter((a) => a?.signedUrl && a?.path)
+        .map((a) => [String(a.path), String(a.signedUrl)]),
+    );
+    return linhas.map((r) => ({
+      id: String(r.id),
+      titulo: String(r.titulo),
+      quandoUsar: r.quando_usar ?? null,
+      url: porCaminho.get(String(r.media_path)) ?? null,
+    }));
   });
