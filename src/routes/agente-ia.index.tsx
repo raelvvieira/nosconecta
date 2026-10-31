@@ -1,13 +1,15 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, Sparkles } from "lucide-react";
+import { AlertTriangle, FlaskConical, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import {
   aprenderAgora,
@@ -92,6 +94,9 @@ function AgentePage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const aba: Aba = Route.useSearch().aba ?? "atendimento";
+  // O teste vive num pop-up (31/10): preso numa coluna da aba Atendimento,
+  // ele deixava meia tela vazia embaixo dele.
+  const [testando, setTestando] = useState(false);
   const irPara = (proxima: Aba) =>
     navigate({ to: "/agente-ia", search: { aba: proxima }, replace: true });
 
@@ -148,26 +153,48 @@ function AgentePage() {
         title="Agente de IA"
         actions={
           estado && (
-            <label className="flex cursor-pointer items-center gap-2.5 rounded-full border border-border/70 bg-card px-3.5 py-2 shadow-1">
-              <span
-                className={cn(
-                  "h-2 w-2 rounded-full",
-                  estado.ligado ? "bg-success" : "bg-muted-foreground/40",
-                )}
-              />
-              <span className="text-sm font-medium">
-                {estado.nome || "Luna"} · {estado.ligado ? "ativa" : "pausada"}
-              </span>
-              <Switch
-                checked={estado.ligado}
-                disabled={ligarDesligar.isPending}
-                onCheckedChange={(v) => ligarDesligar.mutate(v)}
-                aria-label="Ativar o agente"
-              />
-            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                className="h-10 gap-2 rounded-full px-4"
+                onClick={() => setTestando(true)}
+              >
+                <FlaskConical className="h-4 w-4" />
+                Testar
+              </Button>
+              <label className="flex cursor-pointer items-center gap-2.5 rounded-full border border-border/70 bg-card px-3.5 py-2 shadow-1">
+                <span
+                  className={cn(
+                    "h-2 w-2 rounded-full",
+                    estado.ligado ? "bg-success" : "bg-muted-foreground/40",
+                  )}
+                />
+                <span className="text-sm font-medium">
+                  {estado.nome || "Luna"} · {estado.ligado ? "ativa" : "pausada"}
+                </span>
+                <Switch
+                  checked={estado.ligado}
+                  disabled={ligarDesligar.isPending}
+                  onCheckedChange={(v) => ligarDesligar.mutate(v)}
+                  aria-label="Ativar o agente"
+                />
+              </label>
+            </div>
           )
         }
       />
+
+      <Dialog open={testando} onOpenChange={setTestando}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Testar a assistente</DialogTitle>
+          </DialogHeader>
+          <p className="-mt-2 text-sm text-muted-foreground">
+            Escreva como um paciente escreveria. Nada é enviado a ninguém.
+          </p>
+          <Testar semCartao />
+        </DialogContent>
+      </Dialog>
 
       {estadoQuery.isPending ? (
         <div className="mt-10 flex justify-center">
@@ -208,17 +235,14 @@ function AgentePage() {
           </div>
 
           {aba === "atendimento" && (
-            // O teste ao lado de propósito: muda o ritmo ou com quem ela fala
-            // e confere na mesma tela.
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:items-start">
+            // Duas colunas cheias: as duas regras curtas de um lado, o
+            // Recovery Engine (que é alto) do outro.
+            <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
               <div className="grid gap-4">
                 <ComQuemFala />
                 <Ritmo />
-                <RecoveryEngine />
               </div>
-              <div className="xl:sticky xl:top-6">
-                <Testar />
-              </div>
+              <RecoveryEngine />
             </div>
           )}
 

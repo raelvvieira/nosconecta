@@ -24,7 +24,7 @@ import { Bloco } from "./campos";
  * exato risco que ela existe para evitar. Agora a simulação passa por cima do
  * interruptor (e só ela) e avisa na tela que aquilo é prévia.
  */
-export function Testar() {
+export function Testar({ semCartao = false }: { semCartao?: boolean }) {
   const simular = useServerFn(simularAtendimento);
   const [texto, setTexto] = useState("");
   const [simulando, setSimulando] = useState(false);
@@ -47,8 +47,8 @@ export function Testar() {
     }
   };
 
-  return (
-    <Bloco titulo="Testar" descricao="Escreva como um paciente escreveria. Nada é enviado.">
+  const conteudo = (
+    <>
       <div className="flex gap-2">
         <Input
           value={texto}
@@ -94,6 +94,15 @@ export function Testar() {
           )}
         </div>
       )}
+    </>
+  );
+
+  // Dentro do pop-up (31/10) o cartão em volta seria uma moldura dentro de
+  // outra; o título fica com o diálogo.
+  if (semCartao) return <div>{conteudo}</div>;
+  return (
+    <Bloco titulo="Testar" descricao="Escreva como um paciente escreveria. Nada é enviado.">
+      {conteudo}
     </Bloco>
   );
 }
