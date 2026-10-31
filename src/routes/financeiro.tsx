@@ -65,6 +65,9 @@ const CashFlowChart = lazy(
     onGranularityChange: (g: Granularity) => void;
   }>(() => import("@/components/finance/CashFlowChart"), "CashFlowChart"),
 );
+const DreChart = lazy(
+  nomeado<Record<string, never>>(() => import("@/components/finance/DreChart"), "DreChart"),
+);
 const RevenueByProcedure = lazy(
   nomeado<{ data: Overview["procedures"] }>(
     () => import("@/components/finance/RevenueByProcedure"),
@@ -247,7 +250,9 @@ function FinanceiroVisaoGeral() {
           />
         </GrupoDeKpis>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
+        {/* Os dois gráficos lado a lado: o fluxo de caixa (o dia a dia) e o
+            DRE (a operação se paga?). As contas descem para a linha de baixo. */}
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <DobraNoCelular titulo="Fluxo de caixa" className="lg:contents">
             <SobDemanda altura={360}>
               <CashFlowChart
@@ -257,14 +262,19 @@ function FinanceiroVisaoGeral() {
               />
             </SobDemanda>
           </DobraNoCelular>
+          <DobraNoCelular titulo="DRE" className="lg:contents">
+            <SobDemanda altura={360}>
+              <DreChart />
+            </SobDemanda>
+          </DobraNoCelular>
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-4">
           <BankAccountsCard
             accounts={data.accounts}
             total={data.totalAvailable}
             onManage={() => setContasAbertas(true)}
           />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* "Ver todos" leva para a tela cheia do assunto. Eram dois botões
               sem `onClick` — presentes na tela e mortos ao clique. */}
           <UpcomingReceivables
