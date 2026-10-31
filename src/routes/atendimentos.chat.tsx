@@ -8,6 +8,7 @@ import {
   Filter,
   Hourglass,
   CheckCheck,
+  Clock3,
   ChevronDown,
   MessageCircle,
   PanelRight,
@@ -59,6 +60,7 @@ import {
   marcarConversaComoLida,
   sendWhatsappMessage,
   type ConversationRow,
+  type MessageRow,
 } from "@/lib/atendimentos/atendimentos.functions";
 import {
   addPipelineItem,
@@ -493,14 +495,34 @@ function ChatPage() {
   const [appointmentOpen, setAppointmentOpen] = useState(false);
   const agendaCatalog = useAgendaCatalog();
   const saveAppointment = useSaveAppointment({ onSaved: () => setAppointmentOpen(false) });
+  // ── A mensagem aparece na hora ─────────────────────────────────────────
+  //
+  // Antes, depois de apertar enviar, a tela esperava três coisas em fila: o
+  // servidor mandar para o WhatsApp, a cópia da mensagem voltar pelo webhook
+  // e a próxima busca da conversa. Segundos com o texto parado no campo.
+  //
+  // Agora o campo limpa e a bolha entra na conversa no instante do clique,
+  // com um relógio no lugar do ✓✓. Ela fica numa lista à parte (e não no
+  // cache da conversa) porque a busca seguinte, se chegar antes da cópia do
+  // webhook, apagaria a bolha e ela piscaria. Sai sozinha quando a mensagem
+  // de verdade aparece; se o envio falha, sai e o texto volta para o campo.
+  type Pendente = MessageRow & { conversationId: string; pendente: true };
+  const [pendentes, setPendentes] = useState<Pendente[]>([]);
+  type Envio = {
+    texto: string;
+    privada: boolean;
+    anexos: PendingAttachment[];
+    tempId: string;
+    conversa: string;
+  };
   const sendMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (e: Envio) =>
       doSendMessage({
         data: {
-          conversationId: conversationId!,
-          text: draft,
-          isPrivate,
-          attachments: attachments.map(({ name, type, data, isRecordedAudio }) => ({
+          conversationId: e.conversa,
+          text: e.texto,
+          isPrivate: e.privada,
+          attachments: e.anexos.map(({ name, type, data, isRecordedAudio }) => ({
             name,
             type,
             data,
@@ -508,18 +530,77 @@ function ChatPage() {
           })),
         },
       }),
-    onSuccess: (res) => {
-      setDraft("");
-      if (isPrivate) toast.success("Nota interna salva — o contato não recebeu nada.");
-      setIsPrivate(false);
-      attachments.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
-      setAttachments([]);
-      queryClient.invalidateQueries({ queryKey: ["atendimentos-messages", conversationId] });
+    onSuccess: (res, e) => {
+      if (e.privada) toast.success("Nota interna salva — o contato não recebeu nada.");
+      e.anexos.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+      queryClient.invalidateQueries({ queryKey: ["atendimentos-messages", e.conversa] });
       queryClient.invalidateQueries({ queryKey: ["atendimentos-conversations"] });
       if (!res.ok) toast.error("Mensagem não confirmada pelo CRM — verifique a conexão.");
+      // Rede de segurança: se a cópia nunca casar (texto alterado no
+      // caminho, por exemplo), a bolha provisória não fica para sempre.
+      setTimeout(() => setPendentes((l) => l.filter((p) => p.id !== e.tempId)), 60_000);
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error, e) => {
+      setPendentes((l) => l.filter((p) => p.id !== e.tempId));
+      // Devolve o que a pessoa escreveu: perder o texto é pior que o erro.
+      setDraft((atual) => atual || e.texto);
+      setIsPrivate(e.privada);
+      setAttachments((atual) => (atual.length ? atual : e.anexos));
+      toast.error(error.message);
+    },
   });
+  const enviar = () => {
+    if (!conversationId) return;
+    if (!draft.trim() && !attachments.length) return;
+    const e: Envio = {
+      texto: draft,
+      privada: isPrivate,
+      anexos: attachments,
+      tempId: `pendente-${crypto.randomUUID()}`,
+      conversa: conversationId,
+    };
+    // Tudo no mesmo instante do clique, antes da chamada: um segundo Enter
+    // logo em seguida já encontra o campo vazio e não manda de novo.
+    // Só com texto: anexo sozinho não tem como casar com a mensagem que
+    // volta do WhatsApp, e a bolha provisória ficaria duplicada.
+    if (e.texto.trim())
+      setPendentes((lista) => [
+        ...lista,
+        {
+          id: e.tempId,
+          conversationId: e.conversa,
+          fromMe: true,
+          body: e.texto.trim(),
+          attachments: [],
+          status: "sent",
+          timestamp: new Date().toISOString(),
+          isPrivate: e.privada,
+          pendente: true,
+        },
+      ]);
+    setDraft("");
+    setIsPrivate(false);
+    setAttachments([]);
+    sendMutation.mutate(e);
+  };
+
+  // A bolha provisória sai quando a de verdade chega: mesma direção, mesmo
+  // texto, e gravada depois do clique (com folga para relógios diferentes).
+  const pendentesDaConversa = pendentes.filter((p) => {
+    if (p.conversationId !== conversationId) return false;
+    const desde = new Date(p.timestamp).getTime() - 30_000;
+    return !messages.some(
+      (m) =>
+        m.fromMe &&
+        m.isPrivate === p.isPrivate &&
+        (m.body ?? "").trim() === (p.body ?? "").trim() &&
+        new Date(m.timestamp).getTime() >= desde,
+    );
+  });
+  const mensagensNaTela: (MessageRow & { pendente?: boolean })[] = [
+    ...messages,
+    ...pendentesDaConversa,
+  ];
 
   const selectConversation = (row: ConversationRow) =>
     navigate({ search: { conversationId: row.id } });
@@ -541,7 +622,7 @@ function ChatPage() {
   const arraste = useArrastoDeSugestao(usarSugestao);
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages.length]);
+  }, [mensagensNaTela.length]);
 
   return (
     // Sem `mx-auto`/`max-w`: em tela larga isso centralizava as duas colunas
@@ -935,7 +1016,7 @@ function ChatPage() {
                   cabeçalho. O limite de largura fica só pra linha não
                   esticar demais e ficar cansativa de ler. */}
               <div className="flex max-w-[760px] flex-col gap-2">
-                {messages.map((m) => (
+                {mensagensNaTela.map((m) => (
                   <div
                     key={m.id}
                     className={cn("flex", m.fromMe ? "justify-end" : "justify-start")}
@@ -978,7 +1059,13 @@ function ChatPage() {
                         )}
                       >
                         {formatTime(m.timestamp)}
-                        {m.fromMe && !m.isPrivate && <CheckCheck className="h-3 w-3" />}
+                        {m.fromMe &&
+                          !m.isPrivate &&
+                          (m.pendente ? (
+                            <Clock3 className="h-3 w-3" aria-label="Enviando" />
+                          ) : (
+                            <CheckCheck className="h-3 w-3" />
+                          ))}
                       </span>
                     </div>
                   </div>
@@ -996,8 +1083,10 @@ function ChatPage() {
               ref={composerRef}
               value={draft}
               onChange={setDraft}
-              onSend={() => sendMutation.mutate()}
-              isSending={sendMutation.isPending}
+              onSend={enviar}
+              // O campo já limpou e a bolha já está na conversa: travar o
+              // botão até o servidor responder seria devolver a espera.
+              isSending={false}
               isPrivate={isPrivate}
               onPrivateChange={setIsPrivate}
               attachments={attachments}
