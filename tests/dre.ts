@@ -4,11 +4,14 @@
 // todo mês dar prejuízo), lançamento cancelado somar, ou o regime de caixa
 // contar o que ainda não foi pago.
 import {
+  gastosDoPeriodo,
   grupoSugerido,
   mesDoLancamento,
   montarDre,
   percentualDaReceita,
+  resolverFaturas,
   variacao,
+  type LancamentoBruto,
   type LancamentoDoDre,
 } from "../src/lib/finance/dre.ts";
 
@@ -120,6 +123,64 @@ conferir("subiu 25%", variacao(1250, 1000), 25);
 conferir("caiu 10%", variacao(900, 1000), -10);
 conferir("sem base, sem variação", variacao(500, 0), null);
 conferir("base negativa usa o módulo", variacao(-500, -1000), 50);
+
+// O cartão: a fatura some e as compras herdam o pagamento dela.
+const bruto = (x: Partial<LancamentoBruto> & { amount: number }): LancamentoBruto => ({
+  tipo: "payable",
+  status: "pending",
+  dueDate: "2026-10-16",
+  paidDate: null,
+  categoriaId: x.categoriaNome ?? null,
+  categoriaNome: null,
+  grupo: null,
+  faturaId: null,
+  quitaFaturaId: null,
+  ...x,
+});
+const resolvido = resolverFaturas([
+  bruto({ amount: 300, categoriaNome: "Insumos", grupo: "custo_variavel", faturaId: "f1" }),
+  bruto({ amount: 50, categoriaNome: "Software", grupo: "despesa_fixa", faturaId: "f1" }),
+  bruto({ amount: 350, quitaFaturaId: "f1", status: "paid", paidDate: "2026-10-20" }),
+  bruto({
+    amount: 80,
+    categoriaNome: "Luz",
+    grupo: "despesa_fixa",
+    status: "paid",
+    paidDate: "2026-10-05",
+  }),
+  bruto({ amount: 20, categoriaNome: "Insumos", grupo: "custo_variavel", faturaId: "f-fora" }),
+]);
+conferir("a fatura some", resolvido.length, 4);
+conferir(
+  "compra herda o pagamento da fatura",
+  resolvido.filter((l) => l.faturaId === "f1").map((l) => [l.status, l.paidDate]),
+  [
+    ["paid", "2026-10-20"],
+    ["paid", "2026-10-20"],
+  ],
+);
+conferir(
+  "compra de fatura fora da janela fica pendente",
+  resolvido.find((l) => l.faturaId === "f-fora")?.status,
+  "pending",
+);
+const gastos = gastosDoPeriodo(resolvido, "2026-10-01", "2026-10-31");
+conferir("total do período sem contar a fatura duas vezes", gastos.total, 430);
+conferir("por grupo", [gastos.porGrupo.custo_variavel, gastos.porGrupo.despesa_fixa], [300, 130]);
+conferir(
+  "categorias, maior primeiro",
+  gastos.categorias.map((c) => [c.nome, c.valor]),
+  [
+    ["Insumos", 300],
+    ["Luz", 80],
+    ["Software", 50],
+  ],
+);
+conferir(
+  "fora do intervalo não conta",
+  gastosDoPeriodo(resolvido, "2026-10-01", "2026-10-10").total,
+  80,
+);
 
 if (falhas.length) {
   console.error(falhas.join("\n"));

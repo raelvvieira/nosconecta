@@ -73,6 +73,47 @@ export interface LancamentoDoDre {
   grupo: GrupoDre | null;
 }
 
+/**
+ * O cartão de crédito no DRE.
+ *
+ * A compra no cartão nunca fica "paga": quem é paga é a fatura, uma vez por
+ * mês, somando todas. Só que a categoria mora na compra, e a fatura não tem
+ * nenhuma. Olhar as duas faria o gasto contar duas vezes na competência e
+ * virar um bolo "Sem categoria" no caixa.
+ *
+ * A régua: a fatura some, e cada compra herda dela a situação, o vencimento
+ * e o dia do pagamento. Assim a compra conta com a própria categoria, no
+ * mês em que o dinheiro de fato saiu.
+ */
+export interface LancamentoBruto extends LancamentoDoDre {
+  /** Compra no cartão: a fatura a que pertence. */
+  faturaId: string | null;
+  /** A linha de pagamento da fatura: qual fatura ela quita. */
+  quitaFaturaId: string | null;
+}
+
+export function resolverFaturas<L extends LancamentoBruto>(linhas: L[]): L[] {
+  const faturas = new Map<string, L>();
+  for (const l of linhas) if (l.quitaFaturaId) faturas.set(l.quitaFaturaId, l);
+  const saida: L[] = [];
+  for (const l of linhas) {
+    if (l.quitaFaturaId) continue;
+    if (!l.faturaId) {
+      saida.push(l);
+      continue;
+    }
+    const f = faturas.get(l.faturaId);
+    // Fatura fora da janela buscada: a compra fica como está (pendente), e
+    // `mesDoLancamento` a descarta no caixa, como hoje.
+    if (!f) {
+      saida.push(l);
+      continue;
+    }
+    saida.push({ ...l, status: f.status, paidDate: f.paidDate, dueDate: f.dueDate });
+  }
+  return saida;
+}
+
 export interface LinhaDoDre {
   grupo: GrupoDre;
   /** Total do grupo em cada mês, na ordem de `meses`. */
@@ -171,6 +212,53 @@ export function montarDre(lancamentos: LancamentoDoDre[], meses: string[], regim
     resultadoOperacional: operacional,
     resultadoLiquido: liquido,
     semGrupo,
+  };
+}
+
+export interface GastosDoPeriodo {
+  total: number;
+  porGrupo: Record<GrupoDre, number>;
+  categorias: { id: string | null; nome: string; grupo: GrupoDre; valor: number }[];
+}
+
+/**
+ * Para onde foi o dinheiro num intervalo de dias: só o que foi pago, pelo
+ * dia do pagamento (caixa), por grupo e por categoria. Investimento entra,
+ * porque saiu do caixa — a tela é que diz de que grupo é.
+ */
+export function gastosDoPeriodo(
+  lancamentos: LancamentoDoDre[],
+  de: string,
+  ate: string,
+): GastosDoPeriodo {
+  const porGrupo = Object.fromEntries(GRUPOS_DRE.map((g) => [g.id, 0])) as Record<GrupoDre, number>;
+  const porCategoria = new Map<string, GastosDoPeriodo["categorias"][number]>();
+  let total = 0;
+  for (const l of lancamentos) {
+    if (l.tipo !== "payable" || l.status !== "paid" || !l.paidDate) continue;
+    const dia = l.paidDate.slice(0, 10);
+    if (dia < de || dia > ate) continue;
+    const grupo = grupoDoLancamento(l);
+    const valor = Math.round(l.amount * 100) / 100;
+    total += valor;
+    porGrupo[grupo] += valor;
+    const chave = `${grupo}:${l.categoriaId ?? ""}`;
+    const c = porCategoria.get(chave) ?? {
+      id: l.categoriaId,
+      nome: l.categoriaNome ?? "Sem categoria",
+      grupo,
+      valor: 0,
+    };
+    c.valor += valor;
+    porCategoria.set(chave, c);
+  }
+  for (const g of GRUPOS_DRE) porGrupo[g.id] = arredondar(porGrupo[g.id]);
+  return {
+    total: arredondar(total),
+    porGrupo,
+    categorias: [...porCategoria.values()]
+      .map((c) => ({ ...c, valor: arredondar(c.valor) }))
+      .sort((a, b) => b.valor - a.valor),
   };
 }
 

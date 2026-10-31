@@ -18,6 +18,7 @@ import { LancamentoRapido } from "@/components/finance/LancamentoRapido";
 import { UpcomingReceivables } from "@/components/finance/UpcomingReceivables";
 import { UpcomingPayables } from "@/components/finance/UpcomingPayables";
 import { InsightsCard } from "@/components/finance/InsightsCard";
+import { GastosPorCategoria } from "@/components/finance/GastosPorCategoria";
 import { RevenueByDentist } from "@/components/finance/RevenueByDentist";
 import { CommissionsTable } from "@/components/finance/CommissionsTable";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
@@ -64,9 +65,6 @@ const CashFlowChart = lazy(
     granularity: Granularity;
     onGranularityChange: (g: Granularity) => void;
   }>(() => import("@/components/finance/CashFlowChart"), "CashFlowChart"),
-);
-const DreChart = lazy(
-  nomeado<Record<string, never>>(() => import("@/components/finance/DreChart"), "DreChart"),
 );
 const RevenueByProcedure = lazy(
   nomeado<{ data: Overview["procedures"] }>(
@@ -250,9 +248,10 @@ function FinanceiroVisaoGeral() {
           />
         </GrupoDeKpis>
 
-        {/* Os dois gráficos lado a lado: o fluxo de caixa (o dia a dia) e o
-            DRE (a operação se paga?). As contas descem para a linha de baixo. */}
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        {/* Lado a lado: o fluxo de caixa (quando o dinheiro entrou e saiu) e
+            para onde ele foi (por grupo e categoria), ambos no período da
+            tela. As contas ficam na linha de baixo. */}
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.4fr_1fr]">
           <DobraNoCelular titulo="Fluxo de caixa" className="lg:contents">
             <SobDemanda altura={360}>
               <CashFlowChart
@@ -262,10 +261,8 @@ function FinanceiroVisaoGeral() {
               />
             </SobDemanda>
           </DobraNoCelular>
-          <DobraNoCelular titulo="DRE" className="lg:contents">
-            <SobDemanda altura={360}>
-              <DreChart />
-            </SobDemanda>
+          <DobraNoCelular titulo="Para onde foi o dinheiro" className="lg:contents">
+            <GastosPorCategoria de={de} ate={ate} />
           </DobraNoCelular>
         </div>
 

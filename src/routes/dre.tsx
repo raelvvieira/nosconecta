@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Sigma, SlidersHorizontal } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Delta } from "@/components/finance/Delta";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Sidebar } from "@/components/finance/Sidebar";
@@ -371,33 +372,6 @@ function Tile({
   );
 }
 
-/** Quanto mudou em relação ao mês anterior. Nos gastos, subir é ruim
- *  (vermelho); na receita e nos resultados, subir é bom. */
-function Delta({
-  pct,
-  subirEBom,
-  neutro,
-}: {
-  pct: number | null;
-  subirEBom?: boolean;
-  neutro?: boolean;
-}) {
-  if (pct === null || pct === 0) return null;
-  const subiu = pct > 0;
-  const bom = neutro ? null : subirEBom ? subiu : !subiu;
-  return (
-    <span
-      className={cn(
-        "ml-1 inline-block min-w-[3.25rem] text-left text-3xs font-medium tabular-nums",
-        bom === null ? "text-muted-foreground" : bom ? "text-success" : "text-danger",
-      )}
-      title="Em relação ao mês anterior"
-    >
-      {subiu ? "▲" : "▼"} {Math.abs(pct) >= 1000 ? "999+" : Math.abs(pct)}%
-    </span>
-  );
-}
-
 /** Uma célula da tabela: o valor, a variação e a setinha que abre o que
  *  compõe aquele valor. */
 function Celula({
@@ -442,7 +416,12 @@ function Celula({
             className="group inline-flex items-center rounded-md px-1 -mx-1 hover:bg-surface-subtle"
           >
             {formatBRL(atual)}
-            <Delta pct={variacao(atual, anterior)} subirEBom={subirEBom} neutro={neutro} />
+            <Delta
+              pct={variacao(atual, anterior)}
+              subirEBom={subirEBom}
+              neutro={neutro}
+              className="ml-1 min-w-[3.25rem] text-left"
+            />
             <ChevronDown
               className={cn(
                 "ml-0.5 h-3 w-3 text-muted-foreground/60 transition-transform group-hover:text-foreground",
@@ -601,7 +580,11 @@ function LinhaDeTotal({
           )}
         >
           {valor(v, false)}
-          <Delta pct={variacao(v, valores[i])} subirEBom />
+          <Delta
+            pct={variacao(v, valores[i])}
+            subirEBom
+            className="ml-1 min-w-[3.25rem] text-left"
+          />
         </td>
       ))}
       <td className={cn("px-5 py-2.5 text-right font-bold tabular-nums", cor(total))}>
