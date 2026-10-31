@@ -104,6 +104,13 @@ export function mesDoLancamento(l: LancamentoDoDre, regime: Regime): string | nu
   return l.dueDate.slice(0, 7);
 }
 
+/** O grupo em que o lançamento cai: o gravado, ou o palpite pelo nome.
+ *  Recebimento é sempre receita, mesmo numa categoria classificada errado. */
+export function grupoDoLancamento(l: LancamentoDoDre): GrupoDre {
+  if (l.tipo === "receivable") return "receita";
+  return l.grupo ?? grupoSugerido(l.categoriaNome ?? "", "expense");
+}
+
 export function montarDre(lancamentos: LancamentoDoDre[], meses: string[], regime: Regime): Dre {
   const indice = new Map(meses.map((m, i) => [m, i]));
   const zeros = () => meses.map(() => 0);
@@ -121,13 +128,8 @@ export function montarDre(lancamentos: LancamentoDoDre[], meses: string[], regim
     if (!mes) continue;
     const i = indice.get(mes);
     if (i === undefined) continue;
-    let grupo = l.grupo;
-    if (!grupo) {
-      semGrupo++;
-      grupo = l.tipo === "receivable" ? "receita" : grupoSugerido(l.categoriaNome ?? "", "expense");
-    }
-    // Recebimento é sempre receita, mesmo numa categoria classificada errado.
-    if (l.tipo === "receivable") grupo = "receita";
+    if (!l.grupo) semGrupo++;
+    const grupo = grupoDoLancamento(l);
     const valor = Math.round(l.amount * 100) / 100;
     linhas[grupo].porMes[i] += valor;
     const chave = `${grupo}:${l.categoriaId ?? ""}`;
@@ -170,6 +172,15 @@ export function montarDre(lancamentos: LancamentoDoDre[], meses: string[], regim
     resultadoLiquido: liquido,
     semGrupo,
   };
+}
+
+/**
+ * Quanto mudou em relação ao mês anterior, em %. `null` quando não há base
+ * (mês anterior zerado) — "+∞%" não diz nada a ninguém.
+ */
+export function variacao(atual: number, anterior: number): number | null {
+  if (!anterior) return null;
+  return Math.round(((atual - anterior) / Math.abs(anterior)) * 1000) / 10;
 }
 
 export function soma(valores: number[]): number {

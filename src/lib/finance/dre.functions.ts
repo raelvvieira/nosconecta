@@ -4,6 +4,8 @@ import { exigeFinanceiro } from "@/lib/auth/area.middleware";
 import { somarMeses } from "@/lib/finance/mes";
 import {
   GRUPOS_DRE,
+  grupoDoLancamento,
+  mesDoLancamento,
   montarDre,
   type Dre,
   type GrupoDre,
@@ -117,6 +119,112 @@ export const getDre = createServerFn({ method: "GET" })
     }
 
     return { dre: montarDre(lancamentos, meses, data.regime), categorias, semColunaDeGrupo };
+  });
+
+export interface LancamentoDaCelula {
+  id: string;
+  descricao: string;
+  /** O dia que contou no regime pedido (pagamento no caixa, vencimento na competência). */
+  dia: string;
+  valor: number;
+  status: string;
+  fornecedor: string | null;
+}
+
+/**
+ * O que compõe uma célula do DRE: os lançamentos de um grupo (ou de uma
+ * categoria dele) num mês, no mesmo regime. É a "setinha" da tabela.
+ */
+export const getLancamentosDaCelula = createServerFn({ method: "GET" })
+  .middleware([exigeFinanceiro])
+  .inputValidator(
+    (input: { mes: string; regime: Regime; grupo: GrupoDre; categoriaId?: string | null }) => {
+      if (!/^\d{4}-\d{2}$/.test(input.mes)) throw new Error("Mês inválido.");
+      if (!GRUPOS_DRE.some((g) => g.id === input.grupo)) throw new Error("Grupo inválido.");
+      const regime: Regime = input.regime === "competencia" ? "competencia" : "caixa";
+      return {
+        mes: input.mes,
+        regime,
+        grupo: input.grupo,
+        categoriaId: input.categoriaId === undefined ? undefined : (input.categoriaId ?? null),
+      };
+    },
+  )
+  .handler(async ({ data, context }): Promise<LancamentoDaCelula[]> => {
+    const supabase: any = context.supabase;
+    const de = `${data.mes}-01`;
+    const ate = `${somarMeses(data.mes, 1)}-01`;
+
+    let categoriasRes = await supabase
+      .from("financial_categories")
+      .select("id, name, type, grupo_dre")
+      .eq("owner_id", context.ownerId);
+    if (categoriasRes.error && faltaColuna(categoriasRes.error, "grupo_dre")) {
+      categoriasRes = await supabase
+        .from("financial_categories")
+        .select("id, name, type")
+        .eq("owner_id", context.ownerId);
+    }
+    if (categoriasRes.error) throw new Error(categoriasRes.error.message);
+    const porId = new Map<string, { nome: string; grupo: GrupoDre | null }>(
+      (categoriasRes.data ?? []).map((c: any) => [
+        String(c.id),
+        {
+          nome: String(c.name ?? ""),
+          grupo: GRUPOS_DRE.some((g) => g.id === c.grupo_dre) ? (c.grupo_dre as GrupoDre) : null,
+        },
+      ]),
+    );
+
+    const campoDaData = data.regime === "caixa" ? "paid_date" : "due_date";
+    let q = supabase
+      .from("financial_transactions")
+      .select(
+        "id, type, status, amount, due_date, paid_date, category_id, description, supplier_name",
+      )
+      .eq("owner_id", context.ownerId)
+      .neq("status", "cancelled")
+      .gte(campoDaData, de)
+      .lt(campoDaData, ate)
+      .order(campoDaData, { ascending: true })
+      .limit(1000);
+    if (context.unitId) q = q.eq("unit_id", context.unitId);
+    if (data.categoriaId !== undefined) {
+      q =
+        data.categoriaId === null
+          ? q.is("category_id", null)
+          : q.eq("category_id", data.categoriaId);
+    }
+    const { data: linhas, error } = await q;
+    if (error) throw new Error(error.message);
+
+    const saida: LancamentoDaCelula[] = [];
+    for (const t of linhas ?? []) {
+      const cat = t.category_id ? porId.get(String(t.category_id)) : undefined;
+      const l: LancamentoDoDre = {
+        tipo: t.type === "receivable" ? "receivable" : "payable",
+        status: String(t.status ?? ""),
+        amount: Number(t.amount ?? 0),
+        dueDate: String(t.due_date ?? ""),
+        paidDate: t.paid_date ? String(t.paid_date) : null,
+        categoriaId: cat ? String(t.category_id) : null,
+        categoriaNome: cat?.nome ?? null,
+        grupo: cat?.grupo ?? null,
+      };
+      // A mesma régua de `montarDre`: mês e grupo têm de bater com a célula.
+      if (mesDoLancamento(l, data.regime) !== data.mes) continue;
+      if (grupoDoLancamento(l) !== data.grupo) continue;
+      saida.push({
+        id: String(t.id),
+        descricao: String(t.description ?? ""),
+        dia: data.regime === "caixa" ? (l.paidDate ?? l.dueDate) : l.dueDate,
+        valor: Math.round(l.amount * 100) / 100,
+        status: l.status,
+        fornecedor: t.supplier_name ? String(t.supplier_name) : null,
+      });
+    }
+    saida.sort((a, b) => b.valor - a.valor);
+    return saida;
   });
 
 export const definirGrupoDaCategoria = createServerFn({ method: "POST" })

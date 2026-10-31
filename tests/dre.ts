@@ -8,6 +8,7 @@ import {
   mesDoLancamento,
   montarDre,
   percentualDaReceita,
+  variacao,
   type LancamentoDoDre,
 } from "../src/lib/finance/dre.ts";
 
@@ -115,6 +116,10 @@ conferir("competência conta o pendente", comp.linhas.receita.porMes, [0, 500]);
 
 conferir("percentual", percentualDaReceita(2150, 10000), 21.5);
 conferir("percentual sem receita", percentualDaReceita(10, 0), null);
+conferir("subiu 25%", variacao(1250, 1000), 25);
+conferir("caiu 10%", variacao(900, 1000), -10);
+conferir("sem base, sem variação", variacao(500, 0), null);
+conferir("base negativa usa o módulo", variacao(-500, -1000), 50);
 
 if (falhas.length) {
   console.error(falhas.join("\n"));
