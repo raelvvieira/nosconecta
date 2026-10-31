@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, ClipboardCheck, Plus, RotateCcw, Trash2 } from "lucide-react";
@@ -13,7 +13,6 @@ import {
   type PlanoDeTratamento,
   type StatusDoPlano,
 } from "@/lib/patients/treatments.functions";
-import { Odontograma, type EstadoDoDente } from "@/components/patients/Odontograma";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatBRL } from "@/lib/finance/format";
@@ -40,8 +39,8 @@ function AindaNaoLigado() {
           <p className="text-sm font-medium text-foreground">Orçamentos ainda não ativados</p>
           <p className="mt-1 text-sm text-muted-foreground">
             As tabelas de orçamento e tratamento ainda não existem no banco. Rode{" "}
-            <span className="font-medium text-foreground">Apply pending Supabase migrations</span> no
-            Lovable para ligar esta seção.
+            <span className="font-medium text-foreground">Apply pending Supabase migrations</span>{" "}
+            no Lovable para ligar esta seção.
           </p>
         </div>
       </div>
@@ -93,7 +92,9 @@ function NovoPlano({ patientId, onPronto }: { patientId: string; onPronto: () =>
           <Input
             value={item.procedureName}
             onChange={(e) =>
-              setItens((l) => l.map((x, j) => (j === i ? { ...x, procedureName: e.target.value } : x)))
+              setItens((l) =>
+                l.map((x, j) => (j === i ? { ...x, procedureName: e.target.value } : x)),
+              )
             }
             placeholder="Procedimento"
             className="h-10 min-w-[160px] flex-1 rounded-xl"
@@ -101,14 +102,18 @@ function NovoPlano({ patientId, onPronto }: { patientId: string; onPronto: () =>
           />
           <Input
             value={item.tooth}
-            onChange={(e) => setItens((l) => l.map((x, j) => (j === i ? { ...x, tooth: e.target.value } : x)))}
+            onChange={(e) =>
+              setItens((l) => l.map((x, j) => (j === i ? { ...x, tooth: e.target.value } : x)))
+            }
             placeholder="Dente"
             className="h-10 w-20 rounded-xl"
             aria-label={`Dente do procedimento ${i + 1}`}
           />
           <Input
             value={item.amount}
-            onChange={(e) => setItens((l) => l.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))}
+            onChange={(e) =>
+              setItens((l) => l.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))
+            }
             placeholder="Valor"
             inputMode="decimal"
             className="h-10 w-28 rounded-xl"
@@ -154,13 +159,7 @@ function NovoPlano({ patientId, onPronto }: { patientId: string; onPronto: () =>
   );
 }
 
-function CartaoPlano({
-  plano,
-  patientId,
-}: {
-  plano: PlanoDeTratamento;
-  patientId: string;
-}) {
+function CartaoPlano({ plano, patientId }: { plano: PlanoDeTratamento; patientId: string }) {
   const queryClient = useQueryClient();
   const mudarStatus = useServerFn(definirStatusDoPlano);
   const apagar = useServerFn(excluirPlano);
@@ -268,7 +267,9 @@ function CartaoPlano({
                 <p className="mt-0.5 text-2xs text-success">Recebimento gerado</p>
               )}
             </div>
-            <span className="shrink-0 text-sm font-medium tabular-nums">{formatBRL(item.amount)}</span>
+            <span className="shrink-0 text-sm font-medium tabular-nums">
+              {formatBRL(item.amount)}
+            </span>
 
             {/* Concluir só faz sentido no plano aprovado: marcar item de um
                 orçamento ainda não aceito geraria cobrança de algo que o
@@ -314,36 +315,12 @@ export function Tratamentos({ patientId }: { patientId: string }) {
 
   const planos = tratamentos.data?.planos ?? [];
 
-  // O odontograma resume TODOS os planos aprovados de uma vez: é a pergunta
-  // "o que este paciente tem para fazer", não "o que tem no orçamento nº 3".
-  // Concluído ganha do pendente quando o mesmo dente aparece nos dois.
-  const estadosPorDente = useMemo(() => {
-    const mapa: Record<string, EstadoDoDente> = {};
-    for (const plano of planos) {
-      if (plano.status !== "approved") continue;
-      for (const item of plano.itens) {
-        if (!item.tooth) continue;
-        const atual = mapa[item.tooth];
-        if (item.status === "done") mapa[item.tooth] = "concluido";
-        else if (atual !== "concluido") mapa[item.tooth] = "pendente";
-      }
-    }
-    return mapa;
-  }, [planos]);
-
   if (tratamentos.data?.indisponivel) return <AindaNaoLigado />;
 
-  const temMarcacao = Object.keys(estadosPorDente).length > 0;
-
+  // O odontograma saiu daqui em 31/10: mora em `OdontogramaDoPaciente`, no
+  // topo da aba Clínico, já com as anotações por dente.
   return (
     <div className="space-y-5">
-      {temMarcacao && (
-        <section className="surface-card p-5">
-          <h3 className="mb-3 text-sm font-semibold">Odontograma</h3>
-          <Odontograma estados={estadosPorDente} />
-        </section>
-      )}
-
       <section className="surface-card overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-2">
@@ -361,7 +338,9 @@ export function Tratamentos({ patientId }: { patientId: string }) {
         {novo && <NovoPlano patientId={patientId} onPronto={() => setNovo(false)} />}
 
         {tratamentos.isLoading ? (
-          <p className="border-t border-border px-4 py-5 text-sm text-muted-foreground">Carregando…</p>
+          <p className="border-t border-border px-4 py-5 text-sm text-muted-foreground">
+            Carregando…
+          </p>
         ) : !planos.length && !novo ? (
           <p className="border-t border-border px-4 py-5 text-sm text-muted-foreground">
             Nenhum orçamento para este paciente.

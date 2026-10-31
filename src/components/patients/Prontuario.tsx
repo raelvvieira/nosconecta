@@ -12,6 +12,7 @@ import {
   type Anamnese,
   type RespostaDeAnamnese,
 } from "@/lib/patients/clinical-record.functions";
+import { rotuloDaRegiao } from "@/lib/patients/odontograma";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -77,7 +78,10 @@ function CartaoAnamnese({ anamnese }: { anamnese: Anamnese }) {
           </p>
         </div>
         <ChevronDown
-          className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", aberto && "rotate-180")}
+          className={cn(
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+            aberto && "rotate-180",
+          )}
         />
       </button>
 
@@ -103,13 +107,7 @@ function CartaoAnamnese({ anamnese }: { anamnese: Anamnese }) {
   );
 }
 
-function FormularioAnamnese({
-  patientId,
-  onPronto,
-}: {
-  patientId: string;
-  onPronto: () => void;
-}) {
+function FormularioAnamnese({ patientId, onPronto }: { patientId: string; onPronto: () => void }) {
   const [respostas, setRespostas] = useState<Record<string, RespostaDeAnamnese>>({});
   const salvar = useServerFn(salvarAnamnese);
   const queryClient = useQueryClient();
@@ -256,6 +254,13 @@ export function Prontuario({ patientId }: { patientId: string }) {
             evolucoes.map((ev) => (
               <div key={ev.id} className="group flex items-start gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
+                  {/* A anotação feita pelo odontograma traz o endereço: é o
+                      que a distingue de uma evolução geral na mesma lista. */}
+                  {ev.regiao && (
+                    <span className="mb-1 inline-block rounded-full bg-pink-soft px-2 py-0.5 text-2xs font-medium text-pink">
+                      {rotuloDaRegiao(ev.regiao)}
+                    </span>
+                  )}
                   <p className="whitespace-pre-line text-sm text-foreground">{ev.body}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {quando(ev.createdAt)}
@@ -283,7 +288,12 @@ export function Prontuario({ patientId }: { patientId: string }) {
             <h3 className="text-sm font-semibold">Anamnese</h3>
           </div>
           {!novaAnamnese && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setNovaAnamnese(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setNovaAnamnese(true)}
+            >
               <Plus className="h-4 w-4" />
               Nova
             </Button>

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { ehRegiaoValida } from "@/lib/patients/odontograma";
 
 // Prontuário clínico: anamnese e evoluções.
 //
@@ -60,6 +61,9 @@ export interface Evolucao {
   professionalName: string | null;
   body: string;
   createdAt: string;
+  /** O dente (FDI) ou a região da boca que a anotação aponta. Nulo é a
+   *  evolução geral, sem endereço — ver `odontograma.ts`. */
+  regiao: string | null;
 }
 
 export interface ProntuarioDoPaciente {
@@ -107,6 +111,7 @@ const mapEvolucao = (r: any): Evolucao => ({
   professionalName: r.professional_name ?? null,
   body: r.body ?? "",
   createdAt: r.created_at,
+  regiao: r.regiao ?? null,
 });
 
 export const getProntuario = createServerFn({ method: "GET" })
@@ -124,7 +129,7 @@ export const getProntuario = createServerFn({ method: "GET" })
         .order("filled_at", { ascending: false }),
       supabase
         .from("patient_notes")
-        .select("id, appointment_id, professional_name, body, created_at")
+        .select("id, appointment_id, professional_name, body, created_at, regiao")
         .eq("patient_id", data.patientId)
         .order("created_at", { ascending: false })
         .limit(50),
@@ -151,7 +156,10 @@ export const getProntuario = createServerFn({ method: "GET" })
  *
  *  Snapshot e não só o id: quem assinou precisa continuar legível mesmo depois
  *  de o profissional sair da clínica e a linha em `professionals` sumir. */
-async function autorAtual(supabase: any, ownerId: string): Promise<{ id: string | null; nome: string | null }> {
+async function autorAtual(
+  supabase: any,
+  ownerId: string,
+): Promise<{ id: string | null; nome: string | null }> {
   const { data } = await supabase
     .from("professionals")
     .select("id, name")
@@ -188,11 +196,21 @@ export const salvarAnamnese = createServerFn({ method: "POST" })
 
 export const salvarEvolucao = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
-  .inputValidator((input: { patientId: string; body: string; appointmentId?: string | null }) => {
-    if (!input.patientId) throw new Error("Paciente não informado.");
-    if (!input.body?.trim()) throw new Error("Escreva a evolução antes de salvar.");
-    return input;
-  })
+  .inputValidator(
+    (input: {
+      patientId: string;
+      body: string;
+      appointmentId?: string | null;
+      /** Um dente ou região do odontograma. Fora da lista, a anotação não
+       *  teria onde aparecer — então é recusada aqui, não gravada às cegas. */
+      regiao?: string | null;
+    }) => {
+      if (!input.patientId) throw new Error("Paciente não informado.");
+      if (!input.body?.trim()) throw new Error("Escreva a anotação antes de salvar.");
+      if (input.regiao && !ehRegiaoValida(input.regiao)) throw new Error("Região inválida.");
+      return input;
+    },
+  )
   .handler(async ({ data, context }): Promise<{ id: string }> => {
     const supabase: any = context.supabase;
     const autor = await autorAtual(supabase, context.ownerId);
@@ -204,6 +222,7 @@ export const salvarEvolucao = createServerFn({ method: "POST" })
         professional_id: autor.id,
         professional_name: autor.nome,
         body: data.body.trim(),
+        regiao: data.regiao ?? null,
       })
       .select("id")
       .single();

@@ -14,6 +14,7 @@ import {
   Clock3,
   MessageCircle,
   MoreHorizontal,
+  Pencil,
   ReceiptText,
   Sparkles,
   Stethoscope,
@@ -27,6 +28,7 @@ import { PatientFormSheet } from "@/components/patients/PatientFormSheet";
 import { ConversaDoPaciente } from "@/components/patients/ConversaDoPaciente";
 import { Prontuario } from "@/components/patients/Prontuario";
 import { Tratamentos } from "@/components/patients/Tratamentos";
+import { OdontogramaDoPaciente } from "@/components/patients/OdontogramaDoPaciente";
 import { ArquivosDoPaciente } from "@/components/patients/ArquivosDoPaciente";
 import { NosClub } from "@/components/patients/NosClub";
 import { FotoDoRosto } from "@/components/patients/FotoDoRosto";
@@ -122,146 +124,135 @@ function PatientDetailPage() {
       search: { status: "all", patient: patient.id, newReceivable: true },
     });
 
+  const statusDoPaciente =
+    patient.status === "delinquent"
+      ? { texto: "Inadimplente", classe: "bg-danger-soft text-danger" }
+      : patient.status === "return_pending"
+        ? { texto: "Retorno pendente", classe: "bg-warning-soft text-warning" }
+        : patient.status === "inactive"
+          ? { texto: "Inativo", classe: "bg-surface-subtle text-muted-foreground" }
+          : patient.status === "in_treatment"
+            ? { texto: "Em tratamento", classe: "bg-success-soft text-success" }
+            : { texto: "Ativo", classe: "bg-success-soft text-success" };
+
   return (
     <div className="min-h-dvh app-bg lg:flex">
       <Sidebar />
-      <main className="w-full px-4 pb-nav pt-5 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8">
-        <header className="flex items-center justify-between gap-3">
+      {/* Largura máxima de propósito: em Full HD a ficha se esticava por dois
+          mil pixels, com três botões gigantes e abas a meio metro uma da
+          outra. Uma coluna de leitura é mais fácil de bater o olho. */}
+      <main className="mx-auto w-full max-w-[1120px] px-4 pb-nav pt-5 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8">
+        <header className="flex items-center gap-3">
           <Link
             to="/pacientes"
             search={{ status: "all" }}
             aria-label="Voltar para pacientes"
-            className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-border bg-white text-foreground shadow-soft transition-colors hover:bg-muted"
+            className="press grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border/70 bg-card text-foreground shadow-1 transition-colors hover:bg-surface-subtle"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-4.5 w-4.5" />
           </Link>
-          <h1 className="flex min-w-0 items-center gap-2.5 text-2xl font-semibold md:text-3xl">
-            <UserRound className="h-[1.1em] w-[1.1em] shrink-0 text-pink" strokeWidth={1.75} />
-            <span className="truncate">Paciente</span>
-          </h1>
-          <button
-            type="button"
-            aria-label="Editar paciente"
-            onClick={() => setEditOpen(true)}
-            className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-border bg-white text-muted-foreground shadow-soft hover:text-foreground"
-          >
-            <MoreHorizontal className="h-5 w-5" />
-          </button>
+          <span className="text-sm font-medium text-muted-foreground">Pacientes</span>
         </header>
 
-        <section className="surface-card mt-6 flex items-center gap-4 p-5 sm:gap-5 sm:p-7">
-          <FotoDoRosto patientId={patient.id} iniciais={patient.initials} nome={patient.name} />
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-3">
-              <h2 className="truncate text-2xl font-semibold lg:text-3xl leading-[1.1]">
-                {patient.name}
-              </h2>
-              <span
-                className={cn(
-                  "rounded-full px-3 py-1 text-xs font-semibold",
-                  patient.status === "delinquent" && "bg-danger-soft text-danger",
-                  patient.status === "return_pending" && "bg-warning-soft text-warning",
-                  patient.status === "inactive" && "bg-muted text-muted-foreground",
-                  (patient.status === "active" || patient.status === "in_treatment") &&
-                    "bg-success-soft text-success",
-                )}
-              >
-                {patient.status === "delinquent"
-                  ? "Inadimplente"
-                  : patient.status === "return_pending"
-                    ? "Retorno pendente"
-                    : patient.status === "inactive"
-                      ? "Inativo"
-                      : patient.status === "in_treatment"
-                        ? "Em tratamento"
-                        : "Ativo"}
-              </span>
+        {/* ── Quem é ─────────────────────────────────────────────────── */}
+        <section className="mt-5 rounded-3xl border border-border/70 bg-card p-5 shadow-1 sm:p-6">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-4 sm:gap-5">
+              <FotoDoRosto patientId={patient.id} iniciais={patient.initials} nome={patient.name} />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <h1 className="truncate text-2xl font-semibold tracking-[-0.015em] lg:text-[28px]">
+                    {patient.name}
+                  </h1>
+                  <span
+                    className={cn(
+                      "rounded-full px-2.5 py-0.5 text-2xs font-semibold",
+                      statusDoPaciente.classe,
+                    )}
+                  >
+                    {statusDoPaciente.texto}
+                  </span>
+                </div>
+                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-muted-foreground">
+                  {patient.age ? <span>{patient.age} anos</span> : null}
+                  {patient.phone ? (
+                    <>
+                      {patient.age ? <span aria-hidden>·</span> : null}
+                      <span className="tabular-nums">{patient.phone}</span>
+                    </>
+                  ) : null}
+                  {patient.legacyPatientId ? (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span>Nº {patient.legacyPatientId}</span>
+                    </>
+                  ) : null}
+                  {!patient.age && !patient.phone && !patient.legacyPatientId ? (
+                    <span>Sem idade nem telefone cadastrados</span>
+                  ) : null}
+                </p>
+                {/* Alertas junto da identificação: alergia e atraso são a
+                    primeira coisa a saber de quem acabou de entrar na sala. */}
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                  {patient.allergyNotes && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-2.5 py-1 text-2xs font-medium text-warning">
+                      <AlertTriangle className="h-3 w-3" />
+                      {patient.allergyNotes}
+                    </span>
+                  )}
+                  {patient.overdueAmount > 0 && (
+                    <button
+                      type="button"
+                      onClick={receive}
+                      className="press inline-flex items-center gap-1.5 rounded-full bg-danger-soft px-2.5 py-1 text-2xs font-medium text-danger"
+                    >
+                      {formatBRL(patient.overdueAmount)} em atraso
+                    </button>
+                  )}
+                  <SeletorDeTags alvo={{ patientId: patient.id }} vazio="Adicionar tag" compacto />
+                </div>
+              </div>
             </div>
-            {/* Uma linha em vez de três: idade, telefone e nº do paciente são
-                a identificação rápida, e separá-los em parágrafos empurrava o
-                resto da ficha para baixo sem ganho nenhum de leitura. O nº do
-                paciente estava no tipo e nunca aparecia — é ele que permite
-                cruzar com o sistema antigo. */}
-            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-              {patient.age ? <span>{patient.age} anos</span> : null}
-              {patient.phone ? (
-                <>
-                  {patient.age ? <span aria-hidden>·</span> : null}
-                  <span>{patient.phone}</span>
-                </>
-              ) : null}
-              {patient.legacyPatientId ? (
-                <>
-                  <span aria-hidden>·</span>
-                  <span>Nº {patient.legacyPatientId}</span>
-                </>
-              ) : null}
-              {!patient.age && !patient.phone && !patient.legacyPatientId ? (
-                <span>Sem idade nem telefone cadastrados</span>
-              ) : null}
-            </p>
 
-            {/* As tags ficam no cartão de identificação, logo abaixo da linha
-                de idade e telefone: é a informação de "quem é essa pessoa para
-                a clínica", junto do resto da identificação, e não escondida
-                numa aba. */}
-            <SeletorDeTags
-              alvo={{ patientId: patient.id }}
-              vazio="Adicionar tag"
-              className="mt-3"
-            />
+            {/* As ações cabem numa linha: eram três botões de 72px de altura
+                esticados pela tela inteira. */}
+            <div className="flex shrink-0 flex-wrap items-center gap-2 md:justify-end">
+              <Button variant="premium" className="h-10 gap-2 rounded-full px-4" onClick={schedule}>
+                <CalendarDays className="h-4 w-4" />
+                Agendar
+              </Button>
+              {whatsapp ? (
+                <Button asChild variant="outline" className="h-10 gap-2 rounded-full px-4">
+                  <a
+                    href={`https://wa.me/${whatsapp.startsWith("55") ? whatsapp : `55${whatsapp}`}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    WhatsApp
+                  </a>
+                </Button>
+              ) : null}
+              <Button variant="outline" className="h-10 gap-2 rounded-full px-4" onClick={receive}>
+                <CircleDollarSign className="h-4 w-4" />
+                Receber
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 rounded-full"
+                aria-label="Editar paciente"
+                onClick={() => setEditOpen(true)}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </section>
 
-        <section className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
-          <ActionButton icon={CalendarDays} label="Agendar" primary onClick={schedule} />
-          {whatsapp ? (
-            <a
-              href={`https://wa.me/${whatsapp.startsWith("55") ? whatsapp : `55${whatsapp}`}`}
-              target="_blank"
-              rel="noreferrer"
-              className="flex min-h-[72px] flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-white px-2 text-xs font-semibold text-muted-foreground shadow-soft hover:text-foreground sm:flex-row sm:text-sm"
-            >
-              <MessageCircle className="h-5 w-5" />
-              <span>WhatsApp</span>
-            </a>
-          ) : (
-            <ActionButton icon={Clock3} label="Sem telefone" disabled />
-          )}
-          <ActionButton icon={CircleDollarSign} label="Recebimento" onClick={receive} />
-        </section>
-
-        {(patient.allergyNotes || patient.overdueAmount > 0) && (
-          <section className="mt-5 flex flex-col gap-3 rounded-2xl border border-warning/25 bg-warning-soft/45 px-4 py-4 text-sm sm:flex-row sm:items-center">
-            <div className="flex items-center gap-2 font-semibold text-warning">
-              <AlertTriangle className="h-5 w-5" /> Atenção
-            </div>
-            <div className="flex flex-1 flex-wrap gap-2">
-              {patient.allergyNotes && (
-                <span className="rounded-full border border-warning/20 bg-white/70 px-3 py-1.5">
-                  {patient.allergyNotes}
-                </span>
-              )}
-              {patient.overdueAmount > 0 && (
-                <button
-                  type="button"
-                  onClick={receive}
-                  className="rounded-full border border-danger/15 bg-white/70 px-3 py-1.5 text-danger"
-                >
-                  {formatBRL(patient.overdueAmount)} em atraso
-                </button>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Quatro abas contra as sete da referência. "Imagens" e "Documentos"
-            viraram uma só: a diferença entre um raio-x e um termo assinado é
-            técnica, não de uso. Orçamentos e tratamentos moram dentro de
-            Clínico, porque orçar, tratar e evoluir é uma narrativa só. */}
+        {/* Abas como um controle segmentado, do tamanho do que têm dentro. */}
         <nav
-          className="surface-card mt-5 grid grid-cols-5 overflow-hidden p-1"
+          className="custom-scroll mt-5 flex w-full gap-1 overflow-x-auto rounded-full border border-border/70 bg-card p-1 shadow-1 sm:w-fit"
           aria-label="Seções do paciente"
         >
           <TabButton label="Resumo" active={aba === "resumo"} onClick={() => irParaAba("resumo")} />
@@ -285,7 +276,9 @@ function PatientDetailPage() {
           />
         </nav>
 
-        {aba === "resumo" && <Overview patient={patient} onSchedule={schedule} />}
+        {aba === "resumo" && (
+          <Overview patient={patient} onSchedule={schedule} onReceive={receive} />
+        )}
         {aba === "clinico" && <Clinico patient={patient} />}
         {aba === "financeiro" && <Finance patient={patient} onReceive={receive} />}
         {aba === "club" && temClub && <NosClub patientId={patient.id} />}
@@ -305,81 +298,128 @@ function PatientDetailPage() {
   );
 }
 
-function Overview({ patient, onSchedule }: { patient: PatientDetail; onSchedule: () => void }) {
+/** Um número de relance, no mesmo molde dos do Agente de IA. */
+function Tile({
+  rotulo,
+  children,
+  rodape,
+  onClick,
+}: {
+  rotulo: string;
+  children: React.ReactNode;
+  rodape?: React.ReactNode;
+  onClick?: () => void;
+}) {
+  const Tag = onClick ? "button" : "div";
+  return (
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={cn(
+        "flex min-w-0 flex-col rounded-2xl border border-border/70 bg-card p-4 text-left shadow-1",
+        onClick && "press transition-shadow hover:shadow-2",
+      )}
+    >
+      <span className="text-3xs font-medium uppercase tracking-[0.06em] text-muted-foreground">
+        {rotulo}
+      </span>
+      <span className="mt-1.5 min-w-0">{children}</span>
+      {rodape && <span className="mt-auto pt-2">{rodape}</span>}
+    </Tag>
+  );
+}
+
+function Overview({
+  patient,
+  onSchedule,
+  onReceive,
+}: {
+  patient: PatientDetail;
+  onSchedule: () => void;
+  onReceive: () => void;
+}) {
   const progress =
     patient.totalSessions > 0
       ? Math.min(100, Math.round((patient.completedSessions / patient.totalSessions) * 100))
       : 0;
+  const proximo = patient.nextAppointment;
   return (
-    <div className="mt-5 grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
-      <CareTimeline events={patient.timeline} />
-      <div className="space-y-5">
-        <section className="surface-card p-5">
-          <div className="flex items-start gap-4">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-pink-soft text-pink">
-              <CalendarDays className="h-5 w-5" />
+    <div className="mt-5 space-y-5">
+      {/* O que se quer saber antes de abrir qualquer coisa: quando volta, em
+          que pé está o tratamento e se deve. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Tile rotulo="Próxima consulta" onClick={proximo ? undefined : onSchedule}>
+          {proximo ? (
+            <>
+              <span className="block text-lg font-semibold tracking-tight text-pink">
+                {proximo.date === localDateStr() ? "Hoje" : formatDate(proximo.date)} ·{" "}
+                {proximo.time}
+              </span>
+              <span className="block truncate text-2xs text-muted-foreground">
+                {proximo.procedure}
+                {proximo.professional ? ` · ${proximo.professional}` : ""}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="block text-lg font-semibold tracking-tight text-muted-foreground">
+                Nenhuma
+              </span>
+              <span className="block text-2xs text-pink">Agendar agora</span>
+            </>
+          )}
+        </Tile>
+        <Tile
+          rotulo="Tratamento"
+          rodape={
+            patient.totalSessions > 0 ? (
+              <span className="block h-1 overflow-hidden rounded-full bg-surface-subtle">
+                <span
+                  className="block h-full rounded-full bg-gradient-primary"
+                  style={{ width: `${progress}%` }}
+                />
+              </span>
+            ) : null
+          }
+        >
+          <span className="block truncate text-lg font-semibold tracking-tight">
+            {patient.treatmentName ?? <span className="text-muted-foreground">Sem tratamento</span>}
+          </span>
+          {patient.totalSessions > 0 && (
+            <span className="block text-2xs text-muted-foreground">
+              {patient.completedSessions} de {patient.totalSessions} sessões · {progress}%
             </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs text-muted-foreground">Próximo agendamento</p>
-              {patient.nextAppointment ? (
-                <>
-                  <p className="mt-1 text-xl font-semibold text-pink">
-                    {patient.nextAppointment.date === localDateStr()
-                      ? "Hoje"
-                      : formatDate(patient.nextAppointment.date)}
-                    , {patient.nextAppointment.time}
-                  </p>
-                  <p className="mt-1 font-medium">{patient.nextAppointment.procedure}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {patient.nextAppointment.professional}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="mt-2 font-medium">Nenhum horário futuro</p>
-                  <Button variant="outline" size="sm" className="mt-3" onClick={onSchedule}>
-                    Agendar agora
-                  </Button>
-                </>
-              )}
-            </div>
-            <ChevronRight className="mt-3 h-5 w-5 text-muted-foreground" />
-          </div>
-        </section>
+          )}
+        </Tile>
+        <Tile rotulo="Financeiro" onClick={onReceive}>
+          <span
+            className={cn(
+              "block text-lg font-semibold tabular-nums tracking-tight",
+              patient.overdueAmount > 0
+                ? "text-danger"
+                : patient.pendingAmount > 0
+                  ? "text-warning"
+                  : "text-success",
+            )}
+          >
+            {patient.overdueAmount > 0
+              ? `${formatBRL(patient.overdueAmount)} em atraso`
+              : patient.pendingAmount > 0
+                ? `${formatBRL(patient.pendingAmount)} a receber`
+                : "Em dia"}
+          </span>
+          <span className="block text-2xs text-muted-foreground">
+            {formatBRL(patient.receivedAmount)} recebidos
+          </span>
+        </Tile>
+      </div>
 
-        <section className="surface-card p-5">
-          <div className="flex items-start gap-4">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-warning-soft text-warning">
-              <Sparkles className="h-5 w-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs text-muted-foreground">Tratamento atual</p>
-              <p className="mt-1 font-semibold">
-                {patient.treatmentName ?? "Sem tratamento ativo"}
-                {patient.totalSessions > 0
-                  ? ` · ${patient.completedSessions} de ${patient.totalSessions} sessões`
-                  : ""}
-              </p>
-              {patient.totalSessions > 0 && (
-                <>
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-gradient-primary"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                  <p className="mt-2 text-right text-xs text-muted-foreground">
-                    {progress}% concluído
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <ConversaDoPaciente crmContactId={patient.crmContactId} />
-
-        <PersonalInfoCard patient={patient} />
+      <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
+        <CareTimeline events={patient.timeline} />
+        <div className="space-y-5">
+          <ConversaDoPaciente crmContactId={patient.crmContactId} />
+          <PersonalInfoCard patient={patient} />
+        </div>
       </div>
     </div>
   );
@@ -568,6 +608,7 @@ function Clinico({ patient }: { patient: PatientDetail }) {
     <div className="mt-5 space-y-5">
       {/* Orçar → tratar → evoluir → histórico: a ordem em que a coisa acontece,
           e por isso a ordem em que aparece. */}
+      <OdontogramaDoPaciente patientId={patient.id} />
       <Tratamentos patientId={patient.id} />
       <Prontuario patientId={patient.id} />
       <History patient={patient} />
@@ -751,38 +792,6 @@ function Metric({
   );
 }
 
-function ActionButton({
-  icon: Icon,
-  label,
-  primary,
-  onClick,
-  disabled,
-}: {
-  icon: typeof CalendarDays;
-  label: string;
-  primary?: boolean;
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "flex min-h-[72px] flex-col items-center justify-center gap-2 rounded-2xl border px-2 text-xs font-semibold shadow-soft transition-transform active:scale-[0.98] sm:flex-row sm:text-sm",
-        primary
-          ? "border-transparent bg-gradient-primary text-white"
-          : "border-border bg-white text-muted-foreground hover:text-foreground",
-        disabled && "opacity-50",
-      )}
-    >
-      <Icon className="h-5 w-5" />
-      <span>{label}</span>
-    </button>
-  );
-}
-
 function TabButton({
   label,
   active,
@@ -797,15 +806,12 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "relative min-h-12 rounded-2xl px-2 text-sm font-medium transition-colors",
-        active ? "bg-pink-soft/60 text-pink" : "text-muted-foreground hover:text-foreground",
+        "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+        active ? "bg-foreground text-white" : "text-muted-foreground hover:text-foreground",
       )}
       aria-current={active ? "page" : undefined}
     >
       {label}
-      {active && (
-        <span className="absolute bottom-0 left-1/4 right-1/4 h-0.5 rounded-full bg-pink" />
-      )}
     </button>
   );
 }
