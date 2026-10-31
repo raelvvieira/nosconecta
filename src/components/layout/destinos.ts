@@ -18,6 +18,7 @@ import {
   MessageCircle,
   Percent,
   Settings,
+  Sigma,
   Sparkles,
   TrendingUp,
   Users,
@@ -48,6 +49,7 @@ export type RotaDoMenu =
   | "/recebimentos"
   | "/pagamentos"
   | "/planejamento"
+  | "/dre"
   | "/atendimentos/chat"
   | "/atendimentos/pipeline"
   | "/atendimentos/campanhas"
@@ -92,6 +94,7 @@ export const ITENS_FINANCEIRO: ItemDoMenu[] = [
   { label: "Recebimentos", icon: ArrowDownCircle, to: "/recebimentos" },
   { label: "Pagamentos", icon: ArrowUpCircle, to: "/pagamentos" },
   { label: "Planejamento", icon: TrendingUp, to: "/planejamento" },
+  { label: "DRE", icon: Sigma, to: "/dre" },
   { label: "Comissões", icon: Percent, to: "/comissoes", placeholder: true },
 ];
 

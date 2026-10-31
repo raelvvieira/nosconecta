@@ -148,6 +148,7 @@ export function areaDaRota(pathname: string): AreaDoApp | null {
     p === "/recebimentos" ||
     p === "/pagamentos" ||
     p === "/planejamento" ||
+    p === "/dre" ||
     p.startsWith("/financeiro/")
   ) {
     return "financeiro";
