@@ -259,7 +259,7 @@ export const salvarConfigDoModulo = createServerFn({ method: "POST" })
 
 // ── As edições ─────────────────────────────────────────────────────────────
 
-async function lerEdicoes(supabase: any, ownerId: string): Promise<EdicaoDoModulo[]> {
+async function lerEdicoes(supabase: any, ownerId: string): Promise<EdicaoDaTela[]> {
   const { data: edicoes, error } = await supabase
     .from("mentoria_edicoes")
     .select(
@@ -326,7 +326,7 @@ async function lerEdicoes(supabase: any, ownerId: string): Promise<EdicaoDoModul
         tipo: o.tipo === "combo" ? "combo" : "procedimento",
         destaque: o.destaque === true,
       })),
-  })) as EdicaoDoModulo[];
+  })) as EdicaoDaTela[];
 }
 
 export type EdicaoDaTela = EdicaoDoModulo & { unitId: string | null };
@@ -1013,9 +1013,21 @@ export const getPreviaDaSecao = createServerFn({ method: "GET" })
       .eq("owner_id", context.ownerId)
       .eq("modulo", "paciente_modelo")
       .maybeSingle();
-    const edicoes = (await lerEdicoes(supabase, context.ownerId)).filter(
-      (e) => !["rascunho", "encerrada", "cancelada"].includes(e.status),
+    const { data: unidades } = await supabase
+      .from("clinic_units")
+      .select("id, address")
+      .eq("owner_id", context.ownerId);
+    const enderecoDaUnidade = new Map<string, string>(
+      (unidades ?? []).map((u: any) => [String(u.id), String(u.address ?? "")]),
     );
+    // Como a Luna lê (`modulo-no-banco.ts`): o endereço escrito vence; sem
+    // ele, o da unidade escolhida.
+    const edicoes = (await lerEdicoes(supabase, context.ownerId))
+      .filter((e) => !["rascunho", "encerrada", "cancelada"].includes(e.status))
+      .map((e) => ({
+        ...e,
+        endereco: e.endereco?.trim() || (e.unitId ? enderecoDaUnidade.get(e.unitId) || null : null),
+      }));
     const hoje = localDateStr();
     const vigente = edicaoVigente(edicoes, hoje);
     const { data: clinica } = await supabase

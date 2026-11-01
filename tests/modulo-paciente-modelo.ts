@@ -220,6 +220,12 @@ conferir(
   true,
 );
 conferir("política de falta", secao.includes("Devolvido em 50%"), true);
+conferir(
+  "datas da mentoria apontam para os dias de prática",
+  secao.includes("Os pacientes são atendidos nos dias de prática") &&
+    !secao.includes("NÃO é o dia do paciente"),
+  true,
+);
 conferir("endereço da edição", secao.includes("Núcleo de Odontologia e Saúde"), true);
 conferir("responsável com registro", secao.includes("Dra. Mariane Botti, registro 28463"), true);
 conferir("edição antiga não vaza", secao.includes("Porto Alegre"), false);

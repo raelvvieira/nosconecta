@@ -529,8 +529,8 @@ export function secaoDoModuloPacienteModelo(x: EntradaDaSecao): string {
   if (e.inicio && e.fim) {
     partes.push(
       e.inicio === e.fim
-        ? `- Mentoria (curso): ${diaDaSemana(e.inicio)}, ${diaCurto(e.inicio)}`
-        : `- Mentoria (curso): de ${diaCurto(e.inicio)} a ${diaCurto(e.fim)}. Isso NÃO é o dia do paciente.`,
+        ? `- Data da mentoria: ${diaDaSemana(e.inicio)}, ${diaCurto(e.inicio)}. Os pacientes são atendidos nos dias de prática listados abaixo.`
+        : `- Datas da mentoria: de ${diaCurto(e.inicio)} a ${diaCurto(e.fim)}. Os pacientes são atendidos nos dias de prática listados abaixo, só nos horários da lista.`,
     );
   }
   partes.push(
