@@ -337,6 +337,8 @@ export interface LeadNoFunil {
   risco: { nivel: "alto" | "medio" | "baixo"; motivo: string | null; curto: string | null };
   /** A conversa mais recente, para abrir no chat. */
   conversationId: string | null;
+  /** No funil de Paciente modelo: em que pé está a reserva da pessoa. */
+  reserva?: string | null;
 }
 
 export interface ResumoDaColuna {
@@ -451,6 +453,48 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
       resumo[regra.id] = { ativos: 0, parados: 0, valor: 0 };
     }
 
+    // No funil de Paciente modelo, a reserva manda na coluna: quem escolheu o
+    // dia e falta o sinal está em "Horário Oferecido", quem pagou está em
+    // "Agendado", quem faltou em "Não Compareceu". A conversa só decide antes
+    // de existir reserva.
+    const reservas = new Map<
+      string,
+      { status: string; valor: number | null; oferta: string | null }
+    >();
+    if (entrada.publico === "paciente_modelo") {
+      const { data: rs, error: erroReservas } = await supabase
+        .from("mentoria_reservas")
+        .select("fone, status, updated_at, mentoria_ofertas(nome, preco_vista)")
+        .eq("owner_id", context.ownerId)
+        .order("updated_at", { ascending: true });
+      if (erroReservas && !ausente(erroReservas)) throw new Error(erroReservas.message);
+      for (const r of rs ?? []) {
+        const fone = foneCanonico(String(r.fone ?? ""));
+        if (!fone) continue;
+        reservas.set(fone, {
+          status: String(r.status),
+          valor:
+            r.mentoria_ofertas?.preco_vista == null ? null : Number(r.mentoria_ofertas.preco_vista),
+          oferta: r.mentoria_ofertas?.nome ?? null,
+        });
+      }
+    }
+    const COLUNA_DA_RESERVA: Record<string, string> = {
+      dia_escolhido: "horario_oferecido",
+      sinal_pendente: "horario_oferecido",
+      confirmada: "agendado",
+      faltou: "nao_compareceu",
+    };
+    const ROTULO_DA_RESERVA: Record<string, string> = {
+      interesse: "Interesse",
+      dia_escolhido: "Dia escolhido",
+      sinal_pendente: "Sinal pendente",
+      confirmada: "Reserva confirmada",
+      compareceu: "Compareceu",
+      faltou: "Faltou",
+      cancelada: "Reserva cancelada",
+    };
+
     let lidos = 0;
     const leads: LeadNoFunil[] = linhas.map((row) => {
       const lida = lidas.get(String(row.fone));
@@ -463,19 +507,24 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
         : row.faltou_em
           ? "nao_compareceu"
           : null;
-      const stage = classificar(regras, {
-        temAgendamento: !!row.tem_agendamento,
-        diasEmSilencio: row.dias_em_silencio ?? null,
-        situacaoNaAgenda: situacao,
-        etapaDaConversa: leitura?.etapa ?? null,
-      });
+      const reserva = reservas.get(foneCanonico(String(row.fone)) ?? "");
+      const colunaDaReserva = reserva ? COLUNA_DA_RESERVA[reserva.status] : undefined;
+      const stage =
+        colunaDaReserva && regras.some((r) => r.id === colunaDaReserva)
+          ? colunaDaReserva
+          : classificar(regras, {
+              temAgendamento: !!row.tem_agendamento,
+              diasEmSilencio: row.dias_em_silencio ?? null,
+              situacaoNaAgenda: situacao,
+              etapaDaConversa: leitura?.etapa ?? null,
+            });
       const parado =
         situacao !== "agendado" &&
         row.dias_em_silencio !== null &&
         row.dias_em_silencio !== undefined &&
         row.dias_em_silencio > DIAS_PARA_PARADO;
       const nota = leitura || ritmo ? notaDoLead(leitura, ritmo, situacao) : null;
-      const valor = leitura?.valor ?? null;
+      const valor = reserva?.valor ?? leitura?.valor ?? null;
 
       contagem[stage] = (contagem[stage] ?? 0) + 1;
       const r = (resumo[stage] ??= { ativos: 0, parados: 0, valor: 0 });
@@ -495,7 +544,7 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
         nota: nota?.total ?? null,
         faixa: nota ? faixaDaNota(nota.total) : null,
         motivos: nota?.motivos ?? [],
-        procedimento: leitura?.procedimentoNome ?? null,
+        procedimento: reserva?.oferta ?? leitura?.procedimentoNome ?? null,
         valor,
         valorFonte: leitura?.valorFonte ?? null,
         valorAPartirDe: leitura?.valorAPartirDe ?? false,
@@ -505,6 +554,7 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
           ? { nivel: "baixo", motivo: null, curto: null }
           : riscoDoLead(leitura, ritmo, situacao, agora),
         conversationId: lida?.conversation_id ?? null,
+        reserva: reserva ? (ROTULO_DA_RESERVA[reserva.status] ?? null) : null,
       };
     });
 
