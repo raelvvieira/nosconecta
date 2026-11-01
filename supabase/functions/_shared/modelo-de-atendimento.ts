@@ -420,6 +420,16 @@ export interface RespostaAoPaciente {
   perguntaAberta: string;
   /** AAAA-MM-DD quando a pessoa pediu para ser chamada num dia. Vazio no resto. */
   retornoCombinado: string;
+  /**
+   * A reserva de paciente modelo que ela acabou de fechar: o código do dia
+   * de prática (`P1`, `P2`…), o da oferta (`O1`…, ou vazio) e o nome completo.
+   * Validados em `modulo-paciente-modelo.ts`, não aqui. Vazios no resto.
+   */
+  reservaDia: string;
+  reservaOferta: string;
+  reservaNome: string;
+  /** "sim" quando a pessoa aceitou entrar na lista de interesse da próxima edição. */
+  entrarNaLista: string;
 }
 
 /**
@@ -452,6 +462,10 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
       "estadoDaConversa",
       "perguntaAberta",
       "retornoCombinado",
+      "reservaDia",
+      "reservaOferta",
+      "reservaNome",
+      "entrarNaLista",
     ],
     properties: {
       bolhas: {
@@ -506,6 +520,26 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
         description:
           "A data AAAA-MM-DD em que a pessoa pediu para ser chamada, quando ela pediu. Vazio no resto, que é o normal.",
       },
+      reservaDia: {
+        type: "string",
+        description:
+          "Só em conversa de paciente modelo: o código do dia de prática que a pessoa acabou de escolher para reservar (P1, P2…), exatamente como está na lista, e só depois de ela ter dito o nome completo. Vazio no resto, que é o normal.",
+      },
+      reservaOferta: {
+        type: "string",
+        description:
+          "Junto de reservaDia: o código do procedimento escolhido (O1, O2…), exatamente como está na lista. Vazio se ela ainda não escolheu ou quando não há reserva.",
+      },
+      reservaNome: {
+        type: "string",
+        description:
+          "Junto de reservaDia: o nome completo que a pessoa informou para a reserva. Vazio quando não há reserva.",
+      },
+      entrarNaLista: {
+        type: "string",
+        description:
+          '"sim" quando a pessoa acabou de aceitar entrar na lista de interesse da próxima edição de paciente modelo. Vazio no resto, que é o normal.',
+      },
     },
   },
 };
@@ -551,6 +585,10 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
     estadoDaConversa: "",
     perguntaAberta: "",
     retornoCombinado: "",
+    reservaDia: "",
+    reservaOferta: "",
+    reservaNome: "",
+    entrarNaLista: "",
   };
   if (!cru) return vazia;
   try {
@@ -564,6 +602,10 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
       estadoDaConversa?: unknown;
       perguntaAberta?: unknown;
       retornoCombinado?: unknown;
+      reservaDia?: unknown;
+      reservaOferta?: unknown;
+      reservaNome?: unknown;
+      entrarNaLista?: unknown;
     };
     if (!obj || typeof obj !== "object") return { ...vazia, texto: cru, bolhas: [cru] };
     // `resposta` (um texto só) era o formato até a V4.2; continua aceito para
@@ -598,6 +640,10 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
           estadoDaConversa: curto(obj.estadoDaConversa, 40),
           perguntaAberta: curto(obj.perguntaAberta, 200),
           retornoCombinado: curto(obj.retornoCombinado, 10),
+          reservaDia: curto(obj.reservaDia, 4),
+          reservaOferta: curto(obj.reservaOferta, 4),
+          reservaNome: curto(obj.reservaNome, 120),
+          entrarNaLista: curto(obj.entrarNaLista, 4).toLowerCase(),
         }
       : // JSON sem fala nenhuma: mandar o próprio JSON seria pior que calar
         // (V4.2, E12: "não passar JSON bruto ao paciente"). Vazio vira "resposta

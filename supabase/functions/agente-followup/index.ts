@@ -117,7 +117,7 @@ const POR_MINUTO = 10;
 
 /** Colunas da conversa que a rodada lê. */
 const COLUNAS_DA_SESSAO =
-  "id, conversation_id, created_at, human_took_over_at, nao_contatar_em, anuncio, unidade_id, followups_enviados, recovery_status, recovery_trilha, recovery_intensidade, recovery_origem_em, recovery_plano, recovery_passo, recovery_proximo_em, recovery_mecanismos, recovery_tentativas, recovery_enviando_desde, recovery_pergunta_aberta, recovery_motivo";
+  "id, conversation_id, created_at, human_took_over_at, nao_contatar_em, anuncio, unidade_id, followups_enviados, recovery_status, recovery_trilha, recovery_intensidade, recovery_origem_em, recovery_plano, recovery_passo, recovery_proximo_em, recovery_mecanismos, recovery_tentativas, recovery_enviando_desde, recovery_pergunta_aberta, recovery_motivo, publico";
 
 /**
  * Grava o estado novo SÓ se a conversa ainda está como esta rodada a deixou.
@@ -357,6 +357,11 @@ async function executarEtapa(
     s.id,
     null,
     s.unidade_id ? String(s.unidade_id) : null,
+    null,
+    null,
+    typeof s.publico === "string"
+      ? (s.publico as "atendimento" | "paciente_modelo" | "mentoria")
+      : null,
   );
 
   const figurinhas = figurinhasAprovadas(agente.recovery_figurinhas);

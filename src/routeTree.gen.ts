@@ -47,6 +47,7 @@ import { Route as ConviteConsultorioTokenRouteImport } from './routes/convite-co
 import { Route as ConviteTokenRouteImport } from './routes/convite.$token'
 import { Route as PacientesIndexRouteImport } from './routes/pacientes.index'
 import { Route as PacientesPatientIdRouteImport } from './routes/pacientes.$patientId'
+import { Route as AgenteIaModulosPacienteModeloRouteImport } from './routes/agente-ia.modulos.paciente-modelo'
 import { Route as AtendimentosAutomacoesIndexRouteImport } from './routes/atendimentos.automacoes.index'
 import { Route as AtendimentosAutomacoesAutomationIdRouteImport } from './routes/atendimentos.automacoes.$automationId'
 import { Route as AtendimentosAutomacoesFunilFunilRouteImport } from './routes/atendimentos.automacoes.funil.$funil'
@@ -245,6 +246,12 @@ const PacientesPatientIdRoute = PacientesPatientIdRouteImport.update({
   path: '/$patientId',
   getParentRoute: () => PacientesRoute,
 } as any)
+const AgenteIaModulosPacienteModeloRoute =
+  AgenteIaModulosPacienteModeloRouteImport.update({
+    id: '/modulos/paciente-modelo',
+    path: '/modulos/paciente-modelo',
+    getParentRoute: () => AgenteIaRoute,
+  } as any)
 const AtendimentosAutomacoesIndexRoute =
   AtendimentosAutomacoesIndexRouteImport.update({
     id: '/',
@@ -303,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/atendimentos/': typeof AtendimentosIndexRoute
   '/configuracoes/': typeof ConfiguracoesIndexRoute
   '/pacientes/': typeof PacientesIndexRoute
+  '/agente-ia/modulos/paciente-modelo': typeof AgenteIaModulosPacienteModeloRoute
   '/atendimentos/automacoes/$automationId': typeof AtendimentosAutomacoesAutomationIdRoute
   '/atendimentos/automacoes/': typeof AtendimentosAutomacoesIndexRoute
   '/atendimentos/automacoes/funil/$funil': typeof AtendimentosAutomacoesFunilFunilRoute
@@ -341,6 +349,7 @@ export interface FileRoutesByTo {
   '/atendimentos': typeof AtendimentosIndexRoute
   '/configuracoes': typeof ConfiguracoesIndexRoute
   '/pacientes': typeof PacientesIndexRoute
+  '/agente-ia/modulos/paciente-modelo': typeof AgenteIaModulosPacienteModeloRoute
   '/atendimentos/automacoes/$automationId': typeof AtendimentosAutomacoesAutomationIdRoute
   '/atendimentos/automacoes': typeof AtendimentosAutomacoesIndexRoute
   '/atendimentos/automacoes/funil/$funil': typeof AtendimentosAutomacoesFunilFunilRoute
@@ -385,6 +394,7 @@ export interface FileRoutesById {
   '/atendimentos/': typeof AtendimentosIndexRoute
   '/configuracoes/': typeof ConfiguracoesIndexRoute
   '/pacientes/': typeof PacientesIndexRoute
+  '/agente-ia/modulos/paciente-modelo': typeof AgenteIaModulosPacienteModeloRoute
   '/atendimentos/automacoes/$automationId': typeof AtendimentosAutomacoesAutomationIdRoute
   '/atendimentos/automacoes/': typeof AtendimentosAutomacoesIndexRoute
   '/atendimentos/automacoes/funil/$funil': typeof AtendimentosAutomacoesFunilFunilRoute
@@ -430,6 +440,7 @@ export interface FileRouteTypes {
     | '/atendimentos/'
     | '/configuracoes/'
     | '/pacientes/'
+    | '/agente-ia/modulos/paciente-modelo'
     | '/atendimentos/automacoes/$automationId'
     | '/atendimentos/automacoes/'
     | '/atendimentos/automacoes/funil/$funil'
@@ -468,6 +479,7 @@ export interface FileRouteTypes {
     | '/atendimentos'
     | '/configuracoes'
     | '/pacientes'
+    | '/agente-ia/modulos/paciente-modelo'
     | '/atendimentos/automacoes/$automationId'
     | '/atendimentos/automacoes'
     | '/atendimentos/automacoes/funil/$funil'
@@ -511,6 +523,7 @@ export interface FileRouteTypes {
     | '/atendimentos/'
     | '/configuracoes/'
     | '/pacientes/'
+    | '/agente-ia/modulos/paciente-modelo'
     | '/atendimentos/automacoes/$automationId'
     | '/atendimentos/automacoes/'
     | '/atendimentos/automacoes/funil/$funil'
@@ -806,6 +819,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PacientesPatientIdRouteImport
       parentRoute: typeof PacientesRoute
     }
+    '/agente-ia/modulos/paciente-modelo': {
+      id: '/agente-ia/modulos/paciente-modelo'
+      path: '/modulos/paciente-modelo'
+      fullPath: '/agente-ia/modulos/paciente-modelo'
+      preLoaderRoute: typeof AgenteIaModulosPacienteModeloRouteImport
+      parentRoute: typeof AgenteIaRoute
+    }
     '/atendimentos/automacoes/': {
       id: '/atendimentos/automacoes/'
       path: '/'
@@ -832,10 +852,12 @@ declare module '@tanstack/react-router' {
 
 interface AgenteIaRouteChildren {
   AgenteIaIndexRoute: typeof AgenteIaIndexRoute
+  AgenteIaModulosPacienteModeloRoute: typeof AgenteIaModulosPacienteModeloRoute
 }
 
 const AgenteIaRouteChildren: AgenteIaRouteChildren = {
   AgenteIaIndexRoute: AgenteIaIndexRoute,
+  AgenteIaModulosPacienteModeloRoute: AgenteIaModulosPacienteModeloRoute,
 }
 
 const AgenteIaRouteWithChildren = AgenteIaRoute._addFileChildren(

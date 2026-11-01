@@ -28,6 +28,7 @@ import { nomeDaAssistente, quemAvalia } from "./identidade-do-consultorio.ts";
 import { secaoDoAnuncio, type Anuncio } from "./veio-de-anuncio.ts";
 import { catalogoDeVagas, comoReportarFechamento } from "./agendamento-da-ia.ts";
 import { comoUsarOsCasos, type CasoComCodigo } from "./casos-da-ia.ts";
+import { secaoDeHarmonizacao } from "./modulo-paciente-modelo.ts";
 import {
   secaoDaCidade,
   semONos,
@@ -127,6 +128,13 @@ export interface EntradaDaInstrucao {
   parcelamento?: string | null;
   /** A oferta de paciente modelo. Ver `secaoDePacienteModelo`. */
   pacienteModelo?: PacienteModelo | null;
+  /**
+   * A seção de um módulo ligado para esta conversa (Paciente Modelo HOF),
+   * já montada do cadastro em `modulo-paciente-modelo.ts`. Presente, ela
+   * substitui a seção de paciente modelo antiga; ausente, vale a proibição
+   * de harmonização de sempre.
+   */
+  modulo?: { secao: string } | null;
   /** Hoje, "YYYY-MM-DD", no fuso da clínica — é o que decide se a oferta de
    *  paciente modelo ainda vale. Obrigatório quando `pacienteModelo` vem. */
   hoje?: string;
@@ -997,6 +1005,7 @@ export function montarInstrucao({
   procedimentos,
   parcelamento,
   pacienteModelo,
+  modulo,
   hoje,
   casos,
   jaMandouCaso,
@@ -1106,7 +1115,20 @@ export function montarInstrucao({
   // `9999-12-31` quando quem chamou não informou a data: nenhuma edição real é
   // maior que isso, então a oferta nasce FECHADA. Falha fechada de propósito —
   // convidar para uma mentoria que já passou é pior que não convidar.
-  partes.push("", secaoDePacienteModelo(pacienteModelo, hoje ?? "9999-12-31", responsavel));
+  if (modulo?.secao) {
+    partes.push("", ...secaoDeHarmonizacao(quemAvalia(responsavel)), "", modulo.secao);
+  } else if (pacienteModelo) {
+    partes.push("", secaoDePacienteModelo(pacienteModelo, hoje ?? "9999-12-31", responsavel));
+  } else {
+    partes.push(
+      "",
+      ...secaoDeHarmonizacao(quemAvalia(responsavel)),
+      "",
+      "Esta conversa NÃO é de paciente modelo. Não ofereça vaga de mentoria nem",
+      "cite valores de paciente modelo. Se a pessoa perguntar por isso, responda",
+      "que vai verificar e encaminhe a dúvida.",
+    );
+  }
 
   // A biblioteca de casos entra DEPOIS da seção de prova e de paciente modelo,
   // e antes das regras invioláveis: é uma ferramenta de venda, e o lugar dela

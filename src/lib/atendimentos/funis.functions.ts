@@ -53,12 +53,21 @@ const PALAVRAS_DO_PUBLICO =
  */
 async function mapaDePublicos(supabase: any, ownerId: string): Promise<Map<string, Publico>> {
   const anuncios = new Map<string, { titulo: string | null; copy: string | null }>();
+  const gravados = new Map<string, Publico>();
   for (let pagina = 0; ; pagina++) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("ai_agent_sessions")
-      .select("contact_id, anuncio")
+      .select("contact_id, anuncio, publico")
       .eq("owner_id", ownerId)
       .range(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA - 1);
+    // Antes da migration dos módulos a coluna `publico` não existe.
+    if (error && /publico/.test(String(error.message ?? ""))) {
+      ({ data, error } = await supabase
+        .from("ai_agent_sessions")
+        .select("contact_id, anuncio")
+        .eq("owner_id", ownerId)
+        .range(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA - 1));
+    }
     if (error) {
       if (ausente(error)) break;
       throw new Error(error.message);
@@ -66,6 +75,9 @@ async function mapaDePublicos(supabase: any, ownerId: string): Promise<Map<strin
     for (const s of data ?? []) {
       const fone = foneCanonico(String(s.contact_id ?? ""));
       if (!fone) continue;
+      // O público gravado pela Luna vence o cálculo: é o mesmo rótulo que
+      // decidiu a instrução daquela conversa.
+      if (ehPublico(s.publico) && s.publico !== "atendimento") gravados.set(fone, s.publico);
       const a = s.anuncio && typeof s.anuncio === "object" ? s.anuncio : {};
       const atual = anuncios.get(fone);
       // Um anúncio com texto vence um vazio: a sessão mais antiga pode ter
@@ -98,8 +110,9 @@ async function mapaDePublicos(supabase: any, ownerId: string): Promise<Map<strin
     if (!data || data.length < POR_PAGINA) break;
   }
 
-  const mapa = new Map<string, Publico>();
+  const mapa = new Map<string, Publico>(gravados);
   for (const fone of new Set([...anuncios.keys(), ...mensagens.keys()])) {
+    if (mapa.has(fone)) continue;
     const a = anuncios.get(fone);
     const publico = publicoDoContato({
       anuncioTitulo: a?.titulo,

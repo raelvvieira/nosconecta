@@ -48,7 +48,18 @@ import type { ProfissionalDaClinica } from "./instrucao-do-agente.ts";
 import type { HorariosParaOferecer } from "./instrucao-do-agente.ts";
 import type { RespostaAoPaciente } from "./modelo-de-atendimento.ts";
 import { podeAtender } from "./plano-no-banco.ts";
-import { identidadeDoConsultorio } from "./identidade-do-consultorio.ts";
+import { identidadeDoConsultorio, quemAvalia } from "./identidade-do-consultorio.ts";
+import { ehPublico, publicoDoContato, type Publico } from "./publico.ts";
+import { carregarModuloPacienteModelo } from "./modulo-no-banco.ts";
+import {
+  catalogoDaEdicao,
+  edicaoAberta,
+  reservaPedida,
+  secaoDoModuloPacienteModelo,
+  type CatalogoDaEdicao,
+  type ReservaPedida,
+} from "./modulo-paciente-modelo.ts";
+import { telefoneDoContato } from "./por-na-agenda.ts";
 
 export interface MensagemDeEntrada {
   conversationId: string;
@@ -329,6 +340,29 @@ export async function atender(
       .eq("id", sessao.id);
   }
 
+  // ── De qual funil esta conversa é ───────────────────────────────────────
+  //
+  // Decidido uma vez pelo anúncio e pelo que a pessoa escreveu, e gravado na
+  // sessão: é o que liga o módulo de paciente modelo na instrução e o que o
+  // Pipeline lê. Uma conversa de atendimento que passa a falar de paciente
+  // modelo sobe de público; o contrário nunca acontece sozinho.
+  const publicoLido = publicoDoContato({
+    anuncioTitulo: anuncio?.titulo ?? null,
+    anuncioCopy: anuncio?.copy ?? null,
+    mensagens: [String(entrada.conteudo ?? "")],
+  });
+  let publico: Publico = ehPublico(sessao.publico) ? sessao.publico : "atendimento";
+  if (!ehPublico(sessao.publico) || (publico === "atendimento" && publicoLido !== "atendimento")) {
+    publico = publicoLido;
+    const { error: erroPublico } = await supabase
+      .from("ai_agent_sessions")
+      .update({ publico, updated_at: agora.toISOString() })
+      .eq("id", sessao.id);
+    // Coluna ainda não existe (migration pendente): segue sem gravar.
+    if (erroPublico)
+      console.warn("[atendimento] não deu para gravar o público:", erroPublico.message);
+  }
+
   // ── "A clínica já falou aqui?" ──────────────────────────────────────────
   //
   // O espelho não sabe QUEM escreveu: a resposta da própria IA entra com
@@ -530,6 +564,11 @@ export async function atender(
   // Em que situação a conversa fica se a pessoa parar aqui. Vem da resposta da
   // Luna; quem decide quando voltar é o Recovery Engine.
   let recuperacao = { rotulo: "", perguntaAberta: "", retornoCombinado: "" };
+  // A reserva de paciente modelo que ela fechou nesta resposta, já validada
+  // contra o catálogo desta instrução. Gravada depois do envio, como a vaga.
+  let reservaAqui: ReservaPedida | null = null;
+  let edicaoDaReserva: string | null = null;
+  let entrouNaLista = false;
   try {
     if (agente.mode === "ia") {
       const r = await responderComModelo(
@@ -540,6 +579,7 @@ export async function atender(
         sessao.id,
         duvidaPendente,
         unidadeDaSessao,
+        publico,
       );
       texto = r.texto;
       bolhas = r.bolhas;
@@ -548,6 +588,9 @@ export async function atender(
       duvidaNova = r.duvida;
       cidadeNova = r.cidade;
       recuperacao = r.recuperacao;
+      reservaAqui = r.reserva;
+      edicaoDaReserva = r.edicaoId;
+      entrouNaLista = r.entrarNaLista;
     } else {
       texto = String(agente.echo_message ?? "").trim();
       bolhas = [texto];
@@ -802,6 +845,29 @@ export async function atender(
     });
   }
 
+  // ── A reserva de paciente modelo, DEPOIS do envio ───────────────────────
+  //
+  // Mesma ordem e mesmo motivo do agendamento: a mensagem para a pessoa vem
+  // primeiro. Nasce como "sinal pendente": quem confirma o Pix é a equipe,
+  // na tela de Reservas. A simulação da tela não grava nada.
+  if ((reservaAqui || entrouNaLista) && deps.ignorarInterruptor !== true) {
+    try {
+      await registrarReservaOuInteresse(supabase, ownerId, sessao, entrada, {
+        reserva: reservaAqui,
+        edicaoId: edicaoDaReserva,
+        lista: entrouNaLista,
+        anuncioId: anuncio?.anuncioId ?? null,
+        agora,
+      });
+    } catch (e) {
+      await registrar(supabase, ownerId, sessao.id, {
+        direction: "ignorada",
+        content: null,
+        skipped_reason: `reserva de paciente modelo falhou: ${String(e).slice(0, 240)}`,
+      });
+    }
+  }
+
   // ── A sequência de recuperação, por último ──────────────────────────────
   //
   // Nasce da resposta que acabou de sair: é ela que pode ficar sem resposta.
@@ -853,6 +919,11 @@ export async function atender(
  */
 export interface InstrucaoMontada {
   texto: string;
+  /** Os dias e ofertas da edição de paciente modelo com código (`P1`, `O1`),
+   *  para validar a reserva que o modelo devolver. Vazio fora do módulo. */
+  catalogoDaEdicao: CatalogoDaEdicao;
+  /** A edição aberta que montou o catálogo. */
+  edicaoId: string | null;
   horarios: HorariosParaOferecer | null;
   /** Os casos com código, para validar o que o modelo devolver. Sai junto do
    *  texto, e não é reconsultado depois, pelo mesmo motivo dos horários: a
@@ -896,6 +967,8 @@ export async function instrucaoDaLuna(
   /** O que a PESSOA escreveu na conversa, da mais antiga para a mais nova —
    *  é daqui que sai a cidade que ela disse. Ver `localizacao-do-paciente.ts`. */
   falasDoPaciente?: readonly string[] | null,
+  /** O público da sessão: liga a seção do módulo de paciente modelo. */
+  publico?: Publico | null,
 ): Promise<InstrucaoMontada> {
   const { data: playbook } = await supabase
     .from("ai_sales_playbooks")
@@ -1060,6 +1133,39 @@ export async function instrucaoDaLuna(
   // daria uma tabela diferente — meia hora passou, e a vaga que ela ofereceu
   // pode não estar mais na lista.
   const identidade = await identidadeDoConsultorio(supabase, ownerId);
+
+  // ── O módulo Paciente Modelo HOF ────────────────────────────────────────
+  //
+  // Só entra quando a conversa é desse público e o módulo está ligado. A
+  // seção é montada do cadastro a cada resposta (edição aberta, dias com
+  // vaga, ofertas, sinal); os três campos antigos do agente não são mais
+  // lidos.
+  const hoje = agoraNaClinica(agora).date;
+  let modulo: { secao: string } | null = null;
+  let catalogo: CatalogoDaEdicao = { praticas: [], ofertas: [] };
+  let edicaoId: string | null = null;
+  if (publico === "paciente_modelo") {
+    const mod = await carregarModuloPacienteModelo(supabase, ownerId, String(agente.id), agora);
+    if (mod.ativo) {
+      const aberta = edicaoAberta(mod.edicoes, hoje);
+      const proxima =
+        mod.edicoes.find((e) => e.id !== aberta?.id && !!e.inicio && e.inicio > hoje) ?? null;
+      catalogo = catalogoDaEdicao(aberta, hoje);
+      edicaoId = aberta?.id ?? null;
+      modulo = {
+        secao: secaoDoModuloPacienteModelo({
+          edicao: aberta,
+          proxima,
+          config: mod.config,
+          manual: mod.manual,
+          hoje,
+          quem: quemAvalia(identidade.responsavel),
+          catalogo,
+        }),
+      };
+    }
+  }
+
   const texto = montarInstrucao({
     anuncio,
     horarios,
@@ -1084,14 +1190,8 @@ export async function instrucaoDaLuna(
     profissionais: await profissionaisDaClinica(supabase, ownerId),
     instrucaoBase: agente.instrucao_base ?? null,
     parcelamento: agente.parcelamento ?? null,
-    pacienteModelo: {
-      ate: agente.paciente_modelo_ate ?? null,
-      texto: agente.paciente_modelo_texto ?? null,
-      // O endereço do LOCAL da mentoria, que não é nenhuma das unidades. Ver
-      // `PacienteModelo.local` e a conversa de 15/10 citada lá.
-      local: agente.paciente_modelo_local ?? null,
-    },
-    hoje: agoraNaClinica(agora).date,
+    modulo,
+    hoje,
     casos,
     // Um caso por conversa. A marca fica no espelho das mensagens: se alguma
     // saída desta sessão já levou imagem, não vai outra.
@@ -1104,7 +1204,14 @@ export async function instrucaoDaLuna(
     duvidaPendente: duvidaPendente ?? null,
   });
 
-  return { texto, horarios, casos, unidades: catalogoDasUnidades };
+  return {
+    texto,
+    horarios,
+    casos,
+    unidades: catalogoDasUnidades,
+    catalogoDaEdicao: catalogo,
+    edicaoId,
+  };
 }
 
 /**
@@ -1181,8 +1288,13 @@ async function responderComModelo(
   duvidaPendente: string | null,
   /** A unidade da cidade já confirmada nesta conversa, lida da sessão. */
   unidadeConfirmadaId: string | null,
+  publico: Publico,
 ): Promise<{
   texto: string;
+  /** A reserva de paciente modelo validada contra o catálogo. `null` é o normal. */
+  reserva: ReservaPedida | null;
+  edicaoId: string | null;
+  entrarNaLista: boolean;
   /** A resposta já em bolhas, como a Luna planejou (V4.2). */
   bolhas: string[];
   vaga: VagaComCodigo | null;
@@ -1214,6 +1326,7 @@ async function responderComModelo(
     unidadeConfirmadaId,
     entrada.telefone ?? null,
     falasDoPaciente,
+    publico,
   );
 
   // ── O conjunto, e não a última bolha ────────────────────────────────────
@@ -1274,8 +1387,17 @@ async function responderComModelo(
   // qual endereço a confirmação vai mandar — um código inventado não confirma
   // nada, e a Luna pergunta de novo na mensagem seguinte.
   const cidade = unidadeEscolhida({ codigo: resposta.cidadeConfirmada }, instrucao.unidades);
+  // E a mesma fronteira para a reserva: o código vira dia de prática AQUI,
+  // contra o catálogo desta instrução. Dia inventado ou lotado não reserva.
+  const reserva = reservaPedida(
+    { dia: resposta.reservaDia, oferta: resposta.reservaOferta, nome: resposta.reservaNome },
+    instrucao.catalogoDaEdicao,
+  );
   return {
     texto: resposta.texto,
+    reserva,
+    edicaoId: instrucao.edicaoId,
+    entrarNaLista: resposta.entrarNaLista === "sim",
     bolhas: resposta.bolhas?.length ? resposta.bolhas : [resposta.texto],
     vaga,
     caso,
@@ -1411,6 +1533,89 @@ async function anuncioNoEspelho(
     if (achado) return achado;
   }
   return null;
+}
+
+/**
+ * Grava a reserva de paciente modelo (sinal pendente) ou a entrada na lista
+ * de interesse. Uma pessoa tem uma reserva viva por edição: fechar de novo
+ * atualiza o dia e a oferta, em vez de duplicar.
+ */
+async function registrarReservaOuInteresse(
+  supabase: any,
+  ownerId: string,
+  sessao: any,
+  entrada: MensagemDeEntrada,
+  x: {
+    reserva: ReservaPedida | null;
+    edicaoId: string | null;
+    lista: boolean;
+    anuncioId: string | null;
+    agora: Date;
+  },
+) {
+  const fone = telefoneDoContato(String(entrada.contactId ?? sessao.contact_id ?? ""));
+  if (!fone) return;
+  const quando = x.agora.toISOString();
+
+  if (x.reserva && x.edicaoId) {
+    const mod = await carregarModuloPacienteModelo(
+      supabase,
+      ownerId,
+      String(sessao.agent_id),
+      x.agora,
+    );
+    const { data: viva } = await supabase
+      .from("mentoria_reservas")
+      .select("id, status")
+      .eq("owner_id", ownerId)
+      .eq("edicao_id", x.edicaoId)
+      .eq("fone", fone)
+      .in("status", ["interesse", "dia_escolhido", "sinal_pendente", "confirmada"])
+      .limit(1)
+      .maybeSingle();
+    const campos = {
+      pratica_id: x.reserva.pratica.id,
+      oferta_id: x.reserva.oferta?.id ?? null,
+      nome_completo: x.reserva.nome || sessao.contact_name || null,
+      updated_at: quando,
+    };
+    if (viva?.id) {
+      // Confirmada não volta para pendente por uma frase da Luna.
+      const status = viva.status === "confirmada" ? "confirmada" : "sinal_pendente";
+      const { error } = await supabase
+        .from("mentoria_reservas")
+        .update({ ...campos, status })
+        .eq("id", viva.id);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await supabase.from("mentoria_reservas").insert({
+        owner_id: ownerId,
+        edicao_id: x.edicaoId,
+        fone,
+        crm_contact_id: sessao.contact_id ?? null,
+        conversation_id: sessao.conversation_id ?? null,
+        status: "sinal_pendente",
+        sinal_valor: mod.config.sinal.valor,
+        criado_por: "luna",
+        anuncio_id: x.anuncioId,
+        ...campos,
+      });
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  if (x.lista) {
+    const { error } = await supabase.from("mentoria_interesses").upsert(
+      {
+        owner_id: ownerId,
+        fone,
+        crm_contact_id: sessao.contact_id ?? null,
+        edicao_id: x.edicaoId,
+      },
+      { onConflict: "owner_id,fone" },
+    );
+    if (error) throw new Error(error.message);
+  }
 }
 
 async function garantirSessao(

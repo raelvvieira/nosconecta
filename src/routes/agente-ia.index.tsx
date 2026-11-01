@@ -23,7 +23,7 @@ import { minhaFranquia } from "@/lib/plataforma/plataforma.functions";
 import { ChaveDaIa } from "@/components/agente-ia/ChaveDaIa";
 import { NomeDaAssistente } from "@/components/agente-ia/NomeDaAssistente";
 import { ManualDaLuna } from "@/components/agente-ia/ManualDaLuna";
-import { PacienteModelo } from "@/components/agente-ia/PacienteModelo";
+import { Modulos } from "@/components/agente-ia/Modulos";
 import { ComQuemFala } from "@/components/agente-ia/ComQuemFala";
 import { Ritmo } from "@/components/agente-ia/Ritmo";
 import { RecoveryEngine } from "@/components/agente-ia/RecoveryEngine";
@@ -40,13 +40,14 @@ const ABAS = [
   { value: "atendimento", label: "Atendimento" },
   { value: "conhecimento", label: "O que ela sabe" },
   { value: "aprendizado", label: "Aprendizado" },
+  { value: "modulos", label: "Módulos" },
   { value: "configuracao", label: "Configuração" },
 ] as const;
 type Aba = (typeof ABAS)[number]["value"];
 
 const searchSchema = z.object({
   /** Na URL para o F5 voltar na mesma aba. */
-  aba: z.enum(["atendimento", "conhecimento", "aprendizado", "configuracao"]).optional(),
+  aba: z.enum(["atendimento", "conhecimento", "aprendizado", "modulos", "configuracao"]).optional(),
 });
 
 export const Route = createFileRoute("/agente-ia/")({
@@ -76,7 +77,8 @@ export const Route = createFileRoute("/agente-ia/")({
  *
  *   Atendimento   — com quem fala, ritmo, o Recovery Engine, e o teste ao
  *                   lado (é onde se ajusta e confere na mesma tela).
- *   O que ela sabe — o manual, os preços e a vaga de paciente modelo.
+ *   O que ela sabe — o manual e os preços.
+ *   Módulos       — capacidades com cadastro próprio (Paciente Modelo HOF).
  *   Aprendizado   — lições, Olho de Deus e a matéria-prima do manual.
  *   Configuração  — nome, chave, conversas do mês e (plataforma) o custo.
  *
@@ -249,10 +251,7 @@ function AgentePage() {
           {aba === "conhecimento" && (
             <div className="grid gap-4">
               <ManualDaLuna />
-              <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
-                <Procedimentos />
-                <PacienteModelo />
-              </div>
+              <Procedimentos />
             </div>
           )}
 
@@ -270,6 +269,8 @@ function AgentePage() {
               />
             </div>
           )}
+
+          {aba === "modulos" && <Modulos />}
 
           {aba === "configuracao" && (
             <div className="grid gap-4 xl:grid-cols-2 xl:items-start">

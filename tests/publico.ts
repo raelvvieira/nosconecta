@@ -1,5 +1,5 @@
 // O público de uma conversa: atendimento, paciente modelo ou mentoria.
-import { publicoDoContato } from "../src/lib/atendimentos/publico.ts";
+import { publicoDoContato } from "../supabase/functions/_shared/publico.ts";
 
 let ok = 0;
 const falhas: string[] = [];
