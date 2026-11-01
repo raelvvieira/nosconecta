@@ -912,7 +912,7 @@ async function handleSimular(
   /** O público simulado (paciente modelo, mentoria). Ausente = o normal. */
   publico?: "atendimento" | "paciente_modelo" | "mentoria",
 ) {
-  const enviados: { texto: string; esperaMs: number }[] = [];
+  const enviados: { texto: string; esperaMs: number; caso?: string | null }[] = [];
   const agente = await garantirAgente(ownerId);
   const chave: string | null = agente?.api_key ?? null;
   const resultado = await atender(
@@ -939,8 +939,10 @@ async function handleSimular(
         ),
       // Sem `dormir`: a simulação MOSTRA a espera calculada em vez de esperar.
       // Esperar de verdade aqui só faria a tela travar pelo mesmo tempo.
-      enviar: async (pedaco, esperaMs) => {
-        enviados.push({ texto: pedaco, esperaMs });
+      // O caso chega só com o título: a prévia mostra QUAL foto iria, mas
+      // não baixa nem manda imagem nenhuma.
+      enviar: async (pedaco, esperaMs, caso) => {
+        enviados.push({ texto: pedaco, esperaMs, caso: caso?.titulo ?? null });
       },
       // Roda mesmo com o interruptor desligado — ver o comentário longo em
       // `Dependencias`. Sem isto, a única forma de ver uma resposta era ligar o

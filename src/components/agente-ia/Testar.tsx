@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Play, RotateCcw } from "lucide-react";
+import { Image as ImageIcon, Loader2, Play, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,13 @@ import { Bloco } from "./campos";
  * exato risco que ela existe para evitar. Agora a simulação passa por cima do
  * interruptor (e só ela) e avisa na tela que aquilo é prévia.
  */
-type Fala = { deQuem: "clinica" | "paciente"; texto: string; esperaMs?: number };
+type Fala = {
+  deQuem: "clinica" | "paciente";
+  texto: string;
+  esperaMs?: number;
+  /** O título do caso de antes e depois que iria junto desta bolha. */
+  caso?: string | null;
+};
 
 export function Testar({ semCartao = false }: { semCartao?: boolean }) {
   const simular = useServerFn(simularAtendimento);
@@ -62,6 +68,7 @@ export function Testar({ semCartao = false }: { semCartao?: boolean }) {
             deQuem: "clinica" as const,
             texto: m.texto,
             esperaMs: m.esperaMs,
+            caso: m.caso ?? null,
           })),
         ]);
       }
@@ -114,6 +121,12 @@ export function Testar({ semCartao = false }: { semCartao?: boolean }) {
             ) : (
               <div key={i} className="flex justify-end">
                 <div className="max-w-[80%] whitespace-pre-wrap rounded-2xl bg-gradient-primary px-4 py-2.5 text-sm text-white">
+                  {m.caso && (
+                    <span className="mb-1.5 flex items-center gap-1.5 rounded-xl bg-white/15 px-2.5 py-1.5 text-xs font-medium">
+                      <ImageIcon className="h-3.5 w-3.5 shrink-0" />
+                      Foto do caso: {m.caso}
+                    </span>
+                  )}
                   {m.texto}
                   {m.esperaMs !== undefined && (
                     <span className="mt-1 block text-2xs text-white/70">

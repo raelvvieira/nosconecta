@@ -673,7 +673,8 @@ export const simularAtendimento = createServerFn({ method: "POST" })
     }): Promise<{
       respondeu: boolean;
       motivo?: string;
-      enviados: { texto: string; esperaMs: number }[];
+      /** `caso`: o título da foto de antes e depois que iria junto. */
+      enviados: { texto: string; esperaMs: number; caso?: string | null }[];
       /** O agente está desligado — a tela precisa dizer que isto é prévia. */
       desligado: boolean;
     }> => {
