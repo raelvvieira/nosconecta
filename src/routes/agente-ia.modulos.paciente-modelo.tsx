@@ -44,6 +44,7 @@ import {
   getPreviaDaSecao,
   getReservas,
   getUnidadesParaEdicao,
+  horariosDaPratica,
   mudarStatusDaReserva,
   salvarConfigDoModulo,
   salvarEdicao,
@@ -95,10 +96,14 @@ const ROTULO_DO_STATUS = Object.fromEntries(
 
 const COR_DO_STATUS: Record<StatusDaEdicao, string> = {
   rascunho: "bg-muted text-muted-foreground",
+  publicada: "bg-info-soft text-info",
   inscricoes_abertas: "bg-success-soft text-success",
   esgotada: "bg-warning-soft text-warning",
   encerrada: "bg-muted text-muted-foreground",
+  cancelada: "bg-muted text-muted-foreground",
 };
+
+const somaDe = (r: Record<string, number>) => Object.values(r).reduce((a, b) => a + b, 0);
 
 function PaginaDoModulo() {
   const aba: Aba = Route.useSearch().aba ?? "edicoes";
@@ -191,6 +196,7 @@ interface PraticaNoForm {
   data: string;
   horaInicio: string;
   horaFim: string;
+  duracaoMin: number;
   vagas: number;
   observacao: string;
   ocupadas: number;
@@ -206,6 +212,7 @@ interface EdicaoNoForm {
   fim: string;
   status: StatusDaEdicao;
   observacoes: string;
+  orientacoesChegada: string;
   praticas: PraticaNoForm[];
 }
 
@@ -219,6 +226,7 @@ const NOVA: EdicaoNoForm = {
   fim: "",
   status: "rascunho",
   observacoes: "",
+  orientacoesChegada: "",
   praticas: [],
 };
 
@@ -233,14 +241,16 @@ function paraForm(e: EdicaoDaTela): EdicaoNoForm {
     fim: e.fim ?? "",
     status: e.status,
     observacoes: e.observacoes ?? "",
+    orientacoesChegada: e.orientacoesChegada ?? "",
     praticas: e.praticas.map((p) => ({
       id: p.id,
       data: p.data,
       horaInicio: p.horaInicio ?? "",
       horaFim: p.horaFim ?? "",
+      duracaoMin: p.duracaoMin,
       vagas: p.vagas,
       observacao: p.observacao ?? "",
-      ocupadas: p.ocupadas,
+      ocupadas: somaDe(p.ocupadas),
     })),
   };
 }
@@ -277,11 +287,13 @@ function Edicoes() {
           fim: f.fim || null,
           status: f.status,
           observacoes: f.observacoes,
+          orientacoesChegada: f.orientacoesChegada,
           praticas: f.praticas.map((p) => ({
             id: p.id,
             data: p.data,
             horaInicio: p.horaInicio || null,
             horaFim: p.horaFim || null,
+            duracaoMin: p.duracaoMin,
             vagas: p.vagas,
             observacao: p.observacao,
           })),
@@ -337,8 +349,11 @@ function Edicoes() {
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {edicoes.data.map((e) => {
-            const vagas = e.praticas.reduce((s, p) => s + p.vagas, 0);
-            const ocupadas = e.praticas.reduce((s, p) => s + p.ocupadas, 0);
+            const vagas = e.praticas.reduce(
+              (s, p) => s + p.vagas * Math.max(1, horariosDaPratica(p).length),
+              0,
+            );
+            const ocupadas = e.praticas.reduce((s, p) => s + somaDe(p.ocupadas), 0);
             return (
               <section
                 key={e.id}
@@ -367,7 +382,8 @@ function Edicoes() {
                         key={p.id}
                         className="rounded-full bg-surface-subtle px-2.5 py-1 text-2xs tabular-nums"
                       >
-                        {diaCurto(p.data).slice(0, 5)} · {p.ocupadas}/{p.vagas}
+                        {diaCurto(p.data).slice(0, 5)} · {horariosDaPratica(p).length} horários ·{" "}
+                        {somaDe(p.ocupadas)} reservas
                       </span>
                     ))
                   ) : (
@@ -494,7 +510,7 @@ function Edicoes() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm font-medium">Dias de prática com pacientes</p>
-                    <Ajuda texto="Só estes dias são oferecidos pela Luna, separados das datas do curso. Cada dia tem o seu número de vagas; reserva com sinal pendente ou confirmada ocupa vaga." />
+                    <Ajuda texto="Só estes dias são oferecidos pela Luna, separados das datas do curso. Os horários saem do início ao fim, no passo da duração do atendimento; cada horário recebe o número de pacientes indicado. Reserva com sinal pendente (no prazo), em análise ou confirmada ocupa o horário." />
                   </div>
                   <Button
                     variant="outline"
@@ -510,7 +526,8 @@ function Edicoes() {
                             data: form.fim || "",
                             horaInicio: "09:00",
                             horaFim: "18:00",
-                            vagas: 6,
+                            duracaoMin: 60,
+                            vagas: 1,
                             observacao: "",
                             ocupadas: 0,
                           },
@@ -523,6 +540,16 @@ function Edicoes() {
                   </Button>
                 </div>
                 <div className="mt-2 grid gap-2">
+                  {form.praticas.length > 0 && (
+                    <div className="grid grid-cols-[1.3fr_1fr_1fr_0.9fr_0.9fr_auto] gap-2 px-1 text-3xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                      <span>Dia</span>
+                      <span>Início</span>
+                      <span>Fim</span>
+                      <span>Min. cada</span>
+                      <span>Por horário</span>
+                      <span className="w-9" />
+                    </div>
+                  )}
                   {form.praticas.map((p, i) => {
                     const mudar = (patch: Partial<PraticaNoForm>) =>
                       setForm({
@@ -532,7 +559,7 @@ function Edicoes() {
                     return (
                       <div
                         key={p.id ?? `novo-${i}`}
-                        className="grid grid-cols-[1.3fr_1fr_1fr_0.8fr_auto] items-center gap-2"
+                        className="grid grid-cols-[1.3fr_1fr_1fr_0.9fr_0.9fr_auto] items-center gap-2"
                       >
                         <Input
                           type="date"
@@ -551,9 +578,17 @@ function Edicoes() {
                         />
                         <Input
                           type="number"
+                          min={10}
+                          step={5}
+                          value={p.duracaoMin}
+                          aria-label="Minutos de cada atendimento"
+                          onChange={(ev) => mudar({ duracaoMin: Number(ev.target.value) })}
+                        />
+                        <Input
+                          type="number"
                           min={0}
                           value={p.vagas}
-                          aria-label="Vagas"
+                          aria-label="Pacientes por horário"
                           onChange={(ev) => mudar({ vagas: Number(ev.target.value) })}
                         />
                         <Button
@@ -585,6 +620,16 @@ function Edicoes() {
                   rows={3}
                   value={form.observacoes}
                   onChange={(ev) => setForm({ ...form, observacoes: ev.target.value })}
+                />
+              </Campo>
+              <Campo
+                rotulo="Orientações de chegada"
+                ajuda="Vai na mensagem de confirmação da reserva: como chegar, onde estacionar, o que levar."
+              >
+                <Textarea
+                  rows={2}
+                  value={form.orientacoesChegada}
+                  onChange={(ev) => setForm({ ...form, orientacoesChegada: ev.target.value })}
                 />
               </Campo>
 
@@ -881,6 +926,7 @@ function Ofertas() {
 const COLUNAS: StatusDaReserva[] = [
   "interesse",
   "sinal_pendente",
+  "pagamento_em_analise",
   "confirmada",
   "compareceu",
   "faltou",
@@ -914,6 +960,7 @@ function Reservas() {
     nome: string;
     fone: string;
     praticaId: string;
+    hora: string;
     ofertaId: string;
   } | null>(null);
 
@@ -924,9 +971,13 @@ function Reservas() {
   };
   const confirmarSinalM = useMutation({
     mutationFn: (id: string) => confirmar({ data: { reservaId: id } }),
-    onSuccess: () => {
+    onSuccess: (r) => {
       invalidar();
-      toast.success("Sinal confirmado: horário na Agenda e recebimento no Financeiro.");
+      toast.success(
+        r.avisou
+          ? "Sinal confirmado: horário na Agenda e a pessoa avisada no WhatsApp."
+          : "Sinal confirmado e horário na Agenda. Não deu para avisar no WhatsApp: avise pela conversa.",
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -943,6 +994,7 @@ function Reservas() {
           nome: nova!.nome,
           fone: nova!.fone,
           praticaId: nova!.praticaId || null,
+          hora: nova!.hora || null,
           ofertaId: nova!.ofertaId || null,
         },
       }),
@@ -962,13 +1014,15 @@ function Reservas() {
     return m;
   }, [reservas.data]);
   const edicaoDaNova = (edicoes.data ?? []).find((e) => e.id === nova?.edicaoId);
+  const praticaDaNova = edicaoDaNova?.praticas.find((p) => p.id === nova?.praticaId);
 
   return (
     <div className="grid gap-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          A Luna cria a reserva com <strong>sinal pendente</strong> quando a pessoa escolhe o dia e
-          diz o nome. Confirme o sinal quando o comprovante chegar.
+          A Luna cria a reserva com <strong>sinal pendente</strong> quando a pessoa escolhe o
+          horário e diz o nome. Quando ela diz que pagou, vai para{" "}
+          <strong>pagamento em análise</strong>: confira o comprovante e confirme o sinal.
         </p>
         <Button
           variant="outline"
@@ -983,6 +1037,7 @@ function Reservas() {
               nome: "",
               fone: "",
               praticaId: "",
+              hora: "",
               ofertaId: "",
             })
           }
@@ -1015,8 +1070,15 @@ function Reservas() {
                     </div>
                     <p className="mt-0.5 text-2xs text-muted-foreground">
                       {r.dia ? diaCurto(r.dia).slice(0, 5) : "Sem dia"}
+                      {r.hora ? ` às ${r.hora}` : ""}
                       {r.oferta ? ` · ${r.oferta}` : ""}
                     </p>
+                    {r.pagamentoInformadoEm && r.status === "pagamento_em_analise" && (
+                      <p className="mt-1 text-2xs font-medium text-amber-700 dark:text-amber-400">
+                        Disse que pagou há {haQuanto(r.pagamentoInformadoEm)}. Confira o
+                        comprovante.
+                      </p>
+                    )}
                     <p className="mt-0.5 text-2xs text-muted-foreground">
                       {r.edicaoNome}
                       {r.sinalValor ? ` · sinal ${formatBRL(r.sinalValor)}` : ""}
@@ -1039,7 +1101,9 @@ function Reservas() {
                           </Link>
                         </Button>
                       )}
-                      {(r.status === "sinal_pendente" || r.status === "dia_escolhido") && (
+                      {(r.status === "sinal_pendente" ||
+                        r.status === "pagamento_em_analise" ||
+                        r.status === "dia_escolhido") && (
                         <Button
                           size="sm"
                           variant="premium"
@@ -1096,7 +1160,9 @@ function Reservas() {
                 <SeletorDeEdicao
                   edicoes={edicoes.data ?? []}
                   valor={nova.edicaoId}
-                  onMudar={(v) => setNova({ ...nova, edicaoId: v, praticaId: "", ofertaId: "" })}
+                  onMudar={(v) =>
+                    setNova({ ...nova, edicaoId: v, praticaId: "", hora: "", ofertaId: "" })
+                  }
                 />
               </Campo>
               <Campo rotulo="Nome completo">
@@ -1116,7 +1182,7 @@ function Reservas() {
               <Campo rotulo="Dia de prática">
                 <Select
                   value={nova.praticaId}
-                  onValueChange={(v) => setNova({ ...nova, praticaId: v })}
+                  onValueChange={(v) => setNova({ ...nova, praticaId: v, hora: "" })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Ainda não escolheu" />
@@ -1124,12 +1190,32 @@ function Reservas() {
                   <SelectContent>
                     {(edicaoDaNova?.praticas ?? []).map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {diaCurto(p.data)} · {p.vagas - p.ocupadas} vagas
+                        {diaCurto(p.data)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </Campo>
+              {praticaDaNova && (
+                <Campo rotulo="Horário">
+                  <Select value={nova.hora} onValueChange={(v) => setNova({ ...nova, hora: v })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Escolha o horário" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {horariosDaPratica(praticaDaNova).map((h) => {
+                        const livres = praticaDaNova.vagas - (praticaDaNova.ocupadas[h] ?? 0);
+                        return (
+                          <SelectItem key={h} value={h} disabled={livres <= 0}>
+                            {h} ·{" "}
+                            {livres > 0 ? `${livres} ${livres === 1 ? "vaga" : "vagas"}` : "lotado"}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </Campo>
+              )}
               <Campo rotulo="Oferta">
                 <Select
                   value={nova.ofertaId}
@@ -1168,15 +1254,20 @@ function Regras() {
   const estado = query.data?.modulos.find((m) => m.modulo === "paciente_modelo");
   const [c, setC] = useState<ConfigDoModulo | null>(null);
   const [manual, setManual] = useState("");
+  const [versao, setVersao] = useState("");
   useEffect(() => {
     if (estado) {
       setC(estado.config);
       setManual(estado.manual);
+      setVersao(estado.manualVersao ?? "");
     }
   }, [estado]);
 
   const gravar = useMutation({
-    mutationFn: () => salvar({ data: { modulo: "paciente_modelo", config: c, manual } }),
+    mutationFn: () =>
+      salvar({
+        data: { modulo: "paciente_modelo", config: c, manual, manualVersao: versao },
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agente-modulos"] });
       toast.success("Regras salvas. A Luna usa na próxima resposta.");
@@ -1185,6 +1276,9 @@ function Regras() {
   });
 
   if (!c) return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  const politica = (k: keyof ConfigDoModulo["politicas"], v: string) =>
+    setC({ ...c, politicas: { ...c.politicas, [k]: v } });
+  const bloqueios = estado?.bloqueios ?? [];
   const formas = new Set(c.pagamento.formas);
   const alternarForma = (f: string) => {
     const n = new Set(formas);
@@ -1225,26 +1319,87 @@ function Regras() {
                 }
               />
             </Campo>
-            <Campo rotulo="Chave Pix" ajuda="Vazio: a Luna diz que a equipe manda a chave.">
-              <Input
-                value={c.sinal.chavePix}
-                onChange={(e) => setC({ ...c, sinal: { ...c.sinal, chavePix: e.target.value } })}
-              />
+          </div>
+          <div className="mt-3 grid gap-3">
+            <Campo rotulo="O sinal é abatido do valor do procedimento?">
+              <Select
+                value={c.sinal.abatido}
+                onValueChange={(v) =>
+                  setC({
+                    ...c,
+                    sinal: { ...c.sinal, abatido: v as ConfigDoModulo["sinal"]["abatido"] },
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sim">Sim, é abatido</SelectItem>
+                  <SelectItem value="nao">Não, é cobrado à parte</SelectItem>
+                  <SelectItem value="indefinido">Ainda não definido (Luna não cobra)</SelectItem>
+                </SelectContent>
+              </Select>
             </Campo>
-            <Campo rotulo="Titular">
+            <Campo
+              rotulo="Link de pagamento do sinal"
+              ajuda="O link oficial que a Luna manda. Vazio: a Luna não cobra e passa para a equipe."
+            >
               <Input
-                value={c.sinal.titular}
-                onChange={(e) => setC({ ...c, sinal: { ...c.sinal, titular: e.target.value } })}
+                inputMode="url"
+                placeholder="https://"
+                value={c.linkPagamento}
+                onChange={(e) => setC({ ...c, linkPagamento: e.target.value })}
               />
             </Campo>
           </div>
-          <label className="mt-3 flex items-center justify-between gap-3 text-sm">
-            <span>O sinal é abatido do valor do procedimento</span>
-            <Switch
-              checked={c.sinal.abatido}
-              onCheckedChange={(v) => setC({ ...c, sinal: { ...c.sinal, abatido: v } })}
-            />
-          </label>
+          {bloqueios.length > 0 && (
+            <div className="mt-3 rounded-2xl bg-amber-50 p-3 text-2xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+              <p className="font-semibold">A Luna ainda não cobra o sinal porque:</p>
+              <ul className="mt-1 list-disc pl-4">
+                {bloqueios.map((b) => (
+                  <li key={b}>{b}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Bloco>
+
+        <Bloco
+          titulo="Políticas"
+          descricao="O que acontece com o sinal em cada caso. A Luna repete do jeito que está aqui; sem a política de falta ela não cobra."
+        >
+          <div className="grid gap-3">
+            <Campo rotulo="Contraindicação na avaliação">
+              <Textarea
+                rows={2}
+                value={c.politicas.contraindicacao}
+                placeholder="Ex.: o sinal é devolvido integralmente."
+                onChange={(e) => politica("contraindicacao", e.target.value)}
+              />
+            </Campo>
+            <Campo rotulo="Falta no dia">
+              <Textarea
+                rows={2}
+                value={c.politicas.falta}
+                onChange={(e) => politica("falta", e.target.value)}
+              />
+            </Campo>
+            <Campo rotulo="Cancelamento com antecedência">
+              <Textarea
+                rows={2}
+                value={c.politicas.cancelamento}
+                onChange={(e) => politica("cancelamento", e.target.value)}
+              />
+            </Campo>
+            <Campo rotulo="Remarcação">
+              <Textarea
+                rows={2}
+                value={c.politicas.remarcacao}
+                onChange={(e) => politica("remarcacao", e.target.value)}
+              />
+            </Campo>
+          </div>
         </Bloco>
 
         <Bloco
@@ -1291,7 +1446,10 @@ function Regras() {
           descricao="O que a Luna repete sempre igual. Vazio: ela diz que vai confirmar e encaminha a dúvida."
         >
           <div className="grid gap-3">
-            <Campo rotulo="Credenciais da Dra.">
+            <Campo
+              rotulo="Credenciais da responsável"
+              ajuda="Nome e registro vêm do cadastro de profissionais. Aqui, só o que faltar."
+            >
               <Textarea
                 rows={2}
                 value={c.credenciais}
@@ -1306,12 +1464,58 @@ function Regras() {
                 onChange={(e) => setC({ ...c, fotos: e.target.value })}
               />
             </Campo>
-            <Campo rotulo="Cancelamento e falta">
-              <Textarea
-                rows={2}
-                value={c.cancelamento}
-                onChange={(e) => setC({ ...c, cancelamento: e.target.value })}
-              />
+            <Campo rotulo="Instagram de quem atende">
+              <div className="grid gap-2">
+                {c.instagram.map((ig, i) => (
+                  <div key={i} className="flex gap-2">
+                    <Input
+                      className="w-40"
+                      placeholder="Dra. Mariane"
+                      value={ig.nome}
+                      onChange={(e) =>
+                        setC({
+                          ...c,
+                          instagram: c.instagram.map((x, j) =>
+                            j === i ? { ...x, nome: e.target.value } : x,
+                          ),
+                        })
+                      }
+                    />
+                    <Input
+                      inputMode="url"
+                      placeholder="https://www.instagram.com/..."
+                      value={ig.url}
+                      onChange={(e) =>
+                        setC({
+                          ...c,
+                          instagram: c.instagram.map((x, j) =>
+                            j === i ? { ...x, url: e.target.value } : x,
+                          ),
+                        })
+                      }
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() =>
+                        setC({ ...c, instagram: c.instagram.filter((_, j) => j !== i) })
+                      }
+                    >
+                      Remover
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="justify-self-start gap-1"
+                  onClick={() => setC({ ...c, instagram: [...c.instagram, { nome: "", url: "" }] })}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Instagram
+                </Button>
+              </div>
             </Campo>
             <Campo rotulo="Retorno (dias depois)">
               <Input
@@ -1387,9 +1591,30 @@ function Regras() {
 
         <Bloco
           titulo="Manual do módulo"
-          descricao="Como explicar a prática, qualificar, apresentar os pacotes e quando passar para a equipe. Entra só nas conversas de paciente modelo, por cima do manual da Luna."
+          descricao="A MD especializada de paciente modelo. Entra só nas conversas de paciente modelo, por cima do manual da Luna; os dados do CRM entram depois dela."
         >
-          <Textarea rows={12} value={manual} onChange={(e) => setManual(e.target.value)} />
+          <div className="grid gap-3">
+            <Campo rotulo="Versão">
+              <Input
+                className="w-40"
+                placeholder="HOF V1"
+                value={versao}
+                onChange={(e) => setVersao(e.target.value)}
+              />
+            </Campo>
+            <Textarea
+              rows={14}
+              className="font-mono text-2xs"
+              value={manual}
+              onChange={(e) => setManual(e.target.value)}
+            />
+            <p className="text-2xs text-muted-foreground">
+              {manual.length.toLocaleString("pt-BR")} caracteres
+              {estado?.manualEm
+                ? ` · salvo em ${new Date(estado.manualEm).toLocaleString("pt-BR")}`
+                : ""}
+            </p>
+          </div>
         </Bloco>
 
         <Button

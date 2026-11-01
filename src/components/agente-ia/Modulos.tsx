@@ -4,9 +4,24 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, GraduationCap, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { getModulos, ligarModulo, MODULOS, type Modulo } from "@/lib/agente-ia/modulos.functions";
+import {
+  getModulos,
+  ligarModulo,
+  MODULOS,
+  type EstadoLigado,
+  type Modulo,
+} from "@/lib/agente-ia/modulos.functions";
+
+const ESTADOS: { id: EstadoLigado; rotulo: string; ajuda: string }[] = [
+  { id: "desligado", rotulo: "Desligado", ajuda: "Nenhuma conversa usa o módulo." },
+  {
+    id: "teste",
+    rotulo: "Só no teste",
+    ajuda: "O módulo vale só na tela Testar. Nenhum paciente recebe nada dele.",
+  },
+  { id: "ligado", rotulo: "Ligado", ajuda: "Vale para as conversas reais de paciente modelo." },
+];
 import { Ajuda } from "./campos";
 
 // A aba Módulos: capacidades comerciais que a Luna liga por cima do manual.
@@ -24,7 +39,7 @@ export function Modulos() {
   const ligar = useServerFn(ligarModulo);
   const query = useQuery({ queryKey: ["agente-modulos"], queryFn: () => buscar() });
   const alternar = useMutation({
-    mutationFn: (v: { modulo: Modulo; ativo: boolean }) => ligar({ data: v }),
+    mutationFn: (v: { modulo: Modulo; estado: EstadoLigado }) => ligar({ data: v }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agente-modulos"] }),
     onError: (e: Error) => toast.error(e.message),
   });
@@ -47,7 +62,8 @@ export function Modulos() {
       <div className="grid gap-4 lg:grid-cols-2">
         {MODULOS.map((m) => {
           const estado = d?.modulos.find((x) => x.modulo === m.id);
-          const ativo = estado?.ativo === true;
+          const posicao: EstadoLigado = estado?.estado ?? "desligado";
+          const ativo = posicao !== "desligado";
           const ePaciente = m.id === "paciente_modelo";
           const Icone = ePaciente ? Sparkles : GraduationCap;
           return (
@@ -74,10 +90,14 @@ export function Modulos() {
                 <span
                   className={cn(
                     "shrink-0 rounded-full px-2.5 py-1 text-2xs font-medium",
-                    ativo ? "bg-success-soft text-success" : "bg-muted text-muted-foreground",
+                    posicao === "ligado"
+                      ? "bg-success-soft text-success"
+                      : posicao === "teste"
+                        ? "bg-warning-soft text-warning"
+                        : "bg-muted text-muted-foreground",
                   )}
                 >
-                  {ativo ? "Ativo" : "Desativado"}
+                  {ESTADOS.find((e) => e.id === posicao)?.rotulo}
                 </span>
               </div>
 
@@ -100,14 +120,19 @@ export function Modulos() {
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">Sinal pendente</dt>
+                    <dt className="text-muted-foreground">Pagamento a conferir</dt>
                     <dd
                       className={cn(
                         "mt-0.5 font-medium tabular-nums",
-                        (d?.sinaisPendentes ?? 0) > 0 && "text-warning",
+                        (d?.emAnalise ?? 0) > 0 && "text-warning",
                       )}
                     >
-                      {d?.sinaisPendentes ?? 0}
+                      {d?.emAnalise ?? 0}
+                      {(d?.sinaisPendentes ?? 0) > 0 && (
+                        <span className="ml-1 text-2xs font-normal text-muted-foreground">
+                          · {d?.sinaisPendentes} aguardando sinal
+                        </span>
+                      )}
                     </dd>
                   </div>
                 </dl>
@@ -119,7 +144,18 @@ export function Modulos() {
                 </p>
               )}
 
-              {ePaciente && ativo && !d?.edicaoAberta && (
+              {ePaciente && ativo && (d?.conflito.length ?? 0) > 0 && (
+                <p className="mt-3 rounded-xl bg-danger-soft px-3 py-2 text-xs text-danger">
+                  Duas edições com inscrições abertas ({d?.conflito.join(" e ")}). A Luna não vende
+                  até sobrar uma.
+                </p>
+              )}
+              {ePaciente && ativo && (estado?.bloqueios.length ?? 0) > 0 && (
+                <p className="mt-3 rounded-xl bg-warning-soft px-3 py-2 text-xs text-warning">
+                  Cobrança bloqueada: falta {estado?.bloqueios.join(", ")}.
+                </p>
+              )}
+              {ePaciente && ativo && !d?.edicaoAberta && !(d?.conflito.length ?? 0) && (
                 <p className="mt-3 rounded-xl bg-warning-soft px-3 py-2 text-xs text-warning">
                   Sem edição com inscrições abertas: a Luna diz que não há vaga agora e oferece a
                   lista de interesse.
@@ -127,15 +163,30 @@ export function Modulos() {
               )}
 
               <div className="mt-auto flex items-center justify-between gap-3 pt-5">
-                <label className="flex items-center gap-2 text-sm">
-                  <Switch
-                    checked={ativo}
-                    disabled={alternar.isPending || !d}
-                    onCheckedChange={(v) => alternar.mutate({ modulo: m.id, ativo: v })}
-                    aria-label={`Ativar ${m.nome}`}
-                  />
-                  {ativo ? "Ligado" : "Desligado"}
-                </label>
+                <div
+                  role="group"
+                  aria-label={`Estado de ${m.nome}`}
+                  className="flex rounded-full border border-border/70 bg-card p-0.5"
+                >
+                  {ESTADOS.map((e) => (
+                    <button
+                      key={e.id}
+                      type="button"
+                      title={e.ajuda}
+                      disabled={alternar.isPending || !d}
+                      aria-pressed={posicao === e.id}
+                      onClick={() => alternar.mutate({ modulo: m.id, estado: e.id })}
+                      className={cn(
+                        "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                        posicao === e.id
+                          ? "bg-foreground text-white"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {e.rotulo}
+                    </button>
+                  ))}
+                </div>
                 {ePaciente && (
                   <Button asChild variant="outline" className="h-9 gap-1.5 rounded-full">
                     <Link to="/agente-ia/modulos/paciente-modelo">

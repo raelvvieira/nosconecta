@@ -904,7 +904,14 @@ async function handleSugerir(ownerId: string, conversationId: string) {
  * É o que torna o atendimento testável de verdade: nada sai para paciente
  * nenhum.
  */
-async function handleSimular(ownerId: string, texto: string) {
+async function handleSimular(
+  ownerId: string,
+  texto: string,
+  /** A conversa até aqui, para testar um roteiro de várias mensagens. */
+  historicoDaTela: { deQuem: "clinica" | "paciente"; texto: string }[] = [],
+  /** O público simulado (paciente modelo, mentoria). Ausente = o normal. */
+  publico?: "atendimento" | "paciente_modelo" | "mentoria",
+) {
   const enviados: { texto: string; esperaMs: number }[] = [];
   const agente = await garantirAgente(ownerId);
   const chave: string | null = agente?.api_key ?? null;
@@ -912,7 +919,11 @@ async function handleSimular(ownerId: string, texto: string) {
     {
       supabase,
       ownerId,
-      historico: async () => [],
+      // O histórico vem da tela, mais a mensagem nova, como o espelho faria.
+      historico: async () => [
+        ...historicoDaTela.slice(-40),
+        { deQuem: "paciente" as const, texto },
+      ],
       responderComIa: (instrucao, historico, mensagens) =>
         responderPaciente(
           instrucao,
@@ -942,6 +953,7 @@ async function handleSimular(ownerId: string, texto: string) {
       ignorarEspera: true,
       // A prévia é testada com a mesma frase várias vezes de propósito.
       ignorarRepeticao: true,
+      publicoDaSimulacao: publico,
     },
     {
       conversationId: `simulacao-${ownerId}`,
@@ -981,11 +993,13 @@ Deno.serve(async (req) => {
   const barrado = soOSistema(req);
   if (barrado) return barrado;
   try {
-    const { ownerId, action, texto, conversationId } = (await req.json()) as {
+    const { ownerId, action, texto, conversationId, historico, publico } = (await req.json()) as {
       ownerId?: string;
       action?: string;
       texto?: string;
       conversationId?: string;
+      historico?: { deQuem: "clinica" | "paciente"; texto: string }[];
+      publico?: "atendimento" | "paciente_modelo" | "mentoria";
     };
     if (!ownerId || !action) {
       return new Response(JSON.stringify({ error: "ownerId e action são obrigatórios" }), {
@@ -1009,7 +1023,19 @@ Deno.serve(async (req) => {
     if (action === "estado") result = await handleEstado(ownerId);
     else if (action === "ciclo") result = await handleCiclo(ownerId);
     else if (action === "instrucao") result = await handleInstrucao(ownerId);
-    else if (action === "simular") result = await handleSimular(ownerId, String(texto ?? ""));
+    else if (action === "simular")
+      result = await handleSimular(
+        ownerId,
+        String(texto ?? ""),
+        Array.isArray(historico)
+          ? historico
+              .filter((m) => m && (m.deQuem === "clinica" || m.deQuem === "paciente"))
+              .map((m) => ({ deQuem: m.deQuem, texto: String(m.texto ?? "").slice(0, 2000) }))
+          : [],
+        publico === "paciente_modelo" || publico === "mentoria" || publico === "atendimento"
+          ? publico
+          : undefined,
+      );
     else if (action === "sugerir") {
       if (!conversationId) {
         return new Response(JSON.stringify({ error: "conversationId é obrigatório" }), {

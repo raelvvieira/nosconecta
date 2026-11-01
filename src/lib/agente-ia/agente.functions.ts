@@ -656,10 +656,16 @@ export const listarModelosDaIa = createServerFn({ method: "GET" })
  *  nenhum — é o que torna isto testável antes do registro no CRM. */
 export const simularAtendimento = createServerFn({ method: "POST" })
   .middleware([exigeAgenteIa])
-  .inputValidator((input: { texto: string }) => {
-    if (!input.texto?.trim()) throw new Error("Escreva uma mensagem para simular.");
-    return input;
-  })
+  .inputValidator(
+    (input: {
+      texto: string;
+      historico?: { deQuem: "clinica" | "paciente"; texto: string }[];
+      publico?: "atendimento" | "paciente_modelo" | "mentoria";
+    }) => {
+      if (!input.texto?.trim()) throw new Error("Escreva uma mensagem para simular.");
+      return input;
+    },
+  )
   .handler(
     async ({
       data,
@@ -675,6 +681,8 @@ export const simularAtendimento = createServerFn({ method: "POST" })
         ownerId: context.ownerId,
         action: "simular",
         texto: data.texto,
+        historico: data.historico ?? [],
+        publico: data.publico,
       });
       return {
         respondeu: !!json.respondeu,

@@ -425,11 +425,15 @@ export interface RespostaAoPaciente {
    * de prática (`P1`, `P2`…), o da oferta (`O1`…, ou vazio) e o nome completo.
    * Validados em `modulo-paciente-modelo.ts`, não aqui. Vazios no resto.
    */
-  reservaDia: string;
+  reservaHorario: string;
   reservaOferta: string;
   reservaNome: string;
   /** "sim" quando a pessoa aceitou entrar na lista de interesse da próxima edição. */
   entrarNaLista: string;
+  /** "sim" quando a pessoa disse que pagou ou mandou comprovante. Não confirma nada. */
+  pagamentoInformado: string;
+  /** MODEL_PATIENT, MENTORING_STUDENT, REGULAR_CLINIC ou UNKNOWN. */
+  intencao: string;
 }
 
 /**
@@ -462,10 +466,12 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
       "estadoDaConversa",
       "perguntaAberta",
       "retornoCombinado",
-      "reservaDia",
+      "reservaHorario",
       "reservaOferta",
       "reservaNome",
       "entrarNaLista",
+      "pagamentoInformado",
+      "intencao",
     ],
     properties: {
       bolhas: {
@@ -520,25 +526,36 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
         description:
           "A data AAAA-MM-DD em que a pessoa pediu para ser chamada, quando ela pediu. Vazio no resto, que é o normal.",
       },
-      reservaDia: {
+      reservaHorario: {
         type: "string",
         description:
-          "Só em conversa de paciente modelo: o código do dia de prática que a pessoa acabou de escolher para reservar (P1, P2…), exatamente como está na lista, e só depois de ela ter dito o nome completo. Vazio no resto, que é o normal.",
+          "Só em conversa de paciente modelo: o código do horário de atendimento que a pessoa acabou de escolher (H1, H2…), exatamente como está na lista. Vazio no resto, que é o normal.",
       },
       reservaOferta: {
         type: "string",
         description:
-          "Junto de reservaDia: o código do procedimento escolhido (O1, O2…), exatamente como está na lista. Vazio se ela ainda não escolheu ou quando não há reserva.",
+          "Junto de reservaHorario: o código do procedimento escolhido (O1, O2…), exatamente como está na lista. Vazio se ela ainda não escolheu ou quando não há reserva.",
       },
       reservaNome: {
         type: "string",
         description:
-          "Junto de reservaDia: o nome completo que a pessoa informou para a reserva. Vazio quando não há reserva.",
+          "Junto de reservaHorario: o nome completo que a pessoa informou para a reserva, se já informou. Vazio no resto.",
       },
       entrarNaLista: {
         type: "string",
         description:
           '"sim" quando a pessoa acabou de aceitar entrar na lista de interesse da próxima edição de paciente modelo. Vazio no resto, que é o normal.',
+      },
+      pagamentoInformado: {
+        type: "string",
+        description:
+          '"sim" quando a pessoa acabou de dizer que pagou o sinal ou mandou comprovante. Isso não confirma nada. Vazio no resto, que é o normal.',
+      },
+      intencao: {
+        type: "string",
+        enum: ["MODEL_PATIENT", "MENTORING_STUDENT", "REGULAR_CLINIC", "UNKNOWN"],
+        description:
+          "O que a pessoa quer, pelo que ELA disse: MODEL_PATIENT (ser atendida como paciente modelo), MENTORING_STUDENT (profissional que quer fazer o curso), REGULAR_CLINIC (atendimento normal na clínica) ou UNKNOWN quando não dá para saber.",
       },
     },
   },
@@ -585,10 +602,12 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
     estadoDaConversa: "",
     perguntaAberta: "",
     retornoCombinado: "",
-    reservaDia: "",
+    reservaHorario: "",
     reservaOferta: "",
     reservaNome: "",
     entrarNaLista: "",
+    pagamentoInformado: "",
+    intencao: "",
   };
   if (!cru) return vazia;
   try {
@@ -602,10 +621,12 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
       estadoDaConversa?: unknown;
       perguntaAberta?: unknown;
       retornoCombinado?: unknown;
-      reservaDia?: unknown;
+      reservaHorario?: unknown;
       reservaOferta?: unknown;
       reservaNome?: unknown;
       entrarNaLista?: unknown;
+      pagamentoInformado?: unknown;
+      intencao?: unknown;
     };
     if (!obj || typeof obj !== "object") return { ...vazia, texto: cru, bolhas: [cru] };
     // `resposta` (um texto só) era o formato até a V4.2; continua aceito para
@@ -640,10 +661,12 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
           estadoDaConversa: curto(obj.estadoDaConversa, 40),
           perguntaAberta: curto(obj.perguntaAberta, 200),
           retornoCombinado: curto(obj.retornoCombinado, 10),
-          reservaDia: curto(obj.reservaDia, 4),
+          reservaHorario: curto(obj.reservaHorario, 4),
           reservaOferta: curto(obj.reservaOferta, 4),
           reservaNome: curto(obj.reservaNome, 120),
           entrarNaLista: curto(obj.entrarNaLista, 4).toLowerCase(),
+          pagamentoInformado: curto(obj.pagamentoInformado, 4).toLowerCase(),
+          intencao: curto(obj.intencao, 20).toUpperCase(),
         }
       : // JSON sem fala nenhuma: mandar o próprio JSON seria pior que calar
         // (V4.2, E12: "não passar JSON bruto ao paciente"). Vazio vira "resposta

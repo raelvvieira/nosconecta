@@ -1,22 +1,30 @@
-// O módulo Paciente Modelo HOF: a seção da instrução gerada do cadastro.
+// O módulo Paciente Modelo HOF: os dados da edição, prontos para a Luna.
 //
-// ── O que este arquivo decide ────────────────────────────────────────────
+// ── Três camadas, cada uma com um dono ───────────────────────────────────
 //
-// Antes, a edição vivia em três campos soltos do agente (uma data, um texto
-// livre e um endereço). A Luna anunciava "23, 24 e 25" quando a prática era
-// só sábado e domingo, não sabia quantos ml tinha cada valor, dava o endereço
-// da clínica e inventava que o sinal "não é abatido".
+//   Luna V4.2 (o manual da clínica)  como ela conversa, qualifica e vende;
+//   MD Paciente Modelo HOF V1        como vender a vaga da mentoria
+//                                    (`agente_modulos.manual`);
+//   Este arquivo                     o que está à venda AGORA, lido do CRM.
 //
-// Agora a edição é cadastro: dias de prática com vagas, ofertas com ml e
-// parcelas, a regra do sinal, a FAQ aprovada. Esta seção é montada daqui a
-// cada resposta, e só entra quando o público da sessão é `paciente_modelo`
-// e o módulo está ligado. Fora disso, vale a proibição de sempre: nada de
-// preço de harmonização por WhatsApp.
+// A seção que sai daqui é só DADOS: edição, local, horários com vaga,
+// ofertas, sinal e políticas, link, equipe, casos, FAQ, e o que está
+// bloqueado. O comportamento é todo da MD. Duas instruções dizendo a mesma
+// coisa de jeitos diferentes fazem o modelo escolher uma ao acaso.
 //
-// Módulo puro, com `tests/modulo-paciente-modelo.ts`. A gravação da reserva
-// mora em `atendimento.ts`.
+// Só entra numa conversa de paciente modelo, com o módulo ligado (ou na tela
+// Testar, com o módulo "só no teste"). Módulo puro, com
+// `tests/modulo-paciente-modelo.ts`.
 
-export type StatusDaEdicao = "rascunho" | "inscricoes_abertas" | "esgotada" | "encerrada";
+export type EstadoDoModulo = "desligado" | "teste" | "ligado";
+
+export type StatusDaEdicao =
+  | "rascunho"
+  | "publicada"
+  | "inscricoes_abertas"
+  | "esgotada"
+  | "encerrada"
+  | "cancelada";
 
 export interface PraticaDaEdicao {
   id: string;
@@ -24,9 +32,12 @@ export interface PraticaDaEdicao {
   data: string;
   horaInicio: string | null;
   horaFim: string | null;
+  /** Minutos de cada atendimento. Os horários saem de início a fim, nesse passo. */
+  duracaoMin: number;
+  /** Pacientes atendidos ao mesmo tempo em cada horário. */
   vagas: number;
-  /** Reservas que ocupam vaga (sinal pendente dentro do prazo ou confirmada). */
-  ocupadas: number;
+  /** Reservas que ocupam vaga, por horário "HH:MM". Sem horário: chave "". */
+  ocupadas: Record<string, number>;
   observacao?: string | null;
 }
 
@@ -51,21 +62,33 @@ export interface EdicaoDoModulo {
   fim: string | null;
   status: StatusDaEdicao;
   observacoes: string | null;
+  orientacoesChegada?: string | null;
   praticas: PraticaDaEdicao[];
   ofertas: OfertaDaEdicao[];
 }
 
+export type Abatimento = "sim" | "nao" | "indefinido";
+
 export interface ConfigDoModulo {
   sinal: {
     valor: number;
-    abatido: boolean;
-    chavePix: string;
-    titular: string;
+    /** "indefinido" bloqueia a cobrança (MD, 12.11). */
+    abatido: Abatimento;
     prazoHoras: number;
   };
+  /** O link oficial que a Luna manda para o sinal. Vazio bloqueia a cobrança. */
+  linkPagamento: string;
   pagamento: { formas: string[]; parcelasMax: number; boleto: boolean };
-  cancelamento: string;
+  politicas: {
+    /** Contraindicação no dia: o que acontece com o sinal. */
+    contraindicacao: string;
+    falta: string;
+    cancelamento: string;
+    remarcacao: string;
+  };
+  /** Texto extra sobre a responsável, além do cadastro de profissionais. */
   credenciais: string;
+  instagram: { nome: string; url: string }[];
   fotos: string;
   retornoDias: number | null;
   faq: { pergunta: string; resposta: string }[];
@@ -73,15 +96,26 @@ export interface ConfigDoModulo {
 }
 
 export const CONFIG_PADRAO: ConfigDoModulo = {
-  sinal: { valor: 150, abatido: false, chavePix: "", titular: "", prazoHoras: 24 },
+  sinal: { valor: 150, abatido: "indefinido", prazoHoras: 24 },
+  linkPagamento: "",
   pagamento: { formas: ["pix", "cartao", "cartao_parcelado"], parcelasMax: 4, boleto: false },
-  cancelamento: "",
+  politicas: { contraindicacao: "", falta: "", cancelamento: "", remarcacao: "" },
   credenciais: "",
+  instagram: [],
   fotos: "",
   retornoDias: null,
   faq: [],
   listaDeInteresse: true,
 };
+
+function txt(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+function num(v: unknown, padrao: number): number {
+  return v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v))
+    ? Number(v)
+    : padrao;
+}
 
 /** A configuração como a tela e a Luna a leem: o que vier torto cai no padrão. */
 export function configDoModulo(bruto: unknown): ConfigDoModulo {
@@ -91,24 +125,39 @@ export function configDoModulo(bruto: unknown): ConfigDoModulo {
     string,
     unknown
   >;
-  const num = (v: unknown, padrao: number) =>
-    Number.isFinite(Number(v)) && v !== null && v !== "" ? Number(v) : padrao;
-  const txt = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const pol = (c.politicas && typeof c.politicas === "object" ? c.politicas : {}) as Record<
+    string,
+    unknown
+  >;
+  // `abatido` era booleano na primeira versão, com `false` posto por padrão
+  // e não por decisão da clínica. Só `true` vira decisão; o resto, indefinido.
+  const abatido: Abatimento =
+    s.abatido === "sim" || s.abatido === true ? "sim" : s.abatido === "nao" ? "nao" : "indefinido";
   return {
     sinal: {
       valor: num(s.valor, CONFIG_PADRAO.sinal.valor),
-      abatido: s.abatido === true,
-      chavePix: txt(s.chavePix),
-      titular: txt(s.titular),
+      abatido,
       prazoHoras: num(s.prazoHoras, CONFIG_PADRAO.sinal.prazoHoras),
     },
+    linkPagamento: txt(c.linkPagamento),
     pagamento: {
       formas: Array.isArray(p.formas) ? p.formas.map(String) : CONFIG_PADRAO.pagamento.formas,
       parcelasMax: num(p.parcelasMax, CONFIG_PADRAO.pagamento.parcelasMax),
       boleto: p.boleto === true,
     },
-    cancelamento: txt(c.cancelamento),
+    politicas: {
+      contraindicacao: txt(pol.contraindicacao),
+      falta: txt(pol.falta),
+      // A primeira versão tinha um campo só, `cancelamento`, na raiz.
+      cancelamento: txt(pol.cancelamento) || txt(c.cancelamento),
+      remarcacao: txt(pol.remarcacao),
+    },
     credenciais: txt(c.credenciais),
+    instagram: Array.isArray(c.instagram)
+      ? c.instagram
+          .map((i: any) => ({ nome: txt(i?.nome), url: txt(i?.url) }))
+          .filter((i: { nome: string; url: string }) => i.nome && /^https?:\/\//.test(i.url))
+      : [],
     fotos: txt(c.fotos),
     retornoDias:
       c.retornoDias === null || c.retornoDias === undefined || c.retornoDias === ""
@@ -123,30 +172,58 @@ export function configDoModulo(bruto: unknown): ConfigDoModulo {
   };
 }
 
-/** "2026-10-25" → "25/10". Sem `Date`: é calendário, não instante. */
-function diaCurto(iso: string): string {
+// ── Datas e horários ───────────────────────────────────────────────────────
+
+/** "2026-11-21" → "21/11". Sem `Date`: é calendário, não instante. */
+export function diaCurto(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso ?? "").trim());
   return m ? `${m[3]}/${m[2]}` : String(iso ?? "");
 }
 
 const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
-function diaDaSemana(iso: string): string {
+export function diaDaSemana(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso ?? "").trim());
   if (!m) return "";
   // Meio-dia UTC: a data é de calendário e nenhum fuso a move de dia.
   return DIAS[new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12)).getUTCDay()];
 }
 
+function minutos(hora: string): number {
+  const [h, m] = hora.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+function hhmm(min: number): string {
+  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+}
+
+/** Os horários de atendimento de um dia de prática: de início a fim, no passo da duração. */
+export function horariosDaPratica(p: PraticaDaEdicao): string[] {
+  if (!p.horaInicio || !p.horaFim) return [];
+  const passo = Math.max(10, Math.trunc(p.duracaoMin || 60));
+  const ini = minutos(p.horaInicio.slice(0, 5));
+  const fim = minutos(p.horaFim.slice(0, 5));
+  const lista: string[] = [];
+  for (let t = ini; t + passo <= fim; t += passo) lista.push(hhmm(t));
+  return lista;
+}
+
+export function vagasNoHorario(p: PraticaDaEdicao, hora: string): number {
+  return Math.max(0, Number(p.vagas) - Number(p.ocupadas[hora] ?? 0));
+}
+
+/** Vagas que ainda sobram no dia, somando os horários. */
+export function vagasRestantes(p: PraticaDaEdicao): number {
+  const hs = horariosDaPratica(p);
+  if (!hs.length) return Math.max(0, Number(p.vagas) - Number(p.ocupadas[""] ?? 0));
+  return hs.reduce((s, h) => s + vagasNoHorario(p, h), 0);
+}
+
 function reais(n: number): string {
   return `R$ ${n.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
-/** Vagas que ainda sobram no dia. */
-export function vagasRestantes(p: PraticaDaEdicao): number {
-  return Math.max(0, Number(p.vagas) - Number(p.ocupadas));
-}
+// ── Qual edição está à venda ───────────────────────────────────────────────
 
-/** O último dia de prática da edição, ou o fim do curso quando não há prática. */
 function ultimoDia(e: EdicaoDoModulo): string | null {
   const datas = e.praticas
     .map((p) => p.data)
@@ -155,79 +232,168 @@ function ultimoDia(e: EdicaoDoModulo): string | null {
   return datas.length ? datas[datas.length - 1] : e.fim;
 }
 
-/**
- * A edição que a Luna pode oferecer hoje: com inscrições abertas (ou esgotada,
- * para ela saber dizer que lotou) e com o último dia de prática ainda por vir.
- * Com mais de uma, a mais próxima.
- */
-export function edicaoAberta(edicoes: EdicaoDoModulo[], hoje: string): EdicaoDoModulo | null {
-  const vivas = edicoes
-    .filter((e) => e.status === "inscricoes_abertas" || e.status === "esgotada")
-    .filter((e) => {
-      const fim = ultimoDia(e);
-      return !!fim && fim >= hoje;
-    })
-    .sort((a, b) => String(ultimoDia(a)).localeCompare(String(ultimoDia(b))));
-  return vivas[0] ?? null;
+function aindaVem(e: EdicaoDoModulo, hoje: string): boolean {
+  const fim = ultimoDia(e);
+  return !!fim && fim >= hoje;
 }
 
-/** As práticas que ainda dá para oferecer: de hoje em diante e com vaga. */
-export function praticasOferiveis(e: EdicaoDoModulo, hoje: string): PraticaDaEdicao[] {
-  return [...e.praticas]
-    .filter((p) => p.data >= hoje && vagasRestantes(p) > 0)
-    .sort((a, b) => a.data.localeCompare(b.data));
+export interface EdicaoVigente {
+  /** A edição à venda (ou esgotada, para a Luna saber dizer que lotou). */
+  aberta: EdicaoDoModulo | null;
+  /** Divulgada, mas sem reserva aberta ainda. */
+  publicada: EdicaoDoModulo | null;
+  /**
+   * Duas ou mais edições vendendo ao mesmo tempo. A MD (17.5) manda bloquear
+   * a venda automática em vez de deixar a Luna escolher entre cidades.
+   */
+  conflito: EdicaoDoModulo[];
+}
+
+export function edicaoVigente(edicoes: EdicaoDoModulo[], hoje: string): EdicaoVigente {
+  const porData = (a: EdicaoDoModulo, b: EdicaoDoModulo) =>
+    String(ultimoDia(a)).localeCompare(String(ultimoDia(b)));
+  const vendendo = edicoes
+    .filter((e) => e.status === "inscricoes_abertas" || e.status === "esgotada")
+    .filter((e) => aindaVem(e, hoje))
+    .sort(porData);
+  const publicadas = edicoes
+    .filter((e) => e.status === "publicada" && aindaVem(e, hoje))
+    .sort(porData);
+  return {
+    aberta: vendendo.length === 1 ? vendendo[0] : null,
+    publicada: publicadas[0] ?? null,
+    conflito: vendendo.length > 1 ? vendendo : [],
+  };
+}
+
+/** Compatível com a primeira versão: a edição aberta, ou nenhuma. */
+export function edicaoAberta(edicoes: EdicaoDoModulo[], hoje: string): EdicaoDoModulo | null {
+  return edicaoVigente(edicoes, hoje).aberta;
+}
+
+// ── Os códigos desta conversa ──────────────────────────────────────────────
+
+export interface HorarioComCodigo {
+  codigo: string;
+  pratica: PraticaDaEdicao;
+  /** "HH:MM", ou "" quando o dia não tem horários definidos. */
+  hora: string;
+  vagas: number;
 }
 
 export interface CatalogoDaEdicao {
-  praticas: { codigo: string; pratica: PraticaDaEdicao }[];
+  horarios: HorarioComCodigo[];
   ofertas: { codigo: string; oferta: OfertaDaEdicao }[];
 }
 
-/** Os códigos desta conversa: `P1`, `P2` para os dias e `O1`, `O2` para as ofertas. */
+/** `H1`, `H2`… são os horários com vaga; `O1`, `O2`… as ofertas. */
 export function catalogoDaEdicao(e: EdicaoDoModulo | null, hoje: string): CatalogoDaEdicao {
-  if (!e) return { praticas: [], ofertas: [] };
+  if (!e || e.status === "esgotada") {
+    return {
+      horarios: [],
+      ofertas: (e?.ofertas ?? []).map((oferta, i) => ({ codigo: `O${i + 1}`, oferta })),
+    };
+  }
+  const horarios: HorarioComCodigo[] = [];
+  for (const p of [...e.praticas].sort((a, b) => a.data.localeCompare(b.data))) {
+    if (p.data < hoje) continue;
+    const hs = horariosDaPratica(p);
+    if (!hs.length) {
+      const v = vagasRestantes(p);
+      if (v > 0) horarios.push({ codigo: "", pratica: p, hora: "", vagas: v });
+      continue;
+    }
+    for (const h of hs) {
+      const v = vagasNoHorario(p, h);
+      if (v > 0) horarios.push({ codigo: "", pratica: p, hora: h, vagas: v });
+    }
+  }
   return {
-    praticas: praticasOferiveis(e, hoje).map((pratica, i) => ({ codigo: `P${i + 1}`, pratica })),
+    horarios: horarios.map((h, i) => ({ ...h, codigo: `H${i + 1}` })),
     ofertas: e.ofertas.map((oferta, i) => ({ codigo: `O${i + 1}`, oferta })),
   };
 }
 
 export interface ReservaBruta {
-  dia?: unknown;
+  horario?: unknown;
   oferta?: unknown;
   nome?: unknown;
 }
 
 export interface ReservaPedida {
   pratica: PraticaDaEdicao;
+  hora: string;
   oferta: OfertaDaEdicao | null;
   nome: string;
 }
 
 /**
  * O que a Luna devolveu vira reserva AQUI, contra o catálogo desta
- * instrução. Dia fora da lista (ou que lotou entre a oferta e o aceite) não
- * reserva nada. Oferta é opcional: a pessoa pode reservar o dia e decidir o
- * procedimento na avaliação.
+ * instrução. Horário fora da lista (ou que lotou entre a oferta e o aceite)
+ * não reserva nada. A oferta é opcional: a pessoa pode reservar o horário e
+ * decidir o procedimento na avaliação.
  */
 export function reservaPedida(
   bruto: ReservaBruta,
   catalogo: CatalogoDaEdicao,
 ): ReservaPedida | null {
-  const dia = String(bruto?.dia ?? "")
+  const cod = String(bruto?.horario ?? "")
     .trim()
     .toUpperCase();
-  if (!dia) return null;
-  const p = catalogo.praticas.find((x) => x.codigo === dia);
-  if (!p || vagasRestantes(p.pratica) <= 0) return null;
-  const cod = String(bruto?.oferta ?? "")
+  if (!cod) return null;
+  const h = catalogo.horarios.find((x) => x.codigo === cod);
+  if (!h || h.vagas <= 0) return null;
+  const oc = String(bruto?.oferta ?? "")
     .trim()
     .toUpperCase();
-  const o = cod ? catalogo.ofertas.find((x) => x.codigo === cod) : undefined;
+  const o = oc ? catalogo.ofertas.find((x) => x.codigo === oc) : undefined;
   const nome = String(bruto?.nome ?? "")
     .trim()
     .slice(0, 120);
-  return { pratica: p.pratica, oferta: o?.oferta ?? null, nome };
+  return { pratica: h.pratica, hora: h.hora, oferta: o?.oferta ?? null, nome };
+}
+
+// ── O que ainda falta para cobrar ──────────────────────────────────────────
+
+/**
+ * O que impede a Luna de mandar a cobrança. Vazio = pode cobrar.
+ *
+ * A MD (12.11) é explícita: sem a regra do abatimento, sem link oficial ou
+ * sem a política de falta, a Luna explica a vaga e registra o interesse,
+ * mas não manda link.
+ */
+export function bloqueiosDaCobranca(c: ConfigDoModulo): string[] {
+  const falta: string[] = [];
+  if (c.sinal.abatido === "indefinido") falta.push("se o sinal é abatido do procedimento");
+  if (!c.linkPagamento) falta.push("o link oficial de pagamento");
+  if (!c.politicas.falta) falta.push("a regra para quem falta");
+  return falta;
+}
+
+// ── A seção ────────────────────────────────────────────────────────────────
+
+export interface ProfissionalDaEdicao {
+  nome: string;
+  registro: string | null;
+  especialidades: string[];
+}
+
+export interface CasoDoModulo {
+  codigo: string;
+  titulo: string;
+  quandoUsar: string | null;
+}
+
+export interface EntradaDaSecao {
+  vigente: EdicaoVigente;
+  config: ConfigDoModulo;
+  /** A MD especializada (seções de comportamento). */
+  manual?: string | null;
+  hoje: string;
+  /** Quem avalia (a Dra.). */
+  quem: string;
+  catalogo: CatalogoDaEdicao;
+  responsavel?: ProfissionalDaEdicao | null;
 }
 
 /** A proibição de sempre, para quem procura harmonização fora da vaga. */
@@ -246,224 +412,260 @@ export function secaoDeHarmonizacao(quem: string): string[] {
   ];
 }
 
-export interface EntradaDaSecao {
-  edicao: EdicaoDoModulo | null;
-  /** A próxima edição que ainda não abriu, para a Luna poder citar. */
-  proxima?: EdicaoDoModulo | null;
-  config: ConfigDoModulo;
-  manual?: string | null;
-  hoje: string;
-  /** Quem avalia (a Dra.). */
-  quem: string;
-  catalogo: CatalogoDaEdicao;
+function linhaDaEdicao(e: EdicaoDoModulo): string {
+  const curso =
+    e.inicio && e.fim
+      ? e.inicio === e.fim
+        ? ` — curso em ${diaCurto(e.inicio)}`
+        : ` — curso de ${diaCurto(e.inicio)} a ${diaCurto(e.fim)}`
+      : "";
+  return `"${e.nome}"${e.cidade ? `, em ${e.cidade}` : ""}${curso}`;
 }
 
 /**
- * A seção inteira, para uma conversa de paciente modelo.
- *
- * Tudo o que está aqui veio do cadastro. O que não está cadastrado vira a
- * instrução de dizer que vai confirmar — nunca um palpite.
+ * A seção inteira de uma conversa de paciente modelo: a MD especializada e,
+ * logo depois, os dados atuais do CRM. Tudo o que não está cadastrado vira
+ * "NÃO CADASTRADO", que a MD manda tratar como desconhecido.
  */
 export function secaoDoModuloPacienteModelo(x: EntradaDaSecao): string {
-  const { edicao: e, config: c, hoje, quem, catalogo } = x;
-  const partes = ["## Paciente modelo: esta conversa é da vaga da mentoria", ""];
+  const { vigente, config: c, catalogo, quem } = x;
+  const e = vigente.aberta;
+  const partes: string[] = [];
+
   partes.push(
-    "A pessoa chegou pela vaga de PACIENTE MODELO da mentoria de harmonização",
-    `facial. Nela, os alunos aplicam e ${quem} supervisiona e faz a análise`,
-    "facial junto com eles. Tudo abaixo vale só para esta conversa; os preços",
-    "da lista da clínica, mais acima, NÃO valem aqui.",
+    "# MÓDULO PACIENTE MODELO HOF",
+    "",
+    "Esta conversa é de PACIENTE MODELO. Você continua sendo a mesma assistente,",
+    "com tudo o que está acima. O manual do módulo abaixo vale só aqui, e os",
+    "DADOS ATUAIS DO CRM, no fim, mandam sobre qualquer exemplo do manual.",
+    "Os preços da lista da clínica, mais acima, NÃO valem nesta conversa.",
     "",
   );
 
   const manual = String(x.manual ?? "").trim();
-  if (manual) partes.push("### Como conduzir", "", manual, "");
+  if (manual) partes.push(manual, "");
 
-  if (!e) {
+  partes.push("# DADOS ATUAIS DO CRM (fonte de verdade desta conversa)", "");
+
+  // ── Qual edição ─────────────────────────────────────────────────────────
+  if (vigente.conflito.length) {
     partes.push(
-      "### Não há edição aberta agora",
+      "## Edição: CONFLITO NO CADASTRO",
       "",
-      "NÃO cite valores de paciente modelo: eles valem só dentro de uma edição.",
+      "Há mais de uma edição com inscrições abertas: " +
+        vigente.conflito.map(linhaDaEdicao).join("; ") +
+        ".",
+      "NÃO escolha entre elas e NÃO ofereça horário nem cobrança. Registre o",
+      "interesse, diga que vai confirmar a data e encaminhe a dúvida à equipe.",
+      "",
     );
-    if (x.proxima) {
-      const q = x.proxima;
-      partes.push(
-        `A próxima edição cadastrada é "${q.nome}"` +
-          (q.cidade ? `, em ${q.cidade}` : "") +
-          (q.inicio ? `, de ${diaCurto(q.inicio)}${q.fim ? ` a ${diaCurto(q.fim)}` : ""}` : "") +
-          ", ainda sem inscrições abertas.",
-      );
-    }
-    if (c.listaDeInteresse) {
-      partes.push(
-        "",
-        "Ofereça entrar na lista de interesse: quando a próxima edição abrir, a",
-        "clínica avisa por aqui. Se a pessoa aceitar, preencha `entrarNaLista`",
-        'com "sim".',
-      );
-    } else {
-      partes.push("", "Diga que vai confirmar quando abre a próxima e encaminhe a dúvida.");
-    }
     return partes.join("\n");
   }
 
-  // ── A edição ──────────────────────────────────────────────────────────
-  partes.push(`### A edição: ${e.nome}`, "");
-  if (e.cidade) partes.push(`Cidade: ${e.cidade}.`);
-  if (e.inicio && e.fim) {
-    partes.push(
-      `A mentoria (o curso) vai de ${diaCurto(e.inicio)} a ${diaCurto(e.fim)}. Isso NÃO é`,
-      "o dia da pessoa: os dias de prática com pacientes estão listados abaixo,",
-      "e são só esses que você oferece.",
-    );
-  }
-  if (e.observacoes) partes.push("", e.observacoes.trim());
-  partes.push("");
-
-  partes.push("### Onde esta edição acontece", "");
-  if (e.endereco) {
-    partes.push(
-      e.endereco.trim(),
-      "",
-      "Este é o único endereço que você dá numa conversa de paciente modelo. Os",
-      "endereços da seção 'Onde a clínica fica' são das unidades de atendimento",
-      "e NÃO valem aqui.",
-    );
-  } else {
-    partes.push(
-      "O endereço desta edição NÃO está cadastrado. Se perguntarem, diga que vai",
-      "confirmar e encaminhe a dúvida. Não dê o endereço da clínica.",
-    );
-  }
-  partes.push("");
-
-  // ── Os dias de prática ────────────────────────────────────────────────
-  partes.push("### Os dias de prática com pacientes (só estes)", "");
-  if (e.status === "esgotada" || catalogo.praticas.length === 0) {
-    partes.push(
-      "Esta edição está LOTADA: não há mais vaga em dia nenhum. Diga isso com",
-      "clareza, não ofereça dia, e",
-      c.listaDeInteresse
-        ? 'ofereça a lista de interesse da próxima (`entrarNaLista` = "sim" se aceitar).'
-        : "diga que vai avisar quando abrir a próxima.",
-    );
-  } else {
-    for (const { codigo, pratica } of catalogo.praticas) {
-      const hora =
-        pratica.horaInicio && pratica.horaFim
-          ? `, das ${pratica.horaInicio.slice(0, 5)} às ${pratica.horaFim.slice(0, 5)}`
-          : "";
-      const sobra = vagasRestantes(pratica);
+  if (!e) {
+    partes.push("## Edição: NENHUMA COM INSCRIÇÕES ABERTAS", "");
+    if (vigente.publicada) {
+      const p = vigente.publicada;
       partes.push(
-        `- ${codigo}: ${diaDaSemana(pratica.data)}, ${diaCurto(pratica.data)}${hora} — ${sobra} vaga${sobra === 1 ? "" : "s"}` +
-          (pratica.observacao ? ` (${pratica.observacao})` : ""),
+        `A próxima edição divulgada é ${linhaDaEdicao(p)}` +
+          (p.praticas.length
+            ? `, com prática em ${p.praticas.map((d) => `${diaDaSemana(d.data)} ${diaCurto(d.data)}`).join(" e ")}`
+            : "") +
+          ". As reservas ainda NÃO abriram: informe a data e o local, mas não",
+        "ofereça horário, não cite valores e não mande cobrança.",
+      );
+    } else {
+      partes.push(
+        "Não há data confirmada. NÃO use datas, preços ou condições de edições",
+        "anteriores.",
       );
     }
     partes.push(
       "",
-      "Ofereça pelo dia (sábado, domingo), nunca pelo código. O horário exato",
-      "dentro do dia quem combina é a equipe depois da reserva. Dia que não está",
-      "na lista não existe para você.",
+      c.listaDeInteresse
+        ? 'Lista de interesse: HABILITADA. Se a pessoa aceitar ser avisada, preencha `entrarNaLista` = "sim".'
+        : "Lista de interesse: desabilitada. Diga que a equipe avisa quando houver data.",
+    );
+    return partes.join("\n");
+  }
+
+  partes.push(`## Edição: ${e.nome}`, "");
+  partes.push(`- Status: ${e.status === "esgotada" ? "VAGAS ESGOTADAS" : "inscrições abertas"}`);
+  partes.push(`- Cidade: ${e.cidade || "NÃO CADASTRADA"}`);
+  if (e.inicio && e.fim) {
+    partes.push(
+      e.inicio === e.fim
+        ? `- Mentoria (curso): ${diaDaSemana(e.inicio)}, ${diaCurto(e.inicio)}`
+        : `- Mentoria (curso): de ${diaCurto(e.inicio)} a ${diaCurto(e.fim)}. Isso NÃO é o dia do paciente.`,
+    );
+  }
+  partes.push(
+    `- Local: ${e.endereco || "NÃO CADASTRADO — diga que vai confirmar e encaminhe; não dê o endereço de uma unidade"}`,
+  );
+  if (e.orientacoesChegada) partes.push(`- Orientações de chegada: ${e.orientacoesChegada}`);
+  if (e.observacoes) partes.push(`- Observações da edição: ${e.observacoes}`);
+  partes.push("");
+
+  // ── Horários ────────────────────────────────────────────────────────────
+  partes.push("## Horários de atendimento com vaga (só estes)", "");
+  if (!catalogo.horarios.length) {
+    partes.push(
+      "NENHUM horário com vaga. A edição está lotada: diga isso com clareza, não",
+      "ofereça encaixe" +
+        (c.listaDeInteresse
+          ? ' e ofereça a lista de interesse (`entrarNaLista` = "sim" se aceitar).'
+          : "."),
+    );
+  } else {
+    let diaAtual = "";
+    for (const h of catalogo.horarios) {
+      if (h.pratica.data !== diaAtual) {
+        diaAtual = h.pratica.data;
+        partes.push(
+          `${diaDaSemana(diaAtual)}, ${diaCurto(diaAtual)}` +
+            (h.pratica.observacao ? ` (${h.pratica.observacao})` : "") +
+            ":",
+        );
+      }
+      partes.push(
+        `- ${h.codigo}: ${h.hora ? `${h.hora}` : "horário a combinar com a equipe"} — ${h.vagas} vaga${h.vagas === 1 ? "" : "s"}`,
+      );
+    }
+    partes.push(
+      "",
+      'Ofereça pelo dia e hora ("sábado às 14h"), nunca pelo código. No máximo',
+      "dois horários por vez, a menos que a pessoa peça mais.",
     );
   }
   partes.push("");
 
-  // ── As ofertas ────────────────────────────────────────────────────────
-  partes.push("### Os procedimentos desta edição e os valores (só estes)", "");
+  // ── Ofertas ─────────────────────────────────────────────────────────────
+  partes.push("## Procedimentos e valores desta edição (só estes)", "");
+  if (!catalogo.ofertas.length) {
+    partes.push("NENHUMA oferta cadastrada: não cite valores; diga que vai confirmar.");
+  }
   for (const { codigo, oferta: o } of catalogo.ofertas) {
-    const ml = o.ml ? ` (${o.ml} ml)` : "";
+    const ml = o.ml ? `, ${o.ml} ml incluídos` : ", quantidade incluída NÃO CADASTRADA";
     const parc =
       o.precoParcelado && o.parcelasMax
         ? ` ou ${reais(o.precoParcelado)} em até ${o.parcelasMax}x`
         : "";
     partes.push(
       `- ${codigo}: ${o.nome}${ml}: ${reais(o.precoVista)} à vista${parc}` +
+        (o.tipo === "combo" ? " (combo)" : "") +
         (o.destaque ? " — o mais escolhido" : "") +
         (o.descricao ? `. ${o.descricao.trim()}` : ""),
     );
   }
+  const formas = [
+    c.pagamento.formas.includes("pix") ? "Pix" : "",
+    c.pagamento.formas.includes("dinheiro") ? "dinheiro" : "",
+    c.pagamento.formas.includes("cartao") ? "cartão à vista" : "",
+    c.pagamento.formas.includes("cartao_parcelado")
+      ? `cartão parcelado em até ${c.pagamento.parcelasMax}x`
+      : "",
+  ].filter(Boolean);
   partes.push(
     "",
-    "Dê o valor do que a pessoa pediu, e só ele; a lista inteira só se ela",
-    "pedir todos. Quantidade de ml: a que está na oferta; se a oferta não diz,",
-    "diga que depende da avaliação e encaminhe a dúvida se insistirem.",
-    `A indicação do que fazer é de ${quem}, na avaliação do dia.`,
-    "",
-  );
-
-  // ── Reserva e sinal ───────────────────────────────────────────────────
-  partes.push("### Como a reserva funciona", "");
-  partes.push(
-    `Para garantir a vaga, a pessoa paga um sinal de ${reais(c.sinal.valor)} por Pix` +
-      (c.sinal.titular ? ` (titular: ${c.sinal.titular})` : "") +
-      ".",
-    c.sinal.abatido
-      ? "O sinal É abatido do valor do procedimento no dia."
-      : "O sinal NÃO é abatido: é à parte do valor do procedimento.",
-    "O sinal existe porque quem reserva não pode faltar, senão os alunos ficam",
-    "sem a prática.",
-    `Prazo para mandar o sinal depois de escolher o dia: ${c.sinal.prazoHoras} horas; depois disso a vaga volta.`,
-    "",
-    "O procedimento é pago no dia: " +
-      [
-        c.pagamento.formas.includes("pix") ? "Pix" : "",
-        c.pagamento.formas.includes("cartao") || c.pagamento.formas.includes("cartao_parcelado")
-          ? `cartão (parcelado em até ${c.pagamento.parcelasMax}x)`
-          : "",
-        c.pagamento.formas.includes("dinheiro") ? "dinheiro" : "",
-      ]
-        .filter(Boolean)
-        .join(", ") +
-      (c.pagamento.boleto ? ", ou boleto." : ". Não tem boleto."),
-  );
-  if (c.cancelamento) partes.push("", `Cancelamento e falta: ${c.cancelamento}`);
-  if (c.retornoDias) partes.push("", `Há retorno ${c.retornoDias} dias depois do procedimento.`);
-  partes.push(
-    "",
-    "**Quando a pessoa disser que quer reservar**, faça nesta ordem, em",
-    "mensagens separadas se precisar: confirme o dia (dos listados acima),",
-    "pergunte o nome completo, e só então preencha `reservaDia` com o código do",
-    "dia, `reservaOferta` com o código da oferta (vazio se ela ainda não",
-    "escolheu) e `reservaNome` com o nome completo. Na mesma resposta, diga",
-    "que a vaga fica guardada assim que o sinal chegar" +
-      (c.sinal.chavePix
-        ? ` e passe a chave Pix: ${c.sinal.chavePix}.`
-        : ", e que a equipe manda a chave Pix por aqui."),
-    "Peça o comprovante por aqui. Quem confirma o pagamento é a equipe.",
-    "",
-    "Não preencha a reserva antes de ter o dia e o nome. Não preencha o campo",
-    "de horário da agenda (`horarioFechado`) numa conversa de paciente modelo:",
-    "a vaga da mentoria não é um horário da agenda.",
+    `Pagamento do procedimento no dia: ${formas.join(", ") || "NÃO CADASTRADO"}. ${c.pagamento.boleto ? "Aceita boleto." : "Não aceita boleto."}`,
     "",
   );
 
-  // ── Credenciais, fotos, FAQ ───────────────────────────────────────────
-  partes.push("### Perguntas que já têm resposta", "");
+  // ── Sinal e políticas ───────────────────────────────────────────────────
+  partes.push("## Reserva: sinal e políticas aprovadas", "");
+  partes.push(`- Sinal: ${reais(c.sinal.valor)}.`);
   partes.push(
-    `- Quem é ${quem}? ` +
-      (c.credenciais
-        ? c.credenciais
-        : "A especialização formal NÃO está cadastrada: diga que vai confirmar e encaminhe a dúvida. Não invente registro nem especialidade."),
+    `- Abatimento: ${
+      c.sinal.abatido === "sim"
+        ? "o sinal É ABATIDO do valor do procedimento."
+        : c.sinal.abatido === "nao"
+          ? "o sinal NÃO é abatido; é à parte do procedimento."
+          : "NÃO DEFINIDO."
+    }`,
   );
   partes.push(
-    "- Fotos: " +
-      (c.fotos ||
-        "a regra de fotos não está cadastrada; diga que vai confirmar e encaminhe a dúvida."),
+    `- Prazo para pagar depois de escolher o horário: ${c.sinal.prazoHoras} horas. Depois disso a vaga volta a ficar livre.`,
   );
   partes.push(
-    "- Quem aplica? Os alunos da mentoria, com supervisão de " +
-      quem +
-      ", que faz a análise facial junto com eles e define o que faz sentido para cada rosto.",
+    `- Contraindicação no dia: ${c.politicas.contraindicacao || "NÃO CADASTRADO"}`,
+    `- Falta: ${c.politicas.falta || "NÃO CADASTRADO"}`,
+    `- Cancelamento com antecedência: ${c.politicas.cancelamento || "NÃO CADASTRADO"}`,
+    `- Remarcação: ${c.politicas.remarcacao || "NÃO CADASTRADO"}`,
+  );
+  if (c.retornoDias) partes.push(`- Retorno: ${c.retornoDias} dias depois do procedimento.`);
+
+  const bloqueios = bloqueiosDaCobranca(c);
+  partes.push("");
+  if (bloqueios.length || e.status === "esgotada") {
+    partes.push(
+      "### COBRANÇA BLOQUEADA",
+      "",
+      e.status === "esgotada"
+        ? "A edição está esgotada."
+        : `Falta cadastrar: ${bloqueios.join("; ")}.`,
+      "NÃO mande link, chave nem dado de pagamento, e não diga que a vaga está",
+      "garantida. Explique a vaga, registre o horário escolhido se houver",
+      "(`reservaHorario`), e diga que a equipe confirma a reserva por aqui.",
+    );
+  } else {
+    partes.push(
+      "### Link oficial de pagamento do sinal",
+      "",
+      c.linkPagamento,
+      "",
+      "É o único link que você manda, sempre por inteiro, nunca editado. Nenhuma",
+      "chave Pix, CPF ou outro link, nem de conversas antigas.",
+    );
+  }
+  partes.push("");
+
+  // ── Equipe ──────────────────────────────────────────────────────────────
+  partes.push("## Quem supervisiona", "");
+  const r = x.responsavel;
+  if (r) {
+    partes.push(
+      `- ${r.nome}` +
+        (r.registro ? `, registro ${r.registro}` : "") +
+        (r.especialidades.length ? `, ${r.especialidades.join(", ")}` : "") +
+        ". Supervisiona a prática e faz a análise facial com os alunos.",
+    );
+  } else {
+    partes.push(`- ${quem}: supervisiona a prática e faz a análise facial com os alunos.`);
+  }
+  if (c.credenciais) partes.push(`- ${c.credenciais}`);
+  partes.push("- Quem aplica: os alunos da mentoria, com supervisão. Não omita isso.");
+  if (c.instagram.length) {
+    partes.push(
+      "",
+      "Perfis oficiais (mande só quando ajudar na confiança, não em todo atendimento):",
+    );
+    for (const i of c.instagram) partes.push(`- ${i.nome}: ${i.url}`);
+  }
+  partes.push("");
+
+  // ── Fotos e FAQ ─────────────────────────────────────────────────────────
+  partes.push(
+    "## Imagem e respostas aprovadas",
+    "",
+    `- Fotos e divulgação: ${c.fotos || "NÃO CADASTRADO — diga que vai confirmar a regra desta edição."}`,
   );
   for (const f of c.faq) partes.push(`- ${f.pergunta} ${f.resposta}`);
   partes.push("");
 
+  // ── Os campos de ação ───────────────────────────────────────────────────
   partes.push(
-    "Se a pessoa não puder em nenhum dos dias, diga que haverá outras edições e",
-    c.listaDeInteresse
-      ? 'ofereça a lista de interesse (`entrarNaLista` = "sim" se aceitar).'
-      : "que a clínica avisa quando abrir.",
-    "Quem prefere fazer fora da mentoria faz particular, com outro valor: aí",
-    "vale a regra de harmonização da clínica (sem preço por aqui, avaliação).",
+    "## Como registrar o que aconteceu (campos da sua resposta)",
+    "",
+    "- `reservaHorario`: o código do horário (H1, H2…) que a pessoa ACABOU de",
+    "  escolher, e `reservaNome` com o nome completo quando ela já disse.",
+    "  `reservaOferta`: o código da oferta (O1…), vazio se ainda não escolheu.",
+    "  Preencha uma vez, quando ela escolher; não repita nas mensagens seguintes.",
+    '- `pagamentoInformado` = "sim" quando a pessoa disser que pagou ou mandar',
+    "  comprovante. Isso NÃO confirma nada: responda que vai conferir e que a",
+    "  equipe confirma a vaga por aqui.",
+    '- `entrarNaLista` = "sim" quando ela aceitar a lista de interesse.',
+    "- `intencao`: MODEL_PATIENT, MENTORING_STUDENT (profissional que quer o",
+    "  curso), REGULAR_CLINIC ou UNKNOWN, pelo que a pessoa disse.",
   );
 
   return partes.join("\n");

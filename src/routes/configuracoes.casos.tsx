@@ -230,6 +230,11 @@ function CartaoDeCaso({
             </button>
           </div>
         </div>
+        {caso.uso === "paciente_modelo" && (
+          <span className="w-fit rounded-full bg-primary/10 px-2 py-0.5 text-3xs font-semibold text-primary">
+            Paciente modelo
+          </span>
+        )}
         {caso.quandoUsar && (
           <p className="text-xs leading-5 text-foreground-secondary">Usar {caso.quandoUsar}</p>
         )}
@@ -295,6 +300,7 @@ function FormularioDeCaso({
   const [titulo, setTitulo] = useState("");
   const [quandoUsar, setQuandoUsar] = useState("");
   const [ativo, setAtivo] = useState(true);
+  const [pacienteModelo, setPacienteModelo] = useState(false);
   const [imagem, setImagem] = useState<ImagemDoDisparo | null>(null);
 
   // O formulário parte do que está gravado toda vez que abre — sem isto, abrir
@@ -304,6 +310,7 @@ function FormularioDeCaso({
     setTitulo(editando?.titulo ?? "");
     setQuandoUsar(editando?.quandoUsar ?? "");
     setAtivo(editando?.ativo ?? true);
+    setPacienteModelo(editando?.uso === "paciente_modelo");
     setImagem(editando ? { path: editando.mediaPath, previa: "", nome: "imagem atual" } : null);
   }, [aberto, editando]);
 
@@ -315,6 +322,7 @@ function FormularioDeCaso({
           titulo,
           mediaPath: imagem?.path ?? "",
           quandoUsar: quandoUsar || null,
+          uso: pacienteModelo ? "paciente_modelo" : "geral",
           ativo,
         },
       }),
@@ -379,6 +387,16 @@ function FormularioDeCaso({
               medo.
             </p>
           </div>
+
+          <label className="flex items-center justify-between gap-3 rounded-xl bg-surface px-3 py-2.5">
+            <span className="text-sm">
+              Caso de paciente modelo
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                Ligado, a Luna só manda nas conversas de paciente modelo. Desligado, só nas outras.
+              </span>
+            </span>
+            <Switch checked={pacienteModelo} onCheckedChange={setPacienteModelo} />
+          </label>
 
           <label className="flex items-center justify-between gap-3 rounded-xl bg-surface px-3 py-2.5">
             <span className="text-sm">

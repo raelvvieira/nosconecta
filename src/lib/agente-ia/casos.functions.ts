@@ -29,8 +29,12 @@ export interface CasoDaBiblioteca {
    * mesma foto de novo. Uma frase de assunto cobre as duas conversas.
    */
   quandoUsar: string | null;
+  /** "paciente_modelo": só nas conversas de paciente modelo; "geral": nas outras. */
+  uso: UsoDoCaso;
   ativo: boolean;
 }
+
+export type UsoDoCaso = "geral" | "paciente_modelo";
 
 const MAX_TITULO = 80;
 const MAX_QUANDO = 200;
@@ -39,6 +43,7 @@ function validar(input: {
   titulo: string;
   mediaPath: string;
   quandoUsar?: string | null;
+  uso?: string | null;
   ativo?: boolean;
 }) {
   const titulo = input.titulo?.trim();
@@ -50,7 +55,8 @@ function validar(input: {
   if (quandoUsar && quandoUsar.length > MAX_QUANDO) {
     throw new Error(`"Quando usar" muito longo (máx. ${MAX_QUANDO}).`);
   }
-  return { titulo, mediaPath, quandoUsar, ativo: input.ativo !== false };
+  const uso: UsoDoCaso = input.uso === "paciente_modelo" ? "paciente_modelo" : "geral";
+  return { titulo, mediaPath, quandoUsar, uso, ativo: input.ativo !== false };
 }
 
 export const listarCasos = createServerFn({ method: "GET" })
@@ -62,7 +68,7 @@ export const listarCasos = createServerFn({ method: "GET" })
     const supabase: any = context.supabase;
     const { data, error } = await supabase
       .from("ai_agent_casos")
-      .select("id, titulo, media_path, quando_usar, ativo")
+      .select("id, titulo, media_path, quando_usar, uso, ativo")
       .eq("owner_id", context.ownerId)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -72,6 +78,7 @@ export const listarCasos = createServerFn({ method: "GET" })
       titulo: String(r.titulo),
       mediaPath: String(r.media_path),
       quandoUsar: r.quando_usar ?? null,
+      uso: r.uso === "paciente_modelo" ? "paciente_modelo" : "geral",
       ativo: r.ativo !== false,
     }));
   });
@@ -84,6 +91,7 @@ export const salvarCaso = createServerFn({ method: "POST" })
       titulo: string;
       mediaPath: string;
       quandoUsar?: string | null;
+      uso?: string | null;
       ativo?: boolean;
     }) => ({ id: input.id?.trim() || null, ...validar(input) }),
   )
@@ -94,6 +102,7 @@ export const salvarCaso = createServerFn({ method: "POST" })
       titulo: data.titulo,
       media_path: data.mediaPath,
       quando_usar: data.quandoUsar,
+      uso: data.uso,
       ativo: data.ativo,
       updated_at: new Date().toISOString(),
     };

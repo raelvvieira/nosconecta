@@ -1,11 +1,14 @@
-// O módulo Paciente Modelo: a edição aberta, os códigos e a seção gerada.
+// O módulo Paciente Modelo HOF V1: edição vigente, horários, bloqueios e a
+// seção que a Luna lê. Os critérios vêm da seção 19 da MD especializada.
 import {
+  bloqueiosDaCobranca,
   catalogoDaEdicao,
   configDoModulo,
-  edicaoAberta,
-  praticasOferiveis,
+  edicaoVigente,
+  horariosDaPratica,
   reservaPedida,
   secaoDoModuloPacienteModelo,
+  vagasRestantes,
   type EdicaoDoModulo,
 } from "../supabase/functions/_shared/modulo-paciente-modelo.ts";
 
@@ -17,18 +20,26 @@ function conferir(nome: string, obtido: unknown, esperado: unknown) {
     falhas.push(`${nome} — esperado ${JSON.stringify(esperado)}, veio ${JSON.stringify(obtido)}`);
 }
 
-const edicao: EdicaoDoModulo = {
+const HOJE = "2026-11-01";
+const novembro: EdicaoDoModulo = {
   id: "e1",
-  nome: "Dezembro 2026 · Porto Alegre",
-  cidade: "Porto Alegre",
-  endereco: "MedPlex Santana, sala 913",
-  inicio: "2026-12-12",
-  fim: "2026-12-14",
+  nome: "Novembro 2026 · Florianópolis",
+  cidade: "Florianópolis",
+  endereco: "Núcleo de Odontologia e Saúde, R. José Brognoli, 117, sala 612",
+  inicio: "2026-11-20",
+  fim: "2026-11-22",
   status: "inscricoes_abertas",
   observacoes: null,
   praticas: [
-    { id: "p1", data: "2026-12-13", horaInicio: "09:00", horaFim: "18:00", vagas: 6, ocupadas: 6 },
-    { id: "p2", data: "2026-12-14", horaInicio: "09:00", horaFim: "18:00", vagas: 6, ocupadas: 2 },
+    {
+      id: "p1",
+      data: "2026-11-21",
+      horaInicio: "09:00",
+      horaFim: "12:00",
+      duracaoMin: 60,
+      vagas: 2,
+      ocupadas: { "09:00": 2, "10:00": 1 },
+    },
   ],
   ofertas: [
     {
@@ -46,7 +57,7 @@ const edicao: EdicaoDoModulo = {
       id: "o2",
       nome: "Preenchimento labial",
       descricao: null,
-      ml: 1,
+      ml: null,
       precoVista: 600,
       precoParcelado: 650,
       parcelasMax: 4,
@@ -55,132 +66,190 @@ const edicao: EdicaoDoModulo = {
     },
   ],
 };
-const encerrada: EdicaoDoModulo = {
-  ...edicao,
+const outubro: EdicaoDoModulo = {
+  ...novembro,
   id: "e0",
-  nome: "Outubro",
+  nome: "Outubro · Porto Alegre",
+  cidade: "Porto Alegre",
   status: "encerrada",
-  praticas: [
-    { id: "x", data: "2026-10-25", horaInicio: null, horaFim: null, vagas: 0, ocupadas: 0 },
-  ],
+  praticas: [{ ...novembro.praticas[0], id: "x", data: "2026-10-25" }],
 };
-const rascunho: EdicaoDoModulo = {
-  ...edicao,
+const marco: EdicaoDoModulo = {
+  ...novembro,
   id: "e2",
-  nome: "Março",
-  status: "rascunho",
-  inicio: "2027-03-05",
-  fim: "2027-03-07",
-  praticas: [
-    { id: "y", data: "2027-03-06", horaInicio: null, horaFim: null, vagas: 4, ocupadas: 0 },
-  ],
+  nome: "Março 2027",
+  status: "publicada",
+  inicio: "2027-03-06",
+  fim: "2027-03-06",
+  praticas: [{ ...novembro.praticas[0], id: "y", data: "2027-03-06", ocupadas: {} }],
 };
 
+// ── Edição vigente ─────────────────────────────────────────────────────────
 conferir(
-  "aberta é a de dezembro",
-  edicaoAberta([encerrada, edicao, rascunho], "2026-11-01")?.id,
+  "a aberta é a de novembro; a encerrada não entra",
+  edicaoVigente([outubro, novembro, marco], HOJE).aberta?.id,
   "e1",
 );
-conferir("passou o último dia de prática, fecha", edicaoAberta([edicao], "2026-12-15"), null);
-conferir("no último dia ainda vale", edicaoAberta([edicao], "2026-12-14")?.id, "e1");
-conferir("rascunho não abre", edicaoAberta([rascunho], "2026-11-01"), null);
 conferir(
-  "esgotada ainda é a aberta (para dizer que lotou)",
-  edicaoAberta([{ ...edicao, status: "esgotada" }], "2026-11-01")?.id,
-  "e1",
-);
-
-conferir(
-  "só dias com vaga",
-  praticasOferiveis(edicao, "2026-11-01").map((p) => p.id),
-  ["p2"],
+  "a publicada aparece como próxima",
+  edicaoVigente([outubro, novembro, marco], HOJE).publicada?.id,
+  "e2",
 );
 conferir(
-  "dia que passou não entra",
-  praticasOferiveis(edicao, "2026-12-14").map((p) => p.id),
-  ["p2"],
-);
-
-const cat = catalogoDaEdicao(edicao, "2026-11-01");
-conferir(
-  "códigos",
-  [cat.praticas.map((p) => p.codigo), cat.ofertas.map((o) => o.codigo)],
-  [["P1"], ["O1", "O2"]],
-);
-conferir(
-  "reserva válida",
-  reservaPedida({ dia: "p1", oferta: "O2", nome: " Maria da Silva " }, cat)?.oferta?.id,
-  "o2",
-);
-conferir(
-  "reserva sem oferta vale",
-  reservaPedida({ dia: "P1", oferta: "", nome: "Ana" }, cat)?.pratica.id,
-  "p2",
-);
-conferir(
-  "código de dia inventado não reserva",
-  reservaPedida({ dia: "P9", oferta: "O1", nome: "Ana" }, cat),
+  "passou o último dia de prática, fecha",
+  edicaoVigente([novembro], "2026-11-22").aberta,
   null,
 );
-conferir("sem dia não reserva", reservaPedida({ dia: "", oferta: "O1", nome: "Ana" }, cat), null);
-const lotado = catalogoDaEdicao(
-  { ...edicao, praticas: [{ ...edicao.praticas[1], ocupadas: 6 }] },
-  "2026-11-01",
+conferir("no dia da prática ainda vale", edicaoVigente([novembro], "2026-11-21").aberta?.id, "e1");
+const duas = edicaoVigente([novembro, { ...marco, status: "inscricoes_abertas" }], HOJE);
+conferir("duas vendendo: conflito, nenhuma aberta", [duas.aberta, duas.conflito.length], [null, 2]);
+conferir(
+  "cancelada não vende",
+  edicaoVigente([{ ...novembro, status: "cancelada" }], HOJE).aberta,
+  null,
 );
-conferir("lotou, sem código", lotado.praticas.length, 0);
 
-const cfg = configDoModulo({
-  sinal: { valor: "150", abatido: "true" },
-  faq: [
-    { pergunta: "Dói?", resposta: "Pouco." },
-    { pergunta: "", resposta: "x" },
+// ── Horários ───────────────────────────────────────────────────────────────
+conferir("horários pelo passo da duração", horariosDaPratica(novembro.praticas[0]), [
+  "09:00",
+  "10:00",
+  "11:00",
+]);
+conferir("vagas restantes somam os horários", vagasRestantes(novembro.praticas[0]), 3);
+const cat = catalogoDaEdicao(novembro, HOJE);
+conferir(
+  "só horários com vaga, com código",
+  cat.horarios.map((h) => [h.codigo, h.hora, h.vagas]),
+  [
+    ["H1", "10:00", 1],
+    ["H2", "11:00", 2],
   ],
+);
+conferir(
+  "esgotada não oferece horário",
+  catalogoDaEdicao({ ...novembro, status: "esgotada" }, HOJE).horarios.length,
+  0,
+);
+
+// ── Reserva ────────────────────────────────────────────────────────────────
+const r = reservaPedida({ horario: "h2", oferta: "O2", nome: " Maria da Silva " }, cat);
+conferir("reserva válida", [r?.hora, r?.oferta?.id, r?.nome], ["11:00", "o2", "Maria da Silva"]);
+conferir("sem oferta vale", reservaPedida({ horario: "H1" }, cat)?.oferta, null);
+conferir("horário inventado não reserva", reservaPedida({ horario: "H9" }, cat), null);
+conferir("sem horário não reserva", reservaPedida({ horario: "", oferta: "O1" }, cat), null);
+
+// ── Config e bloqueios ─────────────────────────────────────────────────────
+conferir(
+  "boolean false antigo vira indefinido",
+  configDoModulo({ sinal: { abatido: false } }).sinal.abatido,
+  "indefinido",
+);
+conferir("true antigo vira sim", configDoModulo({ sinal: { abatido: true } }).sinal.abatido, "sim");
+conferir(
+  "cancelamento antigo migra para políticas",
+  configDoModulo({ cancelamento: "x" }).politicas.cancelamento,
+  "x",
+);
+conferir(
+  "instagram sem http é descartado",
+  configDoModulo({
+    instagram: [
+      { nome: "a", url: "instagram.com/a" },
+      { nome: "b", url: "https://instagram.com/b" },
+    ],
+  }).instagram.length,
+  1,
+);
+conferir(
+  "padrão bloqueia a cobrança pelas três razões",
+  bloqueiosDaCobranca(configDoModulo({})).length,
+  3,
+);
+const pronta = configDoModulo({
+  sinal: { valor: 150, abatido: "sim", prazoHoras: 24 },
+  linkPagamento: "https://pag.exemplo/abc",
+  politicas: { contraindicacao: "Devolvido integralmente.", falta: "Devolvido em 50%." },
+  instagram: [{ nome: "Dra. Mariane", url: "https://www.instagram.com/marianebotti/" }],
+});
+conferir("com abatimento, link e falta: cobrança liberada", bloqueiosDaCobranca(pronta), []);
+
+// ── A seção ────────────────────────────────────────────────────────────────
+const secao = secaoDoModuloPacienteModelo({
+  vigente: edicaoVigente([outubro, novembro, marco], HOJE),
+  config: pronta,
+  manual: "MANUAL-HOF",
+  hoje: HOJE,
+  quem: "a Dra. Mariane",
+  catalogo: cat,
+  responsavel: { nome: "Dra. Mariane Botti", registro: "28463", especialidades: [] },
 });
 conferir(
-  "config normalizada",
-  [cfg.sinal.valor, cfg.sinal.abatido, cfg.sinal.prazoHoras, cfg.faq.length, cfg.listaDeInteresse],
-  [150, false, 24, 1, true],
+  "a MD entra antes dos dados",
+  secao.indexOf("MANUAL-HOF") < secao.indexOf("# DADOS ATUAIS DO CRM"),
+  true,
 );
+conferir(
+  "horário oferecido com dia da semana",
+  secao.includes("sábado, 21/11") && secao.includes("H1: 10:00 — 1 vaga"),
+  true,
+);
+conferir("horário lotado não aparece", secao.includes("09:00 —"), false);
+conferir(
+  "ml cadastrado e não cadastrado",
+  secao.includes("3 ml incluídos") && secao.includes("quantidade incluída NÃO CADASTRADA"),
+  true,
+);
+conferir("abatido", secao.includes("É ABATIDO"), true);
+conferir(
+  "link oficial",
+  secao.includes("https://pag.exemplo/abc") && !secao.includes("COBRANÇA BLOQUEADA"),
+  true,
+);
+conferir("política de falta", secao.includes("Devolvido em 50%"), true);
+conferir("endereço da edição", secao.includes("Núcleo de Odontologia e Saúde"), true);
+conferir("responsável com registro", secao.includes("Dra. Mariane Botti, registro 28463"), true);
+conferir("edição antiga não vaza", secao.includes("Porto Alegre"), false);
+conferir("instagram", secao.includes("instagram.com/marianebotti"), true);
 
-const secao = secaoDoModuloPacienteModelo({
-  edicao,
-  config: configDoModulo({
-    sinal: { valor: 150, chavePix: "chave-teste", titular: "Dra." },
-    credenciais: "CRO 123",
-  }),
-  hoje: "2026-11-01",
+const bloqueada = secaoDoModuloPacienteModelo({
+  vigente: edicaoVigente([novembro], HOJE),
+  config: configDoModulo({}),
+  hoje: HOJE,
   quem: "a Dra. Mariane",
   catalogo: cat,
 });
 conferir(
-  "lista só o dia com vaga",
-  secao.includes("P1: segunda, 14/12") && !secao.includes("13/12 —"),
+  "sem política: cobrança bloqueada e motivos",
+  bloqueada.includes("COBRANÇA BLOQUEADA") && bloqueada.includes("link oficial"),
   true,
 );
-conferir("curso separado da prática", secao.includes("vai de 12/12 a 14/12"), true);
-conferir(
-  "ml na oferta",
-  secao.includes("Preenchimento labial (1 ml): R$ 600 à vista ou R$ 650 em até 4x"),
-  true,
-);
-conferir("sinal não abatido", secao.includes("NÃO é abatido"), true);
-conferir("chave pix entra", secao.includes("chave-teste"), true);
-conferir("credenciais entram", secao.includes("CRO 123"), true);
-conferir("endereço da edição", secao.includes("MedPlex Santana"), true);
 
-const fechada = secaoDoModuloPacienteModelo({
-  edicao: null,
-  proxima: rascunho,
-  config: configDoModulo({}),
-  hoje: "2026-11-01",
+const conflito = secaoDoModuloPacienteModelo({
+  vigente: duas,
+  config: pronta,
+  hoje: HOJE,
   quem: "a Dra. Mariane",
-  catalogo: catalogoDaEdicao(null, "2026-11-01"),
+  catalogo: catalogoDaEdicao(null, HOJE),
 });
 conferir(
-  "sem edição: não cita valores e oferece a lista",
-  fechada.includes("NÃO cite valores") &&
-    fechada.includes("entrarNaLista") &&
-    fechada.includes("Março"),
+  "conflito: não escolhe e não cobra",
+  conflito.includes("CONFLITO NO CADASTRO") && !conflito.includes("pag.exemplo"),
+  true,
+);
+
+const semEdicao = secaoDoModuloPacienteModelo({
+  vigente: edicaoVigente([outubro, marco], HOJE),
+  config: pronta,
+  hoje: HOJE,
+  quem: "a Dra. Mariane",
+  catalogo: catalogoDaEdicao(null, HOJE),
+});
+conferir(
+  "sem inscrições abertas: cita a publicada, não cobra, oferece lista",
+  semEdicao.includes("Março 2027") &&
+    semEdicao.includes("NÃO abriram") &&
+    semEdicao.includes("entrarNaLista") &&
+    !semEdicao.includes("pag.exemplo"),
   true,
 );
 
