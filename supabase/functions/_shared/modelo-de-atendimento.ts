@@ -488,7 +488,7 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
       casoEnviado: {
         type: "string",
         description:
-          "O código do caso de antes e depois a mandar junto desta mensagem (C1, C2…), exatamente como está na lista. Vazio quando não há caso a mandar, que é o normal.",
+          "O código do caso de antes e depois a mandar junto desta mensagem (C1, C2…), exatamente como está na lista. Mande um por conversa, por iniciativa sua, assim que souber o que a pessoa procura e houver caso sobre o assunto. Vazio quando já mandou, quando nenhum caso tem a ver ou na primeira resposta.",
       },
       duvidaEncaminhada: {
         type: "string",

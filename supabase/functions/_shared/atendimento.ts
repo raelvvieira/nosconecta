@@ -1144,16 +1144,18 @@ export async function instrucaoDaLuna(
   // deno-lint-ignore no-explicit-any
   let casosDaClinica: any[] = [];
   // Numa conversa de paciente modelo, só os casos marcados para isso (MD,
-  // 9.2: caso particular não vira prova de mentoria); nas outras, só os
-  // gerais. Antes da coluna existir, todos.
-  const usoDosCasos = publico === "paciente_modelo" ? "paciente_modelo" : "geral";
+  // 9.2: caso particular não vira prova de mentoria). Nas outras, todos: o
+  // caso marcado como paciente modelo também serve para o atendimento normal
+  // (decisão da clínica, 01/11). Antes da coluna existir, todos.
+  const usosDosCasos =
+    publico === "paciente_modelo" ? ["paciente_modelo"] : ["geral", "paciente_modelo"];
   try {
     let { data, error } = await supabase
       .from("ai_agent_casos")
       .select("id, titulo, media_path, quando_usar")
       .eq("owner_id", ownerId)
       .eq("ativo", true)
-      .eq("uso", usoDosCasos)
+      .in("uso", usosDosCasos)
       .order("created_at", { ascending: false });
     if (error && /uso/.test(String(error.message ?? ""))) {
       ({ data, error } = await supabase

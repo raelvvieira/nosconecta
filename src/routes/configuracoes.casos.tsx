@@ -232,7 +232,7 @@ function CartaoDeCaso({
         </div>
         {caso.uso === "paciente_modelo" && (
           <span className="w-fit rounded-full bg-primary/10 px-2 py-0.5 text-3xs font-semibold text-primary">
-            Paciente modelo
+            Também paciente modelo
           </span>
         )}
         {caso.quandoUsar && (
@@ -390,9 +390,10 @@ function FormularioDeCaso({
 
           <label className="flex items-center justify-between gap-3 rounded-xl bg-surface px-3 py-2.5">
             <span className="text-sm">
-              Caso de paciente modelo
+              Também serve para paciente modelo
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                Ligado, a Luna só manda nas conversas de paciente modelo. Desligado, só nas outras.
+                Ligado, a Luna pode mandar em todas as conversas, inclusive as de paciente modelo.
+                Desligado, só nas conversas normais da clínica.
               </span>
             </span>
             <Switch checked={pacienteModelo} onCheckedChange={setPacienteModelo} />
