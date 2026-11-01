@@ -463,12 +463,25 @@ function Edicoes() {
               </div>
               <Campo
                 rotulo="Local"
-                ajuda="Escolha uma unidade cadastrada ou escreva o endereço do local da mentoria. O endereço escrito vence a unidade."
+                ajuda="Escolha a unidade e o endereço dela vem sozinho. Se a prática for em outro lugar, escolha Endereço avulso e escreva."
               >
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Select
                     value={form.unitId || "avulso"}
-                    onValueChange={(v) => setForm({ ...form, unitId: v === "avulso" ? "" : v })}
+                    onValueChange={(v) => {
+                      const anterior = (unidades.data ?? []).find((u) => u.id === form.unitId);
+                      const nova = (unidades.data ?? []).find((u) => u.id === v);
+                      // O endereço acompanha a unidade, a não ser que alguém tenha
+                      // escrito outro à mão.
+                      const escritoAMao =
+                        form.endereco.trim() !== "" &&
+                        form.endereco.trim() !== (anterior?.endereco ?? "").trim();
+                      setForm({
+                        ...form,
+                        unitId: v === "avulso" ? "" : v,
+                        endereco: escritoAMao ? form.endereco : (nova?.endereco ?? ""),
+                      });
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -484,7 +497,7 @@ function Edicoes() {
                   </Select>
                   <Input
                     value={form.endereco}
-                    placeholder="MedPlex Santana, R. Gomes Jardim, 301, sala 913"
+                    placeholder="Rua, número, sala e cidade"
                     onChange={(ev) => setForm({ ...form, endereco: ev.target.value })}
                   />
                 </div>
