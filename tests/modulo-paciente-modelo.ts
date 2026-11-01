@@ -1,6 +1,7 @@
 // O módulo Paciente Modelo HOF V1: edição vigente, horários, bloqueios e a
 // seção que a Luna lê. Os critérios vêm da seção 19 da MD especializada.
 import {
+  avisoDaChavePix,
   bloqueiosDaCobranca,
   catalogoDaEdicao,
   configDoModulo,
@@ -8,6 +9,7 @@ import {
   horariosDaPratica,
   reservaPedida,
   secaoDoModuloPacienteModelo,
+  tipoDaChavePix,
   vagasRestantes,
   type EdicaoDoModulo,
 } from "../supabase/functions/_shared/modulo-paciente-modelo.ts";
@@ -161,17 +163,27 @@ conferir(
   1,
 );
 conferir(
-  "padrão bloqueia a cobrança pelas três razões",
+  "padrão bloqueia a cobrança pelas quatro razões",
   bloqueiosDaCobranca(configDoModulo({})).length,
-  3,
+  4,
 );
 const pronta = configDoModulo({
   sinal: { valor: 150, abatido: "sim", prazoHoras: 24 },
-  linkPagamento: "https://pag.exemplo/abc",
+  pix: { chave: "48 98419-5309", titular: "Mariane Botti" },
   politicas: { contraindicacao: "Devolvido integralmente.", falta: "Devolvido em 50%." },
   instagram: [{ nome: "Dra. Mariane", url: "https://www.instagram.com/marianebotti/" }],
 });
-conferir("com abatimento, link e falta: cobrança liberada", bloqueiosDaCobranca(pronta), []);
+conferir("com abatimento, Pix e falta: cobrança liberada", bloqueiosDaCobranca(pronta), []);
+conferir(
+  "sem nome de quem recebe, trava",
+  bloqueiosDaCobranca(configDoModulo({ ...pronta, pix: { chave: "x@y.com", titular: "" } })),
+  ["o nome de quem recebe o Pix"],
+);
+conferir("tipo da chave: celular", tipoDaChavePix("48 98419-5309"), "celular");
+conferir("tipo da chave: e-mail", tipoDaChavePix("a@b.com"), "e-mail");
+conferir("tipo da chave: CNPJ", tipoDaChavePix("12.345.678/0001-90"), "CNPJ");
+conferir("celular sem o 9 avisa", avisoDaChavePix("48 8419-5309") !== null, true);
+conferir("celular com o 9 não avisa", avisoDaChavePix("48 98419-5309"), null);
 
 // ── A seção ────────────────────────────────────────────────────────────────
 const secao = secaoDoModuloPacienteModelo({
@@ -201,8 +213,10 @@ conferir(
 );
 conferir("abatido", secao.includes("É ABATIDO"), true);
 conferir(
-  "link oficial",
-  secao.includes("https://pag.exemplo/abc") && !secao.includes("COBRANÇA BLOQUEADA"),
+  "Pix do cadastro, com tipo e nome",
+  secao.includes("Chave Pix (celular): 48 98419-5309") &&
+    secao.includes("Em nome de: Mariane Botti") &&
+    !secao.includes("COBRANÇA BLOQUEADA"),
   true,
 );
 conferir("política de falta", secao.includes("Devolvido em 50%"), true);
@@ -220,7 +234,7 @@ const bloqueada = secaoDoModuloPacienteModelo({
 });
 conferir(
   "sem política: cobrança bloqueada e motivos",
-  bloqueada.includes("COBRANÇA BLOQUEADA") && bloqueada.includes("link oficial"),
+  bloqueada.includes("COBRANÇA BLOQUEADA") && bloqueada.includes("a chave Pix do sinal"),
   true,
 );
 
@@ -233,7 +247,7 @@ const conflito = secaoDoModuloPacienteModelo({
 });
 conferir(
   "conflito: não escolhe e não cobra",
-  conflito.includes("CONFLITO NO CADASTRO") && !conflito.includes("pag.exemplo"),
+  conflito.includes("CONFLITO NO CADASTRO") && !conflito.includes("98419-5309"),
   true,
 );
 
@@ -249,7 +263,7 @@ conferir(
   semEdicao.includes("Março 2027") &&
     semEdicao.includes("NÃO abriram") &&
     semEdicao.includes("entrarNaLista") &&
-    !semEdicao.includes("pag.exemplo"),
+    !semEdicao.includes("98419-5309"),
   true,
 );
 

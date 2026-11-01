@@ -35,6 +35,7 @@ import { Ajuda, Bloco } from "@/components/agente-ia/campos";
 import {
   STATUS_DA_EDICAO,
   STATUS_DA_RESERVA,
+  avisoDaChavePix,
   confirmarSinal,
   criarReservaManual,
   duplicarEdicao,
@@ -1354,17 +1355,33 @@ function Regras() {
                 </SelectContent>
               </Select>
             </Campo>
-            <Campo
-              rotulo="Link de pagamento do sinal"
-              ajuda="O link oficial que a Luna manda. Vazio: a Luna não cobra e passa para a equipe."
-            >
-              <Input
-                inputMode="url"
-                placeholder="https://"
-                value={c.linkPagamento}
-                onChange={(e) => setC({ ...c, linkPagamento: e.target.value })}
-              />
-            </Campo>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Campo
+                rotulo="Chave Pix do sinal"
+                ajuda="A chave que a Luna manda para a pessoa pagar o sinal. Celular, e-mail, CPF, CNPJ ou aleatória. Vazio: a Luna não cobra."
+              >
+                <Input
+                  placeholder="48 99999-9999"
+                  value={c.pix.chave}
+                  onChange={(e) => setC({ ...c, pix: { ...c.pix, chave: e.target.value } })}
+                />
+              </Campo>
+              <Campo
+                rotulo="Em nome de"
+                ajuda="O nome que aparece no banco na hora do Pix. A Luna diz para a pessoa conferir."
+              >
+                <Input
+                  placeholder="Nome de quem recebe"
+                  value={c.pix.titular}
+                  onChange={(e) => setC({ ...c, pix: { ...c.pix, titular: e.target.value } })}
+                />
+              </Campo>
+            </div>
+            {avisoDaChavePix(c.pix.chave) && (
+              <p className="text-2xs font-medium text-amber-700 dark:text-amber-400">
+                {avisoDaChavePix(c.pix.chave)}
+              </p>
+            )}
           </div>
           {bloqueios.length > 0 && (
             <div className="mt-3 rounded-2xl bg-amber-50 p-3 text-2xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">

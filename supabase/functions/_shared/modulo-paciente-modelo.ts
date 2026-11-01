@@ -8,7 +8,7 @@
 //   Este arquivo                     o que está à venda AGORA, lido do CRM.
 //
 // A seção que sai daqui é só DADOS: edição, local, horários com vaga,
-// ofertas, sinal e políticas, link, equipe, casos, FAQ, e o que está
+// ofertas, sinal e políticas, Pix, equipe, casos, FAQ, e o que está
 // bloqueado. O comportamento é todo da MD. Duas instruções dizendo a mesma
 // coisa de jeitos diferentes fazem o modelo escolher uma ao acaso.
 //
@@ -76,8 +76,11 @@ export interface ConfigDoModulo {
     abatido: Abatimento;
     prazoHoras: number;
   };
-  /** O link oficial que a Luna manda para o sinal. Vazio bloqueia a cobrança. */
-  linkPagamento: string;
+  /**
+   * O Pix do sinal: a chave que a Luna manda e o nome de quem recebe, para a
+   * pessoa conferir no banco. Sem chave ou sem nome, a cobrança fica travada.
+   */
+  pix: { chave: string; titular: string };
   pagamento: { formas: string[]; parcelasMax: number; boleto: boolean };
   politicas: {
     /** Contraindicação no dia: o que acontece com o sinal. */
@@ -97,7 +100,7 @@ export interface ConfigDoModulo {
 
 export const CONFIG_PADRAO: ConfigDoModulo = {
   sinal: { valor: 150, abatido: "indefinido", prazoHoras: 24 },
-  linkPagamento: "",
+  pix: { chave: "", titular: "" },
   pagamento: { formas: ["pix", "cartao", "cartao_parcelado"], parcelasMax: 4, boleto: false },
   politicas: { contraindicacao: "", falta: "", cancelamento: "", remarcacao: "" },
   credenciais: "",
@@ -139,7 +142,10 @@ export function configDoModulo(bruto: unknown): ConfigDoModulo {
       abatido,
       prazoHoras: num(s.prazoHoras, CONFIG_PADRAO.sinal.prazoHoras),
     },
-    linkPagamento: txt(c.linkPagamento),
+    pix: {
+      chave: txt(c.pix?.chave),
+      titular: txt(c.pix?.titular),
+    },
     pagamento: {
       formas: Array.isArray(p.formas) ? p.formas.map(String) : CONFIG_PADRAO.pagamento.formas,
       parcelasMax: num(p.parcelasMax, CONFIG_PADRAO.pagamento.parcelasMax),
@@ -353,19 +359,47 @@ export function reservaPedida(
   return { pratica: h.pratica, hora: h.hora, oferta: o?.oferta ?? null, nome };
 }
 
+/** Celular, e-mail, CPF, CNPJ ou aleatória: só para a Luna dizer à pessoa. */
+export function tipoDaChavePix(chave: string): string {
+  const k = chave.trim();
+  if (/@/.test(k)) return "e-mail";
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k)) return "aleatória";
+  const d = k.replace(/\D/g, "");
+  if (/^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(k)) return "CPF";
+  if (d.length === 14) return "CNPJ";
+  if (/^\+?[\d\s().-]+$/.test(k) && d.length >= 10 && d.length <= 13) return "celular";
+  if (d.length === 11) return "CPF";
+  return "chave";
+}
+
+/**
+ * Celular no Pix tem 9 dígitos depois do DDD. Uma chave de celular com 8 é
+ * quase sempre o 9 esquecido, e o Pix não acha a conta: avisa na tela.
+ */
+export function avisoDaChavePix(chave: string): string | null {
+  const k = chave.trim();
+  if (!k || tipoDaChavePix(k) !== "celular") return null;
+  const d = k.replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
+  if (d.length === 10) {
+    return "Celular no Pix costuma ter 9 dígitos depois do DDD. Confira se falta o 9 na frente.";
+  }
+  return null;
+}
+
 // ── O que ainda falta para cobrar ──────────────────────────────────────────
 
 /**
  * O que impede a Luna de mandar a cobrança. Vazio = pode cobrar.
  *
- * A MD (12.11) é explícita: sem a regra do abatimento, sem link oficial ou
- * sem a política de falta, a Luna explica a vaga e registra o interesse,
- * mas não manda link.
+ * A MD (12.11) é explícita: sem a regra do abatimento, sem a chave Pix e o
+ * nome de quem recebe ou sem a política de falta, a Luna explica a vaga e
+ * registra o interesse, mas não manda a chave.
  */
 export function bloqueiosDaCobranca(c: ConfigDoModulo): string[] {
   const falta: string[] = [];
   if (c.sinal.abatido === "indefinido") falta.push("se o sinal é abatido do procedimento");
-  if (!c.linkPagamento) falta.push("o link oficial de pagamento");
+  if (!c.pix.chave) falta.push("a chave Pix do sinal");
+  if (!c.pix.titular) falta.push("o nome de quem recebe o Pix");
   if (!c.politicas.falta) falta.push("a regra para quem falta");
   return falta;
 }
@@ -603,18 +637,21 @@ export function secaoDoModuloPacienteModelo(x: EntradaDaSecao): string {
       e.status === "esgotada"
         ? "A edição está esgotada."
         : `Falta cadastrar: ${bloqueios.join("; ")}.`,
-      "NÃO mande link, chave nem dado de pagamento, e não diga que a vaga está",
+      "NÃO mande chave Pix, link nem dado de pagamento, e não diga que a vaga está",
       "garantida. Explique a vaga, registre o horário escolhido se houver",
       "(`reservaHorario`), e diga que a equipe confirma a reserva por aqui.",
     );
   } else {
     partes.push(
-      "### Link oficial de pagamento do sinal",
+      "### Pix para o sinal",
       "",
-      c.linkPagamento,
+      `- Chave Pix (${tipoDaChavePix(c.pix.chave)}): ${c.pix.chave}`,
+      `- Em nome de: ${c.pix.titular}`,
       "",
-      "É o único link que você manda, sempre por inteiro, nunca editado. Nenhuma",
-      "chave Pix, CPF ou outro link, nem de conversas antigas.",
+      "É a única chave que você manda, exatamente como está aqui. Mande a chave",
+      "sozinha numa bolha, para a pessoa copiar com um toque, e diga em nome de",
+      "quem está, para ela conferir no banco. Peça o comprovante. Nenhum link,",
+      "CPF, outra chave ou dado bancário, nem de conversas antigas.",
     );
   }
   partes.push("");

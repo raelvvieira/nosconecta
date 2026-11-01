@@ -12,6 +12,7 @@ import {
   edicaoVigente,
   horariosDaPratica,
   vagasRestantes,
+  avisoDaChavePix,
   type ConfigDoModulo,
   type EdicaoDoModulo,
   type EstadoDoModulo as EstadoLigado,
@@ -36,7 +37,7 @@ export const MODULOS: { id: Modulo; nome: string; resumo: string }[] = [
   },
 ];
 
-export { CONFIG_PADRAO, horariosDaPratica };
+export { CONFIG_PADRAO, avisoDaChavePix, horariosDaPratica };
 export type { ConfigDoModulo, EdicaoDoModulo, StatusDaEdicao, EstadoLigado };
 
 export const STATUS_DA_EDICAO: { id: StatusDaEdicao; rotulo: string }[] = [
