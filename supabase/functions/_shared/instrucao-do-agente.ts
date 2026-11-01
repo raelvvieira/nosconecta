@@ -1116,13 +1116,13 @@ export function montarInstrucao({
   // maior que isso, então a oferta nasce FECHADA. Falha fechada de propósito —
   // convidar para uma mentoria que já passou é pior que não convidar.
   if (modulo?.secao) {
-    partes.push("", ...secaoDeHarmonizacao(quemAvalia(responsavel)), "", modulo.secao);
+    partes.push("", ...secaoDeHarmonizacao(quemAvalia(responsavel), hoje), "", modulo.secao);
   } else if (pacienteModelo) {
     partes.push("", secaoDePacienteModelo(pacienteModelo, hoje ?? "9999-12-31", responsavel));
   } else {
     partes.push(
       "",
-      ...secaoDeHarmonizacao(quemAvalia(responsavel)),
+      ...secaoDeHarmonizacao(quemAvalia(responsavel), hoje),
       "",
       "Esta conversa NÃO é de paciente modelo. Não ofereça vaga de mentoria nem",
       "cite valores de paciente modelo. Se a pessoa perguntar por isso, responda",

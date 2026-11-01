@@ -431,7 +431,8 @@ export interface EntradaDaSecao {
 }
 
 /** A proibição de sempre, para quem procura harmonização fora da vaga. */
-export function secaoDeHarmonizacao(quem: string): string[] {
+export function secaoDeHarmonizacao(quem: string, hoje?: string): string[] {
+  const data = hoje ? `${hoje.slice(8, 10)}/${hoje.slice(5, 7)}/${hoje.slice(0, 4)}` : null;
   return [
     "## Harmonização facial",
     "",
@@ -441,8 +442,11 @@ export function secaoDeHarmonizacao(quem: string): string[] {
     `avaliação com ${quem}. Explique o procedimento se perguntarem, e`,
     "conduza para a avaliação.",
     "",
-    "A exceção é a lista de preços acima: o que está nela, você pode informar",
-    "do jeito que está escrito lá. O que não está nela, não.",
+    "As exceções são a lista de preços acima e uma campanha do seu manual com",
+    "preço escrito e dentro da validade: o que está nelas, você pode informar",
+    "do jeito que está escrito. O que não está, não. Campanha fora da validade",
+    "não existe mais: não cite.",
+    ...(data ? ["", `Hoje é ${data}.`] : []),
   ];
 }
 
