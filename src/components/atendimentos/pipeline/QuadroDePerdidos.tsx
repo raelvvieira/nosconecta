@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { RotateCcw, Send } from "lucide-react";
 import type { PipelineItem } from "@/lib/atendimentos/pipeline.functions";
 import { chaveDoTelefone } from "@/lib/atendimentos/funil";
+import type { Publico } from "@/lib/atendimentos/publico";
 import {
   LOSS_REASONS,
   motivoEhDefinitivo,
@@ -85,12 +86,18 @@ export function QuadroDePerdidos({
   deals,
   conversas,
   busca,
+  publico,
+  publicos,
   onAbrir,
 }: {
   itens: PipelineItem[];
   deals: Map<string, Deal>;
   conversas: ConversationRow[];
   busca: string;
+  /** O funil (público) visível. */
+  publico: Publico;
+  /** O público de cada telefone canônico que não é atendimento. */
+  publicos: Record<string, Publico>;
   onAbrir: (item: PipelineItem) => void;
 }) {
   const { abrir, dialogo } = useDisparoDeColuna();
@@ -132,6 +139,12 @@ export function QuadroDePerdidos({
       if (!deal || deal.status !== "lost") continue;
       const nome = item.title ?? "";
       if (termo && !nome.toLowerCase().includes(termo)) continue;
+      // O público do card, pelo telefone: quem não está no mapa é atendimento.
+      const telefoneDoCard =
+        item.type === "pessoa" ? item.itemId : (porConversa.get(item.itemId)?.phone ?? null);
+      const chaveDoCard = chaveDoTelefone(telefoneDoCard);
+      const publicoDoCard = (chaveDoCard && publicos[chaveDoCard]) || "atendimento";
+      if (publicoDoCard !== publico) continue;
 
       const conversa =
         item.type === "pessoa" ? porTelefone.get(item.itemId) : porConversa.get(item.itemId);
@@ -158,7 +171,7 @@ export function QuadroDePerdidos({
       });
     }
     return lista;
-  }, [itens, deals, conversas, busca, disparos.data, regras]);
+  }, [itens, deals, conversas, busca, disparos.data, regras, publico, publicos]);
 
   const filtrados = motivoFiltro ? perdidos.filter((p) => p.motivo === motivoFiltro) : perdidos;
   // Só os motivos que de fato aparecem — chip de filtro que devolve zero é

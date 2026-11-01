@@ -24,6 +24,8 @@ import { QuadroDeLeads } from "@/components/atendimentos/pipeline/QuadroDeLeads"
 import { useDisparoDeColuna } from "@/components/atendimentos/pipeline/useDisparoDeColuna";
 import type { ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
 import { QuadroDePerdidos } from "@/components/atendimentos/pipeline/QuadroDePerdidos";
+import { getPublicosDosContatos } from "@/lib/atendimentos/funis.functions";
+import { PUBLICOS, type Publico } from "@/lib/atendimentos/publico";
 import {
   deletePipelineStage,
   getPipelineItems,
@@ -39,6 +41,9 @@ const searchSchema = z.object({
   /** Funil visível. Na URL para o F5 não jogar de volta em Leads e para dar
    *  para mandar a alguém o link do funil certo. */
   funil: z.enum(["leads", "clientes", "perdidos"]).optional(),
+  /** O público: atendimento (o dia a dia), paciente modelo ou mentoria.
+   *  Cada um tem os seus Leads, Clientes e Perdidos. */
+  publico: z.enum(["atendimento", "paciente_modelo", "mentoria"]).optional(),
 });
 
 export const Route = createFileRoute("/atendimentos/pipeline")({
@@ -226,6 +231,13 @@ function PipelinePage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const funil: Funil = search.funil ?? "leads";
+  const publico: Publico = search.publico ?? "atendimento";
+  const buscarPublicos = useServerFn(getPublicosDosContatos);
+  const publicosQuery = useQuery({
+    queryKey: ["publicos-dos-contatos"],
+    queryFn: () => buscarPublicos(),
+    staleTime: 60_000,
+  });
   const [openItemId, setOpenItemId] = useState<string | null>(null);
 
   const visibleItems = useMemo(() => {
@@ -302,13 +314,39 @@ function PipelinePage() {
                 className="h-10 rounded-xl bg-white pl-10"
               />
             </div>
+            {/* Dois níveis: o público (qual funil) e, dentro dele, o estado. */}
+            <div className="flex items-center gap-1 rounded-full border border-border bg-white p-1">
+              {PUBLICOS.map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() =>
+                    navigate({
+                      to: "/atendimentos/pipeline",
+                      search: { funil, publico: p.value },
+                    })
+                  }
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                    publico === p.value
+                      ? "bg-primary text-white"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
             <div className="flex items-center gap-1 rounded-full border border-border bg-white p-1">
               {FUNIS.map((f) => (
                 <button
                   key={f.value}
                   type="button"
                   onClick={() =>
-                    navigate({ to: "/atendimentos/pipeline", search: { funil: f.value } })
+                    navigate({
+                      to: "/atendimentos/pipeline",
+                      search: { funil: f.value, publico },
+                    })
                   }
                   className={cn(
                     "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
@@ -328,7 +366,7 @@ function PipelinePage() {
             para o calculado em 30/10: a coluna vem da conversa e da agenda. */}
         {funil === "clientes" ? (
           <div className="flex min-h-0 flex-1 flex-col px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
-            <QuadroDeClientes busca={query} />
+            <QuadroDeClientes busca={query} publico={publico} />
           </div>
         ) : funil === "perdidos" ? (
           <div className="flex-1 px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
@@ -337,12 +375,14 @@ function PipelinePage() {
               deals={dealByItem}
               conversas={conversations}
               busca={query}
+              publico={publico}
+              publicos={publicosQuery.data ?? {}}
               onAbrir={(item) => setOpenItemId(item.id)}
             />
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col px-4 pb-6 sm:px-6 lg:px-10 lg:pb-8">
-            <QuadroDeLeads busca={query} />
+            <QuadroDeLeads busca={query} publico={publico} />
           </div>
         )}
       </main>

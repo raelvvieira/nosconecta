@@ -10,9 +10,11 @@ import {
   regrasOuPadrao,
   type RegraDeFunil,
 } from "@/lib/atendimentos/funnelRules";
+import { ehPublico, publicoDoContato, type Publico } from "@/lib/atendimentos/publico";
 import {
   DIAS_PARA_PARADO,
   faixaDaNota,
+  foneCanonico,
   leituraGuardada,
   notaDoLead,
   riscoDoLead,
@@ -36,6 +38,95 @@ function ausente(error: any): boolean {
     !!error &&
     (error.code === TABELA_AUSENTE || /does not exist/i.test(String(error.message ?? "")))
   );
+}
+
+// ── O público: qual dos três funis ──────────────────────────────────────────
+
+/** Mensagens da pessoa que denunciam o público, sem ler a conversa inteira. */
+const PALAVRAS_DO_PUBLICO =
+  "body.ilike.%mentoria%,body.ilike.%paciente modelo%,body.ilike.%pacientes modelo%";
+
+/**
+ * O público de cada telefone (forma canônica), pelo anúncio que trouxe a
+ * pessoa (`ai_agent_sessions.anuncio`) e pelo que ela escreveu. Quem não
+ * aparece no mapa é atendimento.
+ */
+async function mapaDePublicos(supabase: any, ownerId: string): Promise<Map<string, Publico>> {
+  const anuncios = new Map<string, { titulo: string | null; copy: string | null }>();
+  for (let pagina = 0; ; pagina++) {
+    const { data, error } = await supabase
+      .from("ai_agent_sessions")
+      .select("contact_id, anuncio")
+      .eq("owner_id", ownerId)
+      .range(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA - 1);
+    if (error) {
+      if (ausente(error)) break;
+      throw new Error(error.message);
+    }
+    for (const s of data ?? []) {
+      const fone = foneCanonico(String(s.contact_id ?? ""));
+      if (!fone) continue;
+      const a = s.anuncio && typeof s.anuncio === "object" ? s.anuncio : {};
+      const atual = anuncios.get(fone);
+      // Um anúncio com texto vence um vazio: a sessão mais antiga pode ter
+      // vindo sem nada e a nova, do anúncio.
+      if (!atual || (!atual.titulo && !atual.copy)) {
+        anuncios.set(fone, { titulo: a.titulo ?? null, copy: a.copy ?? null });
+      }
+    }
+    if (!data || data.length < POR_PAGINA) break;
+  }
+
+  const mensagens = new Map<string, string[]>();
+  for (let pagina = 0; ; pagina++) {
+    const { data, error } = await supabase
+      .from("wa_messages")
+      .select("crm_conversation_id, body")
+      .eq("owner_id", ownerId)
+      .eq("from_me", false)
+      .or(PALAVRAS_DO_PUBLICO)
+      .range(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA - 1);
+    if (error) {
+      if (ausente(error)) break;
+      throw new Error(error.message);
+    }
+    for (const m of data ?? []) {
+      const fone = foneCanonico(String(m.crm_conversation_id ?? ""));
+      if (!fone) continue;
+      mensagens.set(fone, [...(mensagens.get(fone) ?? []), String(m.body ?? "")]);
+    }
+    if (!data || data.length < POR_PAGINA) break;
+  }
+
+  const mapa = new Map<string, Publico>();
+  for (const fone of new Set([...anuncios.keys(), ...mensagens.keys()])) {
+    const a = anuncios.get(fone);
+    const publico = publicoDoContato({
+      anuncioTitulo: a?.titulo,
+      anuncioCopy: a?.copy,
+      mensagens: mensagens.get(fone) ?? [],
+    });
+    if (publico !== "atendimento") mapa.set(fone, publico);
+  }
+  return mapa;
+}
+
+function publicoDoFone(mapa: Map<string, Publico>, fone: string | null | undefined): Publico {
+  const chave = foneCanonico(fone);
+  return (chave && mapa.get(chave)) || "atendimento";
+}
+
+/** O público de cada telefone que NÃO é atendimento. A tela de Perdidos
+ *  filtra no cliente com isto; Leads e Clientes filtram no servidor. */
+export const getPublicosDosContatos = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .handler(async ({ context }): Promise<Record<string, Publico>> => {
+    const mapa = await mapaDePublicos(context.supabase, context.ownerId);
+    return Object.fromEntries(mapa);
+  });
+
+function validarPublico(input: { publico?: Publico } | undefined): { publico: Publico } {
+  return { publico: ehPublico(input?.publico) ? input.publico : "atendimento" };
 }
 
 export interface ClienteNoFunil {
@@ -80,8 +171,10 @@ function comEscopo(query: any, context: any) {
  */
 export const getFunilDeClientes = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
-  .handler(async ({ context }): Promise<FunilDeClientes> => {
+  .inputValidator(validarPublico)
+  .handler(async ({ data: entrada, context }): Promise<FunilDeClientes> => {
     const supabase: any = context.supabase;
+    const publicos = await mapaDePublicos(supabase, context.ownerId);
 
     const { data: config, error: erroConfig } = await supabase
       .from("clinic_funnel_rules")
@@ -126,24 +219,26 @@ export const getFunilDeClientes = createServerFn({ method: "GET" })
     const contagem: Record<string, number> = {};
     for (const regra of regras) contagem[regra.id] = 0;
 
-    const clientes: ClienteNoFunil[] = linhas.map((row) => {
-      const stage = classificar(regras, {
-        teveConsulta: !!row.teve_consulta,
-        consultasConcluidas: Number(row.consultas_concluidas ?? 0),
-        temOrcamentoAberto: !!row.tem_orcamento_aberto,
-        temTratamentoPendente: !!row.tem_tratamento_pendente,
-        diasSemConsulta: row.dias_sem_consulta ?? null,
+    const clientes: ClienteNoFunil[] = linhas
+      .filter((row) => publicoDoFone(publicos, row.phone) === entrada.publico)
+      .map((row) => {
+        const stage = classificar(regras, {
+          teveConsulta: !!row.teve_consulta,
+          consultasConcluidas: Number(row.consultas_concluidas ?? 0),
+          temOrcamentoAberto: !!row.tem_orcamento_aberto,
+          temTratamentoPendente: !!row.tem_tratamento_pendente,
+          diasSemConsulta: row.dias_sem_consulta ?? null,
+        });
+        contagem[stage] = (contagem[stage] ?? 0) + 1;
+        return {
+          patientId: String(row.patient_id),
+          name: row.name ?? "",
+          phone: row.phone ?? null,
+          crmContactId: row.crm_contact_id ?? null,
+          ultimaConsulta: row.ultima_concluida ?? null,
+          stage,
+        };
       });
-      contagem[stage] = (contagem[stage] ?? 0) + 1;
-      return {
-        patientId: String(row.patient_id),
-        name: row.name ?? "",
-        phone: row.phone ?? null,
-        crmContactId: row.crm_contact_id ?? null,
-        ultimaConsulta: row.ultima_concluida ?? null,
-        stage,
-      };
-    });
 
     return { regras, clientes, contagem, indisponivel: false };
   });
@@ -270,8 +365,10 @@ export interface FunilDeLeads {
  */
 export const getFunilDeLeads = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
-  .handler(async ({ context }): Promise<FunilDeLeads> => {
+  .inputValidator(validarPublico)
+  .handler(async ({ data: entrada, context }): Promise<FunilDeLeads> => {
     const supabase: any = context.supabase;
+    const publicos = await mapaDePublicos(supabase, context.ownerId);
 
     const { data: config, error: erroConfig } = await supabase
       .from("clinic_funnel_rules")
@@ -310,7 +407,9 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
         if (ausente(error)) return vazio(true);
         throw new Error(error.message);
       }
-      linhas.push(...(data ?? []));
+      linhas.push(
+        ...(data ?? []).filter((row: any) => publicoDoFone(publicos, row.fone) === entrada.publico),
+      );
       if (!data || data.length < POR_PAGINA) break;
     }
 

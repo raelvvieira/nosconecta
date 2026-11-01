@@ -11,6 +11,7 @@ import {
   type ResumoDaColuna,
 } from "@/lib/atendimentos/funis.functions";
 import type { RegraDeFunil } from "@/lib/atendimentos/funnelRules";
+import type { Publico } from "@/lib/atendimentos/publico";
 import { formatBRL } from "@/lib/finance/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -478,15 +479,15 @@ function Detalhe({ lead, etapa }: { lead: LeadNoFunil; etapa: RegraDeFunil | nul
   );
 }
 
-export function QuadroDeLeads({ busca }: { busca: string }) {
+export function QuadroDeLeads({ busca, publico }: { busca: string; publico: Publico }) {
   const { abrir, dialogo } = useDisparoDeColuna();
   const buscarFunil = useServerFn(getFunilDeLeads);
   const [verParados, setVerParados] = useState(false);
   const [aberto, setAberto] = useState<LeadNoFunil | null>(null);
 
   const funil = useQuery({
-    queryKey: ["funil-leads"],
-    queryFn: () => buscarFunil(),
+    queryKey: ["funil-leads", publico],
+    queryFn: () => buscarFunil({ data: { publico } }),
     staleTime: 60_000,
     refetchInterval: 5 * 60_000,
   });

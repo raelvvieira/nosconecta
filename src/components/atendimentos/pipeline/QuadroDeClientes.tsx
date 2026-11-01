@@ -8,6 +8,7 @@ import {
   getFunilDeClientes,
   type ClienteNoFunil,
 } from "@/lib/atendimentos/funis.functions";
+import type { Publico } from "@/lib/atendimentos/publico";
 import type { RegraDeFunil } from "@/lib/atendimentos/funnelRules";
 import { Button } from "@/components/ui/button";
 import type { ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
@@ -119,13 +120,13 @@ function Coluna({
   );
 }
 
-export function QuadroDeClientes({ busca }: { busca: string }) {
+export function QuadroDeClientes({ busca, publico }: { busca: string; publico: Publico }) {
   const { abrir, dialogo } = useDisparoDeColuna();
   const buscarFunil = useServerFn(getFunilDeClientes);
 
   const funil = useQuery({
-    queryKey: ["funil-clientes"],
-    queryFn: () => buscarFunil(),
+    queryKey: ["funil-clientes", publico],
+    queryFn: () => buscarFunil({ data: { publico } }),
     staleTime: 60_000,
   });
 
