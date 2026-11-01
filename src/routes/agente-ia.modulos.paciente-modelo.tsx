@@ -736,6 +736,20 @@ function SeletorDeEdicao({
   );
 }
 
+function ofertaParaForm(o: EdicaoDaTela["ofertas"][number]): OfertaNoForm {
+  return {
+    id: o.id,
+    nome: o.nome,
+    descricao: o.descricao ?? "",
+    ml: o.ml === null ? "" : String(o.ml),
+    precoVista: String(o.precoVista),
+    precoParcelado: o.precoParcelado === null ? "" : String(o.precoParcelado),
+    parcelasMax: o.parcelasMax === null ? "" : String(o.parcelasMax),
+    tipo: o.tipo,
+    destaque: o.destaque,
+  };
+}
+
 function Ofertas() {
   const queryClient = useQueryClient();
   const edicoes = useEdicoes();
@@ -755,20 +769,23 @@ function Ofertas() {
   }, [lista, edicaoId]);
   const edicao = lista.find((e) => e.id === edicaoId);
   useEffect(() => {
-    setLinhas(
-      (edicao?.ofertas ?? []).map((o) => ({
-        id: o.id,
-        nome: o.nome,
-        descricao: o.descricao ?? "",
-        ml: o.ml === null ? "" : String(o.ml),
-        precoVista: String(o.precoVista),
-        precoParcelado: o.precoParcelado === null ? "" : String(o.precoParcelado),
-        parcelasMax: o.parcelasMax === null ? "" : String(o.parcelasMax),
-        tipo: o.tipo,
-        destaque: o.destaque,
-      })),
-    );
+    setLinhas((edicao?.ofertas ?? []).map(ofertaParaForm));
   }, [edicao]);
+  // Edições com ofertas para servir de ponto de partida, a mais recente primeiro.
+  const modelos = lista
+    .filter((e) => e.id !== edicaoId && e.ofertas.length > 0)
+    .sort((a, b) => String(b.inicio ?? "").localeCompare(String(a.inicio ?? "")));
+  const copiarDe = (id: string) => {
+    const origem = lista.find((e) => e.id === id);
+    if (!origem) return;
+    // Viram linhas novas (sem id): nada muda na edição de origem, e nada é
+    // gravado aqui até "Salvar ofertas".
+    const copiadas = origem.ofertas.map((o) => ({ ...ofertaParaForm(o), id: null }));
+    setLinhas([...linhas, ...copiadas]);
+    toast.success(
+      `${copiadas.length} ${copiadas.length === 1 ? "oferta copiada" : "ofertas copiadas"} de ${origem.nome}. Confira os valores e salve.`,
+    );
+  };
 
   const gravar = useMutation({
     mutationFn: () =>
@@ -898,7 +915,7 @@ function Ofertas() {
           </tbody>
         </table>
       </div>
-      <div className="mt-3 flex items-center justify-between">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button
           variant="outline"
           size="sm"
@@ -923,8 +940,24 @@ function Ofertas() {
           <Plus className="h-3.5 w-3.5" />
           Oferta
         </Button>
+        {modelos.length > 0 && (
+          <Select value="" onValueChange={copiarDe}>
+            <SelectTrigger className="h-8 w-auto gap-1.5 rounded-md px-3 text-xs">
+              <Copy className="h-3.5 w-3.5" />
+              <SelectValue placeholder="Copiar de outra edição" />
+            </SelectTrigger>
+            <SelectContent>
+              {modelos.map((e) => (
+                <SelectItem key={e.id} value={e.id}>
+                  {e.nome} · {e.ofertas.length} {e.ofertas.length === 1 ? "oferta" : "ofertas"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <Button
           variant="premium"
+          className="ml-auto"
           onClick={() => gravar.mutate()}
           disabled={gravar.isPending || !edicaoId}
         >
