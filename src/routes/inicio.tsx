@@ -9,6 +9,7 @@ import { getFinanceOverview } from "@/lib/finance/queries.functions";
 import { getHomeToday } from "@/lib/agenda/agenda.functions";
 import { homeOverviewOptions, homeTodayOptions, useHomeData } from "@/components/home/useHomeData";
 import { BoasVindas } from "@/components/home/PrimeirosPassos";
+import { EntradaDoOnboarding } from "@/components/home/Onboarding";
 
 export const Route = createFileRoute("/inicio")({
   ssr: false,
@@ -30,7 +31,9 @@ export const Route = createFileRoute("/inicio")({
   // evita que o esqueleto apareça e suma num susto.
   pendingMs: 150,
   pendingMinMs: 400,
-  errorComponent: ({ error }) => <ResponsiveRouteState error={error} title="Não foi possível carregar o início" />,
+  errorComponent: ({ error }) => (
+    <ResponsiveRouteState error={error} title="Não foi possível carregar o início" />
+  ),
   notFoundComponent: () => <ResponsiveRouteState title="Página não encontrada" notFound />,
   component: InicioPage,
 });
@@ -44,7 +47,7 @@ function InicioPage() {
 
       {/* Uma vez só, fora das duas casas (celular e computador): as duas
           ficam montadas, e cada uma abriria o seu. */}
-      <BoasVindas />
+      <EntradaDoOnboarding semGuia={<BoasVindas />} />
       {dados && <MobileHome dados={dados} />}
 
       <main className="hidden lg:block flex-1 min-w-0 overflow-y-auto sem-arrasto-lateral custom-scroll px-4 md:px-6 lg:px-10 py-6 md:py-8 pb-nav lg:pb-8">

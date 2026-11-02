@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Button } from "@/components/ui/button";
 import { Bloco } from "@/components/agente-ia/campos";
+import { BlocoDeHorarios } from "@/components/settings/BlocoDeHorarios";
 import {
   CamposDeArea,
   CamposDeAvaliacao,
@@ -104,6 +105,25 @@ function ConsultorioPage() {
         </p>
       )}
 
+      {podeEditar && (
+        <button
+          type="button"
+          className="mt-3 text-xs text-muted-foreground underline-offset-2 hover:underline"
+          onClick={async () => {
+            await salvar({ data: { reabrirOnboarding: true } });
+            try {
+              window.sessionStorage.removeItem("onboarding-fechado-nesta-sessao");
+            } catch {
+              // Sem armazenamento, nada a limpar.
+            }
+            await queryClient.invalidateQueries({ queryKey: ["config-do-consultorio"] });
+            window.location.assign("/inicio");
+          }}
+        >
+          Abrir de novo o guia de configuração
+        </button>
+      )}
+
       <fieldset disabled={!podeEditar} className="mt-6 grid gap-4 xl:grid-cols-2 xl:items-start">
         <div className="grid gap-4">
           <Bloco titulo="Identidade">
@@ -114,6 +134,12 @@ function ConsultorioPage() {
             descricao="Define as especialidades, o odontograma e o catálogo de procedimentos."
           >
             <CamposDeArea r={r} mudar={mudar} />
+          </Bloco>
+          <Bloco
+            titulo="Horário de funcionamento"
+            descricao="A agenda e a assistente só oferecem horários dentro destes."
+          >
+            <BlocoDeHorarios />
           </Bloco>
         </div>
         <div className="grid gap-4">

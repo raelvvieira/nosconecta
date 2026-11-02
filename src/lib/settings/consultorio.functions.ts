@@ -94,7 +94,10 @@ export const getConfigDoConsultorio = createServerFn({ method: "GET" })
   });
 
 export type MudancaNoConsultorio = Partial<
-  Omit<ConfigDoConsultorio, "onboardingConcluido" | "plano"> & { concluirOnboarding: boolean }
+  Omit<ConfigDoConsultorio, "onboardingConcluido" | "plano"> & {
+    concluirOnboarding: boolean;
+    reabrirOnboarding: boolean;
+  }
 >;
 
 export const salvarConfigDoConsultorio = createServerFn({ method: "POST" })
@@ -144,6 +147,10 @@ export const salvarConfigDoConsultorio = createServerFn({ method: "POST" })
     if (input.precoHarmonizacao !== undefined) c.preco_harmonizacao = input.precoHarmonizacao;
     if (input.onboardingPasso !== undefined) c.onboarding_passo = input.onboardingPasso;
     if (input.concluirOnboarding) c.onboarding_concluido_em = new Date().toISOString();
+    if (input.reabrirOnboarding) {
+      c.onboarding_concluido_em = null;
+      c.onboarding_passo = null;
+    }
     return c;
   })
   .handler(async ({ data, context }) => {
