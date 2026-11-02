@@ -567,19 +567,52 @@ function resolveValue(
   return null;
 }
 
+const GATILHOS_PADRAO = [
+  {
+    id: null,
+    name: "Consulta marcada envia Lead",
+    system_event: "appointment.created",
+    conditions: {},
+    meta_event_name: "Lead",
+    value_source: "none",
+    fixed_value: null,
+    currency: "BRL",
+    active: true,
+  },
+  {
+    id: null,
+    name: "Atendimento concluído envia Purchase",
+    system_event: "appointment.status_changed",
+    conditions: { status: "completed" },
+    meta_event_name: "Purchase",
+    value_source: "event",
+    fixed_value: null,
+    currency: "BRL",
+    active: true,
+  },
+];
+
 async function handleDispatch(ownerId: string, systemEvent: string, ctx: DispatchContext) {
   const creds = await loadCredentials(ownerId);
   if (!creds?.enabled || !hasCredentials(creds)) {
     return { ok: true, skipped: "integração desativada ou sem credenciais", sent: 0 };
   }
 
-  const { data: triggers, error } = await supabase
+  const { data: todos, error } = await supabase
     .from("meta_capi_triggers")
-    .select("id, name, conditions, meta_event_name, value_source, fixed_value, currency")
-    .eq("owner_id", ownerId)
-    .eq("system_event", systemEvent)
-    .eq("active", true);
+    .select(
+      "id, name, system_event, conditions, meta_event_name, value_source, fixed_value, currency, active",
+    )
+    .eq("owner_id", ownerId);
   if (error) throw new Error(error.message);
+  // Sem nenhum gatilho cadastrado, valem os do sistema: Lead quando a consulta
+  // é marcada e Purchase, com o valor, quando o atendimento é concluído. É o
+  // que a NÓS configurou à mão e o que todo consultório precisa; quem quiser
+  // outro jeito cadastra os seus e estes deixam de valer.
+  const triggers = (todos?.length ? todos : GATILHOS_PADRAO).filter(
+    // deno-lint-ignore no-explicit-any
+    (t: any) => t.system_event === systemEvent && t.active !== false,
+  );
 
   const matching = (triggers ?? []).filter((t: any) => matchesConditions(t.conditions ?? {}, ctx));
   if (!matching.length) return { ok: true, skipped: "nenhum gatilho corresponde", sent: 0 };

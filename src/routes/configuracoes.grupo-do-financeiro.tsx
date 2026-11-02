@@ -122,6 +122,28 @@ function GrupoDoFinanceiroPage() {
       </header>
 
       <section className="rounded-2xl border bg-surface p-4">
+        <h2 className="text-sm font-medium">Como ligar</h2>
+        <ol className="mt-2 grid gap-2 text-xs leading-5 text-muted-foreground">
+          {[
+            "No WhatsApp, crie um grupo com quem lança as despesas do consultório (você, a recepção, o contador).",
+            "Adicione ao grupo o número do consultório que está conectado ao sistema. É ele que lê as mensagens e responde.",
+            "Mande qualquer mensagem no grupo. Em seguida ele aparece na lista abaixo: escolha e salve.",
+          ].map((t, i) => (
+            <li key={i} className="flex gap-2.5">
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-background text-2xs font-semibold text-foreground">
+                {i + 1}
+              </span>
+              {t}
+            </li>
+          ))}
+        </ol>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+          Só o que for escrito nesse grupo vira despesa. As conversas com pacientes não são lidas
+          para isso.
+        </p>
+      </section>
+
+      <section className="rounded-2xl border bg-surface p-4">
         <h2 className="text-sm font-medium">Como escrever</h2>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
           Diga <strong>quanto</strong>, <strong>do quê</strong>, <strong>de qual conta</strong> e{" "}

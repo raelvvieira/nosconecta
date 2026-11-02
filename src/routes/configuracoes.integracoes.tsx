@@ -97,6 +97,9 @@ export const Route = createFileRoute("/configuracoes/integracoes")({
 });
 
 function IntegrationsPage() {
+  // Pixel, token e Página bastam para quase todo consultório; o resto fica
+  // num "Avançado" fechado (01/11: a tela inteira aberta assustava).
+  const [avancado, setAvancado] = useState(false);
   const queryClient = useQueryClient();
   const fetchSettings = useServerFn(getMetaCapiSettings);
   const fetchTriggers = useServerFn(listMetaCapiTriggers);
@@ -294,23 +297,6 @@ function IntegrationsPage() {
             </p>
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="offline-set">Conjunto de eventos offline (opcional)</Label>
-              {offlineFilled && <InUseTag />}
-            </div>
-            <Input
-              id="offline-set"
-              value={offlineEventSetId}
-              onChange={(event) => setOfflineEventSetId(event.target.value)}
-              placeholder="Deixe em branco para usar o Pixel"
-              className="mt-1.5 bg-white"
-            />
-            <p className="mt-1.5 text-2xs text-muted-foreground">
-              Preenchido, os eventos vão para ele <strong>em vez</strong> do Pixel — nunca para os
-              dois. Só compensa se o conjunto estiver vinculado às campanhas.
-            </p>
-          </div>
-          <div>
             <Label htmlFor="access-token">Token de acesso</Label>
             <Input
               id="access-token"
@@ -344,20 +330,41 @@ function IntegrationsPage() {
               sabe qual campanha trouxe a pessoa. Copie em Meta Business › Configurações › Páginas.
             </p>
           </div>
-          <div>
-            <Label htmlFor="test-code">Test Event Code (opcional)</Label>
-            <Input
-              id="test-code"
-              value={testEventCode}
-              onChange={(event) => setTestEventCode(event.target.value)}
-              placeholder="TEST12345"
-              className="mt-1.5 bg-white"
-            />
-            <p className="mt-1.5 text-2xs text-muted-foreground">
-              Com o código preenchido, os eventos aparecem em Test Events e não contam como
-              produção.
-            </p>
-          </div>
+          {avancado && (
+            <>
+              <div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="offline-set">Conjunto de eventos offline (opcional)</Label>
+                  {offlineFilled && <InUseTag />}
+                </div>
+                <Input
+                  id="offline-set"
+                  value={offlineEventSetId}
+                  onChange={(event) => setOfflineEventSetId(event.target.value)}
+                  placeholder="Deixe em branco para usar o Pixel"
+                  className="mt-1.5 bg-white"
+                />
+                <p className="mt-1.5 text-2xs text-muted-foreground">
+                  Preenchido, os eventos vão para ele <strong>em vez</strong> do Pixel — nunca para
+                  os dois. Só compensa se o conjunto estiver vinculado às campanhas.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="test-code">Test Event Code (opcional)</Label>
+                <Input
+                  id="test-code"
+                  value={testEventCode}
+                  onChange={(event) => setTestEventCode(event.target.value)}
+                  placeholder="TEST12345"
+                  className="mt-1.5 bg-white"
+                />
+                <p className="mt-1.5 text-2xs text-muted-foreground">
+                  Com o código preenchido, os eventos aparecem em Test Events e não contam como
+                  produção.
+                </p>
+              </div>
+            </>
+          )}
           <div className="flex items-end">
             <label className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border bg-white/65 px-4 py-3">
               <span>
@@ -388,6 +395,13 @@ function IntegrationsPage() {
             <Send className="h-4 w-4" />
             {testMutation.isPending ? "Enviando..." : "Enviar evento de teste"}
           </Button>
+          <Button
+            variant="ghost"
+            className="text-muted-foreground"
+            onClick={() => setAvancado((v) => !v)}
+          >
+            {avancado ? "Esconder avançado" : "Avançado"}
+          </Button>
         </div>
 
         {/* Sem esse vínculo os eventos chegam na Meta mas não viram conversão
@@ -404,129 +418,163 @@ function IntegrationsPage() {
         )}
       </div>
 
-      {/* Gatilhos */}
-      <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-semibold">Gatilhos</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            O que acontece no sistema e qual evento isso envia para a Meta.
-          </p>
+      {/* O que vai para a Meta: padrão do sistema, sem configurar nada. */}
+      <div className="surface-card mt-6 p-5 sm:p-6">
+        <h3 className="font-semibold">O que é enviado para a Meta</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Já vem pronto. Você não precisa configurar nada além das credenciais acima.
+        </p>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <div className="rounded-2xl bg-muted/40 px-4 py-3">
+            <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-3xs font-semibold">
+              Lead
+            </span>
+            <p className="mt-2 text-sm">Quando uma consulta é marcada na agenda.</p>
+          </div>
+          <div className="rounded-2xl bg-muted/40 px-4 py-3">
+            <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-3xs font-semibold">
+              Purchase
+            </span>
+            <p className="mt-2 text-sm">
+              Quando o atendimento é marcado como concluído na agenda, com o valor do atendimento.
+            </p>
+          </div>
         </div>
-        <Button
-          className="gap-2 bg-gradient-primary text-white"
-          onClick={() => {
-            setEditing(null);
-            setSheetOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          Adicionar gatilho
-        </Button>
+        {list.length > 0 && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Este consultório tem gatilhos personalizados em Avançado. Enquanto existirem, eles valem
+            no lugar destes.
+          </p>
+        )}
       </div>
 
-      <div className="surface-card mt-4 divide-y divide-border overflow-hidden">
-        {list.map((trigger) => {
-          const condition = conditionText(trigger);
-          return (
-            <div
-              key={trigger.id}
-              className="flex min-h-[92px] items-center gap-3 px-4 py-4 sm:px-5"
+      {avancado && (
+        <>
+          {/* Gatilhos */}
+          <div className="mt-6 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold">Gatilhos</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                O que acontece no sistema e qual evento isso envia para a Meta.
+              </p>
+            </div>
+            <Button
+              className="gap-2 bg-gradient-primary text-white"
+              onClick={() => {
+                setEditing(null);
+                setSheetOpen(true);
+              }}
             >
-              <span
-                className={cn(
-                  "grid h-11 w-11 shrink-0 place-items-center rounded-2xl",
-                  trigger.active
-                    ? "bg-gradient-primary text-white"
-                    : "bg-muted text-muted-foreground",
-                )}
-              >
-                <Zap className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate text-sm font-semibold sm:text-sm">{trigger.name}</p>
-                  <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-3xs font-semibold">
-                    {trigger.metaEventName}
+              <Plus className="h-4 w-4" />
+              Adicionar gatilho
+            </Button>
+          </div>
+
+          <div className="surface-card mt-4 divide-y divide-border overflow-hidden">
+            {list.map((trigger) => {
+              const condition = conditionText(trigger);
+              return (
+                <div
+                  key={trigger.id}
+                  className="flex min-h-[92px] items-center gap-3 px-4 py-4 sm:px-5"
+                >
+                  <span
+                    className={cn(
+                      "grid h-11 w-11 shrink-0 place-items-center rounded-2xl",
+                      trigger.active
+                        ? "bg-gradient-primary text-white"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    <Zap className="h-5 w-5" />
                   </span>
-                  {!trigger.active && (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-3xs font-semibold text-muted-foreground">
-                      Pausado
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 truncate text-xs text-muted-foreground">
-                  {SYSTEM_EVENT_LABEL[trigger.systemEvent]}
-                  {condition ? ` · ${condition}` : ""}
-                </p>
-                <p className="mt-1 truncate text-2xs text-muted-foreground/80">
-                  {valueText(trigger)}
-                </p>
-                {/* Um gatilho antigo de "negociação ganha" fica mudo a partir
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-sm font-semibold sm:text-sm">{trigger.name}</p>
+                      <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-3xs font-semibold">
+                        {trigger.metaEventName}
+                      </span>
+                      {!trigger.active && (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-3xs font-semibold text-muted-foreground">
+                          Pausado
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                      {SYSTEM_EVENT_LABEL[trigger.systemEvent]}
+                      {condition ? ` · ${condition}` : ""}
+                    </p>
+                    <p className="mt-1 truncate text-2xs text-muted-foreground/80">
+                      {valueText(trigger)}
+                    </p>
+                    {/* Um gatilho antigo de "negociação ganha" fica mudo a partir
                     de agora. Melhor dizer isso na cara do que deixar a clínica
                     descobrir por conversões que pararam de chegar. */}
-                {trigger.systemEvent === "deal.status_changed" &&
-                  trigger.conditions.dealStatus === "won" && (
-                    <p className="mt-1.5 rounded-xl bg-warning-soft px-2.5 py-1.5 text-2xs leading-4 text-warning">
-                      Este gatilho não dispara mais. Marcar uma negociação como ganha agora registra
-                      um atendimento realizado — aponte-o para "Agendamento muda de situação", com a
-                      situação "Concluído".
-                    </p>
-                  )}
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label={`Ações de ${trigger.name}`}>
-                    <MoreHorizontal className="h-5 w-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
+                    {trigger.systemEvent === "deal.status_changed" &&
+                      trigger.conditions.dealStatus === "won" && (
+                        <p className="mt-1.5 rounded-xl bg-warning-soft px-2.5 py-1.5 text-2xs leading-4 text-warning">
+                          Este gatilho não dispara mais. Marcar uma negociação como ganha agora
+                          registra um atendimento realizado — aponte-o para "Agendamento muda de
+                          situação", com a situação "Concluído".
+                        </p>
+                      )}
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" aria-label={`Ações de ${trigger.name}`}>
+                        <MoreHorizontal className="h-5 w-5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setEditing(trigger);
+                          setSheetOpen(true);
+                        }}
+                      >
+                        Editar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => toggleTrigger.mutate(trigger)}>
+                        {trigger.active ? "Pausar" : "Ativar"}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-danger focus:text-danger"
+                        onClick={() => setPendingDelete(trigger)}
+                      >
+                        Excluir
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              );
+            })}
+            {!triggers.isLoading && !list.length && (
+              <div className="grid min-h-72 place-items-center px-6 py-10 text-center">
+                <div>
+                  <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-coral-soft text-coral">
+                    <Zap className="h-5 w-5" />
+                  </span>
+                  <h4 className="mt-4 font-semibold">Nenhum gatilho personalizado</h4>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Valem os do sistema, acima. Crie um só se precisar de outro evento.
+                  </p>
+                  <Button
+                    className="mt-5 gap-2 bg-gradient-primary text-white"
                     onClick={() => {
-                      setEditing(trigger);
+                      setEditing(null);
                       setSheetOpen(true);
                     }}
                   >
-                    Editar
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => toggleTrigger.mutate(trigger)}>
-                    {trigger.active ? "Pausar" : "Ativar"}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-danger focus:text-danger"
-                    onClick={() => setPendingDelete(trigger)}
-                  >
-                    Excluir
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          );
-        })}
-        {!triggers.isLoading && !list.length && (
-          <div className="grid min-h-72 place-items-center px-6 py-10 text-center">
-            <div>
-              <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-coral-soft text-coral">
-                <Zap className="h-5 w-5" />
-              </span>
-              <h4 className="mt-4 font-semibold">Nenhum gatilho configurado</h4>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Ex.: quando um card entra na etapa de fechamento, enviar Purchase.
-              </p>
-              <Button
-                className="mt-5 gap-2 bg-gradient-primary text-white"
-                onClick={() => {
-                  setEditing(null);
-                  setSheetOpen(true);
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                Adicionar gatilho
-              </Button>
-            </div>
+                    <Plus className="h-4 w-4" />
+                    Adicionar gatilho
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       {/* Histórico */}
       <h3 className="mt-8 text-lg font-semibold">Últimos envios</h3>
