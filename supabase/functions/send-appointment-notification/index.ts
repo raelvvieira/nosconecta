@@ -68,7 +68,9 @@ Deno.serve(async (req) => {
 
     const { data: appt, error: apptErr } = await supabase
       .from("appointments")
-      .select("id, owner_id, patient_id, patient_name, procedure_name, professional_name, date, start_time")
+      .select(
+        "id, owner_id, patient_id, patient_name, procedure_name, professional_name, date, start_time",
+      )
       .eq("id", appointmentId)
       .maybeSingle();
     if (apptErr) throw new Error(apptErr.message);
@@ -116,7 +118,17 @@ Deno.serve(async (req) => {
     if (!alreadySent.has("email")) {
       if (email) {
         try {
-          await sendBrevoEmail({ to: { email, name: appt.patient_name }, subject: msg.subject, htmlContent: msg.html });
+          const { data: ficha } = await supabase
+            .from("clinicas")
+            .select("nome")
+            .eq("owner_id", appt.owner_id)
+            .maybeSingle();
+          await sendBrevoEmail({
+            to: { email, name: appt.patient_name },
+            subject: msg.subject,
+            htmlContent: msg.html,
+            senderName: ficha?.nome ?? null,
+          });
           results.email = { status: "sent" };
         } catch (e) {
           results.email = { status: "failed", error: String(e) };
@@ -150,7 +162,10 @@ Deno.serve(async (req) => {
       if (!waPhone) {
         results.whatsapp = { status: "skipped", error: "Paciente sem telefone válido" };
       } else if (!senderNumber || !Number.isFinite(templateId)) {
-        results.whatsapp = { status: "skipped", error: "WhatsApp não configurado (sender/template ausente)" };
+        results.whatsapp = {
+          status: "skipped",
+          error: "WhatsApp não configurado (sender/template ausente)",
+        };
       } else {
         try {
           await sendBrevoWhatsapp({

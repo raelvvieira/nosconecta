@@ -239,6 +239,14 @@ function PipelinePage() {
     staleTime: 60_000,
   });
   const [openItemId, setOpenItemId] = useState<string | null>(null);
+  // Paciente modelo e mentoria só aparecem para quem tem esses contatos: num
+  // consultório sem mentoria, as abas seriam dois quadros sempre vazios.
+  const publicosVisiveis = useMemo(() => {
+    const usados = new Set(Object.values(publicosQuery.data ?? {}));
+    return PUBLICOS.filter(
+      (p) => p.value === "atendimento" || p.value === publico || usados.has(p.value),
+    );
+  }, [publicosQuery.data, publico]);
 
   const visibleItems = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("pt-BR");
@@ -315,8 +323,13 @@ function PipelinePage() {
               />
             </div>
             {/* Dois níveis: o público (qual funil) e, dentro dele, o estado. */}
-            <div className="flex items-center gap-1 rounded-full border border-border bg-white p-1">
-              {PUBLICOS.map((p) => (
+            <div
+              className={cn(
+                "flex items-center gap-1 rounded-full border border-border bg-white p-1",
+                publicosVisiveis.length < 2 && "hidden",
+              )}
+            >
+              {publicosVisiveis.map((p) => (
                 <button
                   key={p.value}
                   type="button"

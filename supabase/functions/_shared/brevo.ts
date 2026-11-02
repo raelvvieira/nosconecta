@@ -14,10 +14,14 @@ export async function sendBrevoEmail(opts: {
   to: { email: string; name?: string };
   subject: string;
   htmlContent: string;
+  /** O nome do consultório, para o paciente ver quem mandou. Ausente = o
+   *  nome configurado da plataforma. */
+  senderName?: string | null;
 }): Promise<void> {
   const senderEmail = Deno.env.get("BREVO_SENDER_EMAIL");
   if (!senderEmail) throw new Error("BREVO_SENDER_EMAIL não configurada");
-  const senderName = Deno.env.get("BREVO_SENDER_NAME") ?? "NÓS Conecta";
+  const senderName =
+    String(opts.senderName ?? "").trim() || Deno.env.get("BREVO_SENDER_NAME") || "NÓS Conecta";
 
   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",

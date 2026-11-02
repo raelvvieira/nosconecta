@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getConfigDoConsultorio } from "@/lib/settings/consultorio.functions";
 import { z } from "zod";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -638,11 +639,20 @@ function CareTimeline({ events }: { events: CareEvent[] }) {
  *  Onda 4 — a narrativa é uma só (orçar, tratar, evoluir) e não merece três
  *  abas separadas. */
 function Clinico({ patient }: { patient: PatientDetail }) {
+  // O odontograma é só de odontologia: consultório só de estética ou de outra
+  // área não vê um mapa de dentes que não usa.
+  const buscarConfig = useServerFn(getConfigDoConsultorio);
+  const { data: config } = useQuery({
+    queryKey: ["config-do-consultorio"],
+    queryFn: () => buscarConfig(),
+    staleTime: 5 * 60_000,
+  });
+  const comOdonto = !config || config.area === "odonto" || config.area === "odonto_estetica";
   return (
     <div className="mt-5 space-y-5">
       {/* Orçar → tratar → evoluir → histórico: a ordem em que a coisa acontece,
           e por isso a ordem em que aparece. */}
-      <OdontogramaDoPaciente patientId={patient.id} />
+      {comOdonto && <OdontogramaDoPaciente patientId={patient.id} />}
       <Tratamentos patientId={patient.id} />
       <Prontuario patientId={patient.id} />
       <History patient={patient} />

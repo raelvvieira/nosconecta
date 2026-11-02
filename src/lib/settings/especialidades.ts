@@ -45,6 +45,16 @@ export const ESPECIALIDADES: readonly string[] = [
   "Prótese Dentária",
   "Radiologia Odontológica e Imaginologia",
   "Odontologia em Saúde Coletiva",
+  // Para consultórios de estética e de outras áreas (01/11): a lista era só a
+  // do CFO, e quem não é dentista não tinha o que marcar.
+  "Estética Facial",
+  "Biomedicina Estética",
+  "Enfermagem Estética",
+  "Dermatologia",
+  "Medicina",
+  "Fisioterapia",
+  "Nutrição",
+  "Psicologia",
 ];
 
 /**
