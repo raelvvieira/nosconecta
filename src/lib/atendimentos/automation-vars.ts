@@ -6,10 +6,7 @@
 // para recusar uma variável que o gatilho não sabe preencher, e o executor usa
 // a dele para substituir. Divergir faz o save aceitar algo que sai vazio na
 // mensagem do paciente.
-import {
-  AUTOMATION_EVENTS,
-  type AutomationEvent,
-} from "@/lib/atendimentos/automation-events";
+import { AUTOMATION_EVENTS, type AutomationEvent } from "@/lib/atendimentos/automation-events";
 
 export interface AutomationVar {
   /** Sem as chaves: "data" vira {{data}}. */
@@ -42,6 +39,12 @@ export const AUTOMATION_VARS: AutomationVar[] = [
     chave: "endereco",
     rotulo: "Endereço da unidade",
     exemplo: "Rua Bocaiúva, 2468",
+    gatilhos: AGENDA,
+  },
+  {
+    chave: "mapa",
+    rotulo: "Link do mapa da unidade (opcional)",
+    exemplo: "https://maps.app.goo.gl/…",
     gatilhos: AGENDA,
   },
   {

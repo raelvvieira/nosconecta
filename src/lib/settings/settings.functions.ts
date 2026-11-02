@@ -141,6 +141,8 @@ export const getSettings = createServerFn({ method: "GET" })
         id: row.id,
         name: row.name,
         address: row.address ?? "",
+        mapsUrl: row.maps_url ?? "",
+        comoChegar: row.como_chegar ?? "",
         active: row.active ?? true,
         isDefault: row.is_default ?? false,
       })),
@@ -173,6 +175,13 @@ export const saveSetting = createServerFn({ method: "POST" })
         name: item.name,
         address: item.address || null,
         active: item.active ?? true,
+        // Só quando a tela manda: assim um formulário antigo não apaga o mapa.
+        ...(item.mapsUrl !== undefined
+          ? { maps_url: String(item.mapsUrl || "").trim() || null }
+          : {}),
+        ...(item.comoChegar !== undefined
+          ? { como_chegar: String(item.comoChegar || "").trim() || null }
+          : {}),
       };
     } else if (data.section === "professionals") {
       table = "professionals";

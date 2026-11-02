@@ -8,10 +8,7 @@
 // O que sai daqui é uma automação NORMAL. Depois de criada não há vínculo com
 // o modelo, nada é "gerenciado" — cada card é editável e removível como
 // qualquer outro. É semente, não template vivo.
-import type {
-  AutomationEdge,
-  AutomationNode,
-} from "@/lib/atendimentos/automations.functions";
+import type { AutomationEdge, AutomationNode } from "@/lib/atendimentos/automations.functions";
 import type { AutomationEvent } from "@/lib/atendimentos/automation-events";
 
 export interface ModeloDeAutomacao {
@@ -54,12 +51,28 @@ const LEMBRETE_24H =
 const LEMBRETE_HOJE =
   "Oi {{nome}}! Sua consulta é hoje às {{hora}}, na {{unidade}} ({{endereco}}). Até já!";
 
+const CONFIRMACAO =
+  "{{nome}}, seu agendamento está confirmado! ✅\n\n" +
+  "*Data:* {{data}}\n*Horário:* {{hora}}\n\n" +
+  "*Endereço:* {{endereco}}\n📍 {{mapa}}\n\n" +
+  "Se não puder vir, avise com 24h de antecedência, por favor.";
+
 export const MODELOS: ModeloDeAutomacao[] = [
+  {
+    id: "confirmacao",
+    nome: "Aviso de agendamento confirmado",
+    descricao: "Manda data, horário, endereço e o mapa da unidade assim que a consulta é marcada.",
+    triggerEvent: "appointment.created",
+    nodes: [
+      no("trigger", "trigger", 0, 0, {}),
+      no("msg", "action", 1, 0, { action: { type: "send_whatsapp", message: CONFIRMACAO } }),
+    ],
+    edges: [liga("trigger", "msg")],
+  },
   {
     id: "lembretes",
     nome: "Lembretes de consulta",
-    descricao:
-      "Avisa 3 dias antes, 1 dia antes (pedindo confirmação) e no dia da consulta.",
+    descricao: "Avisa 3 dias antes, 1 dia antes (pedindo confirmação) e no dia da consulta.",
     triggerEvent: "appointment.reminder_due",
     nodes: [
       no("trigger", "trigger", 0, 1, {}),
@@ -82,8 +95,7 @@ export const MODELOS: ModeloDeAutomacao[] = [
   {
     id: "resposta",
     nome: "Resposta de confirmação",
-    descricao:
-      "Lê o SIM ou NÃO do paciente e marca o agendamento na agenda automaticamente.",
+    descricao: "Lê o SIM ou NÃO do paciente e marca o agendamento na agenda automaticamente.",
     triggerEvent: "whatsapp.reply_received",
     nodes: [
       no("trigger", "trigger", 0, 1, {}),

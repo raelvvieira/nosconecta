@@ -321,6 +321,8 @@ function matchesConditions(conditions: Record<string, unknown>, ctx: DispatchCon
 // substitui. Mudou lá, muda aqui.
 
 const PADRAO_VAR = /\{\{\s*([a-zA-Z_]+)\s*\}\}/g;
+/** Variáveis que podem ficar vazias: a linha delas sai da mensagem. */
+const OPCIONAIS = new Set(["mapa"]);
 
 /** "2026-09-18" -> "18/09/2026". Sem `new Date`: a string já é a data local do
  *  agendamento, e passar por Date em UTC devolveria o dia anterior. */
@@ -351,18 +353,20 @@ async function valoresDasVariaveis(
     valor: moedaBR(ctx.amount),
     unidade: "",
     endereco: "",
+    mapa: "",
     resposta: ctx.replyText?.trim() ?? "",
   };
 
   if (precisaUnidade && ap?.unitId) {
     const { data } = await supabase
       .from("clinic_units")
-      .select("name, address")
+      .select("*")
       .eq("id", ap.unitId)
       .eq("owner_id", ownerId)
       .maybeSingle();
     valores.unidade = data?.name ?? "";
     valores.endereco = data?.address ?? "";
+    valores.mapa = data?.maps_url ?? "";
   }
   return valores;
 }
@@ -383,10 +387,19 @@ async function interpolar(
   const valores = await valoresDasVariaveis(
     ownerId,
     ctx,
-    usadas.has("unidade") || usadas.has("endereco"),
+    usadas.has("unidade") || usadas.has("endereco") || usadas.has("mapa"),
   );
   const faltando: string[] = [];
-  const texto = template.replace(PADRAO_VAR, (_todo, chave: string) => {
+  // Opcional: a unidade sem link de mapa não pode travar a confirmação. A
+  // linha que tinha a variável sai inteira ("📍 " sozinho seria pior).
+  const linhas = template.split("\n").filter((linha) => {
+    for (const m of linha.matchAll(PADRAO_VAR)) {
+      const k = m[1].toLowerCase();
+      if (OPCIONAIS.has(k) && !valores[k]) return false;
+    }
+    return true;
+  });
+  const texto = linhas.join("\n").replace(PADRAO_VAR, (_todo, chave: string) => {
     const k = String(chave).toLowerCase();
     const v = valores[k];
     if (!v) {
