@@ -7,6 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { AREAS, type AreaDeAtuacao } from "@/lib/settings/catalogo-modelo";
 import {
+  POLITICA_CANCELAMENTO_PADRAO,
+  POLITICA_FALTA_PADRAO,
+} from "../../../supabase/functions/_shared/condicoes-do-consultorio.ts";
+import {
   FORMAS_DE_PAGAMENTO,
   type ConfigDoConsultorio,
   type FormaDePagamento,
@@ -282,11 +286,14 @@ export function CamposDeAvaliacao({ r, mudar }: { r: Rascunho; mudar: Mudar }) {
 export function CamposDePoliticas({ r, mudar }: { r: Rascunho; mudar: Mudar }) {
   return (
     <div className="grid gap-4">
-      <Campo rotulo="Se o paciente faltar" ajuda="A assistente repete do jeito que está aqui.">
+      <Campo
+        rotulo="Se o paciente faltar"
+        ajuda="Vazio, vale o padrão do sistema (o texto cinza). Escrito, a assistente repete do seu jeito."
+      >
         <Textarea
           rows={2}
           value={r.politicaFalta ?? ""}
-          placeholder="Ex.: pedimos que avise com 24h de antecedência."
+          placeholder={POLITICA_FALTA_PADRAO}
           onChange={(e) => mudar({ politicaFalta: e.target.value })}
         />
       </Campo>
@@ -294,7 +301,7 @@ export function CamposDePoliticas({ r, mudar }: { r: Rascunho; mudar: Mudar }) {
         <Textarea
           rows={2}
           value={r.politicaCancelamento ?? ""}
-          placeholder="Ex.: dá para remarcar sem custo até 24h antes."
+          placeholder={POLITICA_CANCELAMENTO_PADRAO}
           onChange={(e) => mudar({ politicaCancelamento: e.target.value })}
         />
       </Campo>

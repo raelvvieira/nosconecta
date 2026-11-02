@@ -26,15 +26,12 @@ import { cn } from "@/lib/utils";
 import {
   Campo,
   CamposDeArea,
-  CamposDeAvaliacao,
   CamposDeIdentidade,
   CamposDePagamento,
-  CamposDePoliticas,
   type Rascunho,
 } from "@/components/settings/CamposDoConsultorio";
 import { BlocoDeHorarios } from "@/components/settings/BlocoDeHorarios";
 import { ConectarWhatsapp } from "@/components/atendimentos/ConectarWhatsapp";
-import { Testar } from "@/components/agente-ia/Testar";
 import { MODELOS } from "@/components/atendimentos/automations/automationTemplates";
 import { catalogoDaArea, type AreaDeAtuacao } from "@/lib/settings/catalogo-modelo";
 import {
@@ -136,7 +133,7 @@ const PASSOS: {
   {
     id: "whatsapp",
     titulo: "Conecte o WhatsApp",
-    subtitulo: "O número do consultório, pelo QR code, como no WhatsApp Web.",
+    subtitulo: "O número do consultório, conectado pelo QR code, como no WhatsApp Web.",
     icone: MessageCircle,
   },
   {
@@ -378,20 +375,13 @@ function ConteudoDoPasso({
         <PassoProcedimentos
           area={(r.area ?? "odonto_estetica") as AreaDeAtuacao}
           registrar={registrar}
+          mudar={mudar}
         />
       );
     case "pagamento":
       return (
         <div className="grid gap-8">
           <CamposDePagamento r={r} mudar={mudar} />
-          <div className="grid gap-3">
-            <p className="text-sm font-semibold">Avaliação</p>
-            <CamposDeAvaliacao r={r} mudar={mudar} />
-          </div>
-          <div className="grid gap-3">
-            <p className="text-sm font-semibold">Políticas</p>
-            <CamposDePoliticas r={r} mudar={mudar} />
-          </div>
         </div>
       );
     case "mensagens":
@@ -594,13 +584,29 @@ function PassoEquipe() {
 function PassoProcedimentos({
   area,
   registrar,
+  mudar,
 }: {
   area: AreaDeAtuacao;
   registrar: (fn: () => Promise<void>) => void;
+  mudar: (p: Rascunho) => void;
 }) {
   const importar = useServerFn(importarProcedimentos);
   const catalogo = catalogoDaArea(area);
   const [escolhidos, setEscolhidos] = useState<Record<string, string>>({});
+  // A avaliação se define aqui, pelo preço dela: com valor é paga, sem valor
+  // é gratuita. Perguntar de novo no passo de pagamento era redundante.
+  useEffect(() => {
+    const avaliacao = catalogo.find((i) => i.categoria === "Avaliação");
+    if (!avaliacao || escolhidos[avaliacao.nome] === undefined) return;
+    const valor =
+      Number(String(escolhidos[avaliacao.nome]).replace(/\./g, "").replace(",", ".")) || 0;
+    mudar(
+      valor > 0
+        ? { avaliacaoGratuita: false, avaliacaoValor: valor }
+        : { avaliacaoGratuita: true, avaliacaoValor: null },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [escolhidos]);
   useEffect(() => {
     registrar(async () => {
       const itens = catalogo
@@ -642,7 +648,9 @@ function PassoProcedimentos({
             <span className="min-w-0 flex-1 text-sm">
               {i.nome}
               <span className="block text-xs text-muted-foreground">
-                {i.categoria} · {i.duracaoMin} min{i.aPartirDe ? " · a partir de" : ""}
+                {i.categoria === "Avaliação"
+                  ? "Sem preço, a avaliação é gratuita"
+                  : `${i.categoria} · ${i.duracaoMin} min${i.aPartirDe ? " · a partir de" : ""}`}
               </span>
             </span>
             {marcado && (
@@ -739,6 +747,14 @@ function PassoWhatsapp() {
   const conectado = data?.estado === "open";
   return (
     <div className="grid gap-4">
+      <div className="rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm leading-6">
+        <p className="font-semibold">Este será o número que fala com os pacientes</p>
+        <p className="mt-1 text-muted-foreground">
+          É por ele que a assistente responde as conversas e que saem as confirmações de
+          agendamento, os lembretes e as campanhas. Use o WhatsApp do consultório, não um número
+          pessoal.
+        </p>
+      </div>
       <div
         className={cn(
           "flex items-center gap-3 rounded-2xl px-4 py-4",
@@ -788,12 +804,6 @@ function PassoAssistente({ registrar }: { registrar: (fn: () => Promise<void>) =
       <Campo rotulo="Nome da assistente" ajuda="É como ela se apresenta aos pacientes.">
         <Input value={nome} onChange={(e) => setNome(e.target.value)} />
       </Campo>
-      <div className="grid gap-2">
-        <p className="text-sm font-semibold">Teste uma conversa</p>
-        <div className="rounded-2xl border border-border p-3">
-          <Testar semCartao />
-        </div>
-      </div>
       <label className="flex items-center justify-between gap-3 rounded-2xl bg-muted/40 px-4 py-3 text-sm">
         <span>
           Ligar a assistente agora

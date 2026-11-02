@@ -36,6 +36,12 @@ export interface CondicoesDoConsultorio {
   precoHarmonizacao: boolean;
 }
 
+/** O padrão do sistema enquanto o consultório não escreve a sua. */
+export const POLITICA_FALTA_PADRAO =
+  "Se não puder vir, pedimos que avise com pelo menos 24h de antecedência, para liberar o horário para outro paciente.";
+export const POLITICA_CANCELAMENTO_PADRAO =
+  "Dá para remarcar avisando com pelo menos 24h de antecedência.";
+
 export const CONDICOES_PADRAO: CondicoesDoConsultorio = {
   formas: ["pix", "cartao", "dinheiro"],
   parcelasMax: null,
@@ -129,8 +135,10 @@ export function secaoDeCondicoes(
   if (rotulos.length) linhas.push(`- Formas de pagamento: ${rotulos.join(", ")}.`);
   const parcelas = fraseDoParcelamento(c) ?? String(parcelamentoLivre ?? "").trim();
   if (parcelas) linhas.push(`- Parcelamento: ${parcelas}`);
-  if (c.politicaFalta) linhas.push(`- Falta: ${c.politicaFalta}`);
-  if (c.politicaCancelamento) linhas.push(`- Cancelamento e remarcação: ${c.politicaCancelamento}`);
+  linhas.push(`- Falta: ${c.politicaFalta || POLITICA_FALTA_PADRAO}`);
+  linhas.push(
+    `- Cancelamento e remarcação: ${c.politicaCancelamento || POLITICA_CANCELAMENTO_PADRAO}`,
+  );
   linhas.push(
     "",
     "Use só o que está aqui. O que não estiver (juros, desconto, outra forma de",
