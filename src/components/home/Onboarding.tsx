@@ -240,7 +240,7 @@ export function Onboarding({ config }: { config: ConfigDoConsultorio & { isAdmin
 
   return (
     <Dialog open onOpenChange={(o) => !o && fecharPorAgora()}>
-      <DialogContent className="flex max-h-[92dvh] w-[calc(100vw-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-[28px] border-0 p-0 shadow-2xl [&>button]:hidden">
+      <DialogContent className="flex max-h-[92dvh] w-[calc(100vw-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-[28px] border-0 p-0 shadow-2xl [&>button]:hidden [&>div]:grid-cols-[minmax(0,1fr)] [&>div]:gap-0">
         <div className="h-1 w-full bg-muted">
           <div
             className="h-full bg-gradient-primary transition-[width] duration-500 ease-out"
@@ -287,7 +287,7 @@ export function Onboarding({ config }: { config: ConfigDoConsultorio & { isAdmin
           />
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-border/60 px-6 py-4 sm:px-10">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-4 py-3 sm:px-10 sm:py-4">
           <div className="flex items-center gap-1">
             {indice > 0 && !ultimo && (
               <Button
@@ -314,13 +314,13 @@ export function Onboarding({ config }: { config: ConfigDoConsultorio & { isAdmin
             )}
           </div>
           {ultimo ? (
-            <Button variant="premium" className="min-w-36" disabled={salvando} onClick={concluir}>
+            <Button variant="premium" className="min-w-32" disabled={salvando} onClick={concluir}>
               Começar a usar
             </Button>
           ) : (
             <Button
               variant="premium"
-              className="min-w-36"
+              className="min-w-32"
               disabled={salvando}
               onClick={() => void irPara(indice + 1, indice > 0)}
             >
