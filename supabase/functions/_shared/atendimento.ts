@@ -15,6 +15,12 @@
 // (`filtros-do-agente.ts`) moram em outros arquivos, de propósito. Aqui é a
 // orquestração; lá é a decisão. Misturar as três coisas foi o que produziu, na
 // referência, um arquivo em que ninguém achava mais o filtro que importava.
+import {
+  campanhaDoBanco,
+  condicoesDoBanco,
+  type Campanha,
+  type CondicoesDoConsultorio,
+} from "./condicoes-do-consultorio.ts";
 import { aConversaAindaEDaIa } from "./conversa-nova.ts";
 import { decidirSeResponde, registrarFalha, registrarSucesso } from "./filtros-do-agente.ts";
 import { esperaDeDigitacao, normalizarRitmo, prepararBolhas } from "./humanizacao.ts";
@@ -977,6 +983,8 @@ interface UnidadeDaClinica {
   nome: string;
   endereco: string | null;
   principal: boolean;
+  mapa: string | null;
+  comoChegar: string | null;
 }
 
 export async function instrucaoDaLuna(
@@ -1042,7 +1050,7 @@ export async function instrucaoDaLuna(
   // agenda sabe quais horários pode oferecer.
   const { data: unidades } = await supabase
     .from("clinic_units")
-    .select("id, name, address, is_default")
+    .select("*")
     .eq("owner_id", ownerId)
     .eq("active", true)
     .order("is_default", { ascending: false });
@@ -1052,6 +1060,10 @@ export async function instrucaoDaLuna(
     nome: String(u.name ?? "").trim(),
     endereco: u.address ?? null,
     principal: u.is_default === true,
+    // `select("*")`: antes da migration as colunas não existem e chegam vazias,
+    // sem derrubar a leitura.
+    mapa: u.maps_url ?? null,
+    comoChegar: u.como_chegar ?? null,
   }));
   const unidade = listaDeUnidades[0] ?? null;
 
@@ -1184,6 +1196,7 @@ export async function instrucaoDaLuna(
   // daria uma tabela diferente — meia hora passou, e a vaga que ela ofereceu
   // pode não estar mais na lista.
   const identidade = await identidadeDoConsultorio(supabase, ownerId);
+  const { condicoes, campanhas } = await condicoesECampanhas(supabase, ownerId);
 
   // ── O módulo Paciente Modelo HOF ────────────────────────────────────────
   //
@@ -1239,6 +1252,8 @@ export async function instrucaoDaLuna(
     profissionais: await profissionaisDaClinica(supabase, ownerId),
     instrucaoBase: agente.instrucao_base ?? null,
     parcelamento: agente.parcelamento ?? null,
+    condicoes,
+    campanhas,
     modulo,
     hoje,
     casos,
@@ -1306,6 +1321,42 @@ async function profissionaisDaClinica(
  * lado, manda a segunda. Entre perder uma prova e insistir com a imagem de
  * uma paciente, o lado seguro é não mandar.
  */
+/**
+ * Como o paciente paga, avaliação, políticas e campanhas do consultório.
+ * `select("*")` e erro engolido: antes da migration as colunas e a tabela não
+ * existem, e a resposta segue com o padrão (o que a NÓS já fazia).
+ */
+async function condicoesECampanhas(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  ownerId: string,
+): Promise<{ condicoes: CondicoesDoConsultorio; campanhas: Campanha[] }> {
+  let condicoes = condicoesDoBanco(null);
+  let campanhas: Campanha[] = [];
+  try {
+    const { data } = await supabase
+      .from("clinicas")
+      .select("*")
+      .eq("owner_id", ownerId)
+      .maybeSingle();
+    condicoes = condicoesDoBanco(data);
+  } catch (e) {
+    console.warn("[atendimento] condições do consultório não lidas:", e);
+  }
+  try {
+    const { data, error } = await supabase
+      .from("campanhas")
+      .select("*")
+      .eq("owner_id", ownerId)
+      .eq("ativo", true);
+    // deno-lint-ignore no-explicit-any
+    if (!error) campanhas = (data ?? []).map((r: any) => campanhaDoBanco(r));
+  } catch (e) {
+    console.warn("[atendimento] campanhas não lidas:", e);
+  }
+  return { condicoes, campanhas };
+}
+
 async function jaMandouCasoNestaConversa(
   // deno-lint-ignore no-explicit-any
   supabase: any,

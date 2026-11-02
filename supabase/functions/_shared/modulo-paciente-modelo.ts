@@ -431,8 +431,24 @@ export interface EntradaDaSecao {
 }
 
 /** A proibição de sempre, para quem procura harmonização fora da vaga. */
-export function secaoDeHarmonizacao(quem: string, hoje?: string): string[] {
+export function secaoDeHarmonizacao(
+  quem: string,
+  hoje?: string,
+  /** O consultório deixa informar preço de harmonização que está na tabela. */
+  permitePreco = false,
+): string[] {
   const data = hoje ? `${hoje.slice(8, 10)}/${hoje.slice(5, 7)}/${hoje.slice(0, 4)}` : null;
+  if (permitePreco) {
+    return [
+      "## Harmonização facial",
+      "",
+      "Para harmonização facial, preenchimento ou bioestimulador, você pode",
+      "informar os valores que estão na lista de preços e nas campanhas válidas,",
+      "do jeito que estão escritos. O que não estiver lá, não: diga que depende",
+      `da avaliação com ${quem}. Nunca dê faixa nem "a partir de" inventado.`,
+      ...(data ? ["", `Hoje é ${data}.`] : []),
+    ];
+  }
   return [
     "## Harmonização facial",
     "",

@@ -30,6 +30,15 @@ import { catalogoDeVagas, comoReportarFechamento } from "./agendamento-da-ia.ts"
 import { comoUsarOsCasos, type CasoComCodigo } from "./casos-da-ia.ts";
 import { secaoDeHarmonizacao } from "./modulo-paciente-modelo.ts";
 import {
+  CONDICOES_PADRAO,
+  comManualPadrao,
+  fraseDaAvaliacao,
+  secaoDeCampanhas,
+  secaoDeCondicoes,
+  type Campanha,
+  type CondicoesDoConsultorio,
+} from "./condicoes-do-consultorio.ts";
+import {
   secaoDaCidade,
   semONos,
   type CidadeDeclarada,
@@ -109,6 +118,11 @@ export { nomeDaAssistente, quemAvalia };
 export interface EntradaDaInstrucao {
   clinica: string;
   manual: ManualDeVendas;
+  /** Como o paciente paga, avaliação e políticas. Ausente = o padrão (o que a
+   *  NÓS já fazia: avaliação sem custo). */
+  condicoes?: CondicoesDoConsultorio | null;
+  /** As campanhas do consultório; só as válidas hoje entram. */
+  campanhas?: Campanha[] | null;
   /**
    * O manual de condução escrito pela clínica (o LUNA V1).
    *
@@ -200,6 +214,19 @@ export interface UnidadeDaClinica {
   nome: string;
   endereco: string | null;
   principal: boolean;
+  /** Link do Google Maps, mandado junto do endereço. */
+  mapa?: string | null;
+  /** "Prédio azul, sala 612, estacionamento na rua de trás". */
+  comoChegar?: string | null;
+}
+
+function linhaDaUnidade(u: UnidadeDaClinica): string {
+  let t = `- ${u.nome.trim()}: ${String(u.endereco).trim()}`;
+  const mapa = String(u.mapa ?? "").trim();
+  const chegar = String(u.comoChegar ?? "").trim();
+  if (mapa) t += `\n  Mapa: ${mapa}`;
+  if (chegar) t += `\n  Como chegar: ${chegar}`;
+  return t;
 }
 
 /** O que se sabe sobre a cidade da pessoa quando esta instrução é montada. */
@@ -338,7 +365,10 @@ export function secaoDeUnidades(
     "## Onde a clínica fica",
     "Estes são os endereços, e são os únicos que você pode dar:",
     "",
-    ...comEndereco.map((u) => `- ${u.nome.trim()}: ${String(u.endereco).trim()}`),
+    ...comEndereco.map(linhaDaUnidade),
+    ...(comEndereco.some((u) => String(u.mapa ?? "").trim())
+      ? ["", "Quando der o endereço, mande o link do mapa junto, numa linha só para ele."]
+      : []),
   ];
 
   // Sem estas linhas ela escolheria sozinha entre duas cidades. A ordem é a
@@ -1017,8 +1047,14 @@ export function montarInstrucao({
   duvidaPendente,
   responsavel,
   assistente,
+  condicoes,
+  campanhas,
 }: EntradaDaInstrucao): string {
   const daClinica = String(instrucaoBase ?? "").trim();
+  const cond = condicoes ?? CONDICOES_PADRAO;
+  // Consultório sem manual próprio e sem conversas aprendidas usa o
+  // manual-base em cada campo vazio, e não "(a IA ainda não aprendeu isso)".
+  if (!daClinica) manual = comManualPadrao(manual);
 
   const partes = daClinica
     ? [
@@ -1109,6 +1145,9 @@ export function montarInstrucao({
   if (quemAtende) partes.push("", quemAtende);
 
   partes.push("", tabelaDePrecos(procedimentos, parcelamento));
+  partes.push("", ...secaoDeCondicoes(cond, parcelamento));
+  const blocoDeCampanhas = secaoDeCampanhas(campanhas ?? [], hoje ?? "0000-00-00");
+  if (blocoDeCampanhas.length) partes.push("", ...blocoDeCampanhas);
   partes.push("", secaoDeHorarios(horarios, responsavel));
   // Depois dos preços e dos horários de propósito: é a seção que RESTRINGE os
   // dois, e uma restrição lida antes da regra que ela restringe se perde.
@@ -1116,13 +1155,18 @@ export function montarInstrucao({
   // maior que isso, então a oferta nasce FECHADA. Falha fechada de propósito —
   // convidar para uma mentoria que já passou é pior que não convidar.
   if (modulo?.secao) {
-    partes.push("", ...secaoDeHarmonizacao(quemAvalia(responsavel), hoje), "", modulo.secao);
+    partes.push(
+      "",
+      ...secaoDeHarmonizacao(quemAvalia(responsavel), hoje, cond.precoHarmonizacao),
+      "",
+      modulo.secao,
+    );
   } else if (pacienteModelo) {
     partes.push("", secaoDePacienteModelo(pacienteModelo, hoje ?? "9999-12-31", responsavel));
   } else {
     partes.push(
       "",
-      ...secaoDeHarmonizacao(quemAvalia(responsavel), hoje),
+      ...secaoDeHarmonizacao(quemAvalia(responsavel), hoje, cond.precoHarmonizacao),
       "",
       "Esta conversa NÃO é de paciente modelo. Não ofereça vaga de mentoria nem",
       "cite valores de paciente modelo. Se a pessoa perguntar por isso, responda",
@@ -1202,12 +1246,12 @@ export function montarInstrucao({
     "   cidade já confirmada, na mesma mensagem dos dois horários, antes deles.",
     "",
     "   Nos dois caminhos:",
-    "   - A avaliação é sem custo; o procedimento é pago. Diga as duas coisas",
-    "     separadas, para ninguém achar que o tratamento é de graça.",
+    `   - ${fraseDaAvaliacao(cond)} Diga isso separado do valor do procedimento,`,
+    "     para ninguém confundir o que é pago.",
     "   - Use só os valores da tabela desta instrução. Uma oferta pertinente",
     "     basta: não mande todas as modalidades e preços de uma vez.",
     "   - Quando o valor depende da avaliação e a tabela não tem referência,",
-    "     diga isso, sem inventar orçamento, e lembre que a avaliação é sem custo.",
+    "     diga isso, sem inventar orçamento, e lembre como funciona a avaliação.",
     "",
     "   O que não fazer, porque aconteceu de verdade:",
     `   - Responder 'Oii, aqui é a ${nomeDaAssistente(assistente)} 😊 O combo fica R$ X, em até 10x,`,
