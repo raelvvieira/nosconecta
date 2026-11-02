@@ -77,12 +77,27 @@ const EMPTY = {
     active: true,
     unitId: null as string | null,
   },
-  chairs: { name: "", roomName: "", color: "#FF7A59", active: true, notes: "", unitId: null as string | null },
+  chairs: {
+    name: "",
+    roomName: "",
+    color: "#FF7A59",
+    active: true,
+    notes: "",
+    unitId: null as string | null,
+  },
   procedures: { name: "", category: "", durationMinutes: 60, price: 0, cost: 0, active: true },
-  units: { name: "", address: "", active: true },
+  units: { name: "", address: "", mapsUrl: "", comoChegar: "", active: true },
 };
 
-export function SettingsFormSheet({ open, section, item, units, isAdmin, onOpenChange, onSaved }: Props) {
+export function SettingsFormSheet({
+  open,
+  section,
+  item,
+  units,
+  isAdmin,
+  onOpenChange,
+  onSaved,
+}: Props) {
   const save = useServerFn(saveSetting);
   const [form, setForm] = useState<Record<string, unknown>>({ ...EMPTY[section] });
   const meta = META[section];
@@ -201,7 +216,11 @@ export function SettingsFormSheet({ open, section, item, units, isAdmin, onOpenC
                 />
               </div>
               {showUnitSelect && (
-                <UnitField value={form.unitId as string | null} units={units ?? []} onChange={(v) => set("unitId", v)} />
+                <UnitField
+                  value={form.unitId as string | null}
+                  units={units ?? []}
+                  onChange={(v) => set("unitId", v)}
+                />
               )}
             </>
           )}
@@ -228,7 +247,11 @@ export function SettingsFormSheet({ open, section, item, units, isAdmin, onOpenC
                 />
               </Field>
               {showUnitSelect && (
-                <UnitField value={form.unitId as string | null} units={units ?? []} onChange={(v) => set("unitId", v)} />
+                <UnitField
+                  value={form.unitId as string | null}
+                  units={units ?? []}
+                  onChange={(v) => set("unitId", v)}
+                />
               )}
             </>
           )}
@@ -281,6 +304,29 @@ export function SettingsFormSheet({ open, section, item, units, isAdmin, onOpenC
                 value={String(form.address ?? "")}
                 onChange={(event) => set("address", event.target.value)}
                 placeholder="Rua, número, bairro, cidade"
+              />
+            </Field>
+          )}
+          {section === "units" && (
+            <Field label="Link do mapa">
+              <Input
+                inputMode="url"
+                value={String(form.mapsUrl ?? "")}
+                onChange={(event) => set("mapsUrl", event.target.value)}
+                placeholder="https://maps.app.goo.gl/…"
+              />
+              <span className="mt-1 block text-xs text-muted-foreground">
+                No Google Maps, abra o endereço e toque em Compartilhar. A assistente e a
+                confirmação de agendamento mandam este link.
+              </span>
+            </Field>
+          )}
+          {section === "units" && (
+            <Field label="Como chegar">
+              <Input
+                value={String(form.comoChegar ?? "")}
+                onChange={(event) => set("comoChegar", event.target.value)}
+                placeholder="Ex.: prédio azul, sala 612, estacionamento na rua de trás"
               />
             </Field>
           )}

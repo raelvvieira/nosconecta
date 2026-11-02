@@ -34,7 +34,9 @@ import { Route as AtendimentosChatRouteImport } from './routes/atendimentos.chat
 import { Route as AtendimentosPipelineRouteImport } from './routes/atendimentos.pipeline'
 import { Route as ConfiguracoesIndexRouteImport } from './routes/configuracoes.index'
 import { Route as ConfiguracoesAparenciaRouteImport } from './routes/configuracoes.aparencia'
+import { Route as ConfiguracoesCampanhasRouteImport } from './routes/configuracoes.campanhas'
 import { Route as ConfiguracoesCasosRouteImport } from './routes/configuracoes.casos'
+import { Route as ConfiguracoesConsultorioRouteImport } from './routes/configuracoes.consultorio'
 import { Route as ConfiguracoesContasRouteImport } from './routes/configuracoes.contas'
 import { Route as ConfiguracoesDiasDeViagemRouteImport } from './routes/configuracoes.dias-de-viagem'
 import { Route as ConfiguracoesGrupoDoFinanceiroRouteImport } from './routes/configuracoes.grupo-do-financeiro'
@@ -177,11 +179,22 @@ const ConfiguracoesAparenciaRoute = ConfiguracoesAparenciaRouteImport.update({
   path: '/aparencia',
   getParentRoute: () => ConfiguracoesRoute,
 } as any)
+const ConfiguracoesCampanhasRoute = ConfiguracoesCampanhasRouteImport.update({
+  id: '/campanhas',
+  path: '/campanhas',
+  getParentRoute: () => ConfiguracoesRoute,
+} as any)
 const ConfiguracoesCasosRoute = ConfiguracoesCasosRouteImport.update({
   id: '/casos',
   path: '/casos',
   getParentRoute: () => ConfiguracoesRoute,
 } as any)
+const ConfiguracoesConsultorioRoute =
+  ConfiguracoesConsultorioRouteImport.update({
+    id: '/consultorio',
+    path: '/consultorio',
+    getParentRoute: () => ConfiguracoesRoute,
+  } as any)
 const ConfiguracoesContasRoute = ConfiguracoesContasRouteImport.update({
   id: '/contas',
   path: '/contas',
@@ -294,7 +307,9 @@ export interface FileRoutesByFullPath {
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/aparencia': typeof ConfiguracoesAparenciaRoute
+  '/configuracoes/campanhas': typeof ConfiguracoesCampanhasRoute
   '/configuracoes/casos': typeof ConfiguracoesCasosRoute
+  '/configuracoes/consultorio': typeof ConfiguracoesConsultorioRoute
   '/configuracoes/contas': typeof ConfiguracoesContasRoute
   '/configuracoes/dias-de-viagem': typeof ConfiguracoesDiasDeViagemRoute
   '/configuracoes/grupo-do-financeiro': typeof ConfiguracoesGrupoDoFinanceiroRoute
@@ -333,7 +348,9 @@ export interface FileRoutesByTo {
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/aparencia': typeof ConfiguracoesAparenciaRoute
+  '/configuracoes/campanhas': typeof ConfiguracoesCampanhasRoute
   '/configuracoes/casos': typeof ConfiguracoesCasosRoute
+  '/configuracoes/consultorio': typeof ConfiguracoesConsultorioRoute
   '/configuracoes/contas': typeof ConfiguracoesContasRoute
   '/configuracoes/dias-de-viagem': typeof ConfiguracoesDiasDeViagemRoute
   '/configuracoes/grupo-do-financeiro': typeof ConfiguracoesGrupoDoFinanceiroRoute
@@ -378,7 +395,9 @@ export interface FileRoutesById {
   '/atendimentos/chat': typeof AtendimentosChatRoute
   '/atendimentos/pipeline': typeof AtendimentosPipelineRoute
   '/configuracoes/aparencia': typeof ConfiguracoesAparenciaRoute
+  '/configuracoes/campanhas': typeof ConfiguracoesCampanhasRoute
   '/configuracoes/casos': typeof ConfiguracoesCasosRoute
+  '/configuracoes/consultorio': typeof ConfiguracoesConsultorioRoute
   '/configuracoes/contas': typeof ConfiguracoesContasRoute
   '/configuracoes/dias-de-viagem': typeof ConfiguracoesDiasDeViagemRoute
   '/configuracoes/grupo-do-financeiro': typeof ConfiguracoesGrupoDoFinanceiroRoute
@@ -424,7 +443,9 @@ export interface FileRouteTypes {
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
     | '/configuracoes/aparencia'
+    | '/configuracoes/campanhas'
     | '/configuracoes/casos'
+    | '/configuracoes/consultorio'
     | '/configuracoes/contas'
     | '/configuracoes/dias-de-viagem'
     | '/configuracoes/grupo-do-financeiro'
@@ -463,7 +484,9 @@ export interface FileRouteTypes {
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
     | '/configuracoes/aparencia'
+    | '/configuracoes/campanhas'
     | '/configuracoes/casos'
+    | '/configuracoes/consultorio'
     | '/configuracoes/contas'
     | '/configuracoes/dias-de-viagem'
     | '/configuracoes/grupo-do-financeiro'
@@ -507,7 +530,9 @@ export interface FileRouteTypes {
     | '/atendimentos/chat'
     | '/atendimentos/pipeline'
     | '/configuracoes/aparencia'
+    | '/configuracoes/campanhas'
     | '/configuracoes/casos'
+    | '/configuracoes/consultorio'
     | '/configuracoes/contas'
     | '/configuracoes/dias-de-viagem'
     | '/configuracoes/grupo-do-financeiro'
@@ -728,11 +753,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfiguracoesAparenciaRouteImport
       parentRoute: typeof ConfiguracoesRoute
     }
+    '/configuracoes/campanhas': {
+      id: '/configuracoes/campanhas'
+      path: '/campanhas'
+      fullPath: '/configuracoes/campanhas'
+      preLoaderRoute: typeof ConfiguracoesCampanhasRouteImport
+      parentRoute: typeof ConfiguracoesRoute
+    }
     '/configuracoes/casos': {
       id: '/configuracoes/casos'
       path: '/casos'
       fullPath: '/configuracoes/casos'
       preLoaderRoute: typeof ConfiguracoesCasosRouteImport
+      parentRoute: typeof ConfiguracoesRoute
+    }
+    '/configuracoes/consultorio': {
+      id: '/configuracoes/consultorio'
+      path: '/consultorio'
+      fullPath: '/configuracoes/consultorio'
+      preLoaderRoute: typeof ConfiguracoesConsultorioRouteImport
       parentRoute: typeof ConfiguracoesRoute
     }
     '/configuracoes/contas': {
@@ -906,7 +945,9 @@ const AtendimentosRouteWithChildren = AtendimentosRoute._addFileChildren(
 
 interface ConfiguracoesRouteChildren {
   ConfiguracoesAparenciaRoute: typeof ConfiguracoesAparenciaRoute
+  ConfiguracoesCampanhasRoute: typeof ConfiguracoesCampanhasRoute
   ConfiguracoesCasosRoute: typeof ConfiguracoesCasosRoute
+  ConfiguracoesConsultorioRoute: typeof ConfiguracoesConsultorioRoute
   ConfiguracoesContasRoute: typeof ConfiguracoesContasRoute
   ConfiguracoesDiasDeViagemRoute: typeof ConfiguracoesDiasDeViagemRoute
   ConfiguracoesGrupoDoFinanceiroRoute: typeof ConfiguracoesGrupoDoFinanceiroRoute
@@ -920,7 +961,9 @@ interface ConfiguracoesRouteChildren {
 
 const ConfiguracoesRouteChildren: ConfiguracoesRouteChildren = {
   ConfiguracoesAparenciaRoute: ConfiguracoesAparenciaRoute,
+  ConfiguracoesCampanhasRoute: ConfiguracoesCampanhasRoute,
   ConfiguracoesCasosRoute: ConfiguracoesCasosRoute,
+  ConfiguracoesConsultorioRoute: ConfiguracoesConsultorioRoute,
   ConfiguracoesContasRoute: ConfiguracoesContasRoute,
   ConfiguracoesDiasDeViagemRoute: ConfiguracoesDiasDeViagemRoute,
   ConfiguracoesGrupoDoFinanceiroRoute: ConfiguracoesGrupoDoFinanceiroRoute,

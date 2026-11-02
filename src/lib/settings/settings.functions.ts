@@ -58,6 +58,10 @@ export interface UnitSetting {
   id: string;
   name: string;
   address: string;
+  /** Link do Google Maps, que a assistente e a confirmação mandam junto. */
+  mapsUrl: string;
+  /** "Prédio azul, sala 612". */
+  comoChegar: string;
   active: boolean;
   isDefault: boolean;
 }

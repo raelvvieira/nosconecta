@@ -70,8 +70,8 @@ function DiasDeViagemPage() {
           Dias de viagem
         </h1>
         <p className="mt-1.5 max-w-prose text-sm text-muted-foreground">
-          Marque no calendário os dias em que a Dra. Mariane atende na outra unidade. A Luna só
-          oferece horário de lá nesses dias
+          Marque no calendário os dias em que a profissional atende na outra unidade. A assistente
+          só oferece horário de lá nesses dias
           {principal ? (
             <>
               {" "}
@@ -195,8 +195,8 @@ function CalendarioDaUnidade({
         <div className="min-w-0">
           {marcados.length === 0 ? (
             <p className="rounded-xl bg-warning-soft px-4 py-3 text-xs leading-5 text-warning">
-              Sem nenhum dia marcado, a Luna não oferece horário desta unidade: ela diz que vai
-              confirmar as próximas datas com a equipe, em vez de oferecer um dia em que ninguém
+              Sem nenhum dia marcado, a assistente não oferece horário desta unidade: ela diz que
+              vai confirmar as próximas datas com a equipe, em vez de oferecer um dia em que ninguém
               está lá.
             </p>
           ) : (
@@ -216,8 +216,8 @@ function CalendarioDaUnidade({
               </ul>
               <p className="mt-3 text-xs text-muted-foreground">
                 Clique num dia do calendário para marcar, e de novo para desmarcar. Remover um dia
-                não desmarca quem já tem consulta nele — só impede a Luna de oferecer horário novo
-                ali.
+                não desmarca quem já tem consulta nele — só impede a assistente de oferecer horário
+                novo ali.
               </p>
             </>
           )}

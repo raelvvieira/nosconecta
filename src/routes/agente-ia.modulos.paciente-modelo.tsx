@@ -141,7 +141,7 @@ function PaginaDoModulo() {
             }}
           >
             <Eye className="h-4 w-4" />
-            Ver o que a Luna lê
+            Ver o que a assistente lê
           </Button>
         }
       />
@@ -179,7 +179,7 @@ function PaginaDoModulo() {
       <Dialog open={previa !== null} onOpenChange={(v) => !v && setPrevia(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>O que a Luna lê numa conversa de paciente modelo</DialogTitle>
+            <DialogTitle>O que a assistente lê numa conversa de paciente modelo</DialogTitle>
           </DialogHeader>
           <pre className="custom-scroll max-h-[65vh] overflow-auto whitespace-pre-wrap rounded-xl bg-surface-subtle p-4 text-xs leading-5">
             {previa}
@@ -328,8 +328,8 @@ function Edicoes() {
     <div className="grid gap-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          A Luna oferece só a edição com <strong>Inscrições abertas</strong> e só os dias de prática
-          com vaga.
+          A assistente oferece só a edição com <strong>Inscrições abertas</strong> e só os dias de
+          prática com vaga.
         </p>
         <Button
           variant="premium"
@@ -524,7 +524,7 @@ function Edicoes() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm font-medium">Dias de prática com pacientes</p>
-                    <Ajuda texto="Só estes dias são oferecidos pela Luna, separados das datas do curso. Os horários saem do início ao fim, no passo da duração do atendimento; cada horário recebe o número de pacientes indicado. Reserva com sinal pendente (no prazo), em análise ou confirmada ocupa o horário." />
+                    <Ajuda texto="Só estes dias são oferecidos pela assistente, separados das datas do curso. Os horários saem do início ao fim, no passo da duração do atendimento; cada horário recebe o número de pacientes indicado. Reserva com sinal pendente (no prazo), em análise ou confirmada ocupa o horário." />
                   </div>
                   <Button
                     variant="outline"
@@ -627,7 +627,7 @@ function Edicoes() {
               </div>
 
               <Campo
-                rotulo="Observações para a Luna"
+                rotulo="Observações para a assistente"
                 ajuda="O que ela pode dizer sobre esta edição além do cadastro. Curto: datas, valores e regras já vêm dos campos."
               >
                 <Textarea
@@ -822,7 +822,7 @@ function Ofertas() {
   return (
     <Bloco
       titulo="Ofertas desta edição"
-      descricao="Os valores de paciente modelo são da turma, não da tabela da clínica. A Luna só cita o que está aqui, com o ml e o parcelamento de cada linha."
+      descricao="Os valores de paciente modelo são da turma, não da tabela da clínica. A assistente só cita o que está aqui, com o ml e o parcelamento de cada linha."
       acao={<SeletorDeEdicao edicoes={lista} valor={edicaoId} onMudar={setEdicaoId} />}
     >
       <div className="custom-scroll overflow-x-auto">
@@ -1067,7 +1067,7 @@ function Reservas() {
     <div className="grid gap-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          A Luna cria a reserva com <strong>sinal pendente</strong> quando a pessoa escolhe o
+          A assistente cria a reserva com <strong>sinal pendente</strong> quando a pessoa escolhe o
           horário e diz o nome. Quando ela diz que pagou, vai para{" "}
           <strong>pagamento em análise</strong>: confira o comprovante e confirme o sinal.
         </p>
@@ -1129,7 +1129,7 @@ function Reservas() {
                     <p className="mt-0.5 text-2xs text-muted-foreground">
                       {r.edicaoNome}
                       {r.sinalValor ? ` · sinal ${formatBRL(r.sinalValor)}` : ""}
-                      {r.criadoPor === "luna" ? " · pela Luna" : ""}
+                      {r.criadoPor === "luna" ? " · pela assistente" : ""}
                     </p>
                     <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                       {r.conversationId && (
@@ -1317,7 +1317,7 @@ function Regras() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agente-modulos"] });
-      toast.success("Regras salvas. A Luna usa na próxima resposta.");
+      toast.success("Regras salvas. A assistente usa na próxima resposta.");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1339,7 +1339,7 @@ function Regras() {
       <div className="grid gap-4">
         <Bloco
           titulo="Sinal de reserva"
-          descricao="O que a Luna diz quando a pessoa quer reservar. A reserva só fica garantida depois que a equipe confirma o comprovante."
+          descricao="O que a assistente diz quando a pessoa quer reservar. A reserva só fica garantida depois que a equipe confirma o comprovante."
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <Campo rotulo="Valor do sinal (R$)">
@@ -1384,14 +1384,16 @@ function Regras() {
                 <SelectContent>
                   <SelectItem value="sim">Sim, é abatido</SelectItem>
                   <SelectItem value="nao">Não, é cobrado à parte</SelectItem>
-                  <SelectItem value="indefinido">Ainda não definido (Luna não cobra)</SelectItem>
+                  <SelectItem value="indefinido">
+                    Ainda não definido (a assistente não cobra)
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </Campo>
             <div className="grid gap-3 sm:grid-cols-2">
               <Campo
                 rotulo="Chave Pix do sinal"
-                ajuda="A chave que a Luna manda para a pessoa pagar o sinal. Celular, e-mail, CPF, CNPJ ou aleatória. Vazio: a Luna não cobra."
+                ajuda="A chave que a assistente manda para a pessoa pagar o sinal. Celular, e-mail, CPF, CNPJ ou aleatória. Vazio: a assistente não cobra."
               >
                 <Input
                   placeholder="48 99999-9999"
@@ -1401,7 +1403,7 @@ function Regras() {
               </Campo>
               <Campo
                 rotulo="Em nome de"
-                ajuda="O nome que aparece no banco na hora do Pix. A Luna diz para a pessoa conferir."
+                ajuda="O nome que aparece no banco na hora do Pix. A assistente diz para a pessoa conferir."
               >
                 <Input
                   placeholder="Nome de quem recebe"
@@ -1418,7 +1420,7 @@ function Regras() {
           </div>
           {bloqueios.length > 0 && (
             <div className="mt-3 rounded-2xl bg-amber-50 p-3 text-2xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-              <p className="font-semibold">A Luna ainda não cobra o sinal porque:</p>
+              <p className="font-semibold">A assistente ainda não cobra o sinal porque:</p>
               <ul className="mt-1 list-disc pl-4">
                 {bloqueios.map((b) => (
                   <li key={b}>{b}</li>
@@ -1430,7 +1432,7 @@ function Regras() {
 
         <Bloco
           titulo="Políticas"
-          descricao="O que acontece com o sinal em cada caso. A Luna repete do jeito que está aqui; sem a política de falta ela não cobra."
+          descricao="O que acontece com o sinal em cada caso. A assistente repete do jeito que está aqui; sem a política de falta ela não cobra."
         >
           <div className="grid gap-3">
             <Campo rotulo="Contraindicação na avaliação">
@@ -1506,7 +1508,7 @@ function Regras() {
 
         <Bloco
           titulo="Respostas aprovadas"
-          descricao="O que a Luna repete sempre igual. Vazio: ela diz que vai confirmar e encaminha a dúvida."
+          descricao="O que a assistente repete sempre igual. Vazio: ela diz que vai confirmar e encaminha a dúvida."
         >
           <div className="grid gap-3">
             <Campo
@@ -1533,7 +1535,7 @@ function Regras() {
                   <div key={i} className="flex gap-2">
                     <Input
                       className="w-40"
-                      placeholder="Dra. Mariane"
+                      placeholder="Dra. Ana"
                       value={ig.nome}
                       onChange={(e) =>
                         setC({
@@ -1604,7 +1606,7 @@ function Regras() {
       <div className="grid gap-4">
         <Bloco
           titulo="Perguntas frequentes"
-          descricao="Pergunta e resposta, do jeito que a Luna deve responder."
+          descricao="Pergunta e resposta, do jeito que a assistente deve responder."
         >
           <div className="grid gap-3">
             {c.faq.map((f, i) => (
@@ -1654,7 +1656,7 @@ function Regras() {
 
         <Bloco
           titulo="Manual do módulo"
-          descricao="A MD especializada de paciente modelo. Entra só nas conversas de paciente modelo, por cima do manual da Luna; os dados do CRM entram depois dela."
+          descricao="A MD especializada de paciente modelo. Entra só nas conversas de paciente modelo, por cima do manual da assistente; os dados do CRM entram depois dela."
         >
           <div className="grid gap-3">
             <Campo rotulo="Versão">

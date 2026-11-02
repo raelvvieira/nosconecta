@@ -56,8 +56,8 @@ export function Modulos() {
   return (
     <div className="grid gap-4">
       <div className="flex items-center gap-2">
-        <h2 className="text-[15px] font-semibold tracking-[-0.01em]">Módulos da Luna</h2>
-        <Ajuda texto="Capacidades específicas que a Luna liga por cima do manual. Cada módulo tem cadastro próprio: você cadastra a edição e a Luna passa a conhecer datas, local, valores e regras de reserva, sem mexer no manual." />
+        <h2 className="text-[15px] font-semibold tracking-[-0.01em]">Módulos da assistente</h2>
+        <Ajuda texto="Capacidades específicas que a assistente liga por cima do manual. Cada módulo tem cadastro próprio: você cadastra a edição e a assistente passa a conhecer datas, local, valores e regras de reserva, sem mexer no manual." />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         {MODULOS.map((m) => {
@@ -146,8 +146,8 @@ export function Modulos() {
 
               {ePaciente && ativo && (d?.conflito.length ?? 0) > 0 && (
                 <p className="mt-3 rounded-xl bg-danger-soft px-3 py-2 text-xs text-danger">
-                  Duas edições com inscrições abertas ({d?.conflito.join(" e ")}). A Luna não vende
-                  até sobrar uma.
+                  Duas edições com inscrições abertas ({d?.conflito.join(" e ")}). A assistente não
+                  vende até sobrar uma.
                 </p>
               )}
               {ePaciente && ativo && (estado?.bloqueios.length ?? 0) > 0 && (
@@ -157,8 +157,8 @@ export function Modulos() {
               )}
               {ePaciente && ativo && !d?.edicaoAberta && !(d?.conflito.length ?? 0) && (
                 <p className="mt-3 rounded-xl bg-warning-soft px-3 py-2 text-xs text-warning">
-                  Sem edição com inscrições abertas: a Luna diz que não há vaga agora e oferece a
-                  lista de interesse.
+                  Sem edição com inscrições abertas: a assistente diz que não há vaga agora e
+                  oferece a lista de interesse.
                 </p>
               )}
 

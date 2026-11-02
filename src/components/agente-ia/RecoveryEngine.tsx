@@ -118,7 +118,7 @@ export function RecoveryEngine() {
       <div className="grid gap-5">
         <Chave
           rotulo="Ligar o Recovery Engine"
-          dica="É o único jeito de a Luna voltar em quem sumiu. Só age em conversa que parar depois de ligar: conversas antigas não são acordadas."
+          dica="É o único jeito de a assistente voltar em quem sumiu. Só age em conversa que parar depois de ligar: conversas antigas não são acordadas."
           ligada={rascunho.ligado}
           onMudar={(v) => void gravar({ ...rascunho, ligado: v })}
         />

@@ -103,7 +103,7 @@ function CasosPage() {
               Biblioteca de casos
             </h1>
             <p className="mt-1.5 max-w-prose text-sm text-muted-foreground">
-              Fotos de antes e depois que a Luna pode mandar quando a pessoa tem dúvida de
+              Fotos de antes e depois que a assistente pode mandar quando a pessoa tem dúvida de
               resultado. Ela escolhe pelo título e pelo “quando usar”, manda no máximo uma por
               conversa, e nunca promete o mesmo resultado.
             </p>
@@ -116,8 +116,8 @@ function CasosPage() {
         {/* O aviso fica na tela, não só no commit: a foto sai por decisão da
             IA, sozinha, para quem a clínica não conhece. */}
         <p className="mt-5 max-w-prose rounded-xl bg-warning-soft px-4 py-3 text-xs leading-5 text-warning">
-          A Luna envia estas imagens sozinha, sem ninguém conferir antes. Suba apenas fotos que a
-          paciente autorizou — o sistema registra quem autorizou, mas não verifica.
+          A assistente envia estas imagens sozinha, sem ninguém conferir antes. Suba apenas fotos
+          que a paciente autorizou — o sistema registra quem autorizou, mas não verifica.
         </p>
 
         {casosQuery.isPending ? (
@@ -131,7 +131,7 @@ function CasosPage() {
             />
             <p className="mt-3 text-sm font-medium">Nenhum caso cadastrado</p>
             <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">
-              Enquanto a biblioteca estiver vazia, a Luna fala de resultado só com palavras.
+              Enquanto a biblioteca estiver vazia, a assistente fala de resultado só com palavras.
             </p>
             <Button variant="outline" className="mt-5" onClick={() => setEditando("novo")}>
               <Plus className="h-4 w-4" /> Adicionar o primeiro
@@ -171,8 +171,8 @@ function CasosPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Remover “{excluindo?.titulo}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              A Luna deixa de poder mandar este caso. A imagem continua guardada, então dá para
-              cadastrar de novo depois.
+              A assistente deixa de poder mandar este caso. A imagem continua guardada, então dá
+              para cadastrar de novo depois.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -339,7 +339,7 @@ function FormularioDeCaso({
         <SheetHeader className="text-left">
           <SheetTitle>{editando ? "Editar caso" : "Novo caso"}</SheetTitle>
           <SheetDescription>
-            A Luna escolhe pelo título e pelo “quando usar”. Ela nunca vê o arquivo.
+            A assistente escolhe pelo título e pelo “quando usar”. Ela nunca vê o arquivo.
           </SheetDescription>
         </SheetHeader>
 
@@ -381,7 +381,7 @@ function FormularioDeCaso({
               placeholder="quando a pessoa teme ficar artificial"
             />
             <p className="text-xs text-muted-foreground">
-              É por aqui que a Luna decide se o caso serve. Comece com “quando…” e escreva o
+              É por aqui que a assistente decide se o caso serve. Comece com “quando…” e escreva o
               assunto, não o nome exato do procedimento: “quando o assunto for limpeza ou
               clareamento” cobre as duas conversas, “quando a pessoa teme ficar artificial” cobre o
               medo.
@@ -392,8 +392,8 @@ function FormularioDeCaso({
             <span className="text-sm">
               Também serve para paciente modelo
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                Ligado, a Luna pode mandar em todas as conversas, inclusive as de paciente modelo.
-                Desligado, só nas conversas normais da clínica.
+                Ligado, a assistente pode mandar em todas as conversas, inclusive as de paciente
+                modelo. Desligado, só nas conversas normais da clínica.
               </span>
             </span>
             <Switch checked={pacienteModelo} onCheckedChange={setPacienteModelo} />
@@ -401,7 +401,7 @@ function FormularioDeCaso({
 
           <label className="flex items-center justify-between gap-3 rounded-xl bg-surface px-3 py-2.5">
             <span className="text-sm">
-              Disponível para a Luna
+              Disponível para a assistente
               <span className="mt-0.5 block text-xs text-muted-foreground">
                 Desligado, fica guardado mas ela não manda.
               </span>

@@ -8,6 +8,8 @@ import {
   Tag as TagIcon,
   BriefcaseMedical,
   Building2,
+  Store,
+  BadgePercent,
   Images,
   MessageCircle,
   Receipt,
@@ -53,6 +55,13 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Cadastros",
     items: [
       {
+        kind: "link",
+        to: "/configuracoes/consultorio",
+        label: "Consultório",
+        description: "Nome, área, pagamento e políticas",
+        icon: Store,
+      },
+      {
         kind: "section",
         value: "chairs",
         label: "Cadeiras",
@@ -65,6 +74,13 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
         label: "Procedimentos",
         description: "Duração, preço e custo",
         icon: BriefcaseMedical,
+      },
+      {
+        kind: "link",
+        to: "/configuracoes/campanhas",
+        label: "Campanhas",
+        description: "Preços especiais com validade",
+        icon: BadgePercent,
       },
       {
         // Rota própria: a CRUD genérica grava campos de texto, e um caso é uma
