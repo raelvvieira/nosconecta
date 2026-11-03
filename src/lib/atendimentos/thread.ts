@@ -19,7 +19,12 @@ import type { MessageRow } from "./atendimentos.functions";
 export function juntarMensagens(partes: MessageRow[][]): MessageRow[] {
   const porId = new Map<string, MessageRow>();
   for (const parte of partes) {
-    for (const m of parte) porId.set(m.id, m);
+    for (const m of parte) {
+      // A mesma mensagem vinda de duas fontes: a cópia sem o anúncio não pode
+      // apagar o cartão da que tem.
+      const antes = porId.get(m.id);
+      porId.set(m.id, antes?.anuncio && !m.anuncio ? { ...m, anuncio: antes.anuncio } : m);
+    }
   }
   // `localeCompare` em ISO 8601 ordena certo porque o formato é ordenável como
   // texto. Sem data vai para o começo, e não para um lugar aleatório.

@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { MessageCircle } from "lucide-react";
 import { getConversations, getMessages } from "@/lib/atendimentos/atendimentos.functions";
+import { CartaoDoAnuncio } from "@/components/atendimentos/chat/CartaoDoAnuncio";
 import { cn } from "@/lib/utils";
 
 // A conversa de WhatsApp do paciente, dentro da ficha dele.
@@ -89,6 +90,7 @@ export function ConversaDoPaciente({ crmContactId }: { crmContactId: string | nu
                   : "bg-surface-muted text-foreground",
               )}
             >
+              {m.anuncio && <CartaoDoAnuncio anuncio={m.anuncio} />}
               <p className="whitespace-pre-line break-words">{m.body}</p>
               <p className="mt-1 text-2xs text-muted-foreground">{horaDe(m.timestamp)}</p>
             </div>
