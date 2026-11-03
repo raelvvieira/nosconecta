@@ -30,6 +30,9 @@ export interface AutomationAction {
   /** Só em send_whatsapp — texto da mensagem, aceita as variáveis de
    *  automation-vars.ts ({{nome}}, {{data}}, {{hora}}, {{unidade}}…). */
   message?: string;
+  /** Só em send_whatsapp — imagem que vai junto, e o texto vira a legenda.
+   *  Caminho no depósito `crm-campaign-media` (`<consultório>/<arquivo>`). */
+  imagePath?: string;
   /** Só em move_pipeline_stage — etapa de destino. */
   stageId?: string;
   /** Só em add_deal_note — texto da observação, aceita as mesmas variáveis. */

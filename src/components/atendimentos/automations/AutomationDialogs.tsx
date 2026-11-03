@@ -27,6 +27,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  CampoDeImagem,
+  type ImagemDoDisparo,
+} from "@/components/atendimentos/contacts/CampoDeImagem";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -302,6 +307,7 @@ export function AdicionarAcaoDialog({
 }) {
   const [tipo, setTipo] = useState<AutomationActionType | "escolher">("escolher");
   const [mensagem, setMensagem] = useState("");
+  const [imagem, setImagem] = useState<ImagemDoDisparo | null>(null);
   // Refs pra inserir a variável na posição do cursor (ver VariaveisDisponiveis).
   const refMensagem = useRef<HTMLTextAreaElement>(null);
   const refNota = useRef<HTMLTextAreaElement>(null);
@@ -321,6 +327,23 @@ export function AdicionarAcaoDialog({
     // Card sendo reaberto: abre direto no formulário dele, já preenchido.
     setTipo(acaoAtual?.type ?? "escolher");
     setMensagem(acaoAtual?.message ?? "");
+    // Imagem já salva: a miniatura precisa de uma URL assinada, que o card não
+    // guarda (só o caminho). Mostra o campo já preenchido e completa a prévia.
+    const caminho = acaoAtual?.imagePath ?? "";
+    setImagem(
+      caminho ? { path: caminho, previa: "", nome: caminho.split("/").pop() ?? "imagem" } : null,
+    );
+    if (caminho) {
+      void supabase.storage
+        .from("crm-campaign-media")
+        .createSignedUrl(caminho, 60 * 60)
+        .then(({ data }) => {
+          if (data?.signedUrl)
+            setImagem((atual) =>
+              atual?.path === caminho ? { ...atual, previa: data.signedUrl } : atual,
+            );
+        });
+    }
     setStageId(acaoAtual?.stageId ?? "");
     setNota(acaoAtual?.noteBody ?? "");
     setPushTitulo(acaoAtual?.pushTitle ?? "");
@@ -513,6 +536,13 @@ export function AdicionarAcaoDialog({
                 onInserir={setMensagem}
               />
             </div>
+            <div>
+              <Label>Imagem (opcional)</Label>
+              <p className="mb-1.5 mt-0.5 text-2xs text-muted-foreground">
+                Vai junto da mensagem, e o texto aparece como legenda da foto.
+              </p>
+              <CampoDeImagem imagem={imagem} onChange={setImagem} />
+            </div>
             {avisaSemContato && (
               <p className="flex items-start gap-2 rounded-xl bg-warning-soft px-3 py-2 text-2xs leading-4 text-warning">
                 <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth={2} />
@@ -524,7 +554,11 @@ export function AdicionarAcaoDialog({
                 className="flex-1 bg-gradient-primary text-white"
                 disabled={!mensagem.trim()}
                 onClick={() => {
-                  onAdicionar({ type: "send_whatsapp", message: mensagem.trim() });
+                  onAdicionar({
+                    type: "send_whatsapp",
+                    message: mensagem.trim(),
+                    ...(imagem ? { imagePath: imagem.path } : {}),
+                  });
                   onOpenChange(false);
                 }}
               >

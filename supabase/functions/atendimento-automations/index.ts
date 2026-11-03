@@ -10,7 +10,7 @@
 // segredo. Só a EXECUÇÃO passa por aqui, porque as ações reais precisam da
 // service role / token do CRM.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { enviarWhatsapp } from "../_shared/whatsapp-send.ts";
+import { enviarWhatsapp, type MidiaDeEnvio } from "../_shared/whatsapp-send.ts";
 import { montarAlvo, type AlvoDeEnvio } from "../_shared/alvo-de-envio.ts";
 import { debitDailyUsage, getDailyUsage } from "../_shared/daily-quota.ts";
 import { pushToOwner } from "../_shared/push.ts";
@@ -92,7 +92,7 @@ interface DispatchContext {
 }
 
 type ActionConfig =
-  | { type: "send_whatsapp"; message: string }
+  | { type: "send_whatsapp"; message: string; imagePath?: string }
   | { type: "move_pipeline_stage"; stageId: string }
   | { type: "add_deal_note"; noteBody: string }
   | { type: "send_push"; pushTitle: string; pushBody: string }
@@ -656,6 +656,25 @@ async function anotarNaConsulta(
   }
 }
 
+/**
+ * A imagem que vai junto da mensagem, baixada do depósito das campanhas.
+ *
+ * Só aceita arquivo da PASTA DO PRÓPRIO CONSULTÓRIO (`<owner_id>/...`): a
+ * leitura aqui usa a chave de serviço, que enxerga tudo, e sem esta trava uma
+ * regra apontando para o caminho de outro consultório mandaria a foto dele.
+ * Devolve `null` quando não abre — quem chama manda só o texto e anota.
+ */
+async function baixarImagemDaAcao(ownerId: string, path: string): Promise<MidiaDeEnvio | null> {
+  if (!path.startsWith(`${ownerId}/`) || path.includes("..")) return null;
+  const { data, error } = await supabase.storage.from("crm-campaign-media").download(path);
+  if (error || !data) return null;
+  return {
+    nome: path.split("/").pop() || "imagem",
+    tipo: data.type || "image/jpeg",
+    bytes: new Uint8Array(await data.arrayBuffer()),
+  };
+}
+
 async function executarAcao(
   ownerId: string,
   action: ActionConfig,
@@ -703,9 +722,17 @@ async function executarAcao(
       return;
     }
     try {
-      await enviarWhatsapp(supabase, ownerId, alvo, texto);
+      // A imagem é do texto: vai junto, e o texto vira a legenda. Se ela não
+      // abrir, o paciente recebe o texto mesmo assim — a mensagem é o que
+      // importa — e o registro diz que a foto ficou para trás.
+      const imagem = action.imagePath ? await baixarImagemDaAcao(ownerId, action.imagePath) : null;
+      await enviarWhatsapp(supabase, ownerId, alvo, texto, imagem);
       await debitDailyUsage(supabase, ownerId, `automation:${regra.id}`, 1);
-      await logRun({ ...base, status: "sent" });
+      await logRun({
+        ...base,
+        status: "sent",
+        ...(action.imagePath && !imagem ? { error: "A imagem não abriu; saiu só o texto." } : {}),
+      });
       await anotarNaConsulta(ownerId, regra, ctx, "sent");
     } catch (e) {
       await logRun({ ...base, status: "failed", error: String(e).slice(0, 500) });

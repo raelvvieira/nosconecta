@@ -241,7 +241,7 @@ function acaoResumo(data: AutomationNodeData, stages: PipelineStage[]): string {
   if (!action) return "(vazio)";
   switch (action.type) {
     case "send_whatsapp":
-      return action.message?.trim() || "(sem texto)";
+      return `${action.imagePath ? "📷 " : ""}${action.message?.trim() || "(sem texto)"}`;
     case "move_pipeline_stage": {
       const stage = stages.find((s) => s.id === action.stageId);
       return stage ? stage.name : "(etapa não encontrada)";
