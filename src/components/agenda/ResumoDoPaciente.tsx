@@ -15,6 +15,8 @@ import { montarPainel } from "@/lib/atendimentos/painelDoContato";
 import { historicoDoPaciente, type ConsultaDoHistorico } from "@/lib/agenda/historicoDoPaciente";
 import { FotoDoContato } from "@/components/atendimentos/chat/FotoDoContato";
 import { getFotoDoWhatsapp } from "@/lib/atendimentos/contacts.functions";
+import { getConversations } from "@/lib/atendimentos/atendimentos.functions";
+import { chaveDoTelefone } from "@/lib/atendimentos/funil";
 import { STATUS_LABEL } from "./appointment-utils";
 import { clinicNowStamp, diaParaLer } from "@/lib/date";
 import { formatBRL } from "@/lib/finance/format";
@@ -105,6 +107,27 @@ export function ResumoDoPaciente({
   const historico = historicoDoPaciente(appointments, patientId, clinicNowStamp());
   const whatsapp = formatPatientWhatsApp(detalhe?.phone ?? null);
 
+  // A conversa desta pessoa no chat do sistema, achada como na ficha: pelo
+  // contato e, sem ele, pelo telefone. Sem conversa ainda, o botão abre o
+  // WhatsApp de fora, como antes.
+  const buscarConversas = useServerFn(getConversations);
+  const conversas = useQuery({
+    queryKey: ["conversations"],
+    queryFn: () => buscarConversas({}),
+    staleTime: 30_000,
+    enabled: Boolean(detalhe),
+  });
+  const conversaNoSistema = (() => {
+    if (!detalhe) return null;
+    const lista = conversas.data ?? [];
+    const porContato = detalhe.crmContactId
+      ? lista.find((c) => c.contactId === detalhe.crmContactId)
+      : null;
+    if (porContato) return porContato;
+    const chave = chaveDoTelefone(detalhe.phone ?? null);
+    return chave ? (lista.find((c) => chaveDoTelefone(c.phone) === chave) ?? null) : null;
+  })();
+
   /**
    * O card de dinheiro só aparece quando há dinheiro.
    *
@@ -186,16 +209,27 @@ export function ResumoDoPaciente({
           <ExternalLink className="h-3.5 w-3.5" />
           Ver ficha
         </Link>
-        {whatsapp && (
-          <a
-            href={whatsapp}
-            target="_blank"
-            rel="noopener noreferrer"
+        {conversaNoSistema ? (
+          <Link
+            to="/atendimentos/chat"
+            search={{ conversationId: conversaNoSistema.id }}
             className="press inline-flex items-center gap-1.5 rounded-xl border border-border bg-white px-3 py-1.5 text-xs font-medium hover:bg-muted"
           >
             <MessageCircle className="h-3.5 w-3.5" />
-            WhatsApp
-          </a>
+            Abrir conversa
+          </Link>
+        ) : (
+          whatsapp && (
+            <a
+              href={whatsapp}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="press inline-flex items-center gap-1.5 rounded-xl border border-border bg-white px-3 py-1.5 text-xs font-medium hover:bg-muted"
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              WhatsApp
+            </a>
+          )
         )}
       </div>
 
