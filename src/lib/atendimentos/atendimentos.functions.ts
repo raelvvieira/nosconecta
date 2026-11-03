@@ -4,6 +4,8 @@ import { anexosDoEspelho, mapAttachments, type MessageAttachment } from "./anexo
 import { juntarMensagens } from "./thread";
 import { erroDaEdgeFunction } from "@/lib/atendimentos/erro-de-edge-function";
 import { normalizeBrazilianPhone } from "@/lib/atendimentos/phone";
+import { exigeAtendimentos } from "@/lib/auth/area.middleware";
+import { figurinhasAprovadas } from "../../../supabase/functions/_shared/recuperacao.ts";
 import { foneCanonico } from "../../../supabase/functions/_shared/inteligencia-do-lead.ts";
 
 export type { MessageAttachment };
@@ -713,6 +715,59 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
       attachments: data.attachments ?? [],
       // Uma pessoa escreveu: a assistente sai da conversa (ver `equipeAssumiu`).
       assumir: true,
+    });
+    return { ok: !!json.ok };
+  });
+
+export interface FigurinhaDoChat {
+  id: string;
+  animada: boolean;
+  /** Link assinado, de uma hora. Nulo se o arquivo não abriu. */
+  url: string | null;
+}
+
+/**
+ * As figurinhas salvas no sistema (a biblioteca da assistente), para quem
+ * atende escolher uma no chat. É a mesma lista dos follow-ups: aprovar uma
+ * figurinha numa conversa ("Usar nos follow-ups") a coloca aqui também.
+ */
+export const getFigurinhasDoChat = createServerFn({ method: "GET" })
+  .middleware([exigeAtendimentos])
+  .handler(async ({ context }): Promise<FigurinhaDoChat[]> => {
+    const supabase: any = context.supabase;
+    const { data: agente } = await supabase
+      .from("ai_agents")
+      .select("recovery_figurinhas")
+      .eq("owner_id", context.ownerId)
+      .maybeSingle();
+    return Promise.all(
+      figurinhasAprovadas(agente?.recovery_figurinhas).map(async (f) => {
+        const r = await callEdgeFunction("wa-midia", {
+          ownerId: context.ownerId,
+          messageId: f.id,
+        }).catch(() => null);
+        return { id: f.id, animada: f.animada, url: typeof r?.url === "string" ? r.url : null };
+      }),
+    );
+  });
+
+/** Manda uma figurinha da biblioteca. Quem manda assume a conversa, como em
+ *  qualquer mensagem da equipe (ver `equipeAssumiu` em `wa-enviar`). */
+export const sendWhatsappSticker = createServerFn({ method: "POST" })
+  .middleware([exigeAtendimentos])
+  .inputValidator((input: { conversationId: string; stickerId: string }) => {
+    if (!input?.conversationId || !input?.stickerId) throw new Error("Figurinha não informada.");
+    return input;
+  })
+  .handler(async ({ data, context }) => {
+    const json = await callEdgeFunction("wa-enviar", {
+      ownerId: context.ownerId,
+      conversationId: data.conversationId,
+      content: "",
+      isPrivate: false,
+      attachments: [],
+      assumir: true,
+      figurinhaId: data.stickerId,
     });
     return { ok: !!json.ok };
   });

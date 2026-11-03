@@ -28,7 +28,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { conexaoParaEnviar } from "../_shared/evolution-api.ts";
 import { explicarSemConexao } from "../_shared/evolution-rota.ts";
-import { enviarPelaEvolution } from "../_shared/whatsapp-send.ts";
+import { enviarFigurinha, enviarPelaEvolution } from "../_shared/whatsapp-send.ts";
+import { figurinhasAprovadas } from "../_shared/recuperacao.ts";
 import { soOSistema } from "../_shared/so-o-sistema.ts";
 import { cancelarRecuperacao } from "../_shared/recuperacao-no-banco.ts";
 
@@ -141,6 +142,37 @@ async function equipeAssumiu(ownerId: string, conversationId: string) {
   }
 }
 
+/**
+ * Manda uma figurinha da biblioteca (`ai_agents.recovery_figurinhas`).
+ *
+ * O arquivo vem do depósito, o mesmo de onde o Recovery Engine tira as dele.
+ * Figurinha não tem legenda e não passa pela bandeja de anexos — que a
+ * mandaria como foto —, então tem o próprio caminho.
+ */
+async function enviarFigurinhaSalva(ownerId: string, conversationId: string, figurinhaId: string) {
+  const { data: agente } = await supabase
+    .from("ai_agents")
+    .select("recovery_figurinhas")
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  const figurinha = figurinhasAprovadas(agente?.recovery_figurinhas).find(
+    (f) => f.id === figurinhaId,
+  );
+  if (!figurinha) throw new Error("Essa figurinha não está mais salva.");
+  const { data: arquivo, error } = await supabase.storage.from("wa-midia").download(figurinha.path);
+  if (error || !arquivo) throw new Error("Não consegui abrir o arquivo da figurinha.");
+
+  const { instancia, motivo } = await conexaoParaEnviar(supabase, ownerId);
+  if (!instancia) throw new Error(explicarSemConexao(motivo));
+  const { via } = await enviarFigurinha(
+    supabase,
+    ownerId,
+    { conversation_id: conversationId },
+    new Uint8Array(await arquivo.arrayBuffer()),
+  );
+  return { ok: true, message: { via } };
+}
+
 async function handleSend(
   ownerId: string,
   conversationId: string,
@@ -148,6 +180,7 @@ async function handleSend(
   isPrivate = false,
   anexos: AnexoDeSaida[] = [],
   assumir = false,
+  figurinhaId?: string,
 ) {
   if (isPrivate) {
     if (!content.trim()) throw new Error("A nota interna está vazia.");
@@ -157,6 +190,8 @@ async function handleSend(
   // Só quando quem chama é uma pessoa no chat. A confirmação automática da
   // reserva de paciente modelo também passa por aqui e não assume nada.
   if (assumir) await equipeAssumiu(ownerId, conversationId);
+
+  if (figurinhaId) return await enviarFigurinhaSalva(ownerId, conversationId, figurinhaId);
 
   const { instancia, motivo } = await conexaoParaEnviar(supabase, ownerId);
   if (!instancia) throw new Error(explicarSemConexao(motivo));
@@ -192,14 +227,16 @@ Deno.serve(async (req) => {
   if (barrado) return barrado;
   try {
     const body = await req.json();
-    const { ownerId, conversationId, content, isPrivate, attachments, assumir } = body as {
-      assumir?: boolean;
-      ownerId?: string;
-      conversationId?: string;
-      content?: string;
-      isPrivate?: boolean;
-      attachments?: AnexoDeSaida[];
-    };
+    const { ownerId, conversationId, content, isPrivate, attachments, assumir, figurinhaId } =
+      body as {
+        figurinhaId?: string;
+        assumir?: boolean;
+        ownerId?: string;
+        conversationId?: string;
+        content?: string;
+        isPrivate?: boolean;
+        attachments?: AnexoDeSaida[];
+      };
     if (!ownerId || !conversationId) {
       return new Response(JSON.stringify({ error: "ownerId e conversationId são obrigatórios" }), {
         status: 400,
@@ -213,6 +250,7 @@ Deno.serve(async (req) => {
       !!isPrivate,
       attachments ?? [],
       assumir === true,
+      typeof figurinhaId === "string" && figurinhaId ? figurinhaId : undefined,
     );
     return new Response(JSON.stringify(resultado), {
       headers: { "content-type": "application/json" },

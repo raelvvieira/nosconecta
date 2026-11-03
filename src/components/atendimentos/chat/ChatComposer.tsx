@@ -14,6 +14,7 @@ import {
   Smile,
   Sparkles,
   Square,
+  Sticker,
   StickyNote,
   X,
   Zap,
@@ -39,6 +40,7 @@ import { AiAssistDialog } from "./AiAssistDialog";
 import { AttachmentTray, type PendingAttachment } from "./AttachmentTray";
 import { ScheduleMessageDialog } from "./ScheduleMessageDialog";
 import { CasosParaEnviar } from "./CasosParaEnviar";
+import { FigurinhasParaEnviar } from "./FigurinhasParaEnviar";
 
 // Recursos ainda sem caminho no CRM ficam visíveis mas desabilitados, com o
 // motivo no tooltip — some da tela seria pior: o time não saberia que estão
@@ -110,6 +112,7 @@ export function ChatComposer({
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [casosOpen, setCasosOpen] = useState(false);
+  const [figurinhasOpen, setFigurinhasOpen] = useState(false);
   const [mobileEmojiOpen, setMobileEmojiOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
 
@@ -327,6 +330,10 @@ export function ChatComposer({
               <GalleryHorizontalEnd className="mr-2 h-4 w-4" />
               Casos (antes e depois)
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setFigurinhasOpen(true)}>
+              <Sticker className="mr-2 h-4 w-4" />
+              Figurinhas
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onScheduleAppointment()}>
               <CalendarPlus className="mr-2 h-4 w-4" />
               Agendar consulta
@@ -533,6 +540,11 @@ export function ChatComposer({
           onAttachmentsChange([...attachments, await fileToPendingAttachment(arquivo)]);
           textareaRef.current?.focus();
         }}
+      />
+      <FigurinhasParaEnviar
+        open={figurinhasOpen}
+        onOpenChange={setFigurinhasOpen}
+        conversationId={conversationId}
       />
       <ScheduleMessageDialog
         open={scheduleOpen}
