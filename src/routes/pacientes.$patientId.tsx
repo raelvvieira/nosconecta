@@ -44,8 +44,7 @@ import {
   type CareEvent,
   type PatientDetail,
 } from "@/lib/patients/patients.functions";
-import { getConversations } from "@/lib/atendimentos/atendimentos.functions";
-import { chaveDoTelefone } from "@/lib/atendimentos/funil";
+import { useAbrirConversa } from "@/components/atendimentos/chat/useAbrirConversa";
 
 // A aba vive na URL, não em estado local.
 //
@@ -108,27 +107,8 @@ function PatientDetailPage() {
     navigate({ to: ".", params: { patientId }, search: { aba: nova }, replace: true });
   const [editOpen, setEditOpen] = useState(false);
 
-  // A conversa desta pessoa no sistema, para o botão abrir o chat daqui em
-  // vez do WhatsApp do celular. Mesma consulta e mesma chave do cartão
-  // "Conversa" do Resumo, então não busca duas vezes. Casa pelo contato
-  // vinculado e, sem vínculo, pelo telefone.
-  const buscarConversas = useServerFn(getConversations);
-  const conversas = useQuery({
-    queryKey: ["conversations"],
-    queryFn: () => buscarConversas({}),
-    staleTime: 30_000,
-    enabled: !!patient,
-  });
-  const conversaDoPaciente = (() => {
-    if (!patient) return null;
-    const lista = conversas.data ?? [];
-    const porContato = patient.crmContactId
-      ? lista.find((c) => c.contactId === patient.crmContactId)
-      : null;
-    if (porContato) return porContato;
-    const chave = chaveDoTelefone(patient.phone);
-    return chave ? (lista.find((c) => chaveDoTelefone(c.phone) === chave) ?? null) : null;
-  })();
+  // O botão abre o chat do sistema sempre — a conversa existente ou uma nova.
+  const conversa = useAbrirConversa(patientId);
 
   if (!patient) {
     return (
@@ -247,27 +227,17 @@ function PatientDetailPage() {
                 <CalendarDays className="h-4 w-4" />
                 Agendar
               </Button>
-              {conversaDoPaciente ? (
-                <Button asChild variant="outline" className="h-10 gap-2 rounded-full px-4">
-                  <Link to="/atendimentos/chat" search={{ conversationId: conversaDoPaciente.id }}>
-                    <MessageCircle className="h-4 w-4" />
-                    Conversa
-                  </Link>
+              {(whatsapp || patient.crmContactId) && (
+                <Button
+                  variant="outline"
+                  className="h-10 gap-2 rounded-full px-4"
+                  onClick={conversa.abrir}
+                  disabled={conversa.abrindo}
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Conversa
                 </Button>
-              ) : whatsapp ? (
-                // Sem conversa no sistema ainda: o WhatsApp do celular é o
-                // único jeito de começar uma.
-                <Button asChild variant="outline" className="h-10 gap-2 rounded-full px-4">
-                  <a
-                    href={`https://wa.me/${whatsapp.startsWith("55") ? whatsapp : `55${whatsapp}`}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    Conversa
-                  </a>
-                </Button>
-              ) : null}
+              )}
               <Button variant="outline" className="h-10 gap-2 rounded-full px-4" onClick={receive}>
                 <CircleDollarSign className="h-4 w-4" />
                 Receber

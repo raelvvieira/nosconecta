@@ -3,6 +3,8 @@ import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { anexosDoEspelho, mapAttachments, type MessageAttachment } from "./anexos";
 import { juntarMensagens } from "./thread";
 import { erroDaEdgeFunction } from "@/lib/atendimentos/erro-de-edge-function";
+import { normalizeBrazilianPhone } from "@/lib/atendimentos/phone";
+import { foneCanonico } from "../../../supabase/functions/_shared/inteligencia-do-lead.ts";
 
 export type { MessageAttachment };
 
@@ -385,6 +387,114 @@ export const getConversations = createServerFn({ method: "GET" })
     // — sem nenhum erro na tela para explicar. Agora o erro sobe.
     const espelhadas = await conversasDoEspelho(context.supabase, context.ownerId);
     return ordenarConversas(espelhadas ?? []);
+  });
+
+/**
+ * A conversa de um paciente no chat do sistema — achada, ou criada vazia.
+ *
+ * ── Por que existe ──────────────────────────────────────────────────────
+ *
+ * "Abrir conversa" na agenda e na ficha só funcionava para quem já tinha
+ * mensagem no espelho; os outros caíam num link do WhatsApp de fora. Na base,
+ * 2.176 de 2.520 pacientes nunca trocaram mensagem por aqui. E o casamento do
+ * telefone falhava até para quem tinha conversa: "5548999871294" (9 duplicado)
+ * não era igual a "554899871294" (o que o WhatsApp guardou).
+ *
+ * Aqui o telefone passa pela mesma regra do funil (`foneCanonico`), que trata
+ * o nono dígito, e o contato vinculado vale mais que o telefone.
+ *
+ * ── Conversa nova ───────────────────────────────────────────────────────
+ *
+ * Linha vazia em `wa_contacts` e `wa_conversations`, com o JID como id — o
+ * mesmo formato que o webhook grava. É o que a tela do chat precisa para
+ * abrir, e o envio já aceita o JID como destino. Quando a pessoa responder,
+ * o webhook cai na mesma linha (upsert pela mesma chave).
+ */
+export const abrirConversaDoPaciente = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { patientId: string }) => {
+    if (!input?.patientId) throw new Error("Paciente não informado.");
+    return input;
+  })
+  .handler(async ({ data, context }): Promise<{ conversationId: string; nova: boolean }> => {
+    const supabase: any = context.supabase;
+    const { data: paciente, error } = await supabase
+      .from("patients")
+      .select("name, phone, crm_contact_id")
+      .eq("id", data.patientId)
+      .eq("owner_id", context.ownerId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!paciente) throw new Error("Paciente não encontrado.");
+
+    const fone = foneCanonico(paciente.phone);
+    const contato = String(paciente.crm_contact_id ?? "").trim();
+
+    // 1. Pelo contato vinculado.
+    if (contato) {
+      const { data: porContato } = await supabase
+        .from("wa_conversations")
+        .select("crm_conversation_id")
+        .eq("owner_id", context.ownerId)
+        .eq("crm_contact_id", contato)
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .limit(1);
+      const achada = porContato?.[0]?.crm_conversation_id;
+      if (achada) return { conversationId: String(achada), nova: false };
+    }
+
+    if (!fone) {
+      throw new Error("Este paciente não tem um telefone válido para abrir a conversa.");
+    }
+
+    // 2. Pelo telefone, no formato canônico.
+    const { data: candidatas } = await supabase
+      .from("wa_conversations")
+      .select("crm_conversation_id, last_message_at")
+      .eq("owner_id", context.ownerId)
+      .like("crm_conversation_id", `%${fone.slice(-8)}@%`)
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .limit(20);
+    const igual = (candidatas ?? []).find(
+      (c: { crm_conversation_id: string }) =>
+        foneCanonico(String(c.crm_conversation_id).split("@")[0]) === fone,
+    );
+    if (igual) return { conversationId: String(igual.crm_conversation_id), nova: false };
+
+    // 3. Nunca conversaram: nasce uma conversa vazia.
+    const digitos = normalizeBrazilianPhone(String(paciente.phone ?? ""));
+    if (!digitos)
+      throw new Error("Este paciente não tem um telefone válido para abrir a conversa.");
+    const jid = `${digitos}@s.whatsapp.net`;
+    const agora = new Date().toISOString();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin: any = supabaseAdmin;
+    const { error: erroContato } = await admin.from("wa_contacts").upsert(
+      {
+        owner_id: context.ownerId,
+        origem: "evolution",
+        crm_contact_id: jid,
+        name: String(paciente.name ?? "").trim() || null,
+        phone_raw: digitos,
+        synced_at: agora,
+      },
+      { onConflict: "owner_id,origem,crm_contact_id" },
+    );
+    if (erroContato) throw new Error(erroContato.message);
+    const { error: erroConversa } = await admin.from("wa_conversations").upsert(
+      {
+        owner_id: context.ownerId,
+        origem: "evolution",
+        crm_conversation_id: jid,
+        crm_contact_id: jid,
+        status: "open",
+        messages_synced_at: agora,
+        synced_at: agora,
+      },
+      { onConflict: "owner_id,origem,crm_conversation_id" },
+    );
+    if (erroConversa) throw new Error(erroConversa.message);
+    return { conversationId: jid, nova: true };
   });
 
 export const getMessages = createServerFn({ method: "GET" })
