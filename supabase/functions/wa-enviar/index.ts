@@ -30,6 +30,7 @@ import { conexaoParaEnviar } from "../_shared/evolution-api.ts";
 import { explicarSemConexao } from "../_shared/evolution-rota.ts";
 import { enviarPelaEvolution } from "../_shared/whatsapp-send.ts";
 import { soOSistema } from "../_shared/so-o-sistema.ts";
+import { cancelarRecuperacao } from "../_shared/recuperacao-no-banco.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -79,17 +80,83 @@ async function gravarNota(ownerId: string, conversationId: string, texto: string
   return { ok: true, message: { via: "nota_interna" } };
 }
 
+/**
+ * Uma pessoa da equipe escreveu para o paciente pelo chat: a conversa é dela.
+ *
+ * ── Por que aqui, e não no webhook ──────────────────────────────────────
+ *
+ * Mensagem que sai pela API da Evolution NÃO volta como `messages.upsert` —
+ * só a que é digitada no celular volta. Então o webhook nunca via a resposta
+ * escrita no chat do sistema, e a assistente seguia falando por cima. Em
+ * 03/11 a recepção escreveu "Verifiquei e tenho hoje às 18h…" às 13:53:03 e
+ * a Luna mandou "Então o horário das 17h não encaixa…" cinco segundos depois;
+ * só a mensagem digitada no celular, às 13:54, calou a conversa.
+ *
+ * Marca ANTES de enviar: a Luna confere a marca antes de cada bolha, e uma
+ * resposta dela que já estava sendo escrita para aqui. Sem sessão ainda, cria
+ * uma já assumida, para a próxima mensagem do paciente não abrir conversa
+ * nova com a assistente.
+ *
+ * Nunca levanta: a mensagem da equipe tem de sair mesmo se a marca falhar.
+ */
+async function equipeAssumiu(ownerId: string, conversationId: string) {
+  try {
+    const agora = new Date().toISOString();
+    const { data: sessoes } = await supabase
+      .from("ai_agent_sessions")
+      .select("id, human_took_over_at")
+      .eq("owner_id", ownerId)
+      .eq("conversation_id", conversationId);
+    if ((sessoes ?? []).length) {
+      for (const s of sessoes as { id: string; human_took_over_at: string | null }[]) {
+        if (!s.human_took_over_at) {
+          await supabase
+            .from("ai_agent_sessions")
+            .update({ human_took_over_at: agora, updated_at: agora })
+            .eq("id", s.id);
+        }
+        await cancelarRecuperacao(supabase, s.id, "a equipe assumiu a conversa");
+      }
+      return;
+    }
+    const { data: agente } = await supabase
+      .from("ai_agents")
+      .select("id")
+      .eq("owner_id", ownerId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (!agente?.id) return;
+    await supabase.from("ai_agent_sessions").insert({
+      owner_id: ownerId,
+      agent_id: agente.id,
+      conversation_id: conversationId,
+      human_took_over_at: agora,
+    });
+  } catch (e) {
+    console.warn(
+      "[wa-enviar] não marquei a conversa como assumida:",
+      e instanceof Error ? e.message : e,
+    );
+  }
+}
+
 async function handleSend(
   ownerId: string,
   conversationId: string,
   content: string,
   isPrivate = false,
   anexos: AnexoDeSaida[] = [],
+  assumir = false,
 ) {
   if (isPrivate) {
     if (!content.trim()) throw new Error("A nota interna está vazia.");
     return await gravarNota(ownerId, conversationId, content);
   }
+
+  // Só quando quem chama é uma pessoa no chat. A confirmação automática da
+  // reserva de paciente modelo também passa por aqui e não assume nada.
+  if (assumir) await equipeAssumiu(ownerId, conversationId);
 
   const { instancia, motivo } = await conexaoParaEnviar(supabase, ownerId);
   if (!instancia) throw new Error(explicarSemConexao(motivo));
@@ -125,7 +192,8 @@ Deno.serve(async (req) => {
   if (barrado) return barrado;
   try {
     const body = await req.json();
-    const { ownerId, conversationId, content, isPrivate, attachments } = body as {
+    const { ownerId, conversationId, content, isPrivate, attachments, assumir } = body as {
+      assumir?: boolean;
       ownerId?: string;
       conversationId?: string;
       content?: string;
@@ -133,10 +201,9 @@ Deno.serve(async (req) => {
       attachments?: AnexoDeSaida[];
     };
     if (!ownerId || !conversationId) {
-      return new Response(
-        JSON.stringify({ error: "ownerId e conversationId são obrigatórios" }),
-        { status: 400 },
-      );
+      return new Response(JSON.stringify({ error: "ownerId e conversationId são obrigatórios" }), {
+        status: 400,
+      });
     }
 
     const resultado = await handleSend(
@@ -145,6 +212,7 @@ Deno.serve(async (req) => {
       content?.trim() ?? "",
       !!isPrivate,
       attachments ?? [],
+      assumir === true,
     );
     return new Response(JSON.stringify(resultado), {
       headers: { "content-type": "application/json" },

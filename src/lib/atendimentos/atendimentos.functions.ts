@@ -601,6 +601,8 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
       content: data.text,
       isPrivate: !!data.isPrivate,
       attachments: data.attachments ?? [],
+      // Uma pessoa escreveu: a assistente sai da conversa (ver `equipeAssumiu`).
+      assumir: true,
     });
     return { ok: !!json.ok };
   });
