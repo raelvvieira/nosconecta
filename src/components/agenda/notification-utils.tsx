@@ -27,6 +27,7 @@ const ROTULOS: Record<string, string> = {
   "wa:lembrete_d0": "Lembrete no dia",
   "wa:whatsapp.reply_received": "Resposta à confirmação",
   "wa:appointment.status_changed": "Mudança de status",
+  "wa:pos_atendimento": "Mensagem pós-atendimento",
   // As do caminho antigo, se um dia uma delas tiver saído.
   confirmation: "Confirmação do agendamento",
   reminder_day_before: "Lembrete 1 dia antes",

@@ -622,6 +622,12 @@ function avisoDaConsulta(regra: Regra, ctx: DispatchContext): string {
   if (regra.trigger_event === "appointment.reminder_due" && ctx.daysUntil != null) {
     return `wa:lembrete_d${Number(ctx.daysUntil)}`;
   }
+  // Consulta concluída: a mensagem de depois do atendimento (hoje, o convite
+  // do NÓS Club). Tem o próprio rótulo para a agenda não chamá-la de
+  // "Mudança de status".
+  if (regra.trigger_event === "appointment.status_changed" && ctx.status === "completed") {
+    return "wa:pos_atendimento";
+  }
   return `wa:${regra.trigger_event}`;
 }
 
