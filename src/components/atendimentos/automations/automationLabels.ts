@@ -12,6 +12,7 @@ export const TRIGGER_LABEL: Record<AutomationEvent, string> = {
   "deal.status_changed": "Negociação perdida",
   "pipeline.stage_changed": "Card mudou de etapa no funil",
   "appointment.reminder_due": "Lembrete de consulta (diário)",
+  "appointment.ended": "Consulta terminou (horário final passou)",
   "whatsapp.reply_received": "Paciente respondeu no WhatsApp",
 };
 
@@ -25,6 +26,7 @@ export const TRIGGER_LABEL_SHORT: Record<AutomationEvent, string> = {
   "deal.status_changed": "Negociação perdida",
   "pipeline.stage_changed": "Card mudou de etapa",
   "appointment.reminder_due": "Lembrete de consulta",
+  "appointment.ended": "Consulta terminou",
   "whatsapp.reply_received": "Paciente respondeu",
 };
 

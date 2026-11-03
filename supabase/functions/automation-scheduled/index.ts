@@ -73,11 +73,7 @@ async function despachar(ownerId: string, systemEvent: string, context: unknown)
  * `channel: "automation"` separa do que as notificações por e-mail/SMS já
  * gravam ali, para os dois caminhos não se confundirem.
  */
-async function primeiraVez(
-  appointmentId: string,
-  ownerId: string,
-  kind: string,
-): Promise<boolean> {
+async function primeiraVez(appointmentId: string, ownerId: string, kind: string): Promise<boolean> {
   const { data, error } = await supabase
     .from("appointment_notifications")
     .insert({
@@ -96,9 +92,130 @@ async function primeiraVez(
   return !!data;
 }
 
+// ── "A consulta terminou" ────────────────────────────────────────────────
+//
+// Varredura de CADA MINUTO (cron `automation-encerradas`), no mesmo arquivo
+// porque o despacho, a trava contra repetição e o contexto são os mesmos da
+// diária. Emite `appointment.ended` quando o horário FINAL de uma consulta
+// confirmada (ou já concluída) passa — e a espera até a mensagem ("10 minutos
+// depois") é um card da própria automação, editável na tela.
+//
+// Duas travas contra o que seria um desastre no primeiro minuto de vida:
+//  - só olha consultas de ontem e hoje que terminaram há MENOS de seis horas:
+//    sem isso, a primeira rodada avisaria todo paciente confirmado do passado;
+//  - cada consulta entra UMA vez (`appointment_notifications`, mesmo padrão).
+// "Pendente" não conta — a pessoa não confirmou — mas uma consulta que a
+// recepção confirmar ou concluir depois do fim, ainda dentro das seis horas,
+// entra na rodada seguinte.
+const JANELA_DAS_ENCERRADAS_MIN = 6 * 60;
+const KIND_ENCERRADA = "automation_encerrada";
+
+/** O instante, em UTC, de "data + hora" no relógio da clínica. */
+function instanteDaClinica(data: string, hora: string): Date | null {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(hora ?? ""));
+  if (!m || !/^\d{4}-\d{2}-\d{2}$/.test(String(data ?? ""))) return null;
+  const comoUtc = new Date(`${data}T${m[1].padStart(2, "0")}:${m[2]}:00Z`);
+  if (Number.isNaN(comoUtc.getTime())) return null;
+  // O deslocamento do fuso NAQUELE dia ("GMT-03:00"), e não uma constante: se o
+  // horário de verão voltar, a conta continua certa.
+  const nome = new Intl.DateTimeFormat("en-US", { timeZone: TZ, timeZoneName: "longOffset" })
+    .formatToParts(comoUtc)
+    .find((p) => p.type === "timeZoneName")?.value;
+  const d = /GMT([+-])(\d{2}):(\d{2})/.exec(nome ?? "");
+  const minutos = d ? (d[1] === "-" ? -1 : 1) * (Number(d[2]) * 60 + Number(d[3])) : 0;
+  return new Date(comoUtc.getTime() - minutos * 60_000);
+}
+
+async function varrerEncerradas(): Promise<Record<string, number>> {
+  const resultado: Record<string, number> = { despachados: 0, repetidos: 0, falhas: 0 };
+  const { data: agendamentos, error } = await supabase
+    .from("appointments")
+    .select(
+      "id, owner_id, patient_id, date, start_time, end_time, procedure_name, professional_name, unit_id, status",
+    )
+    .in("date", [dataDaClinica(-1), dataDaClinica(0)])
+    .in("status", ["confirmed", "completed"]);
+  if (error) {
+    console.error("[automation-scheduled] falha ao buscar as encerradas:", error);
+    resultado.falhas++;
+    return resultado;
+  }
+
+  const agora = Date.now();
+  const terminadas = ((agendamentos ?? []) as any[]).filter((ap) => {
+    if (!ap.owner_id) return false;
+    const fim = instanteDaClinica(ap.date, ap.end_time);
+    if (!fim) return false;
+    const passou = agora - fim.getTime();
+    return passou >= 0 && passou <= JANELA_DAS_ENCERRADAS_MIN * 60_000;
+  });
+  if (!terminadas.length) return resultado;
+
+  // Quem já foi tratado, numa consulta só — evita uma tentativa de insert por
+  // consulta a cada minuto durante seis horas.
+  const { data: jaTratadas } = await supabase
+    .from("appointment_notifications")
+    .select("appointment_id")
+    .eq("kind", KIND_ENCERRADA)
+    .eq("channel", "automation")
+    .in(
+      "appointment_id",
+      terminadas.map((a) => a.id),
+    );
+  const tratadas = new Set((jaTratadas ?? []).map((n: any) => n.appointment_id));
+
+  for (const ap of terminadas) {
+    if (tratadas.has(ap.id)) continue;
+    if (!(await primeiraVez(ap.id, ap.owner_id, KIND_ENCERRADA))) {
+      resultado.repetidos++;
+      continue;
+    }
+    const { data: paciente } = await supabase
+      .from("patients")
+      .select("name, crm_contact_id")
+      .eq("id", ap.patient_id ?? "")
+      .maybeSingle();
+    try {
+      await despachar(ap.owner_id, "appointment.ended", {
+        entityId: ap.id,
+        appointmentId: ap.id,
+        patientId: ap.patient_id ?? null,
+        crmContactId: paciente?.crm_contact_id ?? null,
+        contactName: paciente?.name ?? null,
+        status: ap.status ?? null,
+        appointment: {
+          date: ap.date ?? null,
+          startTime: ap.start_time ?? null,
+          procedureName: ap.procedure_name ?? null,
+          professionalName: ap.professional_name ?? null,
+          unitId: ap.unit_id ?? null,
+        },
+      });
+      resultado.despachados++;
+    } catch (e) {
+      console.error(`[automation-scheduled] encerrada falhou em ${ap.id}:`, e);
+      resultado.falhas++;
+      // Solta a marca: a próxima rodada tenta de novo, dentro da janela.
+      await supabase
+        .from("appointment_notifications")
+        .delete()
+        .eq("appointment_id", ap.id)
+        .eq("kind", KIND_ENCERRADA)
+        .eq("channel", "automation");
+    }
+  }
+  return resultado;
+}
+
 Deno.serve(async (_req) => {
   const barrado = soOSistema(_req);
   if (barrado) return barrado;
+  const corpo = await _req.json().catch(() => ({}));
+  if (corpo?.modo === "encerradas") {
+    return new Response(JSON.stringify({ ok: true, ...(await varrerEncerradas()) }), {
+      headers: { "content-type": "application/json" },
+    });
+  }
   const resultado: Record<string, number> = { despachados: 0, repetidos: 0, falhas: 0 };
 
   for (const dias of ANTECEDENCIAS) {

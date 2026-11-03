@@ -24,6 +24,7 @@ const AGENDA: AutomationEvent[] = [
   "appointment.created",
   "appointment.status_changed",
   "appointment.reminder_due",
+  "appointment.ended",
   "whatsapp.reply_received",
 ];
 const TODOS: AutomationEvent[] = [...AUTOMATION_EVENTS];

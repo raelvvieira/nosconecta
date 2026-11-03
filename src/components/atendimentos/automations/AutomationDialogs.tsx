@@ -75,6 +75,7 @@ const TRIGGER_ICON: Record<AutomationEvent, React.ReactNode> = {
   "deal.status_changed": <XCircle className="h-4 w-4" />,
   "pipeline.stage_changed": <GitBranch className="h-4 w-4" />,
   "appointment.reminder_due": <BellRing className="h-4 w-4" />,
+  "appointment.ended": <CalendarCheck className="h-4 w-4" />,
   "whatsapp.reply_received": <MessageSquareReply className="h-4 w-4" />,
 };
 
@@ -87,6 +88,8 @@ const TRIGGER_HINT: Record<AutomationEvent, string> = {
   "pipeline.stage_changed": "Quando um card é movido para outra etapa do funil.",
   "appointment.reminder_due":
     "Todo dia de manhã, para cada consulta que está a 3 dias, 1 dia ou é hoje.",
+  "appointment.ended":
+    "Quando o horário final de uma consulta confirmada passa. Use “Aguardar tempo” para esperar depois disso.",
   "whatsapp.reply_received":
     "Quando o paciente responde no WhatsApp. Vale para a consulta futura mais próxima dele.",
 };

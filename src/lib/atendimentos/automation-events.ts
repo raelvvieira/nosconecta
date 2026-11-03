@@ -16,6 +16,10 @@ import { SYSTEM_EVENTS } from "@/lib/integrations/meta-capi.functions";
 export const AUTOMATION_ONLY_EVENTS = [
   /** Emitido pela varredura diária: agendamento a N dias daqui. */
   "appointment.reminder_due",
+  /** Emitido pela varredura de cada minuto: o horário FINAL de uma consulta
+   *  confirmada (ou já concluída) acabou de passar. A espera até a mensagem
+   *  ("10 minutos depois") é um card "Aguardar tempo" da própria automação. */
+  "appointment.ended",
   /** Emitido pelo webhook de entrada quando o paciente responde no WhatsApp. */
   "whatsapp.reply_received",
 ] as const;
@@ -29,6 +33,7 @@ export const GATILHOS_COM_AGENDAMENTO: AutomationEvent[] = [
   "appointment.created",
   "appointment.status_changed",
   "appointment.reminder_due",
+  "appointment.ended",
   // A resposta é ligada ao agendamento futuro mais próximo pelo webhook, então
   // este gatilho também chega com agendamento em mãos.
   "whatsapp.reply_received",

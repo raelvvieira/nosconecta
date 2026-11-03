@@ -34,6 +34,7 @@ passa pelo chat, pelo terminal ou pelo repositório.
 | ai-playbook-diario           | 0 7 \* \* \*   | ai-playbook (uma por agente, `action: ciclo`) |
 | atendimento-automations-tick | \* \* \* \* \* | atendimento-automations (`action: tick`)      |
 | automation-scheduled-daily   | 0 11 \* \* \*  | automation-scheduled                          |
+| automation-encerradas        | \* \* \* \* \* | automation-scheduled (`modo: encerradas`)     |
 | olho-de-deus-semanal         | 38 11 \* \* 1  | olho-de-deus                                  |
 | whatsapp-broadcast-tick      | \* \* \* \* \* | whatsapp-broadcast (`action: tick`)           |
 
