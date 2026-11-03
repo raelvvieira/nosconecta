@@ -113,10 +113,13 @@ function AgendaPage() {
   const [apptDrawerOpen, setApptDrawerOpen] = useState(false);
   const [blockDrawerOpen, setBlockDrawerOpen] = useState(false);
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
+  // O dia e a hora do espaço vazio clicado na grade; nulo no "+ Novo".
+  const [novoNoHorario, setNovoNoHorario] = useState<{ date: string; time: string } | null>(null);
   const [selectedBlock, setSelectedBlock] = useState<BlockedTime | null>(null);
 
   useEffect(() => {
     if (!search.newAppointment) return;
+    setNovoNoHorario(null);
     setSelectedAppt(null);
     setApptDrawerOpen(true);
     router.navigate({
@@ -342,6 +345,7 @@ function AgendaPage() {
   };
 
   const openNewAppointment = () => {
+    setNovoNoHorario(null);
     setSelectedAppt(null);
     setApptDrawerOpen(true);
   };
@@ -377,6 +381,7 @@ function AgendaPage() {
             <>
               <Button
                 onClick={() => {
+                  setNovoNoHorario(null);
                   setSelectedAppt(null);
                   setApptDrawerOpen(true);
                 }}
@@ -412,6 +417,11 @@ function AgendaPage() {
               selectedDate={selectedDate}
               onDateChange={setSelectedDate}
               onAppointmentClick={handleApptClick}
+              onSlotClick={(date, time) => {
+                setNovoNoHorario({ date, time });
+                setSelectedAppt(null);
+                setApptDrawerOpen(true);
+              }}
               onBlockClick={(b) => {
                 setSelectedBlock(b);
                 setBlockDrawerOpen(true);
@@ -443,7 +453,8 @@ function AgendaPage() {
       <AppointmentDrawer
         open={apptDrawerOpen}
         appointment={selectedAppt}
-        defaultDate={todayStr}
+        defaultDate={novoNoHorario?.date ?? todayStr}
+        defaultTime={novoNoHorario?.time ?? null}
         defaultPatient={
           search.patientId && search.patientName
             ? { id: search.patientId, name: search.patientName }

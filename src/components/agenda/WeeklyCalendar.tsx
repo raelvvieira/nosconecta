@@ -68,6 +68,8 @@ interface Props {
   selectedDate: Date;
   onDateChange: (d: Date) => void;
   onAppointmentClick: (appt: Appointment) => void;
+  /** Clicou num espaço vazio: abre um agendamento novo naquele dia e horário. */
+  onSlotClick?: (date: string, time: string) => void;
   onBlockClick?: (block: BlockedTime) => void;
   /** Arrastou um bloco para outro horário/dia. Sem isto, o arraste fica off. */
   onMove?: (item: ItemArrastavel, alvo: AlvoArraste, tipo: "consulta" | "compromisso") => void;
@@ -158,6 +160,7 @@ export function WeeklyCalendar({
   selectedDate,
   onDateChange,
   onAppointmentClick,
+  onSlotClick,
   onBlockClick,
   onMove,
   professionals,
@@ -402,6 +405,22 @@ export function WeeklyCalendar({
                       {HOURS.map((h) => (
                         <div
                           key={h}
+                          // Clique no vazio marca na hora cheia ou na meia hora,
+                          // conforme a metade do quadrado que foi clicada. As
+                          // consultas ficam por cima e seguram o próprio clique.
+                          onClick={
+                            onSlotClick
+                              ? (e) => {
+                                  const y = e.nativeEvent.offsetY;
+                                  const meia = y >= HOUR_HEIGHT / 2;
+                                  onSlotClick(
+                                    ds,
+                                    `${String(h).padStart(2, "0")}:${meia ? "30" : "00"}`,
+                                  );
+                                }
+                              : undefined
+                          }
+                          className={onSlotClick ? "cursor-pointer hover:bg-muted/40" : undefined}
                           style={{
                             position: "absolute",
                             top: (h - START_HOUR) * HOUR_HEIGHT,

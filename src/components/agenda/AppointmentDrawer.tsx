@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Send, X } from "lucide-react";
+import { Send, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,17 @@ import { formatWhatsappNumber, telefoneBrasileiroValido } from "@/lib/atendiment
 import { localDateStr, durationBetween, endTimeFrom } from "@/lib/date";
 import { rotuloDeSala } from "@/lib/agenda/rotuloDeSala";
 import { reenviarConversaoDoAgendamento } from "@/lib/integrations/meta-capi.functions";
+import { deleteAppointment } from "@/lib/agenda/agenda.functions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ProcedimentosDoAgendamento } from "./ProcedimentosDoAgendamento";
 import { DetalheDoAgendamento, Recolhivel } from "./DetalheDoAgendamento";
 import {
@@ -70,6 +81,8 @@ interface Props {
   open: boolean;
   appointment?: Appointment | null;
   defaultDate?: string;
+  /** "HH:MM" de quem clicou num espaço vazio da agenda. */
+  defaultTime?: string | null;
   defaultPatient?: { id: string; name: string } | null;
   catalog?: { professionals: Professional[]; procedures: Procedure[]; rooms: Room[] };
   isSaving?: boolean;
@@ -143,10 +156,17 @@ const TYPE_OPTIONS: AppointmentType[] = [
   "emergency",
 ];
 
+function umaHoraDepois(hora: string): string {
+  const [h, m] = hora.split(":").map(Number);
+  const total = Math.min(h * 60 + m + 60, 23 * 60 + 59);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 export function AppointmentDrawer({
   open,
   appointment,
   defaultDate,
+  defaultTime,
   defaultPatient,
   catalog,
   isSaving,
@@ -202,8 +222,8 @@ export function AppointmentDrawer({
     roomId: appointment?.roomId ?? "",
     roomName: appointment?.roomName ?? "",
     date: appointment?.date ?? defaultDate ?? localDateStr(),
-    startTime: appointment?.startTime ?? "09:00",
-    endTime: appointment?.endTime ?? "10:00",
+    startTime: appointment?.startTime ?? defaultTime ?? "09:00",
+    endTime: appointment?.endTime ?? (defaultTime ? umaHoraDepois(defaultTime) : "10:00"),
     status: appointment?.status ?? "pending",
     type: appointment?.type ?? "consultation",
     expectedRevenue: appointment?.expectedRevenue ?? 0,
@@ -275,6 +295,22 @@ export function AppointmentDrawer({
    * Quem decide se pode é o servidor, que confere no log o que foi mandado da
    * primeira vez; aqui só se mostra a resposta.
    */
+  // Excluir o agendamento pelo card, com confirmação: some da agenda e dos
+  // lembretes, sem volta.
+  const queryClient = useQueryClient();
+  const excluirFn = useServerFn(deleteAppointment);
+  const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
+  const exclusao = useMutation({
+    mutationFn: () => excluirFn({ data: { id: String(appointment?.id) } }),
+    onSuccess: () => {
+      setConfirmandoExclusao(false);
+      queryClient.invalidateQueries({ queryKey: ["agenda-overview"] });
+      queryClient.invalidateQueries({ queryKey: ["home-today"] });
+      toast.success("Agendamento excluído.");
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const reenviarFn = useServerFn(reenviarConversaoDoAgendamento);
   const reenvio = useMutation({
     mutationFn: () => reenviarFn({ data: { appointmentId: appointment?.id ?? "" } }),
@@ -322,8 +358,8 @@ export function AppointmentDrawer({
       roomId: appointment?.roomId ?? "",
       roomName: appointment?.roomName ?? "",
       date: appointment?.date ?? defaultDate ?? localDateStr(),
-      startTime: appointment?.startTime ?? "09:00",
-      endTime: appointment?.endTime ?? "10:00",
+      startTime: appointment?.startTime ?? defaultTime ?? "09:00",
+      endTime: appointment?.endTime ?? (defaultTime ? umaHoraDepois(defaultTime) : "10:00"),
       status: appointment?.status ?? "pending",
       type: appointment?.type ?? "consultation",
       expectedRevenue: appointment?.expectedRevenue ?? 0,
@@ -339,6 +375,7 @@ export function AppointmentDrawer({
     open,
     appointment,
     defaultDate,
+    defaultTime,
     defaultPatient?.id,
     defaultPatient?.name,
     contact?.name,
@@ -540,14 +577,54 @@ export function AppointmentDrawer({
               <p className="mt-0.5 text-sm text-muted-foreground">Editando agendamento</p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-9 w-9 grid place-items-center rounded-xl text-muted-foreground hover:bg-surface transition-colors"
-          >
-            <X className="h-5 w-5" strokeWidth={1.75} />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            {isEdit && appointment?.id && (
+              <button
+                type="button"
+                onClick={() => setConfirmandoExclusao(true)}
+                aria-label="Excluir agendamento"
+                title="Excluir agendamento"
+                className="h-9 w-9 grid place-items-center rounded-xl text-muted-foreground hover:bg-danger-soft hover:text-danger transition-colors"
+              >
+                <Trash2 className="h-[18px] w-[18px]" strokeWidth={1.75} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar"
+              className="h-9 w-9 grid place-items-center rounded-xl text-muted-foreground hover:bg-surface transition-colors"
+            >
+              <X className="h-5 w-5" strokeWidth={1.75} />
+            </button>
+          </div>
         </div>
+        <AlertDialog open={confirmandoExclusao} onOpenChange={setConfirmandoExclusao}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir este agendamento?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {appointment?.patientName ? `${appointment.patientName}, ` : ""}
+                {appointment?.date ? appointment.date.split("-").reverse().join("/") : ""}
+                {appointment?.startTime ? ` às ${String(appointment.startTime).slice(0, 5)}` : ""}.
+                Ele sai da agenda e os lembretes deixam de ser enviados. Não dá para desfazer.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={exclusao.isPending}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-danger text-white hover:bg-danger/90"
+                disabled={exclusao.isPending}
+                onClick={(e) => {
+                  e.preventDefault();
+                  exclusao.mutate();
+                }}
+              >
+                {exclusao.isPending ? "Excluindo…" : "Excluir"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Corpo: o formulário e, quando há, o resumo do paciente.
             `min-h-0` nos dois é obrigatório — item de flex tem altura mínima
