@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, Clock, MessageCircle, Send, Sparkles } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, Clock, MessageCircle, Send, Sparkles } from "lucide-react";
 import {
   POR_COLUNA,
   getEvidenciasDoLead,
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
+import { BalaoDePosicao, SeletorDePosicao } from "@/components/atendimentos/pipeline/MoverLead";
 import {
   quantosPodemReceber,
   useDisparoDeColuna,
@@ -182,41 +183,66 @@ function Sinal({ lead }: { lead: LeadNoFunil }) {
  * nome e o valor são o que se lê primeiro; o score fica no anel à direita;
  * embaixo, um sinal só — o alerta, se houver, ou há quanto tempo falou.
  */
-function Card({ lead, cor, onAbrir }: { lead: LeadNoFunil; cor: string; onAbrir: () => void }) {
+function Card({
+  lead,
+  cor,
+  onAbrir,
+  publico,
+  colunas,
+}: {
+  lead: LeadNoFunil;
+  cor: string;
+  onAbrir: () => void;
+  publico: Publico;
+  colunas: RegraDeFunil[];
+}) {
   const valor = valorDoLead(lead);
   return (
-    <button
-      type="button"
-      onClick={onAbrir}
-      className={cn(
-        "press block w-full rounded-2xl border border-border/70 bg-card p-3 text-left shadow-1 transition-[box-shadow,border-color] hover:border-border hover:shadow-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-        lead.parado && "opacity-60",
-      )}
-    >
-      <div className="flex items-center gap-2.5">
-        <Avatar nome={lead.name} cor={cor} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-semibold tracking-tight text-foreground">
-            {lead.name}
-          </p>
-          <p className="truncate text-2xs text-muted-foreground">
-            {lead.procedimento ?? (lead.nota === null ? "Ainda não lido" : "Sem procedimento")}
-          </p>
+    <div className="group relative">
+      <button
+        type="button"
+        onClick={onAbrir}
+        className={cn(
+          "press block w-full rounded-2xl border border-border/70 bg-card p-3 text-left shadow-1 transition-[box-shadow,border-color] hover:border-border hover:shadow-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+          lead.parado && "opacity-60",
+        )}
+      >
+        <div className="flex items-center gap-2.5">
+          <Avatar nome={lead.name} cor={cor} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-semibold tracking-tight text-foreground">
+              {lead.name}
+            </p>
+            <p className="truncate text-2xs text-muted-foreground">
+              {lead.procedimento ?? (lead.nota === null ? "Ainda não lido" : "Sem procedimento")}
+            </p>
+          </div>
+          <AnelDoScore lead={lead} />
         </div>
-        <AnelDoScore lead={lead} />
-      </div>
-      <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-border/60 pt-2">
-        <span
-          className={cn(
-            "shrink-0 text-[13px] font-semibold tabular-nums tracking-tight",
-            valor ? "text-foreground" : "text-muted-foreground/60",
-          )}
+        <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+          <span
+            className={cn(
+              "shrink-0 text-[13px] font-semibold tabular-nums tracking-tight",
+              valor ? "text-foreground" : "text-muted-foreground/60",
+            )}
+          >
+            {valor ?? "R$ —"}
+          </span>
+          <Sinal lead={lead} />
+        </div>
+      </button>
+      {/* Fora do botão do card: botão dentro de botão não é HTML válido. */}
+      <BalaoDePosicao lead={lead} publico={publico} colunas={colunas}>
+        <button
+          type="button"
+          aria-label="Mudar de funil ou de etapa"
+          title="Mudar de funil ou de etapa"
+          className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-card text-muted-foreground opacity-70 shadow-1 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 data-[state=open]:opacity-100"
         >
-          {valor ?? "R$ —"}
-        </span>
-        <Sinal lead={lead} />
-      </div>
-    </button>
+          <ArrowLeftRight className="h-3 w-3" />
+        </button>
+      </BalaoDePosicao>
+    </div>
   );
 }
 
@@ -226,7 +252,11 @@ function Coluna({
   resumo,
   onAbrir,
   onDisparar,
+  publico,
+  colunas,
 }: {
+  publico: Publico;
+  colunas: RegraDeFunil[];
   regra: RegraDeFunil;
   leads: LeadNoFunil[];
   resumo: ResumoDaColuna | undefined;
@@ -268,7 +298,14 @@ function Coluna({
         ) : (
           <>
             {visiveis.map((l) => (
-              <Card key={l.fone} lead={l} cor={regra.cor} onAbrir={() => onAbrir(l)} />
+              <Card
+                key={l.fone}
+                lead={l}
+                cor={regra.cor}
+                onAbrir={() => onAbrir(l)}
+                publico={publico}
+                colunas={colunas}
+              />
             ))}
             {visiveis.length < leads.length && (
               <Button
@@ -316,7 +353,19 @@ function Dado({ rotulo, children }: { rotulo: string; children: ReactNode }) {
  * quando falou, o alerta e a próxima ação); a leitura completa e as provas
  * ficam um toque abaixo, para quem quer conferir.
  */
-function Detalhe({ lead, etapa }: { lead: LeadNoFunil; etapa: RegraDeFunil | null }) {
+function Detalhe({
+  lead,
+  etapa,
+  publico,
+  colunas,
+  onMovido,
+}: {
+  lead: LeadNoFunil;
+  etapa: RegraDeFunil | null;
+  publico: Publico;
+  colunas: RegraDeFunil[];
+  onMovido: () => void;
+}) {
   const [aberto, setAberto] = useState(false);
   const buscar = useServerFn(getEvidenciasDoLead);
   const provas = useQuery({
@@ -419,6 +468,14 @@ function Detalhe({ lead, etapa }: { lead: LeadNoFunil; etapa: RegraDeFunil | nul
             ))}
           </div>
         )}
+
+        <div className="rounded-2xl border border-border p-4">
+          <p className="mb-3 flex items-center gap-1.5 text-3xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+            <ArrowLeftRight className="h-3.5 w-3.5" />
+            Mudar de funil ou de etapa
+          </p>
+          <SeletorDePosicao lead={lead} publico={publico} colunas={colunas} onFeito={onMovido} />
+        </div>
 
         {lead.nota === null && (
           <p className="text-sm text-muted-foreground">
@@ -551,6 +608,8 @@ export function QuadroDeLeads({ busca, publico }: { busca: string; publico: Publ
             resumo={funil.data?.resumo[regra.id]}
             onAbrir={setAberto}
             onDisparar={abrir}
+            publico={publico}
+            colunas={colunas}
           />
         ))}
       </div>
@@ -562,7 +621,16 @@ export function QuadroDeLeads({ busca, publico }: { busca: string; publico: Publ
           <SheetHeader className="sr-only">
             <SheetTitle>{aberto?.name}</SheetTitle>
           </SheetHeader>
-          {aberto && <Detalhe key={aberto.fone} lead={aberto} etapa={etapaAberta} />}
+          {aberto && (
+            <Detalhe
+              key={aberto.fone}
+              lead={aberto}
+              etapa={etapaAberta}
+              publico={publico}
+              colunas={colunas}
+              onMovido={() => setAberto(null)}
+            />
+          )}
         </SheetContent>
       </Sheet>
     </>

@@ -121,6 +121,50 @@ async function mapaDePublicos(supabase: any, ownerId: string): Promise<Map<strin
     });
     if (publico !== "atendimento") mapa.set(fone, publico);
   }
+  // A escolha da equipe por último: vence o anúncio, a conversa e a Luna.
+  for (const [fone, p] of await posicoesManuais(supabase, ownerId)) {
+    if (!p.publico) continue;
+    if (p.publico === "atendimento") mapa.delete(fone);
+    else mapa.set(fone, p.publico);
+  }
+  return mapa;
+}
+
+// ── O que a equipe mudou à mão ──────────────────────────────────────────────
+
+interface PosicaoManual {
+  publico: Publico | null;
+  etapa: string | null;
+}
+
+/**
+ * Funil e etapa escolhidos à mão no quadro, por telefone canônico. Vencem o
+ * cálculo: a equipe viu na conversa o que a leitura automática não viu.
+ * Sem a migration, nada muda.
+ */
+async function posicoesManuais(
+  supabase: any,
+  ownerId: string,
+): Promise<Map<string, PosicaoManual>> {
+  const mapa = new Map<string, PosicaoManual>();
+  for (let pagina = 0; ; pagina++) {
+    const { data, error } = await supabase
+      .from("lead_posicao_manual")
+      .select("fone, publico, etapa")
+      .eq("owner_id", ownerId)
+      .range(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA - 1);
+    if (error) {
+      if (ausente(error)) break;
+      throw new Error(error.message);
+    }
+    for (const l of data ?? []) {
+      mapa.set(String(l.fone), {
+        publico: ehPublico(l.publico) ? l.publico : null,
+        etapa: l.etapa ? String(l.etapa) : null,
+      });
+    }
+    if (!data || data.length < POR_PAGINA) break;
+  }
   return mapa;
 }
 
@@ -339,6 +383,8 @@ export interface LeadNoFunil {
   conversationId: string | null;
   /** No funil de Paciente modelo: em que pé está a reserva da pessoa. */
   reserva?: string | null;
+  /** A etapa foi escolhida à mão pela equipe, e não calculada. */
+  etapaManual?: boolean;
 }
 
 export interface ResumoDaColuna {
@@ -445,6 +491,7 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
       if (!data || data.length < POR_PAGINA) break;
     }
 
+    const manuais = await posicoesManuais(supabase, context.ownerId);
     const agora = new Date();
     const contagem: Record<string, number> = {};
     const resumo: Record<string, ResumoDaColuna> = {};
@@ -509,8 +556,11 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
           : null;
       const reserva = reservas.get(foneCanonico(String(row.fone)) ?? "");
       const colunaDaReserva = reserva ? COLUNA_DA_RESERVA[reserva.status] : undefined;
-      const stage =
-        colunaDaReserva && regras.some((r) => r.id === colunaDaReserva)
+      const etapaManual = manuais.get(foneCanonico(String(row.fone)) ?? "")?.etapa ?? null;
+      const manual = !!etapaManual && colunas.some((c) => c.id === etapaManual);
+      const stage = manual
+        ? (etapaManual as string)
+        : colunaDaReserva && regras.some((r) => r.id === colunaDaReserva)
           ? colunaDaReserva
           : classificar(regras, {
               temAgendamento: !!row.tem_agendamento,
@@ -555,6 +605,7 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
           : riscoDoLead(leitura, ritmo, situacao, agora),
         conversationId: lida?.conversation_id ?? null,
         reserva: reserva ? (ROTULO_DA_RESERVA[reserva.status] ?? null) : null,
+        etapaManual: manual,
       };
     });
 
@@ -564,6 +615,84 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
 
     for (const r of Object.values(resumo)) r.valor = Math.round(r.valor * 100) / 100;
     return { colunas, regras, leads, contagem, resumo, lidos, indisponivel: false };
+  });
+
+/**
+ * Muda o card de lugar à mão: outro funil, outra etapa, ou os dois.
+ *
+ * `undefined` não mexe; `null` devolve aquele ao cálculo automático. Trocar o
+ * funil também muda o público gravado na conversa com a assistente, para ela
+ * atender pelo módulo certo daqui em diante (paciente modelo, mentoria).
+ */
+export const moverLead = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { fone: string; publico?: Publico | null; etapa?: string | null }) => {
+    const fone = foneCanonico(input?.fone);
+    if (!fone) throw new Error("Telefone inválido.");
+    if (input.publico !== undefined && input.publico !== null && !ehPublico(input.publico))
+      throw new Error("Funil inválido.");
+    if (input.etapa !== undefined && input.etapa !== null && !/^[a-z0-9_]{1,60}$/.test(input.etapa))
+      throw new Error("Etapa inválida.");
+    return { fone, publico: input.publico, etapa: input.etapa };
+  })
+  .handler(async ({ data, context }) => {
+    const supabase: any = context.supabase;
+    const { data: atual, error: erroAtual } = await supabase
+      .from("lead_posicao_manual")
+      .select("publico, etapa")
+      .eq("owner_id", context.ownerId)
+      .eq("fone", data.fone)
+      .maybeSingle();
+    if (erroAtual) {
+      if (ausente(erroAtual))
+        throw new Error("Falta aplicar a atualização do banco para mover cards.");
+      throw new Error(erroAtual.message);
+    }
+    const publico = data.publico === undefined ? (atual?.publico ?? null) : data.publico;
+    const etapa = data.etapa === undefined ? (atual?.etapa ?? null) : data.etapa;
+
+    if (!publico && !etapa) {
+      const { error } = await supabase
+        .from("lead_posicao_manual")
+        .delete()
+        .eq("owner_id", context.ownerId)
+        .eq("fone", data.fone);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await supabase.from("lead_posicao_manual").upsert(
+        {
+          owner_id: context.ownerId,
+          fone: data.fone,
+          publico,
+          etapa,
+          definido_por: context.userId,
+          definido_em: new Date().toISOString(),
+        },
+        { onConflict: "owner_id,fone" },
+      );
+      if (error) throw new Error(error.message);
+    }
+
+    if (data.publico) {
+      const { data: sessoes } = await supabase
+        .from("ai_agent_sessions")
+        .select("id, contact_id, conversation_id")
+        .eq("owner_id", context.ownerId);
+      const ids = (sessoes ?? [])
+        .filter(
+          (s: any) =>
+            foneCanonico(String(s.contact_id ?? "")) === data.fone ||
+            foneCanonico(String(s.conversation_id ?? "").split("@")[0]) === data.fone,
+        )
+        .map((s: any) => s.id);
+      if (ids.length) {
+        await supabase
+          .from("ai_agent_sessions")
+          .update({ publico: data.publico, updated_at: new Date().toISOString() })
+          .in("id", ids);
+      }
+    }
+    return { ok: true };
   });
 
 export interface EvidenciaDoLead {
