@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { podeVerArea } from "@/lib/auth/niveis-de-acesso";
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership, type MemberRole } from "@/lib/auth/clinic-context.middleware";
 import { exigeConfiguracoes } from "@/lib/auth/area.middleware";
@@ -172,7 +173,8 @@ export const saveSetting = createServerFn({ method: "POST" })
     let row: Record<string, unknown>;
 
     if (data.section === "units") {
-      if (!context.isAdmin) throw new Error("Apenas administradores podem gerenciar unidades.");
+      if (!podeVerArea(context.memberRole, "configuracoes"))
+        throw new Error("Quem não configura o consultório não mexe nas unidades.");
       table = "clinic_units";
       row = {
         ...common,
@@ -241,8 +243,8 @@ export const deleteSetting = createServerFn({ method: "POST" })
   .inputValidator((input: { section: SettingsSection; id: string }) => input)
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
-    if (data.section === "units" && !context.isAdmin) {
-      throw new Error("Apenas administradores podem gerenciar unidades.");
+    if (data.section === "units" && !podeVerArea(context.memberRole, "configuracoes")) {
+      throw new Error("Quem não configura o consultório não mexe nas unidades.");
     }
     const tables: Record<SettingsSection, string> = {
       professionals: "professionals",

@@ -79,7 +79,7 @@ function ConsultorioPage() {
       </main>
     );
   }
-  const podeEditar = query.data?.isAdmin === true;
+  const podeEditar = query.data?.podeEditar === true;
   const temMudanca = Object.keys(mudou).length > 0;
 
   return (
@@ -101,7 +101,7 @@ function ConsultorioPage() {
       </header>
       {!podeEditar && (
         <p className="mt-4 rounded-2xl bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-          Só quem administra o consultório muda estes dados.
+          Seu nível de acesso não muda estes dados.
         </p>
       )}
 

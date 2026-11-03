@@ -450,14 +450,15 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
 
     const linhas: any[] = [];
     for (let pagina = 0; ; pagina++) {
-      const { data, error } = await comEscopo(
-        supabase
-          .from("lead_funnel_signals")
-          .select(
-            "fone, crm_contact_id, name, ultima_mensagem, dias_em_silencio, tem_agendamento, teve_consulta, desqualificado, proximo_agendamento, faltou_em",
-          ),
-        context,
-      )
+      // Sem filtro de unidade: lead do WhatsApp não tem unidade (a view nem
+      // tem a coluna), e filtrar por ela derrubava o quadro de quem é de uma
+      // unidade só — a recepção.
+      const { data, error } = await supabase
+        .from("lead_funnel_signals")
+        .select(
+          "fone, crm_contact_id, name, ultima_mensagem, dias_em_silencio, tem_agendamento, teve_consulta, desqualificado, proximo_agendamento, faltou_em",
+        )
+        .eq("owner_id", context.ownerId)
         // As duas saídas do funil, aplicadas no banco: quem confirmou
         // atendimento é cliente, quem foi desqualificado é perdido.
         .eq("teve_consulta", false)

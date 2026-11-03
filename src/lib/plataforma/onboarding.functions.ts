@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- tabelas novas, fora do types.ts do Lovable */
+import { podeVerArea } from "@/lib/auth/niveis-de-acesso";
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { exigeConfiguracoes } from "@/lib/auth/area.middleware";
@@ -106,7 +107,8 @@ export const salvarMeuConsultorio = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data, context }) => {
-    if (!context.isAdmin) throw new Error("Apenas administradores mudam os dados do consultório.");
+    if (!podeVerArea(context.memberRole, "configuracoes"))
+      throw new Error("Quem não configura o consultório não muda estes dados.");
     const { error } = await (
       await admin()
     )

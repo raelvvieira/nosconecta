@@ -37,7 +37,10 @@ export type AreaDoApp =
   | "financeiro"
   | "agente_ia"
   | "club"
-  | "configuracoes";
+  | "configuracoes"
+  /** Quem trabalha no consultório (convidar, tirar, mudar o nível) e o plano
+   *  pago. Fica só com quem administra: quem entra aqui decide quem vê o quê. */
+  | "equipe";
 
 export interface NivelNaTela {
   valor: NivelDeAcesso;
@@ -56,7 +59,8 @@ export const NIVEIS: readonly NivelNaTela[] = [
   {
     valor: "reception",
     rotulo: "Recepção",
-    resumo: "Agenda, pacientes e as conversas do WhatsApp. Não vê o financeiro.",
+    resumo:
+      "Tudo, menos o financeiro e o cadastro de pessoas: agenda, pacientes, atendimentos, assistente, Club e configurações.",
   },
   {
     valor: "dentist",
@@ -86,10 +90,23 @@ export const AREAS_DO_NIVEL: Record<NivelDeAcesso, readonly AreaDoApp[]> = {
     "agente_ia",
     "club",
     "configuracoes",
+    "equipe",
   ],
   // A recepção entra no Club porque é ela que registra indicação e confere
   // saldo no balcão — o programa morre se depender de administrador.
-  reception: ["inicio", "agenda", "pacientes", "atendimentos", "club"],
+  //
+  // Em 03/11 a clínica abriu o resto: a recepção toca o atendimento inteiro
+  // (assistente, campanhas, automações, configurações). Ficam de fora só o
+  // financeiro e a equipe — quem pode convidar gente pode se dar qualquer nível.
+  reception: [
+    "inicio",
+    "agenda",
+    "pacientes",
+    "atendimentos",
+    "agente_ia",
+    "club",
+    "configuracoes",
+  ],
   dentist: ["inicio", "agenda", "pacientes"],
   finance: ["inicio", "financeiro"],
 };
@@ -142,6 +159,11 @@ export function areaDaRota(pathname: string): AreaDoApp | null {
   // Aparência é preferência da PESSOA, não da clínica: todo nível escolhe a
   // própria cor, inclusive quem não vê o resto de Configurações.
   if (p === "/configuracoes/aparencia") return "inicio";
+  if (p === "/configuracoes/pessoal" || p === "/configuracoes/plano") return "equipe";
+  // Contas bancárias e o grupo que lança no financeiro são do financeiro.
+  if (p === "/configuracoes/contas" || p === "/configuracoes/grupo-do-financeiro") {
+    return "financeiro";
+  }
   if (p === "/configuracoes" || p.startsWith("/configuracoes/")) return "configuracoes";
   if (
     p === "/financeiro" ||

@@ -1,3 +1,4 @@
+import { podeVerArea } from "@/lib/auth/niveis-de-acesso";
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -153,7 +154,9 @@ function SettingsRegistryPage() {
   // Profissionais continuaria filtrando (e escondendo) a lista de Cadeiras.
   useEffect(() => setQuery(""), [section]);
 
-  const restrictedSection = section === "members" || section === "units";
+  // Pessoas só para quem administra; unidades para quem configura.
+  const restrictedSection =
+    section === "members" || (section === "units" && !podeVerArea(data.nivel, "configuracoes"));
   if (restrictedSection && settingsResult.isSuccess && !data.isAdmin) {
     return (
       <div className="surface-card grid min-h-72 place-items-center px-6 py-10 text-center">

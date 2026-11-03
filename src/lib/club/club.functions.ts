@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { podeVerArea } from "@/lib/auth/niveis-de-acesso";
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { exigeArea } from "@/lib/auth/area.middleware";
@@ -660,7 +661,8 @@ export const salvarConfigDoClub = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }) => {
-    if (!context.isAdmin) throw new Error("Apenas administradores mudam os valores do Club.");
+    if (!podeVerArea(context.memberRole, "configuracoes"))
+      throw new Error("Quem não configura o consultório não muda os valores do Club.");
     const supabase: any = context.supabase;
     const linha = {
       owner_id: context.ownerId,
@@ -715,7 +717,8 @@ export const salvarNivel = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }) => {
-    if (!context.isAdmin) throw new Error("Apenas administradores mudam a régua do Club.");
+    if (!podeVerArea(context.memberRole, "configuracoes"))
+      throw new Error("Quem não configura o consultório não muda a régua do Club.");
     const supabase: any = context.supabase;
     const campos = {
       nome: data.nome,

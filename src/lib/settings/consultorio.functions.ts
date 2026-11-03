@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- colunas novas, fora do types.ts do Lovable */
+import { podeVerArea } from "@/lib/auth/niveis-de-acesso";
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { exigeConfiguracoes } from "@/lib/auth/area.middleware";
@@ -84,14 +85,22 @@ function daLinha(r: any): ConfigDoConsultorio {
 
 export const getConfigDoConsultorio = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
-  .handler(async ({ context }): Promise<ConfigDoConsultorio & { isAdmin: boolean }> => {
-    const { data } = await (await admin())
-      .from("clinicas")
-      .select("*")
-      .eq("owner_id", context.ownerId)
-      .maybeSingle();
-    return { ...daLinha(data), isAdmin: context.isAdmin };
-  });
+  .handler(
+    async ({
+      context,
+    }): Promise<ConfigDoConsultorio & { isAdmin: boolean; podeEditar: boolean }> => {
+      const { data } = await (await admin())
+        .from("clinicas")
+        .select("*")
+        .eq("owner_id", context.ownerId)
+        .maybeSingle();
+      return {
+        ...daLinha(data),
+        isAdmin: context.isAdmin,
+        podeEditar: podeVerArea(context.memberRole, "configuracoes"),
+      };
+    },
+  );
 
 export type MudancaNoConsultorio = Partial<
   Omit<ConfigDoConsultorio, "onboardingConcluido" | "plano"> & {
@@ -154,7 +163,8 @@ export const salvarConfigDoConsultorio = createServerFn({ method: "POST" })
     return c;
   })
   .handler(async ({ data, context }) => {
-    if (!context.isAdmin) throw new Error("Apenas administradores mudam os dados do consultório.");
+    if (!podeVerArea(context.memberRole, "configuracoes"))
+      throw new Error("Quem não configura o consultório não muda estes dados.");
     if (!Object.keys(data).length) return { ok: true };
     const { error } = await (
       await admin()

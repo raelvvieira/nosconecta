@@ -1,3 +1,4 @@
+import { podeAbrir, podeVerArea } from "@/lib/auth/niveis-de-acesso";
 import { Link, useLocation, useRouterState, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { queryOptions, useQuery } from "@tanstack/react-query";
@@ -216,8 +217,15 @@ export function SettingsNav() {
   const counts = settingsResult.data;
   // Unidades e Usuários e permissões só administram — enquanto ainda não se
   // sabe (`counts` carregando), fica escondido por padrão em vez de piscar.
+  // Links seguem a área da rota (Pessoal e Plano só para quem administra;
+  // Contas e Grupo do financeiro só para quem vê o financeiro). Unidades,
+  // para quem configura.
   const visible = (item: NavItem) =>
-    item.kind !== "section" || !item.adminOnly || !!counts?.isAdmin;
+    item.kind === "section"
+      ? !item.adminOnly ||
+        !!counts?.isAdmin ||
+        (item.value === "units" && podeVerArea(counts?.nivel, "configuracoes"))
+      : !counts || podeAbrir(counts.nivel, item.to);
 
   const activeSection: PageSection = search.section ?? "chairs";
   const { searchStr } = useLocation();

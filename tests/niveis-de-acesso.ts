@@ -34,11 +34,12 @@ function conferir(nome: string, obtido: unknown, esperado: unknown) {
 
 // ── O combinado com a clínica, linha por linha ──────────────────────────
 
-conferir("administrador vê as oito áreas", AREAS_DO_NIVEL.admin.length, 8);
+conferir("administrador vê as nove áreas", AREAS_DO_NIVEL.admin.length, 9);
+// 03/11: a recepção vê tudo, menos o financeiro e a equipe.
 conferir(
-  "recepção vê cinco",
+  "recepção vê tudo menos financeiro e equipe",
   [...AREAS_DO_NIVEL.reception],
-  ["inicio", "agenda", "pacientes", "atendimentos", "club"],
+  ["inicio", "agenda", "pacientes", "atendimentos", "agente_ia", "club", "configuracoes"],
 );
 conferir("dentista vê três", [...AREAS_DO_NIVEL.dentist], ["inicio", "agenda", "pacientes"]);
 conferir("financeiro vê duas", [...AREAS_DO_NIVEL.finance], ["inicio", "financeiro"]);
@@ -52,8 +53,18 @@ for (const n of NIVEIS) {
 // ── O que o nível fecha ─────────────────────────────────────────────────
 
 conferir("recepção não vê o financeiro", podeVerArea("reception", "financeiro"), false);
-conferir("recepção não vê configurações", podeVerArea("reception", "configuracoes"), false);
-conferir("recepção não vê o agente de IA", podeVerArea("reception", "agente_ia"), false);
+conferir("recepção vê configurações", podeVerArea("reception", "configuracoes"), true);
+conferir("recepção vê o agente de IA", podeVerArea("reception", "agente_ia"), true);
+conferir("recepção não abre Pessoal", podeAbrir("reception", "/configuracoes/pessoal"), false);
+conferir("recepção não abre o Plano", podeAbrir("reception", "/configuracoes/plano"), false);
+conferir("recepção não abre Contas", podeAbrir("reception", "/configuracoes/contas"), false);
+conferir(
+  "recepção não abre o Grupo do financeiro",
+  podeAbrir("reception", "/configuracoes/grupo-do-financeiro"),
+  false,
+);
+conferir("recepção abre Campanhas", podeAbrir("reception", "/configuracoes/campanhas"), true);
+conferir("administrador abre Pessoal", podeAbrir("admin", "/configuracoes/pessoal"), true);
 conferir("dentista não vê as conversas", podeVerArea("dentist", "atendimentos"), false);
 conferir("dentista não vê o financeiro", podeVerArea("dentist", "financeiro"), false);
 conferir("dentista não vê o Club", podeVerArea("dentist", "club"), false);

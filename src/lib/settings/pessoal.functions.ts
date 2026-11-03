@@ -527,9 +527,7 @@ export const criarContaDoConvite = createServerFn({ method: "POST" })
     },
   )
   .handler(
-    async ({
-      data,
-    }): Promise<{ ok: boolean; motivo?: "convite_invalido" | MotivoDaConta }> => {
+    async ({ data }): Promise<{ ok: boolean; motivo?: "convite_invalido" | MotivoDaConta }> => {
       const url = process.env.SUPABASE_URL;
       const chave = process.env.SUPABASE_SERVICE_ROLE_KEY;
       if (!url || !chave) {
@@ -566,4 +564,3 @@ export const criarContaDoConvite = createServerFn({ method: "POST" })
       return { ok: true };
     },
   );
-
