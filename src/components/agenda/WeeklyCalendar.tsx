@@ -514,10 +514,36 @@ export function WeeklyCalendar({
                       {dayAppts.map((appt) => {
                         const s = statusStyle(appt.status);
                         const lugar = lugares.get(appt.id) ?? COLUNA_INTEIRA;
+                        // Dividindo a faixa com outra consulta, o cartão tem
+                        // 60–80px: horário completo, nome inteiro, procedimento,
+                        // profissional e etiqueta não cabem, e tudo virava
+                        // "Ana Claudia Can…". Ali ele mostra só o essencial; o
+                        // resto fica no `title` e na gaveta. O que é "estreito"
+                        // é decidido pelo CSS (container query, 104px), não
+                        // pela fração: a mesma fração dá larguras diferentes
+                        // conforme a janela.
+                        const dividido = lugar.largura < 1;
+                        const alturaDoCartao = Math.max(
+                          apptHeight(appt.startTime, appt.endTime),
+                          32,
+                        );
+                        const primeiroNome =
+                          String(appt.patientName ?? "")
+                            .trim()
+                            .split(/\s+/)[0] || appt.patientName;
+                        const aviso = comAviso.get(appt.id);
                         return (
                           <button
                             key={appt.id}
                             type="button"
+                            title={[
+                              `${appt.startTime} – ${appt.endTime}`,
+                              appt.patientName,
+                              appt.procedureName,
+                              appt.professionalName,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
                             onClick={() => {
                               if (arrasteConsulta.consumiuClique()) return;
                               onAppointmentClick(appt);
@@ -543,7 +569,7 @@ export function WeeklyCalendar({
                               // janela.
                               left: `calc(${lugar.esquerda * 100}% + 4px)`,
                               width: `calc(${lugar.largura * 100}% - 8px)`,
-                              height: Math.max(apptHeight(appt.startTime, appt.endTime), 32),
+                              height: alturaDoCartao,
                               // Sem isto, as três linhas do cartão (horário,
                               // nome, procedimento, profissional) vazam para
                               // fora de uma consulta de 30 min, que tem 32px, e
@@ -553,17 +579,22 @@ export function WeeklyCalendar({
                               overflow: "hidden",
                               background: s.bg,
                               border: `1px solid ${s.border}`,
+                              // Faixa na cor do status: nos cartões estreitos
+                              // ela leva o que o pontinho levaria.
+                              borderLeft: dividido ? `3px solid ${s.badge}` : undefined,
                               borderRadius: "var(--radius-chip)",
-                              padding: "4px 8px",
+                              padding: dividido ? "3px 6px" : "4px 8px",
                               textAlign: "left",
                               // `touch-action: none` é o que deixa o dedo
                               // arrastar o card em vez de rolar a grade.
                               touchAction: onMove ? "none" : undefined,
                               cursor: onMove ? "grab" : "pointer",
-                              zIndex: 5,
                               transition: "box-shadow 0.15s ease",
                             }}
-                            className="hover:shadow-md"
+                            // `@container`: os filhos mudam conforme a largura
+                            // do PRÓPRIO cartão. Em hover, o cartão sobe na
+                            // pilha para quem está atrás dele não ficar preso.
+                            className="@container z-5 hover:z-20 hover:shadow-md"
                           >
                             <div className="flex items-start justify-between gap-1">
                               <div className="flex flex-col min-w-0">
@@ -573,15 +604,23 @@ export function WeeklyCalendar({
                                         horário de destino — é a confirmação de
                                         onde o bloco vai cair. */}
                                     {arrasteConsulta.arrastando?.id === appt.id &&
-                                    arrasteConsulta.alvo
-                                      ? `${arrasteConsulta.alvo.startTime} – ${arrasteConsulta.alvo.endTime}`
-                                      : `${appt.startTime} – ${appt.endTime}`}
+                                    arrasteConsulta.alvo ? (
+                                      `${arrasteConsulta.alvo.startTime} – ${arrasteConsulta.alvo.endTime}`
+                                    ) : (
+                                      <>
+                                        {appt.startTime}
+                                        <span className="hidden @min-[104px]:inline">
+                                          {" "}
+                                          – {appt.endTime}
+                                        </span>
+                                      </>
+                                    )}
                                   </span>
                                   {/* Retorno vinha sem nenhuma marca visual: a cor
                                       do card é só do status, e TYPE_LABEL estava
                                       importado aqui sem nunca ser usado. */}
                                   {appt.type === "return" && (
-                                    <span className="shrink-0 rounded-full bg-violet-soft px-1.5 text-3xs font-semibold text-violet">
+                                    <span className="hidden shrink-0 rounded-full bg-violet-soft px-1.5 text-3xs font-semibold text-violet @min-[104px]:inline">
                                       {TYPE_LABEL.return}
                                     </span>
                                   )}
@@ -595,29 +634,52 @@ export function WeeklyCalendar({
                                       cima de qualquer um — e errava 23 de 24
                                       vezes, porque quase todo aviso é
                                       "resposta não entendida". */}
-                                  {comAviso.has(appt.id) && (
-                                    <span
-                                      className={cn(
-                                        "shrink-0 rounded-full px-1.5 text-3xs font-semibold",
-                                        TOM_DO_AVISO[comAviso.get(appt.id)!],
-                                      )}
-                                    >
-                                      {ROTULO_DO_AVISO[comAviso.get(appt.id)!]}
-                                    </span>
+                                  {aviso && (
+                                    <>
+                                      <span
+                                        className={cn(
+                                          "hidden shrink-0 rounded-full px-1.5 text-3xs font-semibold @min-[104px]:inline",
+                                          TOM_DO_AVISO[aviso],
+                                        )}
+                                      >
+                                        {ROTULO_DO_AVISO[aviso]}
+                                      </span>
+                                      {/* Estreito: o texto da etiqueta não cabe,
+                                          fica um ponto (o texto está no title). */}
+                                      <span
+                                        aria-label={ROTULO_DO_AVISO[aviso]}
+                                        className={cn(
+                                          "h-1.5 w-1.5 shrink-0 rounded-full @min-[104px]:hidden",
+                                          aviso === "remarcar" ? "bg-danger" : "bg-warning",
+                                        )}
+                                      />
+                                    </>
                                   )}
                                 </span>
                                 <span className="text-2xs font-semibold text-foreground truncate">
-                                  {appt.patientName}
+                                  <span className="@min-[104px]:hidden">{primeiroNome}</span>
+                                  <span className="hidden @min-[104px]:inline">
+                                    {appt.patientName}
+                                  </span>
                                 </span>
-                                <span className="text-3xs text-muted-foreground truncate">
-                                  {appt.procedureName}
-                                </span>
-                                <span className="text-3xs text-muted-foreground truncate">
-                                  {appt.professionalName}
-                                </span>
+                                {/* O que sobra de altura: um cartão de 30 min
+                                    (32px) só tem lugar para horário e nome. */}
+                                {alturaDoCartao >= 58 && (
+                                  <span className="text-3xs text-muted-foreground truncate">
+                                    {appt.procedureName}
+                                  </span>
+                                )}
+                                {alturaDoCartao >= 58 && (
+                                  <span className="hidden text-3xs text-muted-foreground truncate @min-[104px]:block">
+                                    {appt.professionalName}
+                                  </span>
+                                )}
                               </div>
                               <div
-                                className="shrink-0 mt-0.5"
+                                className={cn(
+                                  "mt-0.5 shrink-0",
+                                  dividido && "hidden @min-[104px]:block",
+                                )}
                                 style={{
                                   width: 7,
                                   height: 7,
