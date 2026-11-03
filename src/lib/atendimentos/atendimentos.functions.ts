@@ -88,6 +88,56 @@ export interface MessageRow {
   /** A mensagem é uma figurinha. É o que mostra, no chat, o botão de usá-la
    *  nos follow-ups da Luna. Ausente nas mensagens que não vêm do espelho. */
   figurinha?: boolean;
+  /** O anúncio que a pessoa clicou, como o WhatsApp mostra em cima da primeira
+   *  mensagem: miniatura, título, texto e link. */
+  anuncio?: AnuncioDaMensagem | null;
+}
+
+export interface AnuncioDaMensagem {
+  titulo: string | null;
+  texto: string | null;
+  /** Instagram ou Facebook do anúncio. */
+  url: string | null;
+  /** A miniatura já como `data:image/jpeg;base64,…`. */
+  miniatura: string | null;
+  video: boolean;
+}
+
+/**
+ * O `externalAdReply` do evento da Evolution vira o cartão do chat.
+ *
+ * A miniatura chega como objeto de bytes (`{"0":255,"1":216,…}`), que é como
+ * o JSON serializou o `Uint8Array` do WhatsApp; aqui ela vira data URL.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function anuncioDoEspelho(ad: any): AnuncioDaMensagem | null {
+  if (!ad || typeof ad !== "object") return null;
+  const texto = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  // Os bytes vêm primeiro: o `thumbnailUrl` é um link da Meta que expira, e
+  // uma conversa antiga mostraria imagem quebrada.
+  let miniatura: string | null = null;
+  const bytes = ad.thumbnail;
+  if (bytes && typeof bytes === "object") {
+    try {
+      const lista = Array.isArray(bytes) ? bytes : Object.values(bytes);
+      if (lista.length > 0 && lista.length < 200_000) {
+        let bin = "";
+        for (const b of lista) bin += String.fromCharCode(Number(b) & 255);
+        miniatura = `data:image/jpeg;base64,${btoa(bin)}`;
+      }
+    } catch {
+      miniatura = null;
+    }
+  }
+  miniatura = miniatura ?? texto(ad.thumbnailUrl);
+  const anuncio = {
+    titulo: texto(ad.title),
+    texto: texto(ad.body),
+    url: texto(ad.sourceUrl) ?? texto(ad.mediaUrl),
+    miniatura,
+    video: Number(ad.mediaType) === 2,
+  };
+  return anuncio.titulo || anuncio.texto || anuncio.miniatura ? anuncio : null;
 }
 
 /** Um timeout do CRM não é um erro do sistema — é lentidão momentânea do
@@ -459,6 +509,7 @@ interface LinhaDoEspelho {
   attachments: unknown;
   sent_at: string;
   tipo?: string | null;
+  anuncio?: unknown;
 }
 
 /**
@@ -478,7 +529,7 @@ async function mensagensDoEspelho(
     const { data, error } = await supabase
       .from("wa_messages")
       .select(
-        "crm_message_id, from_me, body, is_private, attachments, sent_at, tipo:payload->>messageType",
+        "crm_message_id, from_me, body, is_private, attachments, sent_at, tipo:payload->>messageType, anuncio:payload->contextInfo->externalAdReply",
       )
       .eq("owner_id", ownerId)
       .eq("origem", origem)
@@ -496,6 +547,7 @@ async function mensagensDoEspelho(
       timestamp: row.sent_at,
       isPrivate: row.is_private === true,
       figurinha: row.tipo === "stickerMessage",
+      anuncio: row.from_me === true ? null : anuncioDoEspelho(row.anuncio),
     }));
   } catch (e) {
     // Conversa da Evolution cujo espelho falhou vai cair no CRM e voltar
