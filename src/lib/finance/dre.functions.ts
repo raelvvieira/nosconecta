@@ -53,7 +53,7 @@ interface Categoria {
   grupo: GrupoDre | null;
 }
 
-async function lerCategorias(
+export async function lerCategorias(
   supabase: any,
   ownerId: string,
 ): Promise<{ categorias: Categoria[]; semColunaDeGrupo: boolean }> {
@@ -96,7 +96,7 @@ export interface LancamentoLido extends LancamentoBruto {
  * que a FATURA foi paga, que pode cair fora do mês do vencimento. Quem
  * chama descarta o que ficar fora do que pediu.
  */
-async function lerLancamentos(
+export async function lerLancamentos(
   supabase: any,
   ownerId: string,
   unitId: string | null | undefined,

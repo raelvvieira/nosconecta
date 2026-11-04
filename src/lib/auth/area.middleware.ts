@@ -53,3 +53,5 @@ export const exigeConfiguracoes = exigeArea("configuracoes");
 
 /** As conversas do WhatsApp, o funil e os disparos. */
 export const exigeAtendimentos = exigeArea("atendimentos");
+/** O painel de gestão: só o administrador. */
+export const exigeGestao = exigeArea("gestao");

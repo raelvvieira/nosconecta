@@ -38,6 +38,10 @@ export type AreaDoApp =
   | "agente_ia"
   | "club"
   | "configuracoes"
+  /** O painel de gestão: lucro, margem, crescimento e eficiência. Só do
+   *  administrador — nem o nível Financeiro entra, que vê os lançamentos mas
+   *  não o resultado do negócio inteiro. */
+  | "gestao"
   /** Quem trabalha no consultório (convidar, tirar, mudar o nível) e o plano
    *  pago. Fica só com quem administra: quem entra aqui decide quem vê o quê. */
   | "equipe";
@@ -83,6 +87,7 @@ export const NIVEIS: readonly NivelNaTela[] = [
 export const AREAS_DO_NIVEL: Record<NivelDeAcesso, readonly AreaDoApp[]> = {
   admin: [
     "inicio",
+    "gestao",
     "agenda",
     "pacientes",
     "atendimentos",
@@ -151,6 +156,7 @@ export interface RecursosDoConsultorio {
 export function areaDaRota(pathname: string): AreaDoApp | null {
   const p = String(pathname ?? "").split("?")[0];
   if (p === "/" || p === "/inicio") return "inicio";
+  if (p === "/gestao" || p.startsWith("/gestao/")) return "gestao";
   if (p === "/agenda" || p.startsWith("/agenda/")) return "agenda";
   if (p === "/pacientes" || p.startsWith("/pacientes/")) return "pacientes";
   if (p === "/atendimentos" || p.startsWith("/atendimentos/")) return "atendimentos";

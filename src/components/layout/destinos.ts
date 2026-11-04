@@ -25,6 +25,7 @@ import {
   Wallet,
   Workflow,
   type LucideIcon,
+  Gauge,
 } from "lucide-react";
 
 // Onde cada destino do app é declarado UMA vez.
@@ -39,6 +40,7 @@ import {
  *  é o que permite um componente de item só, tipado, para as três superfícies. */
 export type RotaDoMenu =
   | "/inicio"
+  | "/gestao"
   | "/agenda"
   | "/pacientes"
   | "/atendimentos"
@@ -80,6 +82,7 @@ export type ItemDoMenu = Destino | DestinoFuturo;
 
 export const MODULOS: Destino[] = [
   { label: "Início", icon: Home, to: "/inicio" },
+  { label: "Gestão", icon: Gauge, to: "/gestao" },
   { label: "Agenda", icon: CalendarDays, to: "/agenda" },
   { label: "Pacientes", icon: Users, to: "/pacientes" },
   { label: "Atendimentos", icon: MessageCircle, to: "/atendimentos" },

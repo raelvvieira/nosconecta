@@ -19,6 +19,7 @@ import { Route as ComecarRouteImport } from './routes/comecar'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as DreRouteImport } from './routes/dre'
 import { Route as FinanceiroRouteImport } from './routes/financeiro'
+import { Route as GestaoRouteImport } from './routes/gestao'
 import { Route as InicioRouteImport } from './routes/inicio'
 import { Route as NosClubRouteImport } from './routes/nos-club'
 import { Route as PacientesRouteImport } from './routes/pacientes'
@@ -102,6 +103,11 @@ const DreRoute = DreRouteImport.update({
 const FinanceiroRoute = FinanceiroRouteImport.update({
   id: '/financeiro',
   path: '/financeiro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GestaoRoute = GestaoRouteImport.update({
+  id: '/gestao',
+  path: '/gestao',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InicioRoute = InicioRouteImport.update({
@@ -295,6 +301,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/dre': typeof DreRoute
   '/financeiro': typeof FinanceiroRoute
+  '/gestao': typeof GestaoRoute
   '/inicio': typeof InicioRoute
   '/nos-club': typeof NosClubRoute
   '/pacientes': typeof PacientesRouteWithChildren
@@ -338,6 +345,7 @@ export interface FileRoutesByTo {
   '/comecar': typeof ComecarRoute
   '/dre': typeof DreRoute
   '/financeiro': typeof FinanceiroRoute
+  '/gestao': typeof GestaoRoute
   '/inicio': typeof InicioRoute
   '/nos-club': typeof NosClubRoute
   '/pagamentos': typeof PagamentosRoute
@@ -383,6 +391,7 @@ export interface FileRoutesById {
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/dre': typeof DreRoute
   '/financeiro': typeof FinanceiroRoute
+  '/gestao': typeof GestaoRoute
   '/inicio': typeof InicioRoute
   '/nos-club': typeof NosClubRoute
   '/pacientes': typeof PacientesRouteWithChildren
@@ -431,6 +440,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dre'
     | '/financeiro'
+    | '/gestao'
     | '/inicio'
     | '/nos-club'
     | '/pacientes'
@@ -474,6 +484,7 @@ export interface FileRouteTypes {
     | '/comecar'
     | '/dre'
     | '/financeiro'
+    | '/gestao'
     | '/inicio'
     | '/nos-club'
     | '/pagamentos'
@@ -518,6 +529,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dre'
     | '/financeiro'
+    | '/gestao'
     | '/inicio'
     | '/nos-club'
     | '/pacientes'
@@ -565,6 +577,7 @@ export interface RootRouteChildren {
   ConfiguracoesRoute: typeof ConfiguracoesRouteWithChildren
   DreRoute: typeof DreRoute
   FinanceiroRoute: typeof FinanceiroRoute
+  GestaoRoute: typeof GestaoRoute
   InicioRoute: typeof InicioRoute
   NosClubRoute: typeof NosClubRoute
   PacientesRoute: typeof PacientesRouteWithChildren
@@ -646,6 +659,13 @@ declare module '@tanstack/react-router' {
       path: '/financeiro'
       fullPath: '/financeiro'
       preLoaderRoute: typeof FinanceiroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gestao': {
+      id: '/gestao'
+      path: '/gestao'
+      fullPath: '/gestao'
+      preLoaderRoute: typeof GestaoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inicio': {
@@ -1004,6 +1024,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConfiguracoesRoute: ConfiguracoesRouteWithChildren,
   DreRoute: DreRoute,
   FinanceiroRoute: FinanceiroRoute,
+  GestaoRoute: GestaoRoute,
   InicioRoute: InicioRoute,
   NosClubRoute: NosClubRoute,
   PacientesRoute: PacientesRouteWithChildren,

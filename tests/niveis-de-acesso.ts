@@ -34,7 +34,7 @@ function conferir(nome: string, obtido: unknown, esperado: unknown) {
 
 // ── O combinado com a clínica, linha por linha ──────────────────────────
 
-conferir("administrador vê as nove áreas", AREAS_DO_NIVEL.admin.length, 9);
+conferir("administrador vê as dez áreas", AREAS_DO_NIVEL.admin.length, 10);
 // 03/11: a recepção vê tudo, menos o financeiro e a equipe.
 conferir(
   "recepção vê tudo menos financeiro e equipe",
@@ -54,6 +54,14 @@ for (const n of NIVEIS) {
 
 conferir("recepção não vê o financeiro", podeVerArea("reception", "financeiro"), false);
 conferir("recepção vê configurações", podeVerArea("reception", "configuracoes"), true);
+// 04/11: o painel de gestão (lucro, margem, crescimento) é só do administrador.
+conferir("administrador vê a gestão", podeVerArea("admin", "gestao"), true);
+conferir("recepção não vê a gestão", podeVerArea("reception", "gestao"), false);
+conferir("dentista não vê a gestão", podeVerArea("dentist", "gestao"), false);
+conferir("financeiro não vê a gestão", podeVerArea("finance", "gestao"), false);
+conferir("recepção não abre /gestao", podeAbrir("reception", "/gestao"), false);
+conferir("financeiro não abre /gestao", podeAbrir("finance", "/gestao"), false);
+conferir("administrador abre /gestao", podeAbrir("admin", "/gestao"), true);
 conferir("recepção vê o agente de IA", podeVerArea("reception", "agente_ia"), true);
 conferir("recepção não abre Pessoal", podeAbrir("reception", "/configuracoes/pessoal"), false);
 conferir("recepção não abre o Plano", podeAbrir("reception", "/configuracoes/plano"), false);
