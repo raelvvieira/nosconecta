@@ -22,7 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatBRL, formatDateBR } from "@/lib/finance/format";
 import { localDateStr } from "@/lib/date";
-import { mesDoDia, rotuloDoMes } from "@/lib/finance/mes";
+import { mesDoDia, rotuloDoMes, somarMeses } from "@/lib/finance/mes";
 import {
   GRUPOS_DRE,
   percentualDaReceita,
@@ -54,6 +54,9 @@ import {
 const searchSchema = z.object({
   regime: z.enum(["caixa", "competencia"]).optional(),
   meses: z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(12)]).optional(),
+  /** Com `meses = 1`: mostra o mês PASSADO em vez do corrente. Os períodos de
+   *  3, 6 e 12 meses sempre terminam no mês corrente. */
+  passado: z.literal(true).optional(),
 });
 
 export const Route = createFileRoute("/dre")({
@@ -75,10 +78,12 @@ function valor(n: number, zeroVazio = true): string {
 }
 
 function DrePage() {
-  const { regime = "caixa", meses = 6 } = Route.useSearch();
+  const { regime = "caixa", meses = 6, passado } = Route.useSearch();
   const navigate = Route.useNavigate();
   const hoje = localDateStr();
-  const ate = mesDoDia(hoje);
+  // "Mês passado" só existe para um mês: o período termina no mês anterior.
+  const verMesPassado = passado === true && meses === 1;
+  const ate = verMesPassado ? somarMeses(mesDoDia(hoje), -1) : mesDoDia(hoje);
   const buscar = useServerFn(getDre);
   // Um mês a mais do que a tela mostra, para a variação do primeiro.
   const dre = useQuery({
@@ -96,7 +101,7 @@ function DrePage() {
   const receitaTotal = dados ? soma(visivel(dados.linhas.receita.porMes)) : 0;
   const semGrupo = dre.data?.categorias.filter((c) => !c.grupo).length ?? 0;
 
-  const mudar = (patch: { regime?: "caixa" | "competencia"; meses?: Meses }) =>
+  const mudar = (patch: { regime?: "caixa" | "competencia"; meses?: Meses; passado?: true }) =>
     navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
 
   return (
@@ -119,14 +124,19 @@ function DrePage() {
                 ajuda="Caixa conta o que foi pago, no dia do pagamento. Competência conta pelo vencimento, pago ou não."
               />
               <Segmentado
-                valor={String(meses)}
+                valor={verMesPassado ? "passado" : String(meses)}
                 opcoes={[
                   ["1", "Este mês"],
+                  ["passado", "Mês passado"],
                   ["3", "3 meses"],
                   ["6", "6 meses"],
                   ["12", "12 meses"],
                 ]}
-                onMudar={(v) => mudar({ meses: Number(v) as Meses })}
+                onMudar={(v) =>
+                  v === "passado"
+                    ? mudar({ meses: 1, passado: true })
+                    : mudar({ meses: Number(v) as Meses, passado: undefined })
+                }
               />
               <Button
                 variant="outline"
