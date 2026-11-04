@@ -1,4 +1,11 @@
 import { useState } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -102,15 +109,20 @@ export function PainelDoContato({
   const buscarNotas = useServerFn(getDealTimeline);
   const criarPaciente = useServerFn(createPatient);
   const escreverNota = useServerFn(addDealNote);
-  const { selectedUnitId } = useUnitSelection();
+  const { selectedUnitId, units } = useUnitSelection();
+  // Vendo "todas as unidades", criar ficha exige dizer em qual.
+  const [unidadeEscolhida, setUnidadeEscolhida] = useState("");
+  const unidadesAtivas = units.filter((u) => u.active);
+  const precisaEscolherUnidade = !selectedUnitId && unidadesAtivas.length > 1;
 
   const contactId = conversa.contactId;
   const nome = conversa.contactName ?? conversa.phone ?? "Contato";
 
   const vinculo = useQuery({
-    queryKey: ["patient-by-crm-contact", contactId],
-    queryFn: () => buscarPaciente({ data: { crmContactId: contactId! } }),
-    enabled: Boolean(contactId),
+    queryKey: ["patient-by-crm-contact", contactId, conversa.phone ?? null],
+    queryFn: () =>
+      buscarPaciente({ data: { crmContactId: contactId ?? "", phone: conversa.phone ?? null } }),
+    enabled: Boolean(contactId || conversa.phone),
     staleTime: 60_000,
   });
   const patientId = vinculo.data?.id ?? null;
@@ -164,11 +176,12 @@ export function PainelDoContato({
           name: nome,
           phone: conversa.phone ? formatWhatsappNumber(conversa.phone) : undefined,
           crmContactId: contactId ?? undefined,
-          unitId: selectedUnitId ?? undefined,
+          unitId: selectedUnitId ?? (unidadeEscolhida || undefined),
         },
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["patient-by-crm-contact", contactId] });
+      queryClient.invalidateQueries({ queryKey: ["patient-by-crm-contact"] });
+      queryClient.invalidateQueries({ queryKey: ["contatos-com-paciente"] });
       queryClient.invalidateQueries({ queryKey: ["patients"] });
       toast.success("Ficha criada — o painel já mostra o paciente.");
     },
@@ -244,11 +257,27 @@ export function PainelDoContato({
           ) : (
             contactId && (
               <>
+                {precisaEscolherUnidade && (
+                  <div className="mt-4">
+                    <Select value={unidadeEscolhida} onValueChange={setUnidadeEscolhida}>
+                      <SelectTrigger className="h-9 w-full text-xs">
+                        <SelectValue placeholder="Em qual unidade?" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {unidadesAtivas.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <Button
                   variant="premium"
                   size="sm"
                   className="mt-4 w-full"
-                  disabled={criarFicha.isPending}
+                  disabled={criarFicha.isPending || (precisaEscolherUnidade && !unidadeEscolhida)}
                   onClick={() => criarFicha.mutate()}
                 >
                   {criarFicha.isPending ? (

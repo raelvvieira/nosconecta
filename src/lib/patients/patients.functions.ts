@@ -13,6 +13,7 @@ import { gravarTolerandoColunaAusente, semColuna } from "@/lib/schema-fallback";
 import { variantesDoNumero } from "@/lib/atendimentos/phone";
 import { normalizeBrazilianPhone } from "@/lib/atendimentos/phone";
 import { clinicTodayStr } from "@/lib/date";
+import { foneCanonico } from "../../../supabase/functions/_shared/inteligencia-do-lead.ts";
 
 export type PatientStatus =
   | "active"
@@ -473,18 +474,75 @@ const patientInput = (input: {
 // Edge Function da Meta CAPI, que roda com service role.
 export const getPatientByCrmContact = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
-  .inputValidator((input: { crmContactId: string }) => input)
+  .inputValidator(
+    (input: {
+      crmContactId: string;
+      phone?: string | null;
+      /** Só o vínculo explícito, sem cair no telefone. É o que o agendamento
+       *  feito a partir de uma conversa precisa: ali a pessoa pode estar
+       *  marcando para OUTRA (o filho, no número da mãe), e ligar à ficha que
+       *  divide o número seria marcar para a pessoa errada. */
+      exato?: boolean;
+    }) => input,
+  )
   .handler(async ({ data, context }): Promise<{ id: string; name: string } | null> => {
-    if (!data.crmContactId) return null;
+    if (!data.crmContactId && !data.phone) return null;
     const supabase: any = context.supabase;
-    const { data: row, error } = await supabase
+
+    // 1. O vínculo explícito: a ficha que já guarda o código desta conversa.
+    if (data.crmContactId) {
+      const { data: row, error } = await supabase
+        .from("patients")
+        .select("id, name")
+        .eq("crm_contact_id", data.crmContactId)
+        .eq("owner_id", context.ownerId)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (row) return { id: row.id, name: row.name };
+    }
+
+    if (data.exato) return null;
+
+    // 2. Pelo telefone — o caso da ficha criada na AGENDA, por digitação, que
+    // nunca recebeu o código da conversa. Sem isto, quem veio à consulta
+    // continuava aparecendo como "Criar ficha de paciente" no chat (em
+    // 04/11, 50 dos 84 pacientes com consulta estavam assim), e o botão
+    // criava uma ficha DUPLICADA.
+    //
+    // Compara pelo telefone canônico, que trata o nono dígito: a ficha tinha
+    // 5548996266217 e a conversa, 554896266217. O número vem do contato e, na
+    // falta dele, do próprio código da conversa (o JID).
+    const jid = String(data.crmContactId ?? "");
+    const fone =
+      foneCanonico(data.phone) ?? (jid.includes("@") ? foneCanonico(jid.split("@")[0]) : null);
+    if (!fone) return null;
+    // Os quatro últimos dígitos são contíguos em qualquer formatação
+    // ("(48) 99626-6217", "5548996266217"): estreita no banco sem depender da
+    // máscara, e a igualdade de verdade é conferida aqui.
+    const { data: candidatos, error: erroFone } = await supabase
       .from("patients")
-      .select("id, name")
-      .eq("crm_contact_id", data.crmContactId)
+      .select("id, name, phone, crm_contact_id")
       .eq("owner_id", context.ownerId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return row ? { id: row.id, name: row.name } : null;
+      .ilike("phone", `%${fone.slice(-4)}`)
+      .limit(50);
+    if (erroFone) throw new Error(erroFone.message);
+    const iguais = ((candidatos ?? []) as any[]).filter((p) => foneCanonico(p.phone) === fone);
+    // Dois cadastros no mesmo número (mãe e filho, por exemplo): não adivinha.
+    // O painel oferece criar/escolher, em vez de ligar a conversa à pessoa errada.
+    if (iguais.length !== 1) return null;
+    const achado = iguais[0];
+
+    // Liga de vez: a próxima abertura já cai no caso 1, e o filtro "paciente ou
+    // lead" da caixa de entrada, o funil e a Meta passam a enxergar o vínculo.
+    // Falha aqui (ficha de outra unidade, por exemplo) não impede de mostrar.
+    if (data.crmContactId && !achado.crm_contact_id) {
+      await supabase
+        .from("patients")
+        .update({ crm_contact_id: data.crmContactId })
+        .eq("id", achado.id)
+        .is("crm_contact_id", null);
+    }
+    return { id: achado.id, name: achado.name };
   });
 
 /**
@@ -806,13 +864,38 @@ export const getContatosComPaciente = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .handler(async ({ context }): Promise<string[]> => {
     const supabase: any = context.supabase;
-    const { data, error } = await supabase
-      .from("patients")
-      .select("crm_contact_id")
+    const ligados = new Set<string>();
+    const fones = new Set<string>();
+    for (let pagina = 0; ; pagina++) {
+      const { data, error } = await supabase
+        .from("patients")
+        .select("crm_contact_id, phone")
+        .eq("owner_id", context.ownerId)
+        .range(pagina * 1000, pagina * 1000 + 999);
+      if (error) throw new Error(error.message);
+      for (const p of data ?? []) {
+        if (p.crm_contact_id) ligados.add(String(p.crm_contact_id));
+        const f = foneCanonico(p.phone);
+        if (f) fones.add(f);
+      }
+      if (!data || data.length < 1000) break;
+    }
+    // Também vale a ficha que só tem o TELEFONE igual ao da conversa — a mesma
+    // regra do painel do chat (`getPatientByCrmContact`), para o filtro e o
+    // painel não discordarem sobre quem é paciente.
+    const { data: conversas } = await supabase
+      .from("wa_conversations")
+      .select("crm_contact_id, crm_conversation_id")
       .eq("owner_id", context.ownerId)
-      .not("crm_contact_id", "is", null);
-    if (error) throw new Error(error.message);
-    return (data ?? []).map((p: any) => String(p.crm_contact_id)).filter(Boolean);
+      .limit(5000);
+    for (const c of (conversas ?? []) as any[]) {
+      const contato = String(c.crm_contact_id ?? "");
+      if (!contato || ligados.has(contato)) continue;
+      const jid = String(c.crm_conversation_id ?? "");
+      const f = jid.includes("@") ? foneCanonico(jid.split("@")[0]) : null;
+      if (f && fones.has(f)) ligados.add(contato);
+    }
+    return [...ligados];
   });
 
 /**

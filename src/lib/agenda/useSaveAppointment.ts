@@ -123,7 +123,9 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
     if (!name) return null;
 
     if (contact.crmContactId) {
-      const existente = await findByContactFn({ data: { crmContactId: contact.crmContactId } });
+      const existente = await findByContactFn({
+        data: { crmContactId: contact.crmContactId, exato: true },
+      });
       if (existente) return existente.id;
     }
 
