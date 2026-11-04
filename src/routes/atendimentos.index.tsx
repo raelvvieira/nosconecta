@@ -1,27 +1,33 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PageHeading } from "@/components/layout/PageHeading";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
-import { Bell, LayoutDashboard, MessageCircle, Send, Workflow } from "lucide-react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { LayoutDashboard } from "lucide-react";
+import { z } from "zod";
+import { PageHeading } from "@/components/layout/PageHeading";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
-import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
-import { KpiCard } from "@/components/finance/KpiCard";
 import { WhatsappConnectionCard } from "@/components/atendimentos/WhatsappConnectionCard";
-import { PipelineFunnelCard } from "@/components/atendimentos/PipelineFunnelCard";
-import { StuckConversationsCard } from "@/components/atendimentos/StuckConversationsCard";
-import { SalesPlaybookCard } from "@/components/atendimentos/SalesPlaybookCard";
-import { getConversations } from "@/lib/atendimentos/atendimentos.functions";
-import { getPipelineItems, getPipelineStages } from "@/lib/atendimentos/pipeline.functions";
+import {
+  FiltroDoPeriodo,
+  PainelDoAtendimento,
+} from "@/components/atendimentos/painel/PainelDoAtendimento";
 import { getDailySendUsage } from "@/lib/atendimentos/campaigns.functions";
-import { listarDisparos } from "@/lib/atendimentos/broadcast.functions";
-import { getSalesAssistant, getSalesPlaybook } from "@/lib/atendimentos/insights.functions";
+import { getFunilDeLeads } from "@/lib/atendimentos/funis.functions";
+import { getPainelDoAtendimento, getPicoDaSemana } from "@/lib/atendimentos/painel.functions";
+import { PUBLICOS } from "@/lib/atendimentos/publico";
+
+const searchSchema = z.object({
+  /** Sem ele, "hoje". */
+  periodo: z.enum(["hoje", "ontem", "7d", "30d"]).optional(),
+  funil: z.enum(PUBLICOS.map((p) => p.value) as [string, ...string[]]).optional(),
+});
 
 export const Route = createFileRoute("/atendimentos/")({
   ssr: false,
+  validateSearch: searchSchema,
   head: () => ({
     meta: [
       { title: "Dashboard · Atendimentos · NÓS Conecta" },
-      { name: "description", content: "Visão geral de conversas, funil e campanhas do WhatsApp." },
+      { name: "description", content: "Conversas, tempo de resposta e funil do WhatsApp." },
     ],
   }),
   errorComponent: ({ error }) => (
@@ -39,72 +45,41 @@ export const Route = createFileRoute("/atendimentos/")({
 });
 
 function DashboardPage() {
-  const fetchConversations = useServerFn(getConversations);
-  const fetchStages = useServerFn(getPipelineStages);
-  const fetchItems = useServerFn(getPipelineItems);
-  const fetchDisparos = useServerFn(listarDisparos);
-  const fetchUsage = useServerFn(getDailySendUsage);
-  const fetchAssistant = useServerFn(getSalesAssistant);
-  const fetchPlaybook = useServerFn(getSalesPlaybook);
+  const { periodo = "hoje", funil: funilDaUrl } = Route.useSearch();
+  const publico = (PUBLICOS.find((p) => p.value === funilDaUrl)?.value ??
+    PUBLICOS[0].value) as (typeof PUBLICOS)[number]["value"];
+  const navigate = Route.useNavigate();
 
-  const conversationsQuery = useQuery({
-    queryKey: ["atendimentos-conversations"],
-    queryFn: () => fetchConversations(),
-    staleTime: 5_000,
+  const buscarPainel = useServerFn(getPainelDoAtendimento);
+  const buscarPico = useServerFn(getPicoDaSemana);
+  const buscarFunil = useServerFn(getFunilDeLeads);
+  const buscarUso = useServerFn(getDailySendUsage);
+
+  const painel = useQuery({
+    queryKey: ["painel-atendimento", periodo],
+    queryFn: () => buscarPainel({ data: { filtro: periodo } }),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
-  const conversations = conversationsQuery.data ?? [];
-  const needsAttention = conversations.filter((c) => c.unreadCount > 0).length;
-
-  const stagesQuery = useQuery({
-    queryKey: ["pipeline-stages"],
-    queryFn: () => fetchStages(),
-    staleTime: 10_000,
+  const pico = useQuery({
+    queryKey: ["painel-atendimento-pico"],
+    queryFn: () => buscarPico(),
+    staleTime: 10 * 60_000,
   });
-  const stages = stagesQuery.data?.stages ?? [];
-  // "Configurado" passou a ser simplesmente ter etapa. O funil é nosso agora:
-  // não existe mais uma entidade a criar do outro lado antes de poder usá-lo.
-  const configured = stages.length > 0;
-
-  const itemsQuery = useQuery({
-    queryKey: ["pipeline-items"],
-    queryFn: () => fetchItems(),
-    staleTime: 8_000,
+  const funil = useQuery({
+    queryKey: ["painel-atendimento-funil", publico],
+    queryFn: () => buscarFunil({ data: { publico } }),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
   });
-  const items = itemsQuery.data?.items ?? [];
-
-  // Era "campanhas ativas", contando `status === "running"` no motor do CRM —
-  // que nunca executou nada, então o número só podia ser zero para sempre. O
-  // disparo é o caminho que envia de verdade, e é o que a fila registra.
-  const disparosQuery = useQuery({
-    queryKey: ["disparos"],
-    queryFn: () => fetchDisparos(),
-    staleTime: 10_000,
-  });
-  const disparosEmAndamento = (disparosQuery.data ?? []).filter(
-    (d) => d.status === "running",
-  ).length;
-
-  const usageQuery = useQuery({
+  const uso = useQuery({
     queryKey: ["campaigns-usage"],
-    queryFn: () => fetchUsage(),
+    queryFn: () => buscarUso(),
     staleTime: 15_000,
   });
 
-  // Análise diária do CRM (sales_assistant/sales_playbook) — nunca deve
-  // travar o dashboard: se falhar (ex.: conta sem esses recursos liberados),
-  // o resto da página continua funcionando, esses cards só ficam vazios.
-  const assistantQuery = useQuery({
-    queryKey: ["sales-assistant"],
-    queryFn: () => fetchAssistant(),
-    staleTime: 60_000,
-    retry: 1,
-  });
-  const playbookQuery = useQuery({
-    queryKey: ["sales-playbook"],
-    queryFn: () => fetchPlaybook(),
-    staleTime: 60_000,
-    retry: 1,
-  });
+  if (painel.error && !painel.data) throw painel.error;
 
   return (
     <main className="flex flex-1 flex-col pb-nav lg:pb-8">
@@ -112,53 +87,28 @@ function DashboardPage() {
         className="px-4 pb-4 pt-6 sm:px-6 lg:px-10 lg:pt-7"
         icon={LayoutDashboard}
         title="Dashboard"
+        actions={
+          <FiltroDoPeriodo
+            valor={periodo}
+            onChange={(f) =>
+              navigate({ search: (prev) => ({ ...prev, periodo: f === "hoje" ? undefined : f }) })
+            }
+          />
+        }
       />
-
-      <div className="space-y-5 px-4 sm:px-6 lg:px-10">
-        <GrupoDeKpis>
-          <KpiCard
-            label="Conversas ativas"
-            value={String(conversations.length)}
-            icon={MessageCircle}
-            tone="violet"
-          />
-          <KpiCard
-            label="Precisam de atenção"
-            value={String(needsAttention)}
-            icon={Bell}
-            tone="warning"
-          />
-          <KpiCard
-            label="Contatos no funil"
-            value={String(items.length)}
-            icon={Workflow}
-            tone="success"
-          />
-          <KpiCard
-            label="Disparos em andamento"
-            value={String(disparosEmAndamento)}
-            icon={Send}
-            tone="danger"
-          />
-        </GrupoDeKpis>
-
-        <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_360px]">
-          <PipelineFunnelCard configured={configured} stages={stages} items={items} />
-          <WhatsappConnectionCard dailyUsage={usageQuery.data} />
-        </section>
-
-        <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <StuckConversationsCard assistant={assistantQuery.data ?? null} />
-          <SalesPlaybookCard playbook={playbookQuery.data ?? null} />
-        </section>
-
-        {/* As duas ações de manutenção dividem a última linha. Antes era uma
-            coluna `max-w-md` sozinha à esquerda, com dois terços da linha
-            vazios ao lado. Ficam numa seção própria, e não junto das de cima,
-            porque num grid comum a linha inteira cresce até o card mais alto —
-            e a lista de conversas travadas pode ser longa, o que esticaria
-            estes dois com o botão boiando lá embaixo. */}
-        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2"></section>
+      <div className="px-4 sm:px-6 lg:px-10">
+        <PainelDoAtendimento
+          dados={painel.data ?? null}
+          pico={pico.data ?? null}
+          funil={funil.data ?? null}
+          publico={publico}
+          onPublico={(p) =>
+            navigate({
+              search: (prev) => ({ ...prev, funil: p === PUBLICOS[0].value ? undefined : p }),
+            })
+          }
+          lateral={<WhatsappConnectionCard dailyUsage={uso.data} />}
+        />
       </div>
     </main>
   );
