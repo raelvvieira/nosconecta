@@ -14,7 +14,7 @@ const TZ = "America/Sao_Paulo";
 
 // ── Períodos ────────────────────────────────────────────────────────────
 
-export type FiltroDePeriodo = "hoje" | "ontem" | "7d" | "30d";
+export type FiltroDePeriodo = "hoje" | "ontem" | "7d" | "30d" | "mes" | "mes_passado" | "90d";
 
 export interface Janela {
   /** Instante inicial, em ms (inclusive). */
@@ -56,6 +56,13 @@ export function diaDaClinica(ms: number): string {
   }).format(new Date(ms));
 }
 
+/** "AAAA-MM-01" do mês que fica `meses` meses antes do mês do dia dado. */
+function primeiroDiaDoMes(dia: string, meses = 0): string {
+  const [a, m] = dia.split("-").map(Number);
+  const total = a * 12 + (m - 1) - meses;
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}-01`;
+}
+
 export function periodosDoFiltro(filtro: FiltroDePeriodo, agora: number): Periodos {
   const inicioDeHoje = instanteDaClinica(diaDaClinica(agora));
   switch (filtro) {
@@ -79,6 +86,35 @@ export function periodosDoFiltro(filtro: FiltroDePeriodo, agora: number): Period
         atual: { de: agora - 30 * DIA, ate: agora },
         anterior: { de: agora - 60 * DIA, ate: agora - 30 * DIA },
       };
+    case "90d":
+      return {
+        atual: { de: agora - 90 * DIA, ate: agora },
+        anterior: { de: agora - 180 * DIA, ate: agora - 90 * DIA },
+      };
+    case "mes": {
+      // Do dia 1º até agora, contra o mês anterior ATÉ O MESMO PONTO: no dia 4,
+      // comparar com o mês passado inteiro faria todo número parecer ter caído.
+      const dia = diaDaClinica(agora);
+      const inicio = instanteDaClinica(primeiroDiaDoMes(dia));
+      const inicioAnterior = instanteDaClinica(primeiroDiaDoMes(dia, 1));
+      return {
+        atual: { de: inicio, ate: agora },
+        anterior: { de: inicioAnterior, ate: Math.min(inicioAnterior + (agora - inicio), inicio) },
+      };
+    }
+    case "mes_passado": {
+      const dia = diaDaClinica(agora);
+      return {
+        atual: {
+          de: instanteDaClinica(primeiroDiaDoMes(dia, 1)),
+          ate: instanteDaClinica(primeiroDiaDoMes(dia)),
+        },
+        anterior: {
+          de: instanteDaClinica(primeiroDiaDoMes(dia, 2)),
+          ate: instanteDaClinica(primeiroDiaDoMes(dia, 1)),
+        },
+      };
+    }
   }
 }
 
@@ -290,16 +326,26 @@ export interface Conversao {
  * agendar amanhã.
  */
 export function conversao(novas: PrimeiraEntrada[], agendamentos: AgendamentoCriado[]): Conversao {
+  // O último agendamento criado de cada telefone (e de cada contato): basta
+  // que ele seja posterior ao primeiro contato. Evita comparar todos com todos.
+  const ultimoPorFone = new Map<string, number>();
+  const ultimoPorContato = new Map<string, number>();
+  for (const a of agendamentos) {
+    const f = a.fone ? foneCanonico(a.fone) : null;
+    if (f) ultimoPorFone.set(f, Math.max(ultimoPorFone.get(f) ?? 0, a.criadoEm));
+    if (a.contato)
+      ultimoPorContato.set(a.contato, Math.max(ultimoPorContato.get(a.contato) ?? 0, a.criadoEm));
+  }
   let agendaram = 0;
   for (const n of novas) {
     const fone = foneCanonico(n.conversa.split("@")[0]);
-    const agendou = agendamentos.some(
-      (a) =>
-        a.criadoEm >= n.em &&
-        ((fone && a.fone && foneCanonico(a.fone) === fone) ||
-          (a.contato && a.contato === n.conversa)),
-    );
-    if (agendou) agendaram++;
+    const porFone = fone ? ultimoPorFone.get(fone) : undefined;
+    const porContato = ultimoPorContato.get(n.conversa);
+    if (
+      (porFone !== undefined && porFone >= n.em) ||
+      (porContato !== undefined && porContato >= n.em)
+    )
+      agendaram++;
   }
   return {
     novas: novas.length,

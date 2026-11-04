@@ -67,6 +67,42 @@ conferir(
   sete.anterior.ate - sete.anterior.de,
 );
 
+const dia = 86_400_000;
+const mes = periodosDoFiltro("mes", agora);
+conferir(
+  "este mês começa no dia 1º, meia-noite da clínica",
+  new Date(mes.atual.de).toISOString(),
+  "2026-11-01T03:00:00.000Z",
+);
+conferir(
+  "este mês compara com outubro até o mesmo ponto",
+  [new Date(mes.anterior.de).toISOString(), mes.anterior.ate - mes.anterior.de],
+  ["2026-10-01T03:00:00.000Z", agora - mes.atual.de],
+);
+const passado = periodosDoFiltro("mes_passado", agora);
+conferir(
+  "mês passado é outubro inteiro",
+  [new Date(passado.atual.de).toISOString(), new Date(passado.atual.ate).toISOString()],
+  ["2026-10-01T03:00:00.000Z", "2026-11-01T03:00:00.000Z"],
+);
+conferir(
+  "mês passado compara com setembro inteiro",
+  [new Date(passado.anterior.de).toISOString(), new Date(passado.anterior.ate).toISOString()],
+  ["2026-09-01T03:00:00.000Z", "2026-10-01T03:00:00.000Z"],
+);
+const noventa = periodosDoFiltro("90d", agora);
+conferir(
+  "90 dias",
+  [noventa.atual.ate - noventa.atual.de, noventa.anterior.ate],
+  [90 * dia, noventa.atual.de],
+);
+const janeiro = periodosDoFiltro("mes_passado", Date.parse("2027-01-10T15:00:00Z"));
+conferir(
+  "mês passado em janeiro é dezembro do ano anterior",
+  new Date(janeiro.atual.de).toISOString(),
+  "2026-12-01T03:00:00.000Z",
+);
+
 // ── Hora e dia da semana ────────────────────────────────────────────────
 // 04/11/2026 é uma quarta-feira.
 conferir("13h30 BRT na quarta", horaEDia(agora), { hora: 13, dia: 3 });

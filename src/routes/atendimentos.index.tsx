@@ -17,7 +17,7 @@ import { PUBLICOS } from "@/lib/atendimentos/publico";
 
 const searchSchema = z.object({
   /** Sem ele, "hoje". */
-  periodo: z.enum(["hoje", "ontem", "7d", "30d"]).optional(),
+  periodo: z.enum(["hoje", "ontem", "7d", "30d", "mes", "mes_passado", "90d"]).optional(),
   funil: z.enum(PUBLICOS.map((p) => p.value) as [string, ...string[]]).optional(),
 });
 
@@ -91,7 +91,10 @@ function DashboardPage() {
           <FiltroDoPeriodo
             valor={periodo}
             onChange={(f) =>
-              navigate({ search: (prev) => ({ ...prev, periodo: f === "hoje" ? undefined : f }) })
+              navigate({
+                to: "/atendimentos",
+                search: (prev) => ({ ...prev, periodo: f === "hoje" ? undefined : f }),
+              })
             }
           />
         }
@@ -101,6 +104,7 @@ function DashboardPage() {
           dados={painel.data ?? null}
           pico={pico.data ?? null}
           funil={funil.data ?? null}
+          atualizando={painel.isFetching && painel.isPlaceholderData}
           publico={publico}
           onPublico={(p) =>
             navigate({

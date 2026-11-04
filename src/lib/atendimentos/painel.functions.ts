@@ -10,7 +10,7 @@ import type { FiltroDePeriodo, PicoDaSemana } from "@/lib/atendimentos/painel/me
 export type { PainelDoAtendimento } from "@/lib/atendimentos/painel/montar";
 export type { PicoDaSemana } from "@/lib/atendimentos/painel/metricas";
 
-const FILTROS: FiltroDePeriodo[] = ["hoje", "ontem", "7d", "30d"];
+const FILTROS: FiltroDePeriodo[] = ["hoje", "ontem", "7d", "30d", "mes", "mes_passado", "90d"];
 
 /** O painel do Dashboard de Atendimentos: números do período escolhido. */
 export const getPainelDoAtendimento = createServerFn({ method: "GET" })

@@ -11,7 +11,7 @@ import type { PainelDoAtendimento as Dados } from "@/lib/atendimentos/painel.fun
 import type { PicoDaSemana as Pico } from "@/lib/atendimentos/painel/metricas";
 import type { FunilDeLeads } from "@/lib/atendimentos/funis.functions";
 import type { Publico } from "@/lib/atendimentos/publico";
-import { inteiro, pct } from "@/lib/gestao/formato";
+import { inteiro, pct, pp } from "@/lib/gestao/formato";
 import { cn } from "@/lib/utils";
 
 // O painel de Atendimento: o que quem cuida do WhatsApp precisa ver de relance.
@@ -29,6 +29,9 @@ const FILTROS: { value: FiltroDePeriodo; label: string }[] = [
   { value: "ontem", label: "Ontem" },
   { value: "7d", label: "7 dias" },
   { value: "30d", label: "30 dias" },
+  { value: "mes", label: "Este mês" },
+  { value: "mes_passado", label: "Mês passado" },
+  { value: "90d", label: "90 dias" },
 ];
 
 export function FiltroDoPeriodo({
@@ -39,24 +42,26 @@ export function FiltroDoPeriodo({
   onChange: (f: FiltroDePeriodo) => void;
 }) {
   return (
-    <div className="inline-flex rounded-full bg-muted/60 p-0.5" role="tablist">
-      {FILTROS.map((f) => (
-        <button
-          key={f.value}
-          type="button"
-          role="tab"
-          aria-selected={f.value === valor}
-          onClick={() => onChange(f.value)}
-          className={cn(
-            "rounded-full px-3.5 py-1.5 text-xs transition-all",
-            f.value === valor
-              ? "bg-background font-semibold text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {f.label}
-        </button>
-      ))}
+    <div className="custom-scroll -mx-4 flex max-w-[100vw] overflow-x-auto px-4 sm:mx-0 sm:max-w-full sm:px-0">
+      <div className="inline-flex shrink-0 rounded-full bg-muted/60 p-0.5" role="tablist">
+        {FILTROS.map((f) => (
+          <button
+            key={f.value}
+            type="button"
+            role="tab"
+            aria-selected={f.value === valor}
+            onClick={() => onChange(f.value)}
+            className={cn(
+              "whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs transition-all",
+              f.value === valor
+                ? "bg-background font-semibold text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -78,6 +83,63 @@ function Cartao({
   );
 }
 
+function Conversao({ dados }: { dados: Dados | null }) {
+  if (!dados) return <div className="h-40 animate-pulse rounded-2xl bg-muted/40" />;
+  const { novas, agendaram, pct: taxa } = dados.conversao;
+  const anterior = dados.conversaoAnterior.pct;
+  const mudanca = taxa !== null && anterior !== null ? pp(taxa - anterior) : null;
+  const subiu = taxa !== null && anterior !== null && taxa > anterior;
+  return (
+    <div>
+      <div className="flex items-baseline gap-3">
+        <p className="text-4xl font-semibold leading-none tracking-tight tabular-nums">
+          {pct(taxa)}
+        </p>
+        {mudanca && (
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-2xs font-medium tabular-nums",
+              subiu ? "bg-success-soft text-success" : "bg-danger-soft text-danger",
+            )}
+          >
+            {mudanca}
+          </span>
+        )}
+      </div>
+      <p className="mt-1.5 text-xs text-muted-foreground">
+        das pessoas que chamaram pela primeira vez já agendaram
+      </p>
+      <div className="mt-5 grid gap-3">
+        {[
+          { rotulo: "Chamaram", n: novas, largura: 100, opacidade: 0.3 },
+          {
+            rotulo: "Agendaram",
+            n: agendaram,
+            largura: novas ? (agendaram / novas) * 100 : 0,
+            opacidade: 1,
+          },
+        ].map((l) => (
+          <div key={l.rotulo} className="grid grid-cols-[4.75rem_1fr_2rem] items-center gap-3">
+            <span className="text-sm">{l.rotulo}</span>
+            <span className="h-2.5 overflow-hidden rounded-full bg-muted/60">
+              <span
+                className="block h-full rounded-full"
+                style={{
+                  width: `${l.largura}%`,
+                  minWidth: l.n > 0 ? "6px" : 0,
+                  background: "var(--chart-1)",
+                  opacity: l.opacidade,
+                }}
+              />
+            </span>
+            <span className="text-right text-sm font-medium tabular-nums">{inteiro(l.n)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const delta = (v: { deltaPct: number | null }) =>
   v.deltaPct === null ? undefined : Math.round(v.deltaPct);
 
@@ -87,6 +149,7 @@ export function PainelDoAtendimento({
   funil,
   publico,
   onPublico,
+  atualizando = false,
   lateral,
 }: {
   dados: Dados | null;
@@ -94,6 +157,8 @@ export function PainelDoAtendimento({
   funil: FunilDeLeads | null;
   publico: Publico;
   onPublico: (p: Publico) => void;
+  /** Buscando outro período: o painel antigo fica na tela, esmaecido. */
+  atualizando?: boolean;
   /** O cartão da conexão do WhatsApp. */
   lateral?: ReactNode;
 }) {
@@ -111,7 +176,14 @@ export function PainelDoAtendimento({
       : null;
 
   return (
-    <div className={cn("space-y-5", carregando && "animate-pulse")}>
+    <div
+      className={cn(
+        "space-y-5 transition-opacity duration-200",
+        carregando && "animate-pulse",
+        atualizando && !carregando && "pointer-events-none opacity-50",
+      )}
+      aria-busy={atualizando}
+    >
       <GrupoDeKpis>
         <KpiCard
           label="Novas conversas"
@@ -145,7 +217,9 @@ export function PainelDoAtendimento({
           icon={CalendarCheck}
           tone="warning"
           footer={
-            dados ? `${dados.conversao.agendaram} de ${dados.conversao.novas} novas` : undefined
+            dados
+              ? `${dados.conversao.agendaram} de ${dados.conversao.novas} que chamaram`
+              : undefined
           }
           nota={dados ? `${dados.conversao.agendaram} de ${dados.conversao.novas}` : undefined}
         />
@@ -170,49 +244,53 @@ export function PainelDoAtendimento({
           </SobDemanda>
         </Cartao>
 
-        <div className="space-y-5">
-          <Cartao titulo="Aguardando resposta">
-            <div className="flex items-center gap-4">
-              <span
-                className={cn(
-                  "flex h-12 w-12 items-center justify-center rounded-2xl",
-                  dados && dados.aguardando.total > 0
-                    ? "bg-warning-soft text-warning"
-                    : "bg-success-soft text-success",
-                )}
-              >
-                <Clock className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="text-3xl font-semibold leading-none tracking-tight tabular-nums">
-                  {dados ? dados.aguardando.total : vazio}
-                </p>
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  {dados?.aguardando.maisAntigaMin != null
-                    ? `a mais antiga há ${esperaEmMin(dados.aguardando.maisAntigaMin)}`
-                    : "tudo respondido"}
-                </p>
-              </div>
-            </div>
-          </Cartao>
+        <Cartao titulo="Do contato ao agendamento">
+          <Conversao dados={dados} />
+        </Cartao>
+      </section>
 
-          <Cartao titulo="Quem responde mais rápido">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-2xl font-semibold tracking-tight tabular-nums">
-                  {dados ? duracao(dados.resposta.atual.medianaLunaMs) : vazio}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">Luna</p>
-              </div>
-              <div>
-                <p className="text-2xl font-semibold tracking-tight tabular-nums">
-                  {dados ? duracao(dados.resposta.atual.medianaEquipeMs) : vazio}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">Equipe</p>
-              </div>
+      <section className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <Cartao titulo="Aguardando resposta">
+          <div className="flex items-center gap-4">
+            <span
+              className={cn(
+                "flex h-12 w-12 items-center justify-center rounded-2xl",
+                dados && dados.aguardando.total > 0
+                  ? "bg-warning-soft text-warning"
+                  : "bg-success-soft text-success",
+              )}
+            >
+              <Clock className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-3xl font-semibold leading-none tracking-tight tabular-nums">
+                {dados ? dados.aguardando.total : vazio}
+              </p>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {dados?.aguardando.maisAntigaMin != null
+                  ? `a mais antiga há ${esperaEmMin(dados.aguardando.maisAntigaMin)}`
+                  : "tudo respondido"}
+              </p>
             </div>
-          </Cartao>
-        </div>
+          </div>
+        </Cartao>
+
+        <Cartao titulo="Quem responde mais rápido">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-2xl font-semibold tracking-tight tabular-nums">
+                {dados ? duracao(dados.resposta.atual.medianaLunaMs) : vazio}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">Luna</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold tracking-tight tabular-nums">
+                {dados ? duracao(dados.resposta.atual.medianaEquipeMs) : vazio}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">Equipe</p>
+            </div>
+          </div>
+        </Cartao>
       </section>
 
       <section className="grid grid-cols-1 gap-5 lg:grid-cols-[1.1fr_1fr]">
