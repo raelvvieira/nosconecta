@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   excluirEvolucao,
@@ -17,6 +17,8 @@ import {
   type Denticao,
 } from "@/lib/patients/odontograma";
 import { LegendaDoOdontograma, Odontograma, type EstadoDoDente } from "./Odontograma";
+import { EditarAnotacao, SeletorDeResponsavel } from "./ResponsavelDaAnotacao";
+import { foiEditada } from "@/lib/patients/anotacao";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -48,20 +50,28 @@ function PainelDaRegiao({
   regiao,
   anotacoes,
   itens,
+  meuProfissionalId,
 }: {
   patientId: string;
   regiao: string;
+  /** O profissional de quem está logado: já vem escolhido como responsável. */
+  meuProfissionalId: string | null;
   anotacoes: Evolucao[];
   itens: { nome: string; status: string; plano: string }[];
 }) {
   const [texto, setTexto] = useState("");
+  // `undefined` = ainda não escolheu: vale o profissional de quem está logado.
+  const [escolhido, setEscolhido] = useState<string | null | undefined>(undefined);
+  const responsavel = escolhido === undefined ? meuProfissionalId : escolhido;
+  const [editando, setEditando] = useState<string | null>(null);
   const gravar = useServerFn(salvarEvolucao);
   const apagar = useServerFn(excluirEvolucao);
   const queryClient = useQueryClient();
   const invalidar = () => queryClient.invalidateQueries({ queryKey: ["prontuario", patientId] });
 
   const criar = useMutation({
-    mutationFn: () => gravar({ data: { patientId, body: texto, regiao } }),
+    mutationFn: () =>
+      gravar({ data: { patientId, body: texto, regiao, professionalId: responsavel } }),
     onSuccess: () => {
       setTexto("");
       toast.success("Anotação salva");
@@ -123,8 +133,9 @@ function PainelDaRegiao({
           className="rounded-2xl"
           aria-label={`Anotação em ${rotuloDaRegiao(regiao)}`}
         />
-        <div className="mt-2 flex items-center justify-between gap-3">
-          <span className="text-2xs tabular-nums text-muted-foreground">
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <SeletorDeResponsavel valor={responsavel} onChange={setEscolhido} className="w-44" />
+          <span className="ml-auto text-2xs tabular-nums text-muted-foreground">
             {texto.length} / {MAXIMO}
           </span>
           <Button
@@ -145,18 +156,35 @@ function PainelDaRegiao({
               <div className="flex items-start justify-between gap-2">
                 <p className="text-2xs text-muted-foreground">
                   {quando(a.createdAt)}
-                  {a.professionalName ? ` · ${a.professionalName}` : ""}
+                  {a.professionalName ? ` · ${a.professionalName}` : " · Sem responsável"}
+                  {foiEditada(a) ? " · editada" : ""}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => remover.mutate(a.id)}
-                  aria-label="Remover anotação"
-                  className="text-muted-foreground/60 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100 focus-visible:opacity-100"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                {editando !== a.id && (
+                  <span className="flex shrink-0 items-center gap-2.5 text-muted-foreground/60 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 max-sm:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => setEditando(a.id)}
+                      aria-label="Editar anotação"
+                      className="hover:text-foreground"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => remover.mutate(a.id)}
+                      aria-label="Remover anotação"
+                      className="hover:text-danger"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                )}
               </div>
-              <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{a.body}</p>
+              {editando === a.id ? (
+                <EditarAnotacao ev={a} patientId={patientId} onFechar={() => setEditando(null)} />
+              ) : (
+                <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{a.body}</p>
+              )}
             </li>
           ))}
         </ul>
@@ -275,6 +303,7 @@ export function OdontogramaDoPaciente({ patientId }: { patientId: string }) {
               key={regiao}
               patientId={patientId}
               regiao={regiao}
+              meuProfissionalId={dadosDoProntuario?.meuProfissionalId ?? null}
               anotacoes={evolucoes.filter((e) => e.regiao === regiao)}
               itens={itensPorDente[regiao] ?? []}
             />

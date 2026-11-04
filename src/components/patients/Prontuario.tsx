@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ChevronDown, ClipboardList, Plus, Stethoscope, Trash2 } from "lucide-react";
+import { ChevronDown, ClipboardList, Pencil, Plus, Stethoscope, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   MODELO_PADRAO,
@@ -13,6 +13,8 @@ import {
   type RespostaDeAnamnese,
 } from "@/lib/patients/clinical-record.functions";
 import { rotuloDaRegiao } from "@/lib/patients/odontograma";
+import { EditarAnotacao, SeletorDeResponsavel } from "./ResponsavelDaAnotacao";
+import { foiEditada } from "@/lib/patients/anotacao";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -182,6 +184,9 @@ export function Prontuario({ patientId }: { patientId: string }) {
 
   const [texto, setTexto] = useState("");
   const [novaAnamnese, setNovaAnamnese] = useState(false);
+  // `undefined` = ainda não escolheu: vale o profissional de quem está logado.
+  const [escolhido, setEscolhido] = useState<string | null | undefined>(undefined);
+  const [editando, setEditando] = useState<string | null>(null);
 
   const prontuario = useQuery({
     queryKey: ["prontuario", patientId],
@@ -192,7 +197,8 @@ export function Prontuario({ patientId }: { patientId: string }) {
   const invalidar = () => queryClient.invalidateQueries({ queryKey: ["prontuario", patientId] });
 
   const criar = useMutation({
-    mutationFn: () => gravarEvolucao({ data: { patientId, body: texto } }),
+    mutationFn: () =>
+      gravarEvolucao({ data: { patientId, body: texto, professionalId: responsavel } }),
     onSuccess: () => {
       setTexto("");
       toast.success("Evolução registrada");
@@ -212,6 +218,8 @@ export function Prontuario({ patientId }: { patientId: string }) {
 
   if (prontuario.data?.indisponivel) return <AindaNaoLigado />;
 
+  const responsavel =
+    escolhido === undefined ? (prontuario.data?.meuProfissionalId ?? null) : escolhido;
   const evolucoes = prontuario.data?.evolucoes ?? [];
   const anamneses = prontuario.data?.anamneses ?? [];
 
@@ -232,7 +240,8 @@ export function Prontuario({ patientId }: { patientId: string }) {
             className="rounded-xl"
             aria-label="Nova evolução"
           />
-          <div className="mt-2 flex justify-end">
+          <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+            <SeletorDeResponsavel valor={responsavel} onChange={setEscolhido} className="w-48" />
             <Button
               className="bg-gradient-primary text-white"
               disabled={!texto.trim() || criar.isPending}
@@ -261,20 +270,43 @@ export function Prontuario({ patientId }: { patientId: string }) {
                       {rotuloDaRegiao(ev.regiao)}
                     </span>
                   )}
-                  <p className="whitespace-pre-line text-sm text-foreground">{ev.body}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {quando(ev.createdAt)}
-                    {ev.professionalName ? ` · ${ev.professionalName}` : ""}
-                  </p>
+                  {editando === ev.id ? (
+                    <EditarAnotacao
+                      ev={ev}
+                      patientId={patientId}
+                      onFechar={() => setEditando(null)}
+                    />
+                  ) : (
+                    <>
+                      <p className="whitespace-pre-line text-sm text-foreground">{ev.body}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {quando(ev.createdAt)}
+                        {ev.professionalName ? ` · ${ev.professionalName}` : " · Sem responsável"}
+                        {foiEditada(ev) ? " · editada" : ""}
+                      </p>
+                    </>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => remover.mutate(ev.id)}
-                  aria-label="Excluir evolução"
-                  className="press grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                {editando !== ev.id && (
+                  <div className="flex shrink-0 items-center">
+                    <button
+                      type="button"
+                      onClick={() => setEditando(ev.id)}
+                      aria-label="Editar evolução"
+                      className="press grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => remover.mutate(ev.id)}
+                      aria-label="Excluir evolução"
+                      className="press grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             ))
           )}
