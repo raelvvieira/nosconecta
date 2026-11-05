@@ -30,9 +30,11 @@ import {
 import { formatBRL } from "@/lib/finance/format";
 import {
   painelDoClub,
+  resolverTentativaDoClub,
   salvarConfigDoClub,
   salvarNivel,
   type ConfigDoClub,
+  type PainelDoClub,
 } from "@/lib/club/club.functions";
 import type { NivelDoClub } from "@/lib/club/niveis-do-club";
 
@@ -111,6 +113,8 @@ function NosClubPage() {
                 nota="o que a clínica ainda deve em créditos"
               />
             </div>
+
+            <TentativasDoClub tentativas={painel.data.tentativas} />
 
             <CartaoComQr config={painel.data.config} />
 
@@ -562,5 +566,74 @@ function SheetDoNivel({
         </form>
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** Quem tentou criar a conta pelo cartão e foi recusado. A recepção chama a
+ *  pessoa e, na maioria das vezes, é só acertar o nome ou o telefone na ficha. */
+function TentativasDoClub({ tentativas }: { tentativas: PainelDoClub["tentativas"] }) {
+  const queryClient = useQueryClient();
+  const resolver = useServerFn(resolverTentativaDoClub);
+  const mutacao = useMutation({
+    mutationFn: (id: string) => resolver({ data: { id } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: CHAVE }),
+  });
+  if (!tentativas.length) return null;
+  return (
+    <section className="surface-card mt-7 border-l-2 border-warning p-5">
+      <h2 className="text-sm font-semibold">Tentaram entrar no Club e não conseguiram</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Chame no WhatsApp e acerte o nome ou o telefone na ficha. Marque como resolvido depois.
+      </p>
+      <ul className="mt-3 divide-y divide-border/70">
+        {tentativas.map((t) => (
+          <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{t.nome}</p>
+              <p className="text-xs text-muted-foreground">
+                {t.motivo === "nome_diferente" && t.fichaNome
+                  ? `Na ficha: ${t.fichaNome}`
+                  : "Nenhuma ficha com esse telefone"}
+                {" · "}
+                {new Date(t.em).toLocaleString("pt-BR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  timeZone: "America/Sao_Paulo",
+                })}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <a
+                href={`https://wa.me/${t.telefone.startsWith("55") ? t.telefone : `55${t.telefone}`}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full border border-border px-3 py-1 text-xs hover:bg-muted"
+              >
+                WhatsApp
+              </a>
+              {t.patientId && (
+                <Link
+                  to="/pacientes/$patientId"
+                  params={{ patientId: t.patientId }}
+                  className="rounded-full border border-border px-3 py-1 text-xs hover:bg-muted"
+                >
+                  Ficha
+                </Link>
+              )}
+              <button
+                type="button"
+                disabled={mutacao.isPending}
+                onClick={() => mutacao.mutate(t.id)}
+                className="rounded-full px-3 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                Resolvido
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

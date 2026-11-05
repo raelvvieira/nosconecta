@@ -537,6 +537,19 @@ export interface PainelDoClub {
   ranking: MembroNoPainel[];
   regua: NivelDoClub[];
   config: ConfigDoClub;
+  /** Quem tentou criar a conta e foi recusado, para a recepção resolver. */
+  tentativas: TentativaDoClub[];
+}
+
+export interface TentativaDoClub {
+  id: string;
+  nome: string;
+  telefone: string;
+  /** O nome que está na ficha, quando o telefone achou uma. */
+  fichaNome: string | null;
+  patientId: string | null;
+  motivo: "sem_ficha" | "nome_diferente";
+  em: string;
 }
 
 export const painelDoClub = createServerFn({ method: "GET" })
@@ -593,6 +606,27 @@ export const painelDoClub = createServerFn({ method: "GET" })
       };
     });
 
+    // Sem a tabela (migration pendente) a lista vem vazia: o painel não pode
+    // deixar de abrir por isso.
+    const { data: tentativasLidas, error: erroTentativas } = await supabase
+      .from("club_tentativas")
+      .select("id, nome, telefone, ficha_nome, patient_id, motivo, created_at")
+      .eq("owner_id", context.ownerId)
+      .eq("resolvida", false)
+      .order("created_at", { ascending: false })
+      .limit(30);
+    const tentativas: TentativaDoClub[] = erroTentativas
+      ? []
+      : ((tentativasLidas ?? []) as any[]).map((t) => ({
+          id: String(t.id),
+          nome: String(t.nome ?? ""),
+          telefone: String(t.telefone ?? ""),
+          fichaNome: t.ficha_nome ? String(t.ficha_nome) : null,
+          patientId: t.patient_id ? String(t.patient_id) : null,
+          motivo: t.motivo === "sem_ficha" ? "sem_ficha" : "nome_diferente",
+          em: String(t.created_at),
+        }));
+
     const doMes = listaDeIndicacoes.filter((i) => new Date(i.created_at) >= inicioDoMes);
     const liberado = listaDeCreditos
       .filter((c) => Number(c.valor) > 0)
@@ -616,7 +650,23 @@ export const painelDoClub = createServerFn({ method: "GET" })
       ranking: [...lista].sort((a, b) => b.confirmadas - a.confirmadas).slice(0, 10),
       regua,
       config,
+      tentativas,
     };
+  });
+
+/** A recepção já falou com a pessoa: a tentativa sai da lista. */
+export const resolverTentativaDoClub = createServerFn({ method: "POST" })
+  .middleware([exigeClub])
+  .inputValidator((input: { id: string }) => ({ id: String(input?.id ?? "") }))
+  .handler(async ({ data, context }) => {
+    const supabase: any = context.supabase;
+    const { error } = await supabase
+      .from("club_tentativas")
+      .update({ resolvida: true })
+      .eq("id", data.id)
+      .eq("owner_id", context.ownerId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
 
 /** Os dois valores em dinheiro que não são de nível. Só administrador: é
@@ -756,25 +806,124 @@ function comparavelNome(texto: string): string {
     .trim();
 }
 
+const PARTICULAS = new Set(["da", "de", "do", "das", "dos", "e"]);
+
+function partesDoNome(texto: string): string[] {
+  return comparavelNome(texto)
+    .split(" ")
+    .filter((p) => p && !PARTICULAS.has(p));
+}
+
+function distanciaDeEdicao(a: string, b: string): number {
+  const linha = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let anterior = linha[0];
+    linha[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const guardado = linha[j];
+      linha[j] = Math.min(
+        linha[j] + 1,
+        linha[j - 1] + 1,
+        anterior + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+      anterior = guardado;
+    }
+  }
+  return linha[b.length];
+}
+
 /**
- * O nome que a pessoa digitou bate com o da ficha?
+ * O primeiro nome é o mesmo, ainda que escrito diferente na ficha?
  *
- * Primeiro nome igual, e mais um pedaço qualquer em comum quando a ficha tem
- * sobrenome. Não é exigir o nome completo escrito igual — "Ana Paula Souza"
- * na ficha e "Ana Souza" no cartão é a mesma pessoa, e recusar isso seria
- * mandar embora quem tem o cartão na mão.
- *
- * Também não é aceitar só o primeiro nome: numa base com duas "Ana" o
- * primeiro nome sozinho não distingue ninguém.
+ * A ficha da recepção diz "Gabi" e o paciente digita "Gabriele"; a ficha diz
+ * "Gabriela" e ele digita "Gabriele". É o caso comum, não a exceção: gente
+ * é cadastrada pelo apelido, por abreviação e com uma letra trocada. Vale igual,
+ * começo igual (três letras ou mais) ou uma letra de diferença.
  */
-export function nomeConfere(digitado: string, daFicha: string): boolean {
-  const a = comparavelNome(digitado).split(" ").filter(Boolean);
-  const b = comparavelNome(daFicha).split(" ").filter(Boolean);
-  if (!a.length || !b.length) return false;
-  if (a[0] !== b[0]) return false;
-  if (b.length === 1 || a.length === 1) return true;
+function primeiroNomeParecido(a: string, b: string): boolean {
+  if (a === b) return true;
+  let comum = 0;
+  while (comum < a.length && comum < b.length && a[comum] === b[comum]) comum++;
+  if (comum >= 3) return true;
+  return distanciaDeEdicao(a, b) <= 1;
+}
+
+/**
+ * Quanto o nome digitado se parece com o da ficha: 0 = não é a mesma pessoa.
+ * Maior é melhor — serve para escolher entre fichas duplicadas do mesmo
+ * telefone.
+ *
+ * Exige o primeiro nome parecido E um sobrenome em comum (quando os dois
+ * têm). Não exige o nome completo escrito igual — "Ana Paula Souza" na ficha
+ * e "Ana Souza" no cartão é a mesma pessoa, e recusar isso seria mandar embora
+ * quem tem o cartão na mão. E não aceita só o primeiro nome: numa base com duas
+ * "Ana" ele sozinho não distingue ninguém.
+ *
+ * O telefone, que o servidor exige igual, é a outra metade da prova.
+ */
+export function pontuacaoDoNome(digitado: string, daFicha: string): number {
+  const a = partesDoNome(digitado);
+  const b = partesDoNome(daFicha);
+  if (!a.length || !b.length) return 0;
+  if (!primeiroNomeParecido(a[0], b[0])) return 0;
+  const exato = a[0] === b[0] ? 2 : 1;
+  if (b.length === 1 || a.length === 1) return exato;
   const resto = new Set(b.slice(1));
-  return a.slice(1).some((parte) => resto.has(parte));
+  const emComum = a.slice(1).filter((parte) => resto.has(parte)).length;
+  return emComum ? exato + emComum : 0;
+}
+
+export function nomeConfere(digitado: string, daFicha: string): boolean {
+  return pontuacaoDoNome(digitado, daFicha) > 0;
+}
+
+/**
+ * Anota quem tentou entrar e não conseguiu, para a recepção resolver.
+ *
+ * Quem errou o nome, usou um telefone antigo ou ainda nem tem ficha não pode
+ * ser mandado embora sem rastro: cada recusa vira uma linha que a clínica vê no
+ * painel do Club (e chama no WhatsApp). Nunca derruba o cadastro — se anotar
+ * falhar, a recusa segue igual. Uma tentativa em aberto por telefone, para quem
+ * insiste não encher a lista.
+ */
+async function registrarTentativa(
+  admin: any,
+  t: {
+    owner_id: string;
+    patient_id: string | null;
+    nome: string;
+    telefone: string;
+    ficha_nome: string | null;
+    motivo: "sem_ficha" | "nome_diferente";
+  },
+): Promise<void> {
+  try {
+    const digitos = t.telefone.replace(/\D/g, "");
+    const { data: aberta } = await admin
+      .from("club_tentativas")
+      .select("id")
+      .eq("owner_id", t.owner_id)
+      .eq("telefone", digitos)
+      .eq("resolvida", false)
+      .limit(1);
+    if (aberta?.length) {
+      await admin
+        .from("club_tentativas")
+        .update({ nome: t.nome.slice(0, 120), ficha_nome: t.ficha_nome, motivo: t.motivo })
+        .eq("id", aberta[0].id);
+      return;
+    }
+    await admin.from("club_tentativas").insert({
+      owner_id: t.owner_id,
+      patient_id: t.patient_id,
+      nome: t.nome.slice(0, 120),
+      telefone: digitos,
+      ficha_nome: t.ficha_nome,
+      motivo: t.motivo,
+    });
+  } catch (e) {
+    console.error("[club] tentativa não anotada", e);
+  }
 }
 
 export interface ResultadoDaContaDoClub {
@@ -863,14 +1012,37 @@ export const criarContaDoClub = createServerFn({ method: "POST" })
       return { ok: false, motivo: "falhou" };
     }
     const lista = (achados ?? []) as any[];
-    if (!lista.length) return { ok: false, motivo: "sem_cadastro" };
+    if (!lista.length) {
+      await registrarTentativa(admin, {
+        owner_id: donos[0],
+        patient_id: null,
+        nome: data.nome,
+        telefone: data.telefone,
+        ficha_nome: null,
+        motivo: "sem_ficha",
+      });
+      return { ok: false, motivo: "sem_cadastro" };
+    }
 
     // Nome que não bate devolve a MESMA recusa de telefone que não existe, e de
     // propósito: respostas diferentes para os dois casos transformam este
     // endereço — que é público, porque quem chega aqui ainda não tem conta —
     // num jeito de descobrir quais telefones são de pacientes da clínica.
-    const ficha = lista.find((p) => nomeConfere(data.nome, String(p.name ?? "")));
-    if (!ficha) return { ok: false, motivo: "sem_cadastro" };
+    const ficha = [...lista]
+      .map((p) => ({ p, nota: pontuacaoDoNome(data.nome, String(p.name ?? "")) }))
+      .filter((x) => x.nota > 0)
+      .sort((x, y) => y.nota - x.nota)[0]?.p;
+    if (!ficha) {
+      await registrarTentativa(admin, {
+        owner_id: String(lista[0].owner_id),
+        patient_id: String(lista[0].id),
+        nome: data.nome,
+        telefone: data.telefone,
+        ficha_nome: String(lista[0].name ?? ""),
+        motivo: "nome_diferente",
+      });
+      return { ok: false, motivo: "sem_cadastro" };
+    }
     if (ficha.club_user_id) return { ok: false, motivo: "ja_tem_conta" };
 
     // A conta nasce confirmada: a prova de identidade aqui foi o cruzamento

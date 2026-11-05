@@ -436,7 +436,7 @@ function Entrada() {
  *  para quem não é paciente e para quem errou o telefone. */
 const MOTIVOS: Record<string, string> = {
   sem_cadastro:
-    "Não encontramos seu cadastro com esse nome e telefone. Confira os dois, ou fale com a recepção da NÓS.",
+    "Não conseguimos confirmar seu cadastro agora. Confira seu nome e telefone — se estiverem certos, não se preocupe: a recepção da NÓS já foi avisada e vai te chamar no WhatsApp para liberar seu acesso.",
   ja_tem_conta: "Já existe uma conta para este cadastro. Use a opção de entrar.",
   email_em_uso: "Este e-mail já tem conta. Use a opção de entrar.",
   falhou: "Não deu para criar sua conta agora. Tente de novo em instantes.",

@@ -27,6 +27,14 @@ conferir("ficha só com o primeiro nome", nomeConfere("Ana Souza", "Ana"), true)
 conferir("digitou só o primeiro, ficha completa", nomeConfere("Ana", "Ana Souza"), true);
 conferir("ponto no nome", nomeConfere("Dra. Ana Souza", "Dra Ana Souza"), true);
 
+// Apelido, abreviação e letra trocada na ficha: o caso real que travou o
+// cadastro ("Gabi" / "Gabriela" na ficha, "Gabriele Tadiello Martins" digitado).
+conferir("apelido na ficha", nomeConfere("Gabriele Tadiello Martins", "Gabi Tadiello"), true);
+conferir("letra trocada", nomeConfere("Gabriele Tadiello Martins", "Gabriela Tadiello"), true);
+conferir("ficha abreviada", nomeConfere("Fernanda Costa", "Fer Costa"), true);
+conferir("partícula no meio", nomeConfere("Maria da Silva", "Maria Silva"), true);
+conferir("só o primeiro nome digitado", nomeConfere("Gabriele", "Gabriela Tadiello"), true);
+
 // ── Quem não deve ───────────────────────────────────────────────────────
 
 conferir("primeiro nome diferente", nomeConfere("Bruna Souza", "Ana Souza"), false);
@@ -36,6 +44,7 @@ conferir("mesmo primeiro nome, outra família", nomeConfere("Ana Lima", "Ana Sou
 conferir("vazio não confere", nomeConfere("", "Ana Souza"), false);
 conferir("ficha sem nome", nomeConfere("Ana Souza", ""), false);
 conferir("só espaços", nomeConfere("   ", "Ana Souza"), false);
+conferir("nome parecido, outra família", nomeConfere("Gabriele Souza", "Gabriela Tadiello"), false);
 conferir("ordem invertida não basta", nomeConfere("Souza Ana", "Ana Souza"), false);
 
 if (falhas.length) {
