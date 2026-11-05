@@ -581,7 +581,7 @@ function AvisosDoClub({ avisos }: { avisos: PainelDoClub["avisos"] }) {
   if (!avisos.length) return null;
   return (
     <section className="surface-card mt-7 border-l-2 border-warning p-5">
-      <h2 className="text-sm font-semibold">Entraram no Club com nome diferente da ficha</h2>
+      <h2 className="text-sm font-semibold">Precisam de uma ajuda da recepção no Club</h2>
       <p className="mt-1 text-xs text-muted-foreground">
         A conta já foi criada e a ficha não foi renomeada. Confira no WhatsApp se é a mesma pessoa e
         acerte a ficha.
@@ -592,7 +592,11 @@ function AvisosDoClub({ avisos }: { avisos: PainelDoClub["avisos"] }) {
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{t.nome}</p>
               <p className="text-xs text-muted-foreground">
-                {t.fichaNome ? `Na ficha: ${t.fichaNome}` : "Sem ficha"}
+                {t.motivo === "ja_tinha_conta"
+                  ? `Já tinha conta no Club (${t.fichaNome ?? "sem nome"}) e tentou criar outra`
+                  : t.fichaNome
+                    ? `${t.nome} entrou com um telefone que também é de ${t.fichaNome}`
+                    : "Sem ficha"}
                 {" · "}
                 {new Date(t.em).toLocaleString("pt-BR", {
                   day: "2-digit",

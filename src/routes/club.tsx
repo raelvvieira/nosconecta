@@ -262,6 +262,12 @@ function Entrada() {
         const r = await criarConta({ data: { nome, telefone, email, senha } });
         if (!r.ok) {
           setCarregando(false);
+          if (r.motivo === "ja_tem_conta") {
+            // Boa notícia, não erro: a pessoa já está no Club.
+            toast.success(MOTIVOS.ja_tem_conta);
+            setModo("entrar");
+            return;
+          }
           toast.error(MOTIVOS[r.motivo ?? "falhou"]);
           return;
         }
@@ -437,7 +443,8 @@ function Entrada() {
 const MOTIVOS: Record<string, string> = {
   sem_cadastro:
     "Confira seu telefone: precisa ter o DDD e o número completo, por exemplo 48 99999-9999.",
-  ja_tem_conta: "Já existe uma conta para este cadastro. Use a opção de entrar.",
+  ja_tem_conta:
+    "Você já está no NÓS Club! Entre com o e-mail e a senha que usou antes. Se não lembrar, a recepção da NÓS foi avisada e vai te ajudar.",
   email_em_uso: "Este e-mail já tem conta. Use a opção de entrar.",
   falhou: "Não deu para criar sua conta agora. Tente de novo em instantes.",
 };
