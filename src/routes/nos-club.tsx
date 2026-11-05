@@ -571,6 +571,23 @@ function SheetDoNivel({
 
 /** Quem tentou criar a conta pelo cartão e foi recusado. A recepção chama a
  *  pessoa e, na maioria das vezes, é só acertar o nome ou o telefone na ficha. */
+const TEXTO_DO_AVISO: Record<string, (t: PainelDoClub["avisos"][number]) => string> = {
+  nome_diferente: (t) =>
+    t.fichaNome
+      ? `Entrou com um telefone que também é de ${t.fichaNome} (ganhou ficha própria — una se for a mesma pessoa)`
+      : "Entrou com um telefone de outra pessoa",
+  ja_tinha_conta: (t) =>
+    `Já tinha conta no Club${t.fichaNome ? ` (${t.fichaNome})` : ""} e tentou criar outra — ajude a recuperar o acesso`,
+  telefone_invalido: () => "Não conseguiu: telefone incompleto ou sem DDD",
+  email_em_uso: () => "Não conseguiu: esse e-mail já tem outra conta",
+  erro: (t) => `Não conseguiu: erro ao criar a conta${t.detalhe ? ` (${t.detalhe})` : ""}`,
+};
+
+/**
+ * Tudo o que a recepção precisa resolver no Club: quem foi recusado (telefone
+ * incompleto, e-mail repetido, erro) e quem entrou mas precisa de conferência
+ * (telefone de outra pessoa, conta repetida). Some quando não há nada.
+ */
 function AvisosDoClub({ avisos }: { avisos: PainelDoClub["avisos"] }) {
   const queryClient = useQueryClient();
   const resolver = useServerFn(resolverAvisoDoClub);
@@ -581,61 +598,76 @@ function AvisosDoClub({ avisos }: { avisos: PainelDoClub["avisos"] }) {
   if (!avisos.length) return null;
   return (
     <section className="surface-card mt-7 border-l-2 border-warning p-5">
-      <h2 className="text-sm font-semibold">Precisam de uma ajuda da recepção no Club</h2>
+      <h2 className="text-sm font-semibold">Tentativas que precisam da recepção</h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        A conta já foi criada e a ficha não foi renomeada. Confira no WhatsApp se é a mesma pessoa e
-        acerte a ficha.
+        Gente que tentou entrar no Club e não conseguiu, ou entrou e pede conferência. Chame a
+        pessoa, resolva e marque como resolvido.
       </p>
       <ul className="mt-3 divide-y divide-border/70">
-        {avisos.map((t) => (
-          <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{t.nome}</p>
-              <p className="text-xs text-muted-foreground">
-                {t.motivo === "ja_tinha_conta"
-                  ? `Já tinha conta no Club (${t.fichaNome ?? "sem nome"}) e tentou criar outra`
-                  : t.fichaNome
-                    ? `${t.nome} entrou com um telefone que também é de ${t.fichaNome}`
-                    : "Sem ficha"}
-                {" · "}
-                {new Date(t.em).toLocaleString("pt-BR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  timeZone: "America/Sao_Paulo",
-                })}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <a
-                href={`https://wa.me/${t.telefone.startsWith("55") ? t.telefone : `55${t.telefone}`}`}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-full border border-border px-3 py-1 text-xs hover:bg-muted"
-              >
-                WhatsApp
-              </a>
-              {t.patientId && (
-                <Link
-                  to="/pacientes/$patientId"
-                  params={{ patientId: t.patientId }}
-                  className="rounded-full border border-border px-3 py-1 text-xs hover:bg-muted"
+        {avisos.map((t) => {
+          const telefoneUtil = t.telefone.replace(/\D/g, "");
+          const comWhatsapp = telefoneUtil.length >= 10;
+          return (
+            <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{t.nome}</p>
+                <p className="text-xs text-muted-foreground">
+                  {(TEXTO_DO_AVISO[t.motivo] ?? TEXTO_DO_AVISO.erro)(t)}
+                  {" · "}
+                  {new Date(t.em).toLocaleString("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "America/Sao_Paulo",
+                  })}
+                </p>
+                {(!comWhatsapp || t.motivo === "telefone_invalido") && t.email && (
+                  <p className="text-xs text-muted-foreground">
+                    Telefone digitado: {t.telefone || "—"} · e-mail: {t.email}
+                  </p>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {comWhatsapp && t.motivo !== "telefone_invalido" && (
+                  <a
+                    href={`https://wa.me/${telefoneUtil.startsWith("55") ? telefoneUtil : `55${telefoneUtil}`}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-full border border-border px-3 py-1 text-xs hover:bg-muted"
+                  >
+                    WhatsApp
+                  </a>
+                )}
+                {t.email && (
+                  <a
+                    href={`mailto:${t.email}`}
+                    className="rounded-full border border-border px-3 py-1 text-xs hover:bg-muted"
+                  >
+                    E-mail
+                  </a>
+                )}
+                {t.patientId && (
+                  <Link
+                    to="/pacientes/$patientId"
+                    params={{ patientId: t.patientId }}
+                    className="rounded-full border border-border px-3 py-1 text-xs hover:bg-muted"
+                  >
+                    Ficha
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  disabled={mutacao.isPending}
+                  onClick={() => mutacao.mutate(t.id)}
+                  className="rounded-full px-3 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
-                  Ficha
-                </Link>
-              )}
-              <button
-                type="button"
-                disabled={mutacao.isPending}
-                onClick={() => mutacao.mutate(t.id)}
-                className="rounded-full px-3 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                Resolvido
-              </button>
-            </div>
-          </li>
-        ))}
+                  Resolvido
+                </button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

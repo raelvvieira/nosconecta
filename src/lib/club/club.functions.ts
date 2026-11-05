@@ -548,7 +548,9 @@ export interface AvisoDoClub {
   /** O nome que está na ficha, quando o telefone achou uma. */
   fichaNome: string | null;
   patientId: string | null;
-  motivo: "nome_diferente" | "ja_tinha_conta";
+  motivo: MotivoDoAviso;
+  email: string | null;
+  detalhe: string | null;
   em: string;
 }
 
@@ -610,7 +612,7 @@ export const painelDoClub = createServerFn({ method: "GET" })
     // deixar de abrir por isso.
     const { data: avisosLidas, error: erroAvisos } = await supabase
       .from("club_avisos")
-      .select("id, nome, telefone, ficha_nome, patient_id, motivo, created_at")
+      .select("id, nome, telefone, ficha_nome, patient_id, motivo, email, detalhe, created_at")
       .eq("owner_id", context.ownerId)
       .eq("resolvida", false)
       .order("created_at", { ascending: false })
@@ -623,7 +625,9 @@ export const painelDoClub = createServerFn({ method: "GET" })
           telefone: String(t.telefone ?? ""),
           fichaNome: t.ficha_nome ? String(t.ficha_nome) : null,
           patientId: t.patient_id ? String(t.patient_id) : null,
-          motivo: t.motivo === "ja_tinha_conta" ? "ja_tinha_conta" : "nome_diferente",
+          motivo: String(t.motivo) as MotivoDoAviso,
+          email: t.email ? String(t.email) : null,
+          detalhe: t.detalhe ? String(t.detalhe) : null,
           em: String(t.created_at),
         }));
 
@@ -902,28 +906,40 @@ export function nomeMaisCompleto(digitado: string, daFicha: string): string {
 }
 
 /**
- * Anota na tela da recepção que alguém entrou no Club com um nome totalmente
- * diferente do da ficha, para conferir se é a mesma pessoa. Nunca derruba o
- * cadastro. Um aviso em aberto por telefone.
+ * Anota no painel do Club tudo o que a recepção precisa saber de um cadastro:
+ * quem entrou com telefone de outra pessoa, quem já tinha conta e quem foi
+ * recusado (telefone incompleto, e-mail repetido, erro). Nunca derruba o
+ * cadastro; um aviso em aberto por pessoa e motivo.
  */
+type MotivoDoAviso =
+  | "nome_diferente"
+  | "ja_tinha_conta"
+  | "telefone_invalido"
+  | "email_em_uso"
+  | "erro";
+
 async function registrarAviso(
   admin: any,
   t: {
     owner_id: string;
-    patient_id: string;
+    patient_id: string | null;
     nome: string;
     telefone: string;
-    ficha_nome: string;
-    motivo: "nome_diferente" | "ja_tinha_conta";
+    ficha_nome?: string | null;
+    email?: string | null;
+    detalhe?: string | null;
+    motivo: MotivoDoAviso;
   },
 ): Promise<void> {
   try {
-    const digitos = t.telefone.replace(/\D/g, "");
+    const digitos = t.telefone.replace(/\D/g, "").slice(0, 20);
     const { data: aberto } = await admin
       .from("club_avisos")
       .select("id")
       .eq("owner_id", t.owner_id)
       .eq("telefone", digitos)
+      .eq("motivo", t.motivo)
+      .eq("nome", t.nome.slice(0, 120))
       .eq("resolvida", false)
       .limit(1);
     if (aberto?.length) return;
@@ -932,7 +948,9 @@ async function registrarAviso(
       patient_id: t.patient_id,
       nome: t.nome.slice(0, 120),
       telefone: digitos,
-      ficha_nome: t.ficha_nome,
+      ficha_nome: t.ficha_nome ?? null,
+      email: t.email ?? null,
+      detalhe: t.detalhe ? String(t.detalhe).slice(0, 300) : null,
       motivo: t.motivo,
     });
   } catch (e) {
@@ -987,11 +1005,8 @@ export const criarContaDoClub = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data }): Promise<ResultadoDaContaDoClub> => {
-    const { variantesDoNumero } = await import("@/lib/atendimentos/phone");
-    const { telefoneBrasileiroValido } = await import("@/lib/atendimentos/phone");
-    if (!telefoneBrasileiroValido(data.telefone)) return { ok: false, motivo: "sem_cadastro" };
-    const formas = variantesDoNumero(data.telefone);
-    if (!formas.length) return { ok: false, motivo: "sem_cadastro" };
+    const { variantesDoNumero, telefoneBrasileiroValido } =
+      await import("@/lib/atendimentos/phone");
 
     const url = process.env.SUPABASE_URL;
     const chave = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -1020,6 +1035,28 @@ export const criarContaDoClub = createServerFn({ method: "POST" })
     }
     const donos = ((comClub ?? []) as any[]).map((c) => String(c.owner_id));
     if (!donos.length) return { ok: false, motivo: "sem_cadastro" };
+
+    // Toda recusa fica anotada para a recepção (nome, telefone, e-mail e motivo).
+    const recusar = async (
+      motivo: MotivoDoAviso,
+      resultado: ResultadoDaContaDoClub,
+      extra: { patient_id?: string | null; ficha_nome?: string | null; detalhe?: string } = {},
+    ): Promise<ResultadoDaContaDoClub> => {
+      await registrarAviso(admin, {
+        owner_id: donos[0],
+        patient_id: extra.patient_id ?? null,
+        nome: data.nome,
+        telefone: data.telefone,
+        email: data.email,
+        ficha_nome: extra.ficha_nome ?? null,
+        detalhe: extra.detalhe,
+        motivo,
+      });
+      return resultado;
+    };
+
+    const formas = telefoneBrasileiroValido(data.telefone) ? variantesDoNumero(data.telefone) : [];
+    if (!formas.length) return recusar("telefone_invalido", { ok: false, motivo: "sem_cadastro" });
     const { data: achados, error } = await admin
       .from("patients")
       .select("id, name, email, club_user_id, club_desde, owner_id, created_at")
@@ -1061,9 +1098,15 @@ export const criarContaDoClub = createServerFn({ method: "POST" })
     });
     if (erroConta || !criado?.user?.id) {
       const texto = String(erroConta?.message ?? "");
-      if (/already|registered|exists/i.test(texto)) return { ok: false, motivo: "email_em_uso" };
+      if (/already|registered|exists/i.test(texto)) {
+        return recusar(
+          "email_em_uso",
+          { ok: false, motivo: "email_em_uso" },
+          { patient_id: lista[0]?.id ? String(lista[0].id) : null },
+        );
+      }
       console.error("[club] conta não criada", texto);
-      return { ok: false, motivo: "falhou" };
+      return recusar("erro", { ok: false, motivo: "falhou" }, { detalhe: texto });
     }
     const desfazerConta = () => admin.auth.admin.deleteUser(criado.user.id).catch(() => null);
 
@@ -1115,7 +1158,11 @@ export const criarContaDoClub = createServerFn({ method: "POST" })
       if (erroVinculo) {
         console.error("[club] vínculo falhou", erroVinculo.message);
         await desfazerConta();
-        return { ok: false, motivo: "falhou" };
+        return recusar(
+          "erro",
+          { ok: false, motivo: "falhou" },
+          { patient_id: String(ficha.id), detalhe: erroVinculo.message },
+        );
       }
       fichaId = String(ficha.id);
       donoDaFicha = String(ficha.owner_id);
@@ -1145,7 +1192,11 @@ export const criarContaDoClub = createServerFn({ method: "POST" })
       if (!unitId) {
         console.error("[club] consultório sem unidade ativa para a ficha nova");
         await desfazerConta();
-        return { ok: false, motivo: "falhou" };
+        return recusar(
+          "erro",
+          { ok: false, motivo: "falhou" },
+          { detalhe: "consultório sem unidade ativa" },
+        );
       }
       const nome = nomeBemEscrito(data.nome);
       const { data: nova, error: erroFicha } = await admin
@@ -1166,7 +1217,11 @@ export const criarContaDoClub = createServerFn({ method: "POST" })
       if (erroFicha || !nova?.id) {
         console.error("[club] ficha nova não criada", erroFicha?.message);
         await desfazerConta();
-        return { ok: false, motivo: "falhou" };
+        return recusar(
+          "erro",
+          { ok: false, motivo: "falhou" },
+          { detalhe: erroFicha?.message ?? "ficha nova não criada" },
+        );
       }
       fichaId = String(nova.id);
       donoDaFicha = donos[0];
