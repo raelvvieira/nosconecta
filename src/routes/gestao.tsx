@@ -1,13 +1,13 @@
 import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { Sidebar } from "@/components/finance/Sidebar";
 import { PainelDeGestao } from "@/components/gestao/PainelDeGestao";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { clinicTodayStr } from "@/lib/date";
-import { getVisaoDeGestao } from "@/lib/gestao/gestao.functions";
+import { getVisaoDeGestao, salvarMetaDeFaturamento } from "@/lib/gestao/gestao.functions";
 
 // A Gestão: o painel do administrador. Fora do Financeiro de propósito — o
 // nível Financeiro vê os lançamentos, mas lucro, margem e crescimento do
@@ -46,6 +46,8 @@ function GestaoPage() {
   const mes = mesDaUrl ?? mesMaximo;
 
   const buscar = useServerFn(getVisaoDeGestao);
+  const gravarMeta = useServerFn(salvarMetaDeFaturamento);
+  const queryClient = useQueryClient();
   const consulta = useQuery({
     queryKey: ["gestao", mes, unidade ?? "todas"],
     queryFn: () => buscar({ data: { mes, unitId: unidade ?? null } }),
@@ -71,6 +73,10 @@ function GestaoPage() {
           onMes={(m) =>
             navigate({ search: (prev) => ({ ...prev, mes: m === mesMaximo ? undefined : m }) })
           }
+          onMeta={async (valor) => {
+            await gravarMeta({ data: { valor } });
+            await queryClient.invalidateQueries({ queryKey: ["gestao"] });
+          }}
           onUnidade={(id) =>
             navigate({ search: (prev) => ({ ...prev, unidade: id ?? undefined }) })
           }

@@ -12,6 +12,7 @@ import {
 import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { SobDemanda, nomeado } from "@/components/finance/SobDemanda";
+import { MetaDoMes } from "@/components/gestao/MetaDoMes";
 import { cn } from "@/lib/utils";
 import type { Variacao } from "@/lib/gestao/indicadores";
 import type { VisaoDeGestao } from "@/lib/gestao/visao";
@@ -123,6 +124,7 @@ export function PainelDeGestao({
   mesMaximo,
   onMes,
   onUnidade,
+  onMeta,
   acaoDoCaixa,
 }: {
   /** O último resultado válido. Fica na tela enquanto o próximo carrega. */
@@ -135,6 +137,8 @@ export function PainelDeGestao({
   onMes: (mes: string) => void;
   /** Troca a unidade; `null` = todas. */
   onUnidade: (id: string | null) => void;
+  /** Grava a meta de faturamento (nulo apaga). Sem isto, a seção da meta some. */
+  onMeta?: (valor: number | null) => Promise<unknown>;
   /** O que fazer quando o saldo das contas não foi informado (um link). */
   acaoDoCaixa?: ReactNode;
 }) {
@@ -316,6 +320,13 @@ export function PainelDeGestao({
               />
             </GrupoDeKpis>
           </Secao>
+
+          {/* ── Meta de faturamento (só com todas as unidades à vista) ───── */}
+          {onMeta && !dados.unidadeSelecionada && (
+            <Secao titulo="Meta do mês">
+              <MetaDoMes meta={dados.meta} onSalvar={onMeta} />
+            </Secao>
+          )}
 
           {/* ── 2. Evolução ─────────────────────────────────────────── */}
           <Secao

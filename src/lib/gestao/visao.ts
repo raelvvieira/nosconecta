@@ -4,6 +4,7 @@ import { montarDre } from "@/lib/finance/dre";
 import { lerCategorias, lerLancamentos } from "@/lib/finance/dre.functions";
 import { somarMeses } from "@/lib/finance/mes";
 import { lerFichaDoSite, recursosDaFicha } from "@/lib/plataforma/recursos";
+import { metaDoMes, type MetaDoMes } from "@/lib/gestao/meta";
 import {
   diasDoMes,
   margemEmPct,
@@ -85,6 +86,9 @@ export interface VisaoDeGestao {
   evolucao: PontoDaEvolucao[];
   /** Só com todas as unidades à vista e mais de uma ativa. */
   porUnidade: UnidadeNoPainel[];
+  /** A meta de faturamento do mês. `valor` nulo = ainda não cadastrada; `andamento`
+   *  só vem quando há meta e o painel está com todas as unidades. */
+  meta: { valor: number | null; andamento: MetaDoMes | null };
   avisos: string[];
 }
 
@@ -330,6 +334,26 @@ export async function montarVisaoDeGestao(
     avisos.push("Cadastre o horário de funcionamento das unidades para a ocupação aparecer.");
   }
 
+  // A meta é da clínica inteira: com uma unidade escolhida a receita é só dela
+  // e a comparação não faria sentido. Sem a tabela (migration pendente), vale
+  // "sem meta" — o painel não pode deixar de abrir por isso.
+  const { data: linhaMeta, error: erroMeta } = await supabase
+    .from("gestao_metas")
+    .select("faturamento_mensal")
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+  const valorDaMeta = erroMeta || !linhaMeta ? null : Number(linhaMeta.faturamento_mensal);
+  const andamentoDaMeta =
+    valorDaMeta && !data.unitId
+      ? metaDoMes({
+          meta: valorDaMeta,
+          faturado: atual.receita,
+          ticketMedio: ticketMedio(pAtual.concluidos),
+          mes,
+          hoje,
+        })
+      : null;
+
   return {
     mes,
     mesAnterior,
@@ -354,6 +378,7 @@ export async function montarVisaoDeGestao(
     pacientes: { ...pAtual.grupos, club },
     evolucao,
     porUnidade,
+    meta: { valor: valorDaMeta, andamento: andamentoDaMeta },
     avisos,
   };
 }
