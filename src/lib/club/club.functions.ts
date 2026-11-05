@@ -538,17 +538,17 @@ export interface PainelDoClub {
   regua: NivelDoClub[];
   config: ConfigDoClub;
   /** Quem tentou criar a conta e foi recusado, para a recepção resolver. */
-  tentativas: TentativaDoClub[];
+  avisos: AvisoDoClub[];
 }
 
-export interface TentativaDoClub {
+export interface AvisoDoClub {
   id: string;
   nome: string;
   telefone: string;
   /** O nome que está na ficha, quando o telefone achou uma. */
   fichaNome: string | null;
   patientId: string | null;
-  motivo: "sem_ficha" | "nome_diferente";
+  motivo: "nome_diferente";
   em: string;
 }
 
@@ -608,22 +608,22 @@ export const painelDoClub = createServerFn({ method: "GET" })
 
     // Sem a tabela (migration pendente) a lista vem vazia: o painel não pode
     // deixar de abrir por isso.
-    const { data: tentativasLidas, error: erroTentativas } = await supabase
-      .from("club_tentativas")
+    const { data: avisosLidas, error: erroAvisos } = await supabase
+      .from("club_avisos")
       .select("id, nome, telefone, ficha_nome, patient_id, motivo, created_at")
       .eq("owner_id", context.ownerId)
       .eq("resolvida", false)
       .order("created_at", { ascending: false })
       .limit(30);
-    const tentativas: TentativaDoClub[] = erroTentativas
+    const avisos: AvisoDoClub[] = erroAvisos
       ? []
-      : ((tentativasLidas ?? []) as any[]).map((t) => ({
+      : ((avisosLidas ?? []) as any[]).map((t) => ({
           id: String(t.id),
           nome: String(t.nome ?? ""),
           telefone: String(t.telefone ?? ""),
           fichaNome: t.ficha_nome ? String(t.ficha_nome) : null,
           patientId: t.patient_id ? String(t.patient_id) : null,
-          motivo: t.motivo === "sem_ficha" ? "sem_ficha" : "nome_diferente",
+          motivo: "nome_diferente",
           em: String(t.created_at),
         }));
 
@@ -650,18 +650,18 @@ export const painelDoClub = createServerFn({ method: "GET" })
       ranking: [...lista].sort((a, b) => b.confirmadas - a.confirmadas).slice(0, 10),
       regua,
       config,
-      tentativas,
+      avisos,
     };
   });
 
-/** A recepção já falou com a pessoa: a tentativa sai da lista. */
-export const resolverTentativaDoClub = createServerFn({ method: "POST" })
+/** A recepção já falou com a pessoa: a aviso sai da lista. */
+export const resolverAvisoDoClub = createServerFn({ method: "POST" })
   .middleware([exigeClub])
   .inputValidator((input: { id: string }) => ({ id: String(input?.id ?? "") }))
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
     const { error } = await supabase
-      .from("club_tentativas")
+      .from("club_avisos")
       .update({ resolvida: true })
       .eq("id", data.id)
       .eq("owner_id", context.ownerId);
@@ -877,52 +877,59 @@ export function nomeConfere(digitado: string, daFicha: string): boolean {
   return pontuacaoDoNome(digitado, daFicha) > 0;
 }
 
+/** "gabriele  tadiello MARTINS" -> "Gabriele Tadiello Martins". */
+function nomeBemEscrito(texto: string): string {
+  return String(texto ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .split(" ")
+    .map((p, i) => (i > 0 && PARTICULAS.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1)))
+    .join(" ");
+}
+
 /**
- * Anota quem tentou entrar e não conseguiu, para a recepção resolver.
- *
- * Quem errou o nome, usou um telefone antigo ou ainda nem tem ficha não pode
- * ser mandado embora sem rastro: cada recusa vira uma linha que a clínica vê no
- * painel do Club (e chama no WhatsApp). Nunca derruba o cadastro — se anotar
- * falhar, a recusa segue igual. Uma tentativa em aberto por telefone, para quem
- * insiste não encher a lista.
+ * Qual dos dois nomes fica na ficha: o mais completo. Mais palavras vence;
+ * empatando, o mais longo; empatando de novo, o que já estava.
  */
-async function registrarTentativa(
+export function nomeMaisCompleto(digitado: string, daFicha: string): string {
+  const a = partesDoNome(digitado).length;
+  const b = partesDoNome(daFicha).length;
+  if (a > b || (a === b && comparavelNome(digitado).length > comparavelNome(daFicha).length)) {
+    return nomeBemEscrito(digitado);
+  }
+  return daFicha;
+}
+
+/**
+ * Anota na tela da recepção que alguém entrou no Club com um nome totalmente
+ * diferente do da ficha, para conferir se é a mesma pessoa. Nunca derruba o
+ * cadastro. Um aviso em aberto por telefone.
+ */
+async function registrarAviso(
   admin: any,
-  t: {
-    owner_id: string;
-    patient_id: string | null;
-    nome: string;
-    telefone: string;
-    ficha_nome: string | null;
-    motivo: "sem_ficha" | "nome_diferente";
-  },
+  t: { owner_id: string; patient_id: string; nome: string; telefone: string; ficha_nome: string },
 ): Promise<void> {
   try {
     const digitos = t.telefone.replace(/\D/g, "");
-    const { data: aberta } = await admin
-      .from("club_tentativas")
+    const { data: aberto } = await admin
+      .from("club_avisos")
       .select("id")
       .eq("owner_id", t.owner_id)
       .eq("telefone", digitos)
       .eq("resolvida", false)
       .limit(1);
-    if (aberta?.length) {
-      await admin
-        .from("club_tentativas")
-        .update({ nome: t.nome.slice(0, 120), ficha_nome: t.ficha_nome, motivo: t.motivo })
-        .eq("id", aberta[0].id);
-      return;
-    }
-    await admin.from("club_tentativas").insert({
+    if (aberto?.length) return;
+    await admin.from("club_avisos").insert({
       owner_id: t.owner_id,
       patient_id: t.patient_id,
       nome: t.nome.slice(0, 120),
       telefone: digitos,
       ficha_nome: t.ficha_nome,
-      motivo: t.motivo,
+      motivo: "nome_diferente",
     });
   } catch (e) {
-    console.error("[club] tentativa não anotada", e);
+    console.error("[club] aviso não anotado", e);
   }
 }
 
@@ -932,7 +939,7 @@ export interface ResultadoDaContaDoClub {
 }
 
 /**
- * Cria a conta do paciente pelo cartão — já confirmada, para ele entrar na
+ * Cria a conta do Club pelo cartão — já confirmada, para a pessoa entrar na
  * mesma tela.
  *
  * ── Por que não é o cadastro comum do Supabase ────────────────────────────
@@ -941,15 +948,18 @@ export interface ResultadoDaContaDoClub {
  * caixa de entrada. Para quem está com um cartão na mão, encostado no balcão
  * ou na sala de espera, isso é onde a história acaba.
  *
- * O que substitui a confirmação por e-mail como prova de identidade é o
- * CRUZAMENTO com a base: telefone (nas duas formas que o sistema já usa para
- * casar paciente com conversa) e nome. Quem não está na base da clínica não
- * cria conta nenhuma — e é por isso que esta função não cria paciente: ela só
- * reconhece quem já é.
+ * ── O telefone é a chave ──────────────────────────────────────────────────
  *
- * A chave de serviço é usada aqui e só aqui no caminho do paciente, para
- * criar o login com `email_confirm`. Nada do que a pessoa digita vira consulta
- * livre: o telefone vira variantes conhecidas, o nome é só comparado.
+ * Quem tem ficha com esse telefone (nas duas formas que o sistema já usa para
+ * casar paciente com conversa) entra nela. Quem nunca passou pela clínica —
+ * nem agenda, nem WhatsApp — também entra, e ganha a própria ficha, que a
+ * recepção completa depois. O nome NÃO trava ninguém: nomes de uma mesma pessoa
+ * variam por apelido, abreviação e sobrenome, e a ficha guarda sempre o mais
+ * completo (ver `nomeMaisCompleto`). Se o nome digitado é totalmente diferente
+ * do da ficha, a ficha não é renomeada e a recepção recebe um aviso.
+ *
+ * A chave de serviço é usada aqui e só aqui no caminho do paciente, para criar
+ * o login com `email_confirm`.
  */
 export const criarContaDoClub = createServerFn({ method: "POST" })
   .inputValidator((input: { nome: string; telefone: string; email: string; senha: string }) => {
@@ -971,6 +981,8 @@ export const criarContaDoClub = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }): Promise<ResultadoDaContaDoClub> => {
     const { variantesDoNumero } = await import("@/lib/atendimentos/phone");
+    const { telefoneBrasileiroValido } = await import("@/lib/atendimentos/phone");
+    if (!telefoneBrasileiroValido(data.telefone)) return { ok: false, motivo: "sem_cadastro" };
     const formas = variantesDoNumero(data.telefone);
     if (!formas.length) return { ok: false, motivo: "sem_cadastro" };
 
@@ -1012,41 +1024,10 @@ export const criarContaDoClub = createServerFn({ method: "POST" })
       return { ok: false, motivo: "falhou" };
     }
     const lista = (achados ?? []) as any[];
-    if (!lista.length) {
-      await registrarTentativa(admin, {
-        owner_id: donos[0],
-        patient_id: null,
-        nome: data.nome,
-        telefone: data.telefone,
-        ficha_nome: null,
-        motivo: "sem_ficha",
-      });
-      return { ok: false, motivo: "sem_cadastro" };
-    }
+    if (lista.some((p) => p.club_user_id)) return { ok: false, motivo: "ja_tem_conta" };
 
-    // Nome que não bate devolve a MESMA recusa de telefone que não existe, e de
-    // propósito: respostas diferentes para os dois casos transformam este
-    // endereço — que é público, porque quem chega aqui ainda não tem conta —
-    // num jeito de descobrir quais telefones são de pacientes da clínica.
-    const ficha = [...lista]
-      .map((p) => ({ p, nota: pontuacaoDoNome(data.nome, String(p.name ?? "")) }))
-      .filter((x) => x.nota > 0)
-      .sort((x, y) => y.nota - x.nota)[0]?.p;
-    if (!ficha) {
-      await registrarTentativa(admin, {
-        owner_id: String(lista[0].owner_id),
-        patient_id: String(lista[0].id),
-        nome: data.nome,
-        telefone: data.telefone,
-        ficha_nome: String(lista[0].name ?? ""),
-        motivo: "nome_diferente",
-      });
-      return { ok: false, motivo: "sem_cadastro" };
-    }
-    if (ficha.club_user_id) return { ok: false, motivo: "ja_tem_conta" };
-
-    // A conta nasce confirmada: a prova de identidade aqui foi o cruzamento
-    // acima, não a caixa de entrada.
+    // A conta nasce confirmada: o telefone, que o cartão exige, é a chave — não
+    // a caixa de entrada.
     const { data: criado, error: erroConta } = await admin.auth.admin.createUser({
       email: data.email,
       password: data.senha,
@@ -1059,35 +1040,108 @@ export const criarContaDoClub = createServerFn({ method: "POST" })
       console.error("[club] conta não criada", texto);
       return { ok: false, motivo: "falhou" };
     }
+    const desfazerConta = () => admin.auth.admin.deleteUser(criado.user.id).catch(() => null);
 
     const agora = new Date().toISOString();
-    const { error: erroVinculo } = await admin
-      .from("patients")
-      .update({
-        club_user_id: criado.user.id,
-        club_desde: ficha.club_desde ?? agora,
-        // O e-mail do Club entra na ficha quando ela não tinha nenhum: é o
-        // contato que a própria pessoa acabou de confirmar que é dela.
-        email: ficha.email || data.email,
-        updated_at: agora,
-      })
-      .eq("id", ficha.id)
-      // Ninguém mais pode ter pego esta ficha enquanto isto rodava.
-      .is("club_user_id", null);
-    if (erroVinculo) {
-      console.error("[club] vínculo falhou", erroVinculo.message);
-      return { ok: false, motivo: "falhou" };
+    const separar = (nome: string) => {
+      const [primeiro, ...resto] = nome.split(" ");
+      return { first_name: primeiro, last_name: resto.join(" ") || null };
+    };
+    let fichaId: string;
+    let donoDaFicha: string;
+
+    if (lista.length) {
+      // O telefone achou a pessoa. O nome digitado não trava ninguém: se ele é
+      // compatível com o da ficha, fica o mais completo; se é totalmente
+      // diferente (a mãe com o telefone do filho), a ficha não é renomeada e a
+      // recepção é avisada para conferir.
+      const { p: ficha, nota } = [...lista]
+        .map((p) => ({ p, nota: pontuacaoDoNome(data.nome, String(p.name ?? "")) }))
+        .sort((x, y) => y.nota - x.nota)[0];
+      const nomeAtual = String(ficha.name ?? "");
+      const nomeFinal = nota > 0 ? nomeMaisCompleto(data.nome, nomeAtual) : nomeAtual;
+      const { error: erroVinculo } = await admin
+        .from("patients")
+        .update({
+          club_user_id: criado.user.id,
+          club_desde: ficha.club_desde ?? agora,
+          // O e-mail do Club entra na ficha quando ela não tinha nenhum: é o
+          // contato que a própria pessoa acabou de confirmar que é dela.
+          email: ficha.email || data.email,
+          ...(nomeFinal !== nomeAtual ? { name: nomeFinal, ...separar(nomeFinal) } : {}),
+          updated_at: agora,
+        })
+        .eq("id", ficha.id)
+        // Ninguém mais pode ter pego esta ficha enquanto isto rodava.
+        .is("club_user_id", null);
+      if (erroVinculo) {
+        console.error("[club] vínculo falhou", erroVinculo.message);
+        await desfazerConta();
+        return { ok: false, motivo: "falhou" };
+      }
+      fichaId = String(ficha.id);
+      donoDaFicha = String(ficha.owner_id);
+      if (nota === 0) {
+        await registrarAviso(admin, {
+          owner_id: donoDaFicha,
+          patient_id: fichaId,
+          nome: data.nome,
+          telefone: data.telefone,
+          ficha_nome: nomeAtual,
+        });
+      }
+    } else {
+      // Quem nunca passou pela clínica também entra: ganha a própria ficha, que
+      // a recepção completa depois. Fica na unidade padrão.
+      const { normalizeBrazilianPhone } = await import("@/lib/atendimentos/phone");
+      const { data: unidade } = await admin
+        .from("clinic_units")
+        .select("id")
+        .eq("owner_id", donos[0])
+        .eq("active", true)
+        .order("is_default", { ascending: false })
+        .order("created_at", { ascending: true })
+        .limit(1);
+      const unitId = unidade?.[0]?.id;
+      if (!unitId) {
+        console.error("[club] consultório sem unidade ativa para a ficha nova");
+        await desfazerConta();
+        return { ok: false, motivo: "falhou" };
+      }
+      const nome = nomeBemEscrito(data.nome);
+      const { data: nova, error: erroFicha } = await admin
+        .from("patients")
+        .insert({
+          owner_id: donos[0],
+          unit_id: unitId,
+          name: nome,
+          ...separar(nome),
+          phone: normalizeBrazilianPhone(data.telefone),
+          email: data.email,
+          status: "active",
+          club_user_id: criado.user.id,
+          club_desde: agora,
+        })
+        .select("id")
+        .single();
+      if (erroFicha || !nova?.id) {
+        console.error("[club] ficha nova não criada", erroFicha?.message);
+        await desfazerConta();
+        return { ok: false, motivo: "falhou" };
+      }
+      fichaId = String(nova.id);
+      donoDaFicha = donos[0];
     }
 
     // O crédito de boas-vindas. Índice único por paciente: quem sair e voltar
     // não ganha de novo. Falha aqui não desfaz a conta — a pessoa já entrou, e
     // um crédito que não entrou a clínica lança à mão.
     try {
-      const { creditoBoasVindas } = await lerConfig(admin, ficha.owner_id);
+      const { creditoBoasVindas } = await lerConfig(admin, donoDaFicha);
       if (creditoBoasVindas > 0) {
         await admin.from("club_creditos").insert({
-          owner_id: ficha.owner_id,
-          patient_id: ficha.id,
+          owner_id: donoDaFicha,
+          patient_id: fichaId,
           valor: creditoBoasVindas,
           tipo: "boas_vindas",
           descricao: "Boas-vindas ao NÓS Club",

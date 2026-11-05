@@ -4,7 +4,7 @@
 // telefone. Frouxo demais, qualquer um com o telefone de alguém vê o crédito
 // dessa pessoa; apertado demais, quem tem o cartão na mão é mandado embora
 // porque a ficha diz "Ana Paula Souza" e ela digitou "Ana Souza".
-import { nomeConfere } from "../src/lib/club/club.functions.ts";
+import { nomeConfere, nomeMaisCompleto } from "../src/lib/club/club.functions.ts";
 
 let ok = 0;
 const falhas: string[] = [];
@@ -34,6 +34,24 @@ conferir("letra trocada", nomeConfere("Gabriele Tadiello Martins", "Gabriela Tad
 conferir("ficha abreviada", nomeConfere("Fernanda Costa", "Fer Costa"), true);
 conferir("partícula no meio", nomeConfere("Maria da Silva", "Maria Silva"), true);
 conferir("só o primeiro nome digitado", nomeConfere("Gabriele", "Gabriela Tadiello"), true);
+
+// ── O nome que fica na ficha: o mais completo ────────────────────────────
+conferir(
+  "completa o sobrenome",
+  nomeMaisCompleto("Gabriele Tadiello Martins", "Gabi Tadiello"),
+  "Gabriele Tadiello Martins",
+);
+conferir(
+  "ficha já é mais completa",
+  nomeMaisCompleto("Ana Souza", "Ana Paula Souza"),
+  "Ana Paula Souza",
+);
+conferir(
+  "digitado em minúsculas",
+  nomeMaisCompleto("maria da silva santos", "Maria Silva"),
+  "Maria da Silva Santos",
+);
+conferir("empate: fica o da ficha", nomeMaisCompleto("Ana Souza", "Ana Souza"), "Ana Souza");
 
 // ── Quem não deve ───────────────────────────────────────────────────────
 

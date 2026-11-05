@@ -30,7 +30,7 @@ import {
 import { formatBRL } from "@/lib/finance/format";
 import {
   painelDoClub,
-  resolverTentativaDoClub,
+  resolverAvisoDoClub,
   salvarConfigDoClub,
   salvarNivel,
   type ConfigDoClub,
@@ -114,7 +114,7 @@ function NosClubPage() {
               />
             </div>
 
-            <TentativasDoClub tentativas={painel.data.tentativas} />
+            <AvisosDoClub avisos={painel.data.avisos} />
 
             <CartaoComQr config={painel.data.config} />
 
@@ -571,29 +571,28 @@ function SheetDoNivel({
 
 /** Quem tentou criar a conta pelo cartão e foi recusado. A recepção chama a
  *  pessoa e, na maioria das vezes, é só acertar o nome ou o telefone na ficha. */
-function TentativasDoClub({ tentativas }: { tentativas: PainelDoClub["tentativas"] }) {
+function AvisosDoClub({ avisos }: { avisos: PainelDoClub["avisos"] }) {
   const queryClient = useQueryClient();
-  const resolver = useServerFn(resolverTentativaDoClub);
+  const resolver = useServerFn(resolverAvisoDoClub);
   const mutacao = useMutation({
     mutationFn: (id: string) => resolver({ data: { id } }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: CHAVE }),
   });
-  if (!tentativas.length) return null;
+  if (!avisos.length) return null;
   return (
     <section className="surface-card mt-7 border-l-2 border-warning p-5">
-      <h2 className="text-sm font-semibold">Tentaram entrar no Club e não conseguiram</h2>
+      <h2 className="text-sm font-semibold">Entraram no Club com nome diferente da ficha</h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Chame no WhatsApp e acerte o nome ou o telefone na ficha. Marque como resolvido depois.
+        A conta já foi criada e a ficha não foi renomeada. Confira no WhatsApp se é a mesma pessoa e
+        acerte a ficha.
       </p>
       <ul className="mt-3 divide-y divide-border/70">
-        {tentativas.map((t) => (
+        {avisos.map((t) => (
           <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{t.nome}</p>
               <p className="text-xs text-muted-foreground">
-                {t.motivo === "nome_diferente" && t.fichaNome
-                  ? `Na ficha: ${t.fichaNome}`
-                  : "Nenhuma ficha com esse telefone"}
+                {t.fichaNome ? `Na ficha: ${t.fichaNome}` : "Sem ficha"}
                 {" · "}
                 {new Date(t.em).toLocaleString("pt-BR", {
                   day: "2-digit",
