@@ -403,7 +403,11 @@ function AgendaPage() {
         />
 
         {/* Stats */}
-        <AgendaStatsCards appointments={appointments} date={todayStr} />
+        <AgendaStatsCards
+          appointments={appointments}
+          date={todayStr}
+          remarcacoes={agenda.remarcacoesNoMes}
+        />
 
         {/* Main layout */}
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-5">

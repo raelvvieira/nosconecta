@@ -9,6 +9,7 @@ import {
   type ProcedimentoDoAgendamento,
 } from "./procedimentos";
 import { clinicTodayStr, localDateStr } from "@/lib/date";
+import { mesDe } from "./resumo-da-agenda";
 import { decidirRecebimento } from "@/lib/finance/recebimento-do-atendimento";
 import { recusaDoValor } from "./valor-ao-concluir";
 import { comoGravar, recusaDoPagamento } from "./forma-de-pagamento";
@@ -23,6 +24,9 @@ import type {
 } from "@/components/agenda/types";
 
 export interface AgendaOverview {
+  /** Quantas vezes um agendamento foi remarcado neste mês (histórico por gatilho;
+   *  só conta de quando a tabela existe em diante). */
+  remarcacoesNoMes: number;
   appointments: Appointment[];
   blockedTimes: BlockedTime[];
   waitingList: WaitingListItem[];
@@ -58,6 +62,7 @@ function mapAppointment(
     generateFinancial: row.generate_financial,
     notifications,
     criadoEm: row.created_at ?? null,
+    atualizadoEm: row.updated_at ?? null,
   };
 }
 
@@ -190,6 +195,20 @@ export const getAgendaOverview = createServerFn({ method: "GET" })
         .order("position", { ascending: true })
         .limit(8000),
     ]);
+    // Remarcações do mês. Sem a tabela (migration pendente) vale zero: a agenda
+    // não pode deixar de abrir por causa de um indicador.
+    const { de: inicioDoMes } = mesDe(clinicTodayStr());
+    const eventosRes = await (supabase as any)
+      .from("appointment_events")
+      .select("appointment_id, at")
+      .eq("owner_id", context.ownerId)
+      .eq("kind", "remarcou")
+      .gte("at", `${inicioDoMes}T00:00:00-03:00`)
+      .limit(5000);
+    const idsDoRecorte = new Set(((apptRes.data ?? []) as any[]).map((r) => r.id));
+    const remarcacoesNoMes = eventosRes.error
+      ? 0
+      : ((eventosRes.data ?? []) as any[]).filter((e) => idsDoRecorte.has(e.appointment_id)).length;
     if (apptRes.error) throw new Error(apptRes.error.message);
     if (blockRes.error) throw new Error(blockRes.error.message);
     if (waitRes.error) throw new Error(waitRes.error.message);
@@ -221,6 +240,7 @@ export const getAgendaOverview = createServerFn({ method: "GET" })
     }
 
     return {
+      remarcacoesNoMes,
       appointments: (apptRes.data ?? []).map((row: any) =>
         mapAppointment(row, notifByAppt.get(row.id) ?? [], procedimentosDaLinha(row, procByAppt)),
       ),

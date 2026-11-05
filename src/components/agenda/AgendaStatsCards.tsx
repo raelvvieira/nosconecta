@@ -1,11 +1,13 @@
 import { CalendarCheck, CheckCircle2, Clock, UserCheck, UserPlus, UserX } from "lucide-react";
-import { resumoDaSemana } from "@/lib/agenda/resumo-da-semana";
+import { resumoDaAgenda } from "@/lib/agenda/resumo-da-agenda";
 import { cn } from "@/lib/utils";
 import type { Appointment } from "./types";
 
 interface Props {
   appointments: Appointment[];
   date: string;
+  /** Remarcações do mês (histórico do banco). */
+  remarcacoes?: number;
 }
 
 function StatCard({
@@ -24,7 +26,7 @@ function StatCard({
   iconBg: string;
   iconColor: string;
   /** Barra fina embaixo: quanto da meta já foi. */
-  progresso?: { valor: number; meta: number; cor: string };
+  progresso?: { valor: number; meta: number; cor: string; marca?: number };
 }) {
   return (
     <div className="surface-card flex flex-col gap-3 p-5">
@@ -41,7 +43,7 @@ function StatCard({
         </div>
       </div>
       {progresso && (
-        <div className="h-1.5 overflow-hidden rounded-full bg-muted/70">
+        <div className="relative h-1.5 overflow-hidden rounded-full bg-muted/70">
           <div
             className="h-full rounded-full transition-[width]"
             style={{
@@ -49,6 +51,13 @@ function StatCard({
               background: progresso.cor,
             }}
           />
+          {/* O traço marca onde a recepção deveria estar hoje. */}
+          {progresso.marca !== undefined && progresso.marca > 0 && (
+            <div
+              className="absolute inset-y-0 w-0.5 bg-foreground/40"
+              style={{ left: `${Math.min(100, (progresso.marca / progresso.meta) * 100)}%` }}
+            />
+          )}
         </div>
       )}
       <p className={cn("text-xs text-muted-foreground")}>{sub}</p>
@@ -56,7 +65,7 @@ function StatCard({
   );
 }
 
-export function AgendaStatsCards({ appointments, date }: Props) {
+export function AgendaStatsCards({ appointments, date, remarcacoes = 0 }: Props) {
   const todayAppts = appointments.filter((a) => a.date === date);
   const total = todayAppts.length;
   const confirmed = todayAppts.filter(
@@ -67,31 +76,51 @@ export function AgendaStatsCards({ appointments, date }: Props) {
 
   const pct = (n: number) => (total > 0 ? `${Math.round((n / total) * 100)}% do total` : "—");
 
-  // A semana de verdade, não a que o calendário está mostrando: o ritmo da
+  // O mês de verdade, não o que o calendário está mostrando: a meta da
   // recepção se acompanha sempre no hoje.
-  const { novos, comparecimento } = resumoDaSemana(appointments);
+  const { novos, agenda } = resumoDaAgenda(appointments);
   const corDoRitmo = novos.noRitmo ? "var(--success)" : "var(--coral)";
+
+  const ritmo = novos.atingida
+    ? "Meta do mês batida"
+    : novos.noRitmo
+      ? `No ritmo (+${novos.saldo})`
+      : `Faltam ${novos.meta - novos.total} · ${novos.precisaPorDia} por dia útil`;
+
+  const cancelamento =
+    agenda.cancelamentoPct === null
+      ? null
+      : `Cancelaram ${Math.round(agenda.cancelamentoPct)}%${agenda.cancelaramNoDia ? ` (${agenda.cancelaramNoDia} no dia)` : ""}`;
+  const partes = [
+    agenda.comparecimentoPct === null
+      ? "Nenhum atendimento ainda"
+      : `${agenda.compareceram} de ${agenda.compareceram + agenda.faltaram} vieram`,
+    cancelamento,
+    remarcacoes > 0 ? `${remarcacoes} remarcaram` : null,
+    agenda.semBaixa ? `${agenda.semBaixa} sem baixa` : null,
+  ].filter(Boolean);
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
       <StatCard
         icon={UserPlus}
-        label="Novos na semana"
+        label="Novos agendamentos · mês"
         value={`${novos.total} de ${novos.meta}`}
-        sub={`Hoje ${novos.hoje} de ${novos.metaDiaria}${novos.noRitmo ? "" : ` · ritmo pede ${novos.esperadoAteHoje}`}`}
+        sub={`Hoje ${novos.hoje} de ${novos.metaDiaria} · semana ${novos.semana} · ${ritmo}`}
         iconBg={`color-mix(in oklab, ${corDoRitmo} 10%, transparent)`}
         iconColor={corDoRitmo}
-        progresso={{ valor: novos.total, meta: novos.meta, cor: corDoRitmo }}
+        progresso={{
+          valor: novos.total,
+          meta: novos.meta,
+          cor: corDoRitmo,
+          marca: novos.esperadoAteHoje,
+        }}
       />
       <StatCard
         icon={UserCheck}
-        label="Comparecimento"
-        value={comparecimento.pct === null ? "—" : `${Math.round(comparecimento.pct)}%`}
-        sub={
-          comparecimento.pct === null
-            ? "Nenhum atendimento ainda"
-            : `na semana · ${comparecimento.compareceram} de ${comparecimento.compareceram + comparecimento.faltaram}${comparecimento.semBaixa ? ` · ${comparecimento.semBaixa} sem baixa` : ""}`
-        }
+        label="Comparecimento · mês"
+        value={agenda.comparecimentoPct === null ? "—" : `${Math.round(agenda.comparecimentoPct)}%`}
+        sub={partes.join(" · ")}
         iconBg="color-mix(in oklab, var(--success) 10%, transparent)"
         iconColor="var(--success)"
       />

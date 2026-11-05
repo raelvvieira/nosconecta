@@ -18,7 +18,7 @@ import {
   UserX,
   Lock,
 } from "lucide-react";
-import { resumoDaSemana } from "@/lib/agenda/resumo-da-semana";
+import { resumoDaAgenda } from "@/lib/agenda/resumo-da-agenda";
 import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { cn } from "@/lib/utils";
@@ -115,25 +115,27 @@ function StatsCarousel({ appointments, date }: { appointments: Appointment[]; da
   // texto para dizer nada. Agora simplesmente não há linha.
   const pct = (n: number) => (total > 0 ? `${Math.round((n / total) * 100)}% do total` : undefined);
 
-  const { novos, comparecimento } = resumoDaSemana(appointments);
+  const { novos, agenda } = resumoDaAgenda(appointments);
 
   const cards = [
     {
       icon: UserPlus,
       tone: novos.noRitmo ? ("success" as const) : ("warning" as const),
-      label: "Novos na semana",
+      label: "Novos no mês",
       value: `${novos.total}/${novos.meta}`,
-      nota: `hoje ${novos.hoje} de ${novos.metaDiaria}`,
+      nota: novos.atingida
+        ? "meta batida"
+        : `hoje ${novos.hoje} de ${novos.metaDiaria} · ${novos.precisaPorDia}/dia faltam`,
     },
     {
       icon: UserCheck,
       tone: "success" as const,
       label: "Comparecimento",
-      value: comparecimento.pct === null ? "—" : `${Math.round(comparecimento.pct)}%`,
+      value: agenda.comparecimentoPct === null ? "—" : `${Math.round(agenda.comparecimentoPct)}%`,
       nota:
-        comparecimento.pct === null
+        agenda.cancelamentoPct === null
           ? undefined
-          : `${comparecimento.compareceram} de ${comparecimento.compareceram + comparecimento.faltaram}`,
+          : `cancelaram ${Math.round(agenda.cancelamentoPct)}%`,
     },
     {
       icon: CalendarCheck,

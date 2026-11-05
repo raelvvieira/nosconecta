@@ -94,6 +94,8 @@ export interface Appointment {
   notifications?: AppointmentNotification[];
   /** Quando o agendamento foi registrado (ISO) — é o que conta os "novos" da semana. */
   criadoEm?: string | null;
+  /** Última alteração (ISO) — num cancelado, é a hora em que cancelou. */
+  atualizadoEm?: string | null;
 }
 
 export interface BlockedTime {
