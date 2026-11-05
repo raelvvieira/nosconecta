@@ -92,6 +92,8 @@ export interface Appointment {
   notes?: string;
   generateFinancial?: boolean;
   notifications?: AppointmentNotification[];
+  /** Quando o agendamento foi registrado (ISO) — é o que conta os "novos" da semana. */
+  criadoEm?: string | null;
 }
 
 export interface BlockedTime {

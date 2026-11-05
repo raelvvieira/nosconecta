@@ -13,9 +13,12 @@ import {
   CalendarCheck,
   CheckCircle2,
   Clock,
+  UserCheck,
+  UserPlus,
   UserX,
   Lock,
 } from "lucide-react";
+import { resumoDaSemana } from "@/lib/agenda/resumo-da-semana";
 import { GrupoDeKpis } from "@/components/finance/GrupoDeKpis";
 import { KpiCard } from "@/components/finance/KpiCard";
 import { cn } from "@/lib/utils";
@@ -112,7 +115,26 @@ function StatsCarousel({ appointments, date }: { appointments: Appointment[]; da
   // texto para dizer nada. Agora simplesmente não há linha.
   const pct = (n: number) => (total > 0 ? `${Math.round((n / total) * 100)}% do total` : undefined);
 
+  const { novos, comparecimento } = resumoDaSemana(appointments);
+
   const cards = [
+    {
+      icon: UserPlus,
+      tone: novos.noRitmo ? ("success" as const) : ("warning" as const),
+      label: "Novos na semana",
+      value: `${novos.total}/${novos.meta}`,
+      nota: `hoje ${novos.hoje} de ${novos.metaDiaria}`,
+    },
+    {
+      icon: UserCheck,
+      tone: "success" as const,
+      label: "Comparecimento",
+      value: comparecimento.pct === null ? "—" : `${Math.round(comparecimento.pct)}%`,
+      nota:
+        comparecimento.pct === null
+          ? undefined
+          : `${comparecimento.compareceram} de ${comparecimento.compareceram + comparecimento.faltaram}`,
+    },
     {
       icon: CalendarCheck,
       tone: "violet" as const,

@@ -57,6 +57,7 @@ function mapAppointment(
     notes: row.notes ?? undefined,
     generateFinancial: row.generate_financial,
     notifications,
+    criadoEm: row.created_at ?? null,
   };
 }
 
