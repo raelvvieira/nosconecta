@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { Appointment, AgendaFilters, WaitingListItem, Professional, Room } from "./types";
+import type { Appointment, AgendaFilters, Professional, Room } from "./types";
 import { statusStyle, STATUS_LABEL } from "./appointment-utils";
 
 const MONTHS_PT = [
@@ -171,46 +171,6 @@ function UpcomingAppointmentsCard({ appointments, selectedDate }: { appointments
   );
 }
 
-// ─── Waiting List ────────────────────────────────────────────────────────────
-
-function WaitingListCard({ items }: { items: WaitingListItem[] }) {
-  return (
-    <div className="surface-card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-semibold text-foreground">Lista de Espera</span>
-        <button type="button" className="text-xs font-medium" style={{ color: "var(--pink)" }}>
-          Ver todos
-        </button>
-      </div>
-      {items.length === 0 ? (
-        <p className="text-xs text-muted-foreground text-center py-4">Lista de espera vazia</p>
-      ) : (
-        <div className="space-y-2">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center gap-3 p-3 rounded-xl"
-              style={{ background: "var(--surface)" }}
-            >
-              <div
-                className="h-8 w-8 rounded-full grid place-items-center text-xs font-bold text-white shrink-0"
-                style={{ background: "var(--gradient-primary)" }}
-              >
-                {item.patientName.charAt(0)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-foreground truncate">{item.patientName}</p>
-                <p className="text-2xs text-muted-foreground truncate">{item.procedureName}</p>
-                <p className="text-3xs text-foreground-subtle">Entrou há {item.daysWaiting} dia{item.daysWaiting !== 1 ? "s" : ""}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Quick Filters ───────────────────────────────────────────────────────────
 
 function QuickFiltersCard({
@@ -232,36 +192,36 @@ function QuickFiltersCard({
   return (
     <div className="surface-card p-4">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-semibold text-foreground">Filtros rápidos</span>
+        <span className="text-sm font-semibold text-foreground">Filtros</span>
         {hasFilters && (
           <button type="button" onClick={clearAll} className="text-xs font-medium text-muted-foreground hover:text-pink transition-colors">
             Limpar filtros
           </button>
         )}
       </div>
-      <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
         <select
-          className="w-full text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
+          className="w-full min-w-0 truncate text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
           value={filters.professionalId}
           onChange={(e) => onFiltersChange({ ...filters, professionalId: e.target.value })}
         >
-          <option value="">Todos os profissionais</option>
+          <option value="">Profissional</option>
           {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <select
-          className="w-full text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
+          className="w-full min-w-0 truncate text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
           value={filters.roomId}
           onChange={(e) => onFiltersChange({ ...filters, roomId: e.target.value })}
         >
-          <option value="">Todas as salas</option>
+          <option value="">Sala</option>
           {rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
         <select
-          className="w-full text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
+          className="w-full min-w-0 truncate text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
           value={filters.type}
           onChange={(e) => onFiltersChange({ ...filters, type: e.target.value })}
         >
-          <option value="">Todos os tipos</option>
+          <option value="">Tipo</option>
           <option value="consultation">Consulta</option>
           <option value="evaluation">Avaliação</option>
           <option value="procedure">Procedimento</option>
@@ -269,11 +229,11 @@ function QuickFiltersCard({
           <option value="emergency">Emergência</option>
         </select>
         <select
-          className="w-full text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
+          className="w-full min-w-0 truncate text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
           value={filters.status}
           onChange={(e) => onFiltersChange({ ...filters, status: e.target.value })}
         >
-          <option value="">Todos os status</option>
+          <option value="">Status</option>
           <option value="confirmed">Confirmado</option>
           <option value="pending">Pendente</option>
           <option value="in_progress">Em andamento</option>
@@ -291,7 +251,6 @@ function QuickFiltersCard({
 interface RightSidebarProps {
   selectedDate: Date;
   appointments: Appointment[];
-  waitingList: WaitingListItem[];
   filters: AgendaFilters;
   professionals: Professional[];
   rooms: Room[];
@@ -302,7 +261,6 @@ interface RightSidebarProps {
 export function RightSidebar({
   selectedDate,
   appointments,
-  waitingList,
   filters,
   professionals,
   rooms,
@@ -311,15 +269,14 @@ export function RightSidebar({
 }: RightSidebarProps) {
   return (
     <div className="flex flex-col gap-4">
-      <MiniCalendar selected={selectedDate} appointments={appointments} onSelect={onDateChange} />
-      <UpcomingAppointmentsCard appointments={appointments} selectedDate={selectedDate} />
-      <WaitingListCard items={waitingList} />
       <QuickFiltersCard
         filters={filters}
         professionals={professionals}
         rooms={rooms}
         onFiltersChange={onFiltersChange}
       />
+      <MiniCalendar selected={selectedDate} appointments={appointments} onSelect={onDateChange} />
+      <UpcomingAppointmentsCard appointments={appointments} selectedDate={selectedDate} />
     </div>
   );
 }

@@ -98,7 +98,6 @@ function AgendaPage() {
   const { data: agenda } = useSuspenseQuery(agendaOverviewOpts(fetchOverview as any));
   const appointments = agenda.appointments;
   const blocked = agenda.blockedTimes;
-  const waitingList = agenda.waitingList;
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["agenda-overview"] });
 
@@ -438,7 +437,6 @@ function AgendaPage() {
             <RightSidebar
               selectedDate={selectedDate}
               appointments={appointments}
-              waitingList={waitingList}
               filters={filters}
               professionals={professionals}
               rooms={rooms}
