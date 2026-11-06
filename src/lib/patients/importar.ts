@@ -50,7 +50,7 @@ const pareceTelefone = (t: string) => t.replace(/\D/g, "").length >= 8 && !parec
 
 export function lerPacientes(texto: string): PacienteLido[] {
   const linhas = String(texto ?? "")
-    .replace(/^﻿/, "")
+    .replace(new RegExp(`^${String.fromCharCode(0xfeff)}`), "")
     .split(/\r?\n/)
     .filter((l) => l.trim());
   if (!linhas.length) return [];
