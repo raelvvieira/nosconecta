@@ -363,6 +363,16 @@ export function Onboarding({ config }: { config: ConfigDoConsultorio & { isAdmin
                       Configurar depois
                     </Button>
                   )}
+                  {indice === 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground"
+                      onClick={fecharPorAgora}
+                    >
+                      Fazer depois
+                    </Button>
+                  )}
                 </div>
                 {ultimo ? (
                   <Button
