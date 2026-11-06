@@ -25,6 +25,7 @@
 
 /** Uma etapa da conversa, como o aprendizado a reconheceu. */
 import { nomeDaAssistente, quemAvalia } from "./identidade-do-consultorio.ts";
+import { resolverVariaveis } from "./variaveis-da-instrucao.ts";
 import { secaoDoAnuncio, type Anuncio } from "./veio-de-anuncio.ts";
 import { catalogoDeVagas, comoReportarFechamento } from "./agendamento-da-ia.ts";
 import { comoUsarOsCasos, type CasoComCodigo } from "./casos-da-ia.ts";
@@ -117,6 +118,10 @@ export { nomeDaAssistente, quemAvalia };
 
 export interface EntradaDaInstrucao {
   clinica: string;
+  /** O nome do consultório (a ficha da conta), para `{{CONSULTORIO}}`. `clinica`
+   *  pode ser o nome da UNIDADE da conversa ("NÓS Florianópolis"); a variável
+   *  quer o consultório. Ausente, usa `clinica`. */
+  consultorio?: string | null;
   manual: ManualDeVendas;
   /** Como o paciente paga, avaliação e políticas. Ausente = o padrão (o que a
    *  NÓS já fazia: avaliação sem custo). */
@@ -1030,6 +1035,7 @@ export function secaoDaDuvidaEncaminhada(duvidaPendente?: string | null): string
  */
 export function montarInstrucao({
   clinica,
+  consultorio,
   manual,
   instrucaoBase,
   procedimentos,
@@ -1050,7 +1056,14 @@ export function montarInstrucao({
   condicoes,
   campanhas,
 }: EntradaDaInstrucao): string {
-  const daClinica = String(instrucaoBase ?? "").trim();
+  // As variáveis de identidade da MD ({{ASSISTENTE}}, {{CONSULTORIO}},
+  // {{RESPONSAVEL}}…) são trocadas aqui, antes de a instrução ir para a IA. Uma
+  // MD sem variáveis passa idêntica.
+  const daClinica = resolverVariaveis(String(instrucaoBase ?? "").trim(), {
+    assistente,
+    consultorio: consultorio || clinica,
+    responsavel,
+  }).texto;
   const cond = condicoes ?? CONDICOES_PADRAO;
   // Consultório sem manual próprio e sem conversas aprendidas usa o
   // manual-base em cada campo vazio, e não "(a IA ainda não aprendeu isso)".

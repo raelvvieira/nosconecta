@@ -1232,6 +1232,7 @@ export async function instrucaoDaLuna(
     anuncio,
     horarios,
     clinica: unidade?.nome || identidade.nome,
+    consultorio: identidade.nome,
     responsavel: identidade.responsavel,
     assistente: agente.name ?? null,
     unidades: listaDeUnidades,

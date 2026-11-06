@@ -770,6 +770,7 @@ async function contextoDaClinica(ownerId: string, agente: any) {
   const identidade = await identidadeDoConsultorio(supabase, ownerId);
   return {
     clinica: listaDeUnidades[0]?.nome || identidade.nome,
+    consultorio: identidade.nome,
     responsavel: identidade.responsavel,
     assistente: agente?.name ?? null,
     unidades: listaDeUnidades,
