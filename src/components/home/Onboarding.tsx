@@ -9,6 +9,8 @@ import {
   Check,
   CircleCheck,
   CreditCard,
+  FileUp,
+  KeyRound,
   MapPin,
   MessageCircle,
   Sparkles,
@@ -31,6 +33,7 @@ import {
   CamposDePagamento,
   type Rascunho,
 } from "@/components/settings/CamposDoConsultorio";
+import { PassoAcessos, PassoPacientes } from "@/components/home/PassosDoGuia";
 import { BlocoDeHorarios } from "@/components/settings/BlocoDeHorarios";
 import { ConectarWhatsapp } from "@/components/atendimentos/ConectarWhatsapp";
 import { MODELOS } from "@/components/atendimentos/automations/automationTemplates";
@@ -63,6 +66,8 @@ type PassoId =
   | "endereco"
   | "horarios"
   | "equipe"
+  | "acessos"
+  | "pacientes"
   | "procedimentos"
   | "pagamento"
   | "mensagens"
@@ -114,6 +119,12 @@ const PASSOS: {
     icone: Users,
   },
   {
+    id: "acessos",
+    titulo: "Quem mais usa o sistema",
+    subtitulo: "Convide dentistas e recepção, cada um com o seu nível de acesso.",
+    icone: KeyRound,
+  },
+  {
     id: "procedimentos",
     titulo: "Seus principais procedimentos",
     subtitulo: "Escolha os que vocês fazem e coloque o preço. Dá para mudar depois.",
@@ -124,6 +135,12 @@ const PASSOS: {
     titulo: "Como o paciente paga",
     subtitulo: "A assistente informa só o que estiver aqui.",
     icone: CreditCard,
+  },
+  {
+    id: "pacientes",
+    titulo: "Seus pacientes",
+    subtitulo: "Traga a lista de quem já atende. Dá para fazer depois.",
+    icone: FileUp,
   },
   {
     id: "mensagens",
@@ -442,6 +459,10 @@ function ConteudoDoPasso({
       return <BlocoDeHorarios semBotao />;
     case "equipe":
       return <PassoEquipe />;
+    case "acessos":
+      return <PassoAcessos />;
+    case "pacientes":
+      return <PassoPacientes />;
     case "procedimentos":
       return (
         <PassoProcedimentos
