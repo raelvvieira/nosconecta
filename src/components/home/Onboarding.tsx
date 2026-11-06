@@ -18,7 +18,8 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -233,100 +234,161 @@ export function Onboarding({ config }: { config: ConfigDoConsultorio & { isAdmin
   }
 
   const Icone = passo.icone;
-  const progresso = ((indice + 1) / passos.length) * 100;
+  const anterior = indice > 0 ? passos[indice - 1] : null;
+  const proximo = indice < passos.length - 1 ? passos[indice + 1] : null;
 
   return (
-    <Dialog open onOpenChange={(o) => !o && fecharPorAgora()}>
-      <DialogContent className="flex max-h-[92dvh] w-[calc(100vw-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-[28px] border-0 p-0 shadow-2xl [&>button]:hidden [&>div]:grid-cols-[minmax(0,1fr)] [&>div]:gap-0">
-        <div className="h-1 w-full bg-muted">
-          <div
-            className="h-full bg-gradient-primary transition-[width] duration-500 ease-out"
-            style={{ width: `${progresso}%` }}
-          />
-        </div>
-        <div className="flex items-center justify-between px-6 pt-5 sm:px-10">
-          <span className="text-xs font-medium text-muted-foreground">
-            {indice + 1} de {passos.length}
-          </span>
-          <button
-            type="button"
-            onClick={fecharPorAgora}
-            className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-muted"
-            aria-label="Terminar depois"
-            title="Terminar depois"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div
-          key={passo.id}
-          className="custom-scroll flex-1 overflow-y-auto px-6 pb-6 pt-2 duration-300 animate-in fade-in-0 slide-in-from-right-4 sm:px-10"
+    <DialogPrimitive.Root open onOpenChange={(o) => !o && fecharPorAgora()}>
+      <DialogPrimitive.Portal>
+        {/* O fundo some: o sistema continua ali atrás, desfocado e escurecido,
+            e toda a atenção vai para o cartão. */}
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-neutral-900/35 backdrop-blur-2xl backdrop-saturate-150 duration-500 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
+        <DialogPrimitive.Content
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 outline-none sm:p-6"
         >
-          <div className="mb-6 flex flex-col items-start gap-3">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary">
-              <Icone className="h-6 w-6" />
-            </span>
-            <DialogTitle className="text-[26px] font-semibold leading-tight tracking-[-0.025em]">
-              {passo.titulo}
-            </DialogTitle>
-            <DialogDescription className="text-[15px] leading-6 text-muted-foreground">
-              {passo.subtitulo}
-            </DialogDescription>
-          </div>
-
-          <ConteudoDoPasso
-            id={passo.id}
-            r={rascunho}
-            mudar={mudar}
-            registrar={(fn) => setAoContinuar(() => fn)}
-            passos={passos.map((p) => p.titulo)}
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-4 py-3 sm:px-10 sm:py-4">
-          <div className="flex items-center gap-1">
-            {indice > 0 && !ultimo && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1"
-                disabled={salvando}
+          <div className="relative w-full max-w-xl">
+            {/* Os passos vizinhos espiam dos lados, como cartões de um baralho:
+                mostram onde a pessoa está no caminho. Só no computador. */}
+            {anterior && (
+              <button
+                key={`a-${anterior.id}`}
+                type="button"
                 onClick={() => void irPara(indice - 1, false)}
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Voltar
-              </Button>
-            )}
-            {indice > 0 && !ultimo && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground"
                 disabled={salvando}
-                onClick={() => void irPara(indice + 1, false)}
+                aria-label={`Voltar para ${anterior.titulo}`}
+                className="absolute -left-[150px] top-1/2 hidden h-[330px] w-[210px] -translate-y-1/2 scale-90 flex-col justify-end gap-3 rounded-[30px] bg-white/45 p-5 text-left opacity-70 shadow-xl ring-1 ring-white/40 backdrop-blur-md transition duration-500 animate-in fade-in-0 zoom-in-90 hover:scale-[.93] hover:opacity-90 lg:flex"
               >
-                Configurar depois
-              </Button>
+                <anterior.icone className="h-6 w-6 text-neutral-500" />
+                <span className="text-sm font-medium leading-snug text-neutral-600">
+                  {anterior.titulo}
+                </span>
+              </button>
             )}
+            {proximo && (
+              <div
+                key={`p-${proximo.id}`}
+                aria-hidden
+                className="pointer-events-none absolute -right-[150px] top-1/2 hidden h-[330px] w-[210px] -translate-y-1/2 scale-90 flex-col justify-end gap-3 rounded-[30px] bg-gradient-to-br from-white/35 to-orange-200/40 p-5 opacity-60 shadow-xl ring-1 ring-white/40 backdrop-blur-md animate-in fade-in-0 zoom-in-90 duration-500 lg:flex"
+              >
+                <proximo.icone className="h-6 w-6 text-neutral-500" />
+                <span className="text-sm font-medium leading-snug text-neutral-600">
+                  {proximo.titulo}
+                </span>
+              </div>
+            )}
+
+            <div className="relative flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-[32px] bg-white/90 shadow-[0_40px_100px_-24px_rgba(0,0,0,0.45)] ring-1 ring-white/50 backdrop-blur-xl duration-500 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-6 dark:bg-card/90">
+              <div className="flex items-center justify-between px-6 pt-5 sm:px-10">
+                <div
+                  className="flex items-center gap-1.5"
+                  role="progressbar"
+                  aria-valuemin={1}
+                  aria-valuemax={passos.length}
+                  aria-valuenow={indice + 1}
+                  aria-label={`Passo ${indice + 1} de ${passos.length}`}
+                >
+                  {passos.map((p, i) => (
+                    <span
+                      key={p.id}
+                      className={cn(
+                        "h-1.5 rounded-full transition-all duration-500 ease-out",
+                        i === indice
+                          ? "w-6 bg-foreground"
+                          : i < indice
+                            ? "w-1.5 bg-foreground/50"
+                            : "w-1.5 bg-foreground/15",
+                      )}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={fecharPorAgora}
+                  className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted"
+                  aria-label="Terminar depois"
+                  title="Terminar depois"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div
+                key={passo.id}
+                className="custom-scroll flex-1 overflow-y-auto px-6 pb-6 pt-3 duration-500 ease-out animate-in fade-in-0 slide-in-from-right-6 sm:px-10"
+              >
+                <div className="mb-6 flex flex-col items-start gap-3">
+                  <span className="grid h-12 w-12 place-items-center rounded-[18px] bg-gradient-to-br from-neutral-100 to-orange-100 text-neutral-700 shadow-sm ring-1 ring-black/5">
+                    <Icone className="h-6 w-6" />
+                  </span>
+                  <DialogTitle className="text-[28px] font-semibold leading-tight tracking-[-0.03em]">
+                    {passo.titulo}
+                  </DialogTitle>
+                  <DialogDescription className="text-[15px] leading-6 text-muted-foreground">
+                    {passo.subtitulo}
+                  </DialogDescription>
+                </div>
+
+                <ConteudoDoPasso
+                  id={passo.id}
+                  r={rascunho}
+                  mudar={mudar}
+                  registrar={(fn) => setAoContinuar(() => fn)}
+                  passos={passos.map((p) => p.titulo)}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-black/5 px-4 py-3 sm:px-10 sm:py-4">
+                <div className="flex items-center gap-1">
+                  {indice > 0 && !ultimo && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1"
+                      disabled={salvando}
+                      onClick={() => void irPara(indice - 1, false)}
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                      Voltar
+                    </Button>
+                  )}
+                  {indice > 0 && !ultimo && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground"
+                      disabled={salvando}
+                      onClick={() => void irPara(indice + 1, false)}
+                    >
+                      Configurar depois
+                    </Button>
+                  )}
+                </div>
+                {ultimo ? (
+                  <Button
+                    variant="premium"
+                    className="min-w-32"
+                    disabled={salvando}
+                    onClick={concluir}
+                  >
+                    Começar a usar
+                  </Button>
+                ) : (
+                  <Button
+                    variant="premium"
+                    className="min-w-32"
+                    disabled={salvando}
+                    onClick={() => void irPara(indice + 1, indice > 0)}
+                  >
+                    {indice === 0 ? "Começar" : salvando ? "Salvando…" : "Continuar"}
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
-          {ultimo ? (
-            <Button variant="premium" className="min-w-32" disabled={salvando} onClick={concluir}>
-              Começar a usar
-            </Button>
-          ) : (
-            <Button
-              variant="premium"
-              className="min-w-32"
-              disabled={salvando}
-              onClick={() => void irPara(indice + 1, indice > 0)}
-            >
-              {indice === 0 ? "Começar" : salvando ? "Salvando…" : "Continuar"}
-            </Button>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
 

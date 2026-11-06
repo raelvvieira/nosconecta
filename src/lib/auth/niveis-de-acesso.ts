@@ -165,7 +165,13 @@ export function areaDaRota(pathname: string): AreaDoApp | null {
   // Aparência é preferência da PESSOA, não da clínica: todo nível escolhe a
   // própria cor, inclusive quem não vê o resto de Configurações.
   if (p === "/configuracoes/aparencia") return "inicio";
-  if (p === "/configuracoes/pessoal" || p === "/configuracoes/plano") return "equipe";
+  if (
+    p === "/configuracoes/pessoal" ||
+    p === "/configuracoes/plano" ||
+    p === "/configuracoes/novos-negocios"
+  ) {
+    return "equipe";
+  }
   // Contas bancárias e o grupo que lança no financeiro são do financeiro.
   if (p === "/configuracoes/contas" || p === "/configuracoes/grupo-do-financeiro") {
     return "financeiro";

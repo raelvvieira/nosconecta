@@ -50,12 +50,10 @@ function PaginaDoConvite() {
     retry: false,
   });
 
-  const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
   const [senha, setSenha] = useState("");
+  const [repeticao, setRepeticao] = useState("");
   const [consultorio, setConsultorio] = useState<string | null>(null);
-  const [cidade, setCidade] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   // O nome e o e-mail que vieram no convite entram já preenchidos, e a pessoa
@@ -65,13 +63,13 @@ function PaginaDoConvite() {
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
-    if (!nome.trim()) return toast.error("Diga seu nome.");
-    if (!nomeDoConsultorio.trim()) return toast.error("Diga o nome do consultório.");
+    if (!nomeDoConsultorio.trim()) return toast.error("Diga o nome do seu negócio.");
     if (senha.length < 8) return toast.error("A senha precisa ter pelo menos 8 caracteres.");
+    if (senha !== repeticao) return toast.error("As senhas não são iguais.");
     setSalvando(true);
     try {
       const conta = await criarConta({
-        data: { token, email: emailDigitado, senha, nome: nome.trim(), telefone: whatsapp },
+        data: { token, email: emailDigitado, senha, nome: nomeDoConsultorio.trim(), telefone: "" },
       });
       // E-mail que já tem conta: entra com a senha digitada, se for a dela.
       if (!conta.ok && conta.motivo !== "email_em_uso") {
@@ -97,7 +95,7 @@ function PaginaDoConvite() {
         return;
       }
       const r = await criar({
-        data: { nome: nomeDoConsultorio, cidade, whatsapp, convite: token },
+        data: { nome: nomeDoConsultorio, cidade: "", whatsapp: "", convite: token },
       });
       if (!r.ok) {
         toast.error(
@@ -149,7 +147,7 @@ function PaginaDoConvite() {
             role="img"
             aria-label="NÓS Conecta"
           />
-          <h1 className="mt-3 text-xl font-semibold">Crie a conta do seu consultório</h1>
+          <h1 className="mt-3 text-xl font-semibold">Crie a conta do seu negócio</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {convite.data.diasDeTeste > 0
               ? `São ${convite.data.diasDeTeste} dias para testar tudo. `
@@ -159,13 +157,20 @@ function PaginaDoConvite() {
         </div>
 
         <form className="surface-card space-y-4 p-6" onSubmit={enviar}>
-          <Campo id="nome" rotulo="Seu nome">
-            <Input id="nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
+          <Campo id="consultorio" rotulo="Nome do seu negócio">
+            <Input
+              id="consultorio"
+              autoFocus
+              value={nomeDoConsultorio}
+              onChange={(e) => setConsultorio(e.target.value)}
+              required
+            />
           </Campo>
-          <Campo id="email" rotulo="E-mail">
+          <Campo id="email" rotulo="E-mail de acesso (é o seu login)">
             <Input
               id="email"
               type="email"
+              autoComplete="email"
               value={emailDigitado}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -175,37 +180,29 @@ function PaginaDoConvite() {
             <Input
               id="senha"
               type="password"
+              autoComplete="new-password"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
               required
             />
           </Campo>
-          <hr className="border-border" />
-          <Campo id="consultorio" rotulo="Nome do consultório">
+          <Campo id="repeticao" rotulo="Repita a senha">
             <Input
-              id="consultorio"
-              value={nomeDoConsultorio}
-              onChange={(e) => setConsultorio(e.target.value)}
+              id="repeticao"
+              type="password"
+              autoComplete="new-password"
+              value={repeticao}
+              onChange={(e) => setRepeticao(e.target.value)}
               required
             />
           </Campo>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Campo id="cidade" rotulo="Cidade">
-              <Input id="cidade" value={cidade} onChange={(e) => setCidade(e.target.value)} />
-            </Campo>
-            <Campo id="whatsapp" rotulo="WhatsApp do consultório">
-              <Input
-                id="whatsapp"
-                inputMode="tel"
-                value={whatsapp}
-                onChange={(e) => setWhatsapp(e.target.value)}
-              />
-            </Campo>
-          </div>
           <Button type="submit" variant="premium" className="w-full" disabled={salvando}>
             {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Criar meu consultório
+            Criar minha conta
           </Button>
+          <p className="text-center text-xs text-muted-foreground">
+            Sem e-mail de confirmação: a conta já nasce pronta para entrar.
+          </p>
         </form>
       </div>
     </div>

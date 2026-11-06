@@ -280,9 +280,9 @@ function novoToken(): string {
 export const criarConviteDeConsultorio = createServerFn({ method: "POST" })
   .middleware([exigePlataforma])
   .inputValidator(
-    (input: { nomeConsultorio: string; email?: string; plano: Plano; diasDeTeste: number }) => {
+    (input: { nomeConsultorio?: string; email?: string; plano: Plano; diasDeTeste: number }) => {
+      // Sem nome é válido: o link genérico deixa quem abre dizer o nome do negócio.
       const nome = String(input.nomeConsultorio ?? "").trim();
-      if (!nome) throw new Error("Diga o nome do consultório.");
       if (!["basico", "ia"].includes(input.plano)) throw new Error("Plano inválido.");
       return {
         nome: nome.slice(0, 120),

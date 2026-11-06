@@ -1,4 +1,5 @@
 import { podeAbrir, podeVerArea } from "@/lib/auth/niveis-de-acesso";
+import { souDaPlataforma } from "@/lib/plataforma/plataforma.functions";
 import { Link, useLocation, useRouterState, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { queryOptions, useQuery } from "@tanstack/react-query";
@@ -16,6 +17,7 @@ import {
   Receipt,
   Share2,
   CreditCard,
+  Link2,
   Users,
   Wallet,
   type LucideIcon,
@@ -44,7 +46,15 @@ type NavItem =
       icon: LucideIcon;
       adminOnly?: boolean;
     }
-  | { kind: "link"; to: string; label: string; description: string; icon: LucideIcon };
+  | {
+      kind: "link";
+      to: string;
+      label: string;
+      description: string;
+      icon: LucideIcon;
+      /** Só para quem administra a plataforma (o dono do sistema). */
+      soPlataforma?: boolean;
+    };
 
 // Fonte única da navegação de Configurações. Antes existiam duas listas
 // paralelas (um grid de cards no topo e um menu lateral embaixo) que
@@ -203,6 +213,14 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
         description: "Assinatura e conversas extras",
         icon: CreditCard,
       },
+      {
+        kind: "link",
+        to: "/configuracoes/novos-negocios",
+        label: "Novos negócios",
+        description: "Gerar link de cadastro gratuito",
+        icon: Link2,
+        soPlataforma: true,
+      },
     ],
   },
 ];
@@ -220,12 +238,20 @@ export function SettingsNav() {
   // Links seguem a área da rota (Pessoal e Plano só para quem administra;
   // Contas e Grupo do financeiro só para quem vê o financeiro). Unidades,
   // para quem configura.
+  const verSePlataforma = useServerFn(souDaPlataforma);
+  const daPlataforma = useQuery({
+    queryKey: ["sou-da-plataforma"],
+    queryFn: () => verSePlataforma(),
+    staleTime: 5 * 60_000,
+  });
   const visible = (item: NavItem) =>
     item.kind === "section"
       ? !item.adminOnly ||
         !!counts?.isAdmin ||
         (item.value === "units" && podeVerArea(counts?.nivel, "configuracoes"))
-      : !counts || podeAbrir(counts.nivel, item.to);
+      : item.soPlataforma
+        ? daPlataforma.data === true
+        : !counts || podeAbrir(counts.nivel, item.to);
 
   const activeSection: PageSection = search.section ?? "chairs";
   const { searchStr } = useLocation();
