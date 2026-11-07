@@ -4,6 +4,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAtendimento } from "./useAtendimento";
 import { Bloco } from "./campos";
 import { useNomeDaAssistente } from "@/components/agente-ia/useNomeDaAssistente";
+import {
+  problemasDeVariaveis,
+  VARIAVEIS_DA_INSTRUCAO,
+} from "../../../supabase/functions/_shared/variaveis-da-instrucao.ts";
 
 /**
  * O manual de condução da Luna, escrito pela clínica.
@@ -42,6 +46,8 @@ export function ManualDaLuna() {
   useEffect(() => setRascunho(doServidor), [doServidor]);
 
   const mudou = rascunho !== doServidor;
+  const problemas = problemasDeVariaveis(rascunho);
+  const temProblema = problemas.desconhecidas.length > 0 || problemas.chavesSoltas;
   const linhas = rascunho.trim() ? rascunho.trim().split("\n").length : 0;
 
   return (
@@ -62,6 +68,29 @@ export function ManualDaLuna() {
         placeholder={`Escreva como a ${luna} deve conduzir a conversa: quem ela é, o tom, as etapas, o que ela nunca faz.`}
         className="mt-4 resize-y rounded-xl border-border font-mono text-xs leading-5"
       />
+
+      {temProblema && (
+        <div
+          role="alert"
+          className="mt-3 rounded-xl border border-warning/40 bg-warning-soft px-3.5 py-2.5 text-xs leading-5 text-warning"
+        >
+          {problemas.desconhecidas.length > 0 && (
+            <p>
+              Variável que o sistema não conhece:{" "}
+              <strong>{problemas.desconhecidas.map((v) => `{{${v}}}`).join(", ")}</strong>. Na hora
+              de responder ela some, e a frase fica furada.
+            </p>
+          )}
+          {problemas.chavesSoltas && (
+            <p>
+              Há chaves <strong>{"{{"}</strong> ou <strong>{"}}"}</strong> sem par no texto.
+            </p>
+          )}
+          <p className="mt-1 text-muted-foreground">
+            As variáveis que existem: {VARIAVEIS_DA_INSTRUCAO.map((v) => `{{${v}}}`).join(", ")}.
+          </p>
+        </div>
+      )}
 
       <div className="mt-3 flex items-center gap-2">
         <Button

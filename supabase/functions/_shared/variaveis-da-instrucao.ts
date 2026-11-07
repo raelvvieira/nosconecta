@@ -94,3 +94,27 @@ export function resolverVariaveis(
   }
   return { texto: resolvido, desconhecidas };
 }
+
+/**
+ * As variáveis `{{...}}` escritas no texto que a assistente não conhece, e as
+ * chaves soltas. Serve à tela, para avisar ANTES de salvar: no envio elas são
+ * removidas em silêncio, e quem escreveu merece saber que a frase ficou furada.
+ */
+export function problemasDeVariaveis(texto: string | null | undefined): {
+  desconhecidas: string[];
+  chavesSoltas: boolean;
+} {
+  const origem = String(texto ?? "");
+  const desconhecidas: string[] = [];
+  for (const m of origem.matchAll(TOKEN)) {
+    const chave = m[1].toUpperCase();
+    if (
+      !(VARIAVEIS_DA_INSTRUCAO as readonly string[]).includes(chave) &&
+      !desconhecidas.includes(m[1])
+    ) {
+      desconhecidas.push(m[1]);
+    }
+  }
+  const semConhecidas = origem.replace(TOKEN, "");
+  return { desconhecidas, chavesSoltas: /\{\{|\}\}/.test(semConhecidas) };
+}

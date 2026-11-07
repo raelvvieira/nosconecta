@@ -1033,6 +1033,101 @@ export function secaoDaDuvidaEncaminhada(duvidaPendente?: string | null): string
  * que permite exercitá-la sem servidor, sem modelo e sem enviar nada a
  * ninguém.
  */
+/**
+ * Qual núcleo de método a MD da conta declara: a V5 (AGENTE CORE V5.x
+ * universal) ou a anterior (LUNA V4.x, a da NÓS hoje). Decide só a regra 8, que
+ * é a única regra fixa do código que a V5.1 contradiz (preço pedido não espera
+ * a resposta do paciente). A V4 segue idêntica, byte a byte.
+ */
+export function versaoDoNucleo(md: string): "v4" | "v5" {
+  return /AGENTE CORE V5/i.test(String(md ?? "").slice(0, 400)) ? "v5" : "v4";
+}
+
+const VALOR_ANTES_DO_HORARIO_V4 = (cond: CondicoesDoConsultorio, assistente: string): string[] => [
+  "8. VALOR ANTES DE HORÁRIO. Antes de oferecer o primeiro horário, a pessoa",
+  "   precisa ter recebido nesta conversa o valor do procedimento dela. Esta",
+  "   regra vale mesmo quando o manual manda ir direto para a agenda diante de",
+  "   um sinal de compra: ir para a agenda continua certo, mas o valor vem",
+  "   antes. Se o valor já está acima marcado com VOCÊ, não repita.",
+  "",
+  "   A primeira resposta continua SEM preço, nos dois caminhos abaixo.",
+  "   Escolha o caminho pela intenção real da pessoa:",
+  "",
+  "   CAMINHO 1, quem está conhecendo (pede informação, preço ou explicação,",
+  "   sem dizer que quer marcar). Perguntar preço NÃO é pedir para marcar.",
+  "     apresentação → microqualificação curta (o que ela quer e, quando fizer",
+  "     sentido, se já fez antes) → a oferta pertinente, em poucas linhas →",
+  "     o valor autorizado → conduzir → dois horários.",
+  "   Uma pergunta por mensagem, e espere a resposta. Preço e horário NUNCA",
+  "   na mesma mensagem neste caminho.",
+  "",
+  '   CAMINHO 2, quem já quer marcar ("quero agendar", "quero marcar uma',
+  '   avaliação", "tem horário?"). Não transforme essa pessoa num',
+  "   questionário:",
+  "     apresentação → o procedimento, só se ela ainda não disse → explicação",
+  "     curta com o valor autorizado → a cidade, se ainda não confirmada →",
+  "     dois horários reais.",
+  "   Aqui o valor pode ir na MESMA mensagem da pergunta da cidade, ou, com a",
+  "   cidade já confirmada, na mesma mensagem dos dois horários, antes deles.",
+  "",
+  "   Nos dois caminhos:",
+  `   - ${fraseDaAvaliacao(cond)} Diga isso separado do valor do procedimento,`,
+  "     para ninguém confundir o que é pago.",
+  "   - Use só os valores da tabela desta instrução. Uma oferta pertinente",
+  "     basta: não mande todas as modalidades e preços de uma vez.",
+  "   - Quando o valor depende da avaliação e a tabela não tem referência,",
+  "     diga isso, sem inventar orçamento, e lembre como funciona a avaliação.",
+  "",
+  "   O que não fazer, porque aconteceu de verdade:",
+  `   - Responder 'Oii, aqui é a ${nomeDaAssistente(assistente)} 😊 O combo fica R$ X, em até 10x,`,
+  "     tenho hoje às 17h ou 17h30' na PRIMEIRA mensagem. A pessoa mal disse",
+  "     o que queria e recebeu preço, prazo e duas datas: um folheto.",
+  "   - A pessoa disse 'Quero agendar uma avaliação', depois 'Clareamento',",
+  "     depois a cidade, e recebeu dois horários sem nunca ter ouvido o valor.",
+  "     A dentista teve de entrar na conversa para mandar os preços.",
+  "",
+  "   Se a pessoa perguntar o preço direto, responda o preço, sem a fazer",
+  "   esperar. No caminho 1, continue com uma pergunta sua depois do valor, e",
+  "   nada de horário ainda.",
+  "",
+];
+
+/** A V5.1: preço pedido vai no mesmo turno, sem esperar resposta. Horário
+ *  continua só depois do valor. */
+const VALOR_ANTES_DO_HORARIO_V5 = (cond: CondicoesDoConsultorio): string[] => [
+  "8. VALOR ANTES DE HORÁRIO, E O VALOR PEDIDO NÃO ESPERA. Antes de oferecer o",
+  "   primeiro horário, a pessoa precisa ter recebido nesta conversa o valor do",
+  "   procedimento dela. Se o valor já está acima marcado com VOCÊ, não repita.",
+  "",
+  '   - Quem PEDE o preço (explicitamente, ou com um "valor" a um anúncio',
+  "     inequívoco): o valor vai NA MESMA RESPOSTA, no mesmo lote de bolhas. Dá para",
+  "     se apresentar em poucas palavras e fazer UMA pergunta curta, mas o valor não",
+  "     espera a resposta a ela. Nunca segure um preço conhecido atrás de uma",
+  "     pergunta.",
+  "   - Quem está só conhecendo e não pediu preço: conduza como o método acima",
+  "     manda. Uma oferta pertinente basta; não despeje todos os valores.",
+  "   - Quem já quer marcar: o valor vem antes dos horários, na mesma resposta ou",
+  "     antes.",
+  "   - Horário e valor de uma pessoa que só pediu informação, na primeira",
+  "     mensagem, é um folheto: não.",
+  `   - ${fraseDaAvaliacao(cond)} Diga isso separado do valor do procedimento,`,
+  "     para ninguém confundir o que é pago.",
+  "   - Use só os valores da tabela desta instrução. Quando o valor depende da",
+  "     avaliação e a tabela não tem referência, diga isso, sem inventar",
+  "     orçamento.",
+  "",
+];
+
+export function regraDoValorAntesDoHorario(
+  versao: "v4" | "v5",
+  cond: CondicoesDoConsultorio,
+  assistente: string,
+): string[] {
+  return versao === "v5"
+    ? VALOR_ANTES_DO_HORARIO_V5(cond)
+    : VALOR_ANTES_DO_HORARIO_V4(cond, assistente);
+}
+
 export function montarInstrucao({
   clinica,
   consultorio,
@@ -1232,52 +1327,7 @@ export function montarInstrucao({
     "   exemplos do manual tragam um em toda fala. Termine a frase com ponto,",
     "   não com emoji. Em dor, urgência ou reclamação, nenhum.",
     "",
-    "8. VALOR ANTES DE HORÁRIO. Antes de oferecer o primeiro horário, a pessoa",
-    "   precisa ter recebido nesta conversa o valor do procedimento dela. Esta",
-    "   regra vale mesmo quando o manual manda ir direto para a agenda diante de",
-    "   um sinal de compra: ir para a agenda continua certo, mas o valor vem",
-    "   antes. Se o valor já está acima marcado com VOCÊ, não repita.",
-    "",
-    "   A primeira resposta continua SEM preço, nos dois caminhos abaixo.",
-    "   Escolha o caminho pela intenção real da pessoa:",
-    "",
-    "   CAMINHO 1, quem está conhecendo (pede informação, preço ou explicação,",
-    "   sem dizer que quer marcar). Perguntar preço NÃO é pedir para marcar.",
-    "     apresentação → microqualificação curta (o que ela quer e, quando fizer",
-    "     sentido, se já fez antes) → a oferta pertinente, em poucas linhas →",
-    "     o valor autorizado → conduzir → dois horários.",
-    "   Uma pergunta por mensagem, e espere a resposta. Preço e horário NUNCA",
-    "   na mesma mensagem neste caminho.",
-    "",
-    '   CAMINHO 2, quem já quer marcar ("quero agendar", "quero marcar uma',
-    '   avaliação", "tem horário?"). Não transforme essa pessoa num',
-    "   questionário:",
-    "     apresentação → o procedimento, só se ela ainda não disse → explicação",
-    "     curta com o valor autorizado → a cidade, se ainda não confirmada →",
-    "     dois horários reais.",
-    "   Aqui o valor pode ir na MESMA mensagem da pergunta da cidade, ou, com a",
-    "   cidade já confirmada, na mesma mensagem dos dois horários, antes deles.",
-    "",
-    "   Nos dois caminhos:",
-    `   - ${fraseDaAvaliacao(cond)} Diga isso separado do valor do procedimento,`,
-    "     para ninguém confundir o que é pago.",
-    "   - Use só os valores da tabela desta instrução. Uma oferta pertinente",
-    "     basta: não mande todas as modalidades e preços de uma vez.",
-    "   - Quando o valor depende da avaliação e a tabela não tem referência,",
-    "     diga isso, sem inventar orçamento, e lembre como funciona a avaliação.",
-    "",
-    "   O que não fazer, porque aconteceu de verdade:",
-    `   - Responder 'Oii, aqui é a ${nomeDaAssistente(assistente)} 😊 O combo fica R$ X, em até 10x,`,
-    "     tenho hoje às 17h ou 17h30' na PRIMEIRA mensagem. A pessoa mal disse",
-    "     o que queria e recebeu preço, prazo e duas datas: um folheto.",
-    "   - A pessoa disse 'Quero agendar uma avaliação', depois 'Clareamento',",
-    "     depois a cidade, e recebeu dois horários sem nunca ter ouvido o valor.",
-    "     A dentista teve de entrar na conversa para mandar os preços.",
-    "",
-    "   Se a pessoa perguntar o preço direto, responda o preço, sem a fazer",
-    "   esperar. No caminho 1, continue com uma pergunta sua depois do valor, e",
-    "   nada de horário ainda.",
-    "",
+    ...regraDoValorAntesDoHorario(versaoDoNucleo(daClinica), cond, nomeDaAssistente(assistente)),
     "9. NUNCA REPITA O QUE VOCÊ JÁ DISSE nesta conversa. Tudo que aparece",
     "   marcado com VOCÊ na conversa acima já chegou ao paciente: ele leu o",
     "   endereço, o preço e o horário que estão ali. Dizer de novo é o que faz",

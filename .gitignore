@@ -44,3 +44,5 @@ scripts/migracao/.recepcao
 supabase/.temp/
 scripts/migracao/.exportacao
 site/vendas/publico/
+
+scripts/agente/backups/
