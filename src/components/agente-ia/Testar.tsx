@@ -33,7 +33,17 @@ type Fala = {
   caso?: string | null;
 };
 
-export function Testar({ semCartao = false }: { semCartao?: boolean }) {
+export function Testar({
+  semCartao = false,
+  ofertaEmFoco,
+  publicoFixo,
+}: {
+  semCartao?: boolean;
+  /** Simula a conversa já com esta oferta em foco (id). Ausente = o normal. */
+  ofertaEmFoco?: string;
+  /** Fixa o público simulado (a ficha de uma oferta sabe qual é). */
+  publicoFixo?: "atendimento" | "paciente_modelo" | "mentoria";
+}) {
   const simular = useServerFn(simularAtendimento);
   const [texto, setTexto] = useState("");
   const [simulando, setSimulando] = useState(false);
@@ -57,7 +67,8 @@ export function Testar({ semCartao = false }: { semCartao?: boolean }) {
         data: {
           texto: mensagem,
           historico,
-          publico: pacienteModelo ? "paciente_modelo" : undefined,
+          publico: publicoFixo ?? (pacienteModelo ? "paciente_modelo" : undefined),
+          ofertaEmFoco,
         },
       });
       setAviso({ motivo: r.respondeu ? undefined : r.motivo, desligado: r.desligado });
@@ -82,17 +93,23 @@ export function Testar({ semCartao = false }: { semCartao?: boolean }) {
   const conteudo = (
     <>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <label className="flex items-center gap-2 text-xs">
-          <Switch
-            checked={pacienteModelo}
-            onCheckedChange={(v) => {
-              setPacienteModelo(v);
-              setConversa([]);
-              setAviso(null);
-            }}
-          />
-          Simular como paciente modelo
-        </label>
+        {publicoFixo ? (
+          <span className="text-xs text-muted-foreground">
+            Conversa simulada com esta oferta em foco.
+          </span>
+        ) : (
+          <label className="flex items-center gap-2 text-xs">
+            <Switch
+              checked={pacienteModelo}
+              onCheckedChange={(v) => {
+                setPacienteModelo(v);
+                setConversa([]);
+                setAviso(null);
+              }}
+            />
+            Simular como paciente modelo
+          </label>
+        )}
         {conversa.length > 0 && (
           <Button
             variant="ghost"

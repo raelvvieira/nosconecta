@@ -395,3 +395,73 @@ export function secaoDeConhecimento(oferta: Oferta, blocos: Conhecimento[]): str
   }
   return linhas;
 }
+
+// ── O termômetro: quanto a assistente já tem para vender esta oferta ───────
+
+export interface ItemDoTermometro {
+  id: "resumo" | "reconhecer" | "condicoes" | "conhecimento" | "materiais" | "instrucoes";
+  rotulo: string;
+  ok: boolean;
+  /** O que fazer quando falta. */
+  dica: string;
+}
+
+export interface Termometro {
+  itens: ItemDoTermometro[];
+  feitos: number;
+  total: number;
+}
+
+/**
+ * Os insumos que a assistente precisa para conduzir uma venda da oferta. Não é
+ * bloqueio: uma oferta ligada sem tudo funciona, só vende com menos munição. Serve
+ * para a tela mostrar o que ainda dá para dar a ela.
+ */
+export function termometroDaOferta(
+  o: Oferta,
+  ctx: { blocos: number; materiais: number; temEdicao?: boolean },
+): Termometro {
+  const condicoesOk = o.tipo === "promocao" ? o.itens.length > 0 : ctx.temEdicao === true;
+  const itens: ItemDoTermometro[] = [
+    {
+      id: "resumo",
+      rotulo: "Resumo curto",
+      ok: !!o.resumo,
+      dica: "Uma ou duas frases do que é a oferta. Vai em toda conversa.",
+    },
+    {
+      id: "reconhecer",
+      rotulo: "Como reconhecer",
+      ok: !!o.comoReconhecer,
+      dica: "As palavras que mostram que a pessoa quer esta oferta.",
+    },
+    {
+      id: "condicoes",
+      rotulo: o.tipo === "promocao" ? "Procedimentos e preços" : "Edição com datas e vagas",
+      ok: condicoesOk,
+      dica:
+        o.tipo === "promocao"
+          ? "Cadastre ao menos um procedimento com o preço da promoção."
+          : "Cadastre a próxima edição, com os dias e as vagas.",
+    },
+    {
+      id: "conhecimento",
+      rotulo: "Conhecimento",
+      ok: ctx.blocos > 0,
+      dica: "Textos para ela consultar: o que é, quem faz, perguntas frequentes, objeções.",
+    },
+    {
+      id: "materiais",
+      rotulo: "Fotos e vídeos",
+      ok: ctx.materiais > 0,
+      dica: "Ligue casos autorizados da biblioteca a esta oferta.",
+    },
+    {
+      id: "instrucoes",
+      rotulo: "Instruções comerciais",
+      ok: !!o.instrucoes,
+      dica: "Como conduzir a venda, em poucas linhas (opcional).",
+    },
+  ];
+  return { itens, feitos: itens.filter((i) => i.ok).length, total: itens.length };
+}

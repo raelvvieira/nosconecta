@@ -23,7 +23,7 @@ import { minhaFranquia } from "@/lib/plataforma/plataforma.functions";
 import { ChaveDaIa } from "@/components/agente-ia/ChaveDaIa";
 import { NomeDaAssistente } from "@/components/agente-ia/NomeDaAssistente";
 import { ManualDaLuna } from "@/components/agente-ia/ManualDaLuna";
-import { Modulos } from "@/components/agente-ia/Modulos";
+import { ListaDeOfertas } from "@/components/agente-ia/ofertas/ListaDeOfertas";
 import { ComQuemFala } from "@/components/agente-ia/ComQuemFala";
 import { Ritmo } from "@/components/agente-ia/Ritmo";
 import { RecoveryEngine } from "@/components/agente-ia/RecoveryEngine";
@@ -40,14 +40,17 @@ const ABAS = [
   { value: "atendimento", label: "Atendimento" },
   { value: "conhecimento", label: "O que ela sabe" },
   { value: "aprendizado", label: "Aprendizado" },
-  { value: "modulos", label: "Módulos" },
+  { value: "ofertas", label: "Ofertas" },
   { value: "configuracao", label: "Configuração" },
 ] as const;
 type Aba = (typeof ABAS)[number]["value"];
 
 const searchSchema = z.object({
   /** Na URL para o F5 voltar na mesma aba. */
-  aba: z.enum(["atendimento", "conhecimento", "aprendizado", "modulos", "configuracao"]).optional(),
+  // "modulos" era o nome da aba antes das Ofertas: o endereço antigo continua valendo.
+  aba: z
+    .enum(["atendimento", "conhecimento", "aprendizado", "ofertas", "modulos", "configuracao"])
+    .optional(),
 });
 
 export const Route = createFileRoute("/agente-ia/")({
@@ -95,7 +98,9 @@ export const Route = createFileRoute("/agente-ia/")({
 function AgentePage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const aba: Aba = Route.useSearch().aba ?? "atendimento";
+  const pedida = Route.useSearch().aba;
+  // O endereço antigo (?aba=modulos) leva para as Ofertas.
+  const aba: Aba = (pedida === "modulos" ? "ofertas" : pedida) ?? "atendimento";
   // O teste vive num pop-up (31/10): preso numa coluna da aba Atendimento,
   // ele deixava meia tela vazia embaixo dele.
   const [testando, setTestando] = useState(false);
@@ -270,7 +275,7 @@ function AgentePage() {
             </div>
           )}
 
-          {aba === "modulos" && <Modulos />}
+          {aba === "ofertas" && <ListaDeOfertas />}
 
           {aba === "configuracao" && (
             <div className="grid gap-4 xl:grid-cols-2 xl:items-start">

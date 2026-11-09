@@ -12,6 +12,7 @@ import {
   ofertasValendo,
   secaoDeConhecimento,
   secaoOQueEstaValendo,
+  termometroDaOferta,
 } from "../supabase/functions/_shared/mapa-de-ofertas.ts";
 import { lerRespostaAoPaciente } from "../supabase/functions/_shared/modelo-de-atendimento.ts";
 import { campanhaDoBanco } from "../supabase/functions/_shared/condicoes-do-consultorio.ts";
@@ -372,6 +373,28 @@ conferir(
   "campo gigante é cortado",
   resposta({ ofertaEmFoco: "x".repeat(50) }).ofertaEmFoco.length,
   10,
+);
+
+// ── O termômetro ───────────────────────────────────────────────────────────
+const vazio = termometroDaOferta(promocao({ itens: [] }), { blocos: 0, materiais: 0 });
+conferir("oferta sem nada: zero de seis", [vazio.feitos, vazio.total], [0, 6]);
+const cheio = termometroDaOferta(
+  promocao({ resumo: "x", como_reconhecer: "y", instrucoes_comerciais: "z" }),
+  { blocos: 2, materiais: 1 },
+);
+conferir("promoção completa: seis de seis", cheio.feitos, 6);
+conferir(
+  "edição só conta condições com edição cadastrada",
+  [
+    termometroDaOferta(modelo(), { blocos: 0, materiais: 0 }).itens[2].ok,
+    termometroDaOferta(modelo(), { blocos: 0, materiais: 0, temEdicao: true }).itens[2].ok,
+  ],
+  [false, true],
+);
+conferir(
+  "o rótulo muda com o tipo",
+  termometroDaOferta(modelo(), { blocos: 0, materiais: 0 }).itens[2].rotulo,
+  "Edição com datas e vagas",
 );
 
 if (falhas.length) {
