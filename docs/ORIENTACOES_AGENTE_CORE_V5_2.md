@@ -63,16 +63,16 @@ Executar os 75 testes da Parte G e os testes ainda pertinentes da V5.1, com logs
 
 Preparar um inventário do conteúdo útil da antiga MD de Paciente Modelo, com destino proposto:
 
-| Conteúdo anterior               | Destino novo                                       |
-| ------------------------------- | -------------------------------------------------- |
-| Datas, locais, edição           | Cadastro vigente de Oferta                         |
-| Valores, pacotes, ml            | Procedimentos vinculados e condições de Oferta     |
-| Quem aplica e quem supervisiona | Descrição e FAQ aprovadas da Oferta                |
-| Perfis e cases                  | Profissionais / materiais autorizados              |
-| Sinal, reembolso, link          | Regras de reserva e pagamento da Oferta            |
-| Objeções específicas            | FAQ e instruções comerciais da Oferta              |
-| Conversação geral e SPIN        | Core V5.2, sem segunda MD                          |
-| Recuperação por estágio         | Recovery Engine universal, com referência à Oferta |
+| Conteúdo anterior | Destino novo |
+|---|---|
+| Datas, locais, edição | Cadastro vigente de Oferta |
+| Valores, pacotes, ml | Procedimentos vinculados e condições de Oferta |
+| Quem aplica e quem supervisiona | Descrição e FAQ aprovadas da Oferta |
+| Perfis e cases | Profissionais / materiais autorizados |
+| Sinal, reembolso, link | Regras de reserva e pagamento da Oferta |
+| Objeções específicas | FAQ e instruções comerciais da Oferta |
+| Conversação geral e SPIN | Core V5.2, sem segunda MD |
+| Recuperação por estágio | Recovery Engine universal, com referência à Oferta |
 
 **Não desativar o módulo antigo, remover extensões da NÓS ou apagar conteúdos antes de backup e validação funcional.** O cadastro da Mentoria para Profissionais pode ainda ser incompleto; registrar lacunas, não criar valores ou datas.
 
