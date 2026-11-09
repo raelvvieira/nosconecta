@@ -23,6 +23,12 @@ import { ConhecimentoDaOferta } from "@/components/agente-ia/ofertas/Conheciment
 import { MateriaisDaOferta } from "@/components/agente-ia/ofertas/Materiais";
 import { PreviaDaIA } from "@/components/agente-ia/ofertas/PreviaDaIA";
 import {
+  Edicoes,
+  Ofertas as ProcedimentosDaEdicao,
+  Regras,
+  Reservas,
+} from "@/components/agente-ia/ofertas/paciente-modelo/GestaoDoPacienteModelo";
+import {
   BarraDoTermometro,
   PARA_QUEM_ROTULO,
   SeletorDePosicao,
@@ -49,6 +55,7 @@ import {
 const ABAS_DA_FICHA = [
   { value: "visao", label: "Visão geral" },
   { value: "condicoes", label: "Condições" },
+  { value: "edicoes", label: "Edições e vagas" },
   { value: "conhecimento", label: "Conhecimento" },
   { value: "materiais", label: "Materiais" },
   { value: "instrucoes", label: "Instruções" },
@@ -57,10 +64,28 @@ const ABAS_DA_FICHA = [
 ] as const;
 type Aba = (typeof ABAS_DA_FICHA)[number]["value"];
 
+const SUB_ABAS = [
+  { value: "edicoes", label: "Edições" },
+  { value: "procedimentos", label: "Procedimentos da edição" },
+  { value: "reservas", label: "Reservas" },
+  { value: "regras", label: "Regras e FAQ" },
+] as const;
+
 const searchSchema = z.object({
   aba: z
-    .enum(["visao", "condicoes", "conhecimento", "materiais", "instrucoes", "testar", "ia"])
+    .enum([
+      "visao",
+      "condicoes",
+      "edicoes",
+      "conhecimento",
+      "materiais",
+      "instrucoes",
+      "testar",
+      "ia",
+    ])
     .optional(),
+  /** Sub-aba da gestão do Paciente Modelo (aba "Edições e vagas"). */
+  sub: z.enum(["edicoes", "procedimentos", "reservas", "regras"]).optional(),
 });
 
 export const Route = createFileRoute("/agente-ia/ofertas/$id")({
@@ -102,7 +127,9 @@ function numero(t: string): number | null {
 
 function FichaDaOfertaPage() {
   const { id } = Route.useParams();
-  const aba: Aba = Route.useSearch().aba ?? "visao";
+  const busca = Route.useSearch();
+  const aba: Aba = busca.aba ?? "visao";
+  const sub = busca.sub ?? "edicoes";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const buscar = useServerFn(getOfertaDoAgente);
@@ -235,7 +262,9 @@ function FichaDaOfertaPage() {
         role="tablist"
         className="mt-5 flex w-full gap-1 overflow-x-auto rounded-full border border-border/70 bg-card p-1 shadow-1 sm:w-fit"
       >
-        {ABAS_DA_FICHA.map((a) => (
+        {ABAS_DA_FICHA.filter(
+          (a) => a.value !== "edicoes" || oferta.modulo === "paciente_modelo",
+        ).map((a) => (
           <button
             key={a.value}
             type="button"
@@ -254,7 +283,7 @@ function FichaDaOfertaPage() {
         ))}
       </div>
 
-      <div className="mt-5 max-w-3xl">
+      <div className={cn("mt-5", aba !== "edicoes" && "max-w-3xl")}>
         {aba === "visao" && (
           <div className="grid gap-5">
             <div className="rounded-3xl border border-border/70 bg-card p-5 shadow-1">
@@ -416,10 +445,12 @@ function FichaDaOfertaPage() {
                   edições.
                 </p>
                 {oferta.modulo === "paciente_modelo" && (
-                  <Button asChild variant="outline" className="mt-3 rounded-full">
-                    <Link to="/agente-ia/modulos/paciente-modelo">
-                      Gerenciar edições e reservas
-                    </Link>
+                  <Button
+                    variant="outline"
+                    className="mt-3 rounded-full"
+                    onClick={() => irPara("edicoes")}
+                  >
+                    Gerenciar edições e reservas
                   </Button>
                 )}
               </div>
@@ -434,6 +465,44 @@ function FichaDaOfertaPage() {
                 onChange={(e) => mudar({ observacoes: e.target.value })}
               />
             </Campo>
+          </div>
+        )}
+
+        {aba === "edicoes" && oferta.modulo === "paciente_modelo" && (
+          <div className="grid max-w-none gap-4">
+            <div
+              role="tablist"
+              className="flex w-full gap-1 overflow-x-auto rounded-full border border-border/70 bg-card p-1 shadow-1 sm:w-fit"
+            >
+              {SUB_ABAS.map((a) => (
+                <button
+                  key={a.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={sub === a.value}
+                  onClick={() =>
+                    navigate({
+                      to: "/agente-ia/ofertas/$id",
+                      params: { id },
+                      search: { aba: "edicoes", sub: a.value },
+                      replace: true,
+                    })
+                  }
+                  className={cn(
+                    "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+                    sub === a.value
+                      ? "bg-foreground text-white"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+            {sub === "edicoes" && <Edicoes />}
+            {sub === "procedimentos" && <ProcedimentosDaEdicao />}
+            {sub === "reservas" && <Reservas />}
+            {sub === "regras" && <Regras />}
           </div>
         )}
 

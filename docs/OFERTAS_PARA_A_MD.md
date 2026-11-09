@@ -1,29 +1,51 @@
 # Ofertas: o que muda para a MD da Luna
 
 A Luna agora recebe, a cada conversa, um bloco chamado **"O que está valendo agora"**.
-Ele é montado pelo sistema a partir de **Configurações > Ofertas**. Quando você muda
+Ele é montado pelo sistema a partir de **Agente de IA > Ofertas**. Quando você muda
 uma data, uma vaga, um preço ou o sinal, a próxima conversa já usa o valor novo, sem
 editar a MD.
 
 ## As três camadas
 
-| Camada | O que é | Onde se cadastra |
-|---|---|---|
-| Procedimentos | O que a clínica faz, com o preço normal | Configurações > Procedimentos |
-| **Ofertas** | Algo especial, com destaque e regras próprias: Paciente Modelo, Mentoria, uma promoção de preço | Configurações > Ofertas |
-| Campanhas | Os disparos e anúncios que levam as pessoas até a clínica | Atendimentos > Campanhas |
+| Camada        | O que é                                                                                         | Onde se cadastra              |
+| ------------- | ----------------------------------------------------------------------------------------------- | ----------------------------- |
+| Procedimentos | O que a clínica faz, com o preço normal                                                         | Configurações > Procedimentos |
+| **Ofertas**   | Algo especial, com destaque e regras próprias: Paciente Modelo, Mentoria, uma promoção de preço | Agente de IA > Ofertas        |
+| Campanhas     | Os disparos e anúncios que levam as pessoas até a clínica                                       | Atendimentos > Campanhas      |
 
 A tela que se chamava "Campanhas" em Configurações (a das promoções de preço) agora é
-**Ofertas**. "Campanhas" fica só para disparos e anúncios.
+**Ofertas**, dentro do Agente de IA. "Campanhas" fica só para disparos e anúncios.
 
 ## O que cada oferta guarda
 
+Cada oferta tem uma ficha em abas (Agente de IA > Ofertas > abrir a oferta): Visão geral,
+Condições, Edições e vagas (Paciente Modelo), Conhecimento, Materiais, Instruções, Testar e
+"O que a IA lê".
+
 - Nome, período e situação (rascunho, em teste, ligada, encerrada).
 - **Para quem é:** pacientes, profissionais ou qualquer pessoa.
+- **Resumo curto:** uma ou duas frases do que é a oferta. Vai em TODA conversa.
 - **Como reconhecer:** palavras e situações que indicam a oferta.
+- **Conhecimento:** textos livres (o que é, quem aplica, perguntas frequentes, objeções,
+  políticas), cada um com "quando usar". Entram só quando a conversa é sobre aquela oferta.
+- **Materiais:** casos autorizados da biblioteca ligados à oferta (a foto só vai quando a conversa
+  é sobre ela).
 - Procedimentos e preços (promoção) ou edição com vagas, sinal e regras (Paciente Modelo).
 - **Instruções comerciais:** como conduzir, em poucas linhas. Nunca valem mais que os dados
   cadastrados nem que as regras que a Luna não pode quebrar.
+
+## A oferta em foco (novo)
+
+- O bloco "O que está valendo agora" numera as ofertas (F1, F2…). Na resposta, a assistente
+  devolve o campo **ofertaEmFoco** com o código da oferta de que a conversa trata. Vazio mantém;
+  `NENHUMA` limpa.
+- Com uma oferta em foco, o sistema acrescenta a seção **"Conhecimento sobre [oferta]"**, com os
+  textos cadastrados. Sem foco, só o resumo vai no bloco.
+- No primeiro turno, o sistema sugere o foco pelo "como reconhecer" (a mensagem da pessoa vence o
+  anúncio; se mais de uma oferta combinar, não sugere). Dali em diante vale o que a assistente indicar.
+- A MD não precisa conhecer os códigos: o bloco ensina como usar o campo. A MD só precisa dizer
+  que ela deve consultar o conhecimento da oferta antes de responder sobre ela, e nunca inventar o
+  que não está lá.
 
 ## Texto para colar na MD
 

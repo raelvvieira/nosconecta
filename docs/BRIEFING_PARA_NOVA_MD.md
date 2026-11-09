@@ -37,7 +37,9 @@ manter o cabeçalho `AGENTE CORE V5.x`.
 2. **De onde a pessoa veio** (o anúncio): é só uma pista de contexto.
 3. Cidade da pessoa, unidades (endereço, mapa), quem atende.
 4. Tabela de preços (procedimentos e valores normais) e condições de pagamento e políticas.
-5. **O que está valendo agora** (novo): as ofertas abertas hoje.
+5. **O que está valendo agora**: as ofertas abertas hoje, numeradas (F1, F2…), cada uma com o resumo.
+   5b. **Conhecimento sobre a oferta em foco** (novo): os textos cadastrados da oferta de que a
+   conversa trata, só quando há uma oferta em foco.
 6. Horários reais disponíveis.
 7. Quando a conversa é de paciente modelo: a seção própria dele (edição aberta, datas, horários,
    vagas, sinal, regras).
@@ -56,12 +58,14 @@ Camadas:
 | **Ofertas**   | Algo especial, com destaque e regras próprias: Paciente Modelo, Mentoria, uma promoção de preço |
 | Campanhas     | Os disparos e anúncios que levam as pessoas até a clínica                                       |
 
-Cada oferta tem: nome, período, situação, **para quem é** (pacientes, profissionais ou qualquer
+Cada oferta tem: nome, período, situação, **resumo curto** (vai em toda conversa), **conhecimento**
+(textos longos que só entram com a oferta em foco), materiais ligados, **para quem é** (pacientes, profissionais ou qualquer
 pessoa), **como reconhecer** (palavras e situações), preços ou resumo da edição, e **instruções
 comerciais** (curtas, com limite de tamanho).
 
 O bloco "O que está valendo agora" lista só as ofertas abertas hoje e termina com regras de uso.
-A assistente decide pelo que a pessoa diz, e não pelo anúncio. Mensagem vaga pede uma única
+A assistente decide pelo que a pessoa diz, e não pelo anúncio, e informa em qual oferta a conversa está
+(campo `ofertaEmFoco` da resposta, código F1, F2…, vazio para manter, NENHUMA para limpar). Mensagem vaga pede uma única
 pergunta. Oferta encerrada ou sem vaga é dita com honestidade.
 
 ## 6. Como o público da conversa é decidido

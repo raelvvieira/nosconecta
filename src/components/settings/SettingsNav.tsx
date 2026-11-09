@@ -11,7 +11,6 @@ import {
   BriefcaseMedical,
   Building2,
   Store,
-  BadgePercent,
   Images,
   MessageCircle,
   Receipt,
@@ -85,13 +84,6 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
         label: "Procedimentos",
         description: "Duração, preço e custo",
         icon: BriefcaseMedical,
-      },
-      {
-        kind: "link",
-        to: "/configuracoes/ofertas",
-        label: "Ofertas",
-        description: "Promoções, Paciente Modelo e Mentoria",
-        icon: BadgePercent,
       },
       {
         // Rota própria: a CRUD genérica grava campos de texto, e um caso é uma
