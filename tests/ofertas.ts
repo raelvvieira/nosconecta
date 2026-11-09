@@ -1,11 +1,19 @@
 // As ofertas do consultório e o bloco "O que está valendo agora".
 import {
   LIMITE_DAS_INSTRUCOES,
+  LIMITE_DO_BLOCO,
+  LIMITE_DO_CONHECIMENTO,
+  catalogoDeOfertas,
+  conhecimentoDoBanco,
+  focoEscolhido,
   ofertaDeCampanha,
   ofertaDoBanco,
+  ofertaEmFocoDoContato,
   ofertasValendo,
+  secaoDeConhecimento,
   secaoOQueEstaValendo,
 } from "../supabase/functions/_shared/mapa-de-ofertas.ts";
+import { lerRespostaAoPaciente } from "../supabase/functions/_shared/modelo-de-atendimento.ts";
 import { campanhaDoBanco } from "../supabase/functions/_shared/condicoes-do-consultorio.ts";
 import { montarInstrucao } from "../supabase/functions/_shared/instrucao-do-agente.ts";
 
@@ -203,6 +211,167 @@ conferir(
   com.indexOf("REGRAS QUE VOCÊ NUNCA PODE QUEBRAR") > com.indexOf("Como conduzir esta") ||
     !com.includes("Como conduzir esta"),
   true,
+);
+
+// ── Códigos, resumo e a oferta em foco ─────────────────────────────────────
+const catalogo = catalogoDeOfertas([promocao(), mentoria()], HOJE);
+conferir(
+  "catálogo numera F1, F2",
+  catalogo.map((c) => c.codigo),
+  ["F1", "F2"],
+);
+conferir(
+  "o bloco mostra o código",
+  secaoOQueEstaValendo([promocao()], HOJE).join("\n").includes("### F1 · Black Estética"),
+  true,
+);
+conferir(
+  "o resumo aparece no bloco",
+  secaoOQueEstaValendo(
+    [promocao({ resumo: "Preços de Black Friday em três procedimentos." })],
+    HOJE,
+  )
+    .join("\n")
+    .includes("Resumo: Preços de Black Friday em três procedimentos."),
+  true,
+);
+conferir(
+  "o bloco ensina o campo ofertaEmFoco",
+  secaoOQueEstaValendo([promocao()], HOJE).join("\n").includes("ofertaEmFoco"),
+  true,
+);
+conferir(
+  "resumo passa do limite e é cortado",
+  promocao({ resumo: "x".repeat(900) }).resumo?.length,
+  600,
+);
+conferir("foco: código válido vira o id", focoEscolhido("f2", catalogo), {
+  id: "e2",
+  limpar: false,
+});
+conferir("foco: NENHUMA limpa", focoEscolhido("nenhuma", catalogo), { id: null, limpar: true });
+conferir("foco: vazio não muda", focoEscolhido("", catalogo), null);
+conferir("foco: código inventado não muda", focoEscolhido("F9", catalogo), null);
+
+const duas = catalogoDeOfertas(
+  [
+    promocao({ como_reconhecer: "black friday, toxina" }),
+    mentoria({ como_reconhecer: "mentoria, quero ser aluna" }),
+  ],
+  HOJE,
+);
+conferir(
+  "foco pelo que a pessoa escreveu",
+  ofertaEmFocoDoContato({ catalogo: duas, mensagens: ["Oi, quero ser aluna!"] }),
+  "e2",
+);
+conferir(
+  "foco pelo nome da oferta",
+  ofertaEmFocoDoContato({ catalogo: duas, mensagens: ["queria saber da Black Estética"] }),
+  "p1",
+);
+conferir(
+  "sem combinação nas mensagens, vale o anúncio",
+  ofertaEmFocoDoContato({
+    catalogo: duas,
+    mensagens: ["vi o anúncio"],
+    anuncio: "Black Friday: toxina com preço especial",
+  }),
+  "p1",
+);
+conferir(
+  "a mensagem vence o anúncio",
+  ofertaEmFocoDoContato({
+    catalogo: duas,
+    mensagens: ["quero ser aluna"],
+    anuncio: "Black Friday: toxina com preço especial",
+  }),
+  "e2",
+);
+conferir(
+  "mensagem que cita as duas não decide (o anúncio não desempata)",
+  ofertaEmFocoDoContato({
+    catalogo: duas,
+    mensagens: ["quero ser aluna ou a toxina da black friday?"],
+    anuncio: "Black Friday",
+  }),
+  null,
+);
+conferir(
+  "sem pista nenhuma: nada",
+  ofertaEmFocoDoContato({ catalogo: duas, mensagens: ["oi"] }),
+  null,
+);
+conferir(
+  "sem ofertas: nada",
+  ofertaEmFocoDoContato({ catalogo: [], mensagens: ["black friday"] }),
+  null,
+);
+
+// ── Conhecimento ───────────────────────────────────────────────────────────
+const bloco = (extra: Record<string, unknown> = {}) =>
+  conhecimentoDoBanco({
+    id: "k1",
+    oferta_id: "e1",
+    titulo: "Quem aplica",
+    quando_usar: "Quando perguntarem quem faz o procedimento",
+    texto: "Alunas da mentoria, com supervisão da profissional responsável.",
+    ordem: 1,
+    ativo: true,
+    ...extra,
+  });
+conferir("sem blocos: seção vazia", secaoDeConhecimento(modelo(), []), []);
+conferir("bloco desligado não entra", secaoDeConhecimento(modelo(), [bloco({ ativo: false })]), []);
+conferir("bloco sem texto não entra", secaoDeConhecimento(modelo(), [bloco({ texto: "  " })]), []);
+const secao = secaoDeConhecimento(modelo(), [
+  bloco(),
+  bloco({ id: "k2", titulo: "FAQ", ordem: 0, texto: "Sim, há supervisão." }),
+]).join("\n");
+conferir(
+  "seção com o nome da oferta",
+  secao.includes("## Conhecimento sobre Paciente Modelo HOF"),
+  true,
+);
+conferir("traz o quando usar", secao.includes("Quando usar: Quando perguntarem quem faz"), true);
+conferir(
+  "respeita a ordem do cadastro",
+  secao.indexOf("### FAQ") < secao.indexOf("### Quem aplica"),
+  true,
+);
+conferir(
+  "dado cadastrado vence o conhecimento",
+  secao.replace(/\s+/g, " ").includes("vale o cadastrado"),
+  true,
+);
+conferir(
+  "bloco acima do limite é cortado",
+  bloco({ texto: "a".repeat(LIMITE_DO_BLOCO + 900) }).texto.length,
+  LIMITE_DO_BLOCO,
+);
+const cheios = [1, 2, 3, 4].map((n) =>
+  bloco({ id: `k${n}`, titulo: `Tema ${n}`, ordem: n, texto: "§".repeat(LIMITE_DO_BLOCO) }),
+);
+const cortada = secaoDeConhecimento(modelo(), cheios).join("\n");
+conferir("o total tem teto e a seção avisa", cortada.includes("não couberam"), true);
+conferir(
+  "o teto vale em caracteres de texto",
+  (cortada.match(/§/g) ?? []).length <= LIMITE_DO_CONHECIMENTO,
+  true,
+);
+
+// ── A resposta da assistente traz o campo ──────────────────────────────────
+const resposta = (extra: Record<string, unknown>) =>
+  lerRespostaAoPaciente(JSON.stringify({ bolhas: ["Oi!"], ...extra }));
+conferir("resposta sem o campo: vazio", resposta({}).ofertaEmFoco, "");
+conferir(
+  "resposta com o campo: maiúsculo e curto",
+  resposta({ ofertaEmFoco: " f1 " }).ofertaEmFoco,
+  "F1",
+);
+conferir(
+  "campo gigante é cortado",
+  resposta({ ofertaEmFoco: "x".repeat(50) }).ofertaEmFoco.length,
+  10,
 );
 
 if (falhas.length) {

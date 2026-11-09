@@ -21,6 +21,11 @@ export type ModuloDaOferta = "paciente_modelo" | "mentoria";
 
 /** As instruções comerciais são um complemento: curtas de propósito. */
 export const LIMITE_DAS_INSTRUCOES = 1200;
+/** O resumo vai em TODA conversa: curto de propósito. */
+export const LIMITE_DO_RESUMO = 600;
+/** Um bloco de conhecimento e o total que entra numa conversa. */
+export const LIMITE_DO_BLOCO = 4000;
+export const LIMITE_DO_CONHECIMENTO = 12000;
 
 export interface Oferta {
   id: string;
@@ -30,6 +35,8 @@ export interface Oferta {
   inicio: string | null;
   fim: string | null;
   paraQuem: ParaQuem;
+  /** O texto curto que vai em toda conversa. */
+  resumo: string | null;
   comoReconhecer: string | null;
   instrucoes: string | null;
   itens: ItemDeCampanha[];
@@ -71,6 +78,7 @@ export function ofertaDoBanco(r: any): Oferta {
     inicio: dia(r?.inicio),
     fim: dia(r?.fim),
     paraQuem,
+    resumo: texto(r?.resumo, LIMITE_DO_RESUMO),
     comoReconhecer: texto(r?.como_reconhecer),
     instrucoes: texto(r?.instrucoes_comerciais, LIMITE_DAS_INSTRUCOES),
     // deno-lint-ignore no-explicit-any
@@ -101,6 +109,7 @@ export function ofertaDeCampanha(c: Campanha): Oferta {
     inicio: c.inicio,
     fim: c.fim,
     paraQuem: "paciente",
+    resumo: null,
     comoReconhecer: null,
     instrucoes: null,
     itens: c.itens,
@@ -170,9 +179,9 @@ export function secaoOQueEstaValendo(
   hoje: string,
   opcoes: OpcoesDoMapa = {},
 ): string[] {
-  const valendo = ofertasValendo(lista, hoje, opcoes);
-  if (!valendo.length) return [];
-  const temPromocao = valendo.some((o) => o.tipo === "promocao");
+  const catalogo = catalogoDeOfertas(lista, hoje, opcoes);
+  if (!catalogo.length) return [];
+  const temPromocao = catalogo.some((c) => c.oferta.tipo === "promocao");
 
   const linhas = [
     "## O que está valendo agora",
@@ -180,12 +189,13 @@ export function secaoOQueEstaValendo(
     "Estas são as ofertas abertas hoje. Use só o que está escrito aqui como fato.",
     "",
   ];
-  for (const o of valendo) {
+  for (const { codigo, oferta: o } of catalogo) {
     const periodo = o.inicio && o.fim ? `, de ${diaMes(o.inicio)} a ${diaMes(o.fim)}` : "";
     linhas.push(
-      `### ${o.nome} (${o.tipo === "promocao" ? "promoção" : "edição com vagas"}${periodo})`,
+      `### ${codigo} · ${o.nome} (${o.tipo === "promocao" ? "promoção" : "edição com vagas"}${periodo})`,
     );
     linhas.push(`Para: ${PARA_QUEM_TEXTO[o.paraQuem]}.`);
+    if (o.resumo) linhas.push(`Resumo: ${o.resumo}`);
     if (o.comoReconhecer)
       linhas.push(`Como reconhecer que a pessoa quer esta oferta: ${o.comoReconhecer}.`);
     if (o.tipo === "promocao") {
@@ -197,8 +207,8 @@ export function secaoOQueEstaValendo(
       );
     } else {
       linhas.push(
-        "Datas, vagas e valores desta oferta não estão cadastrados aqui. Diga que vai confirmar",
-        "com a equipe, sem inventar.",
+        "Datas, vagas e valores desta oferta não estão cadastrados aqui, a não ser que apareçam no",
+        "resumo ou no conhecimento da oferta. Diga que vai confirmar com a equipe, sem inventar.",
       );
     }
     if (o.observacoes) linhas.push("", o.observacoes);
@@ -217,6 +227,9 @@ export function secaoOQueEstaValendo(
     "  não está aqui, ela terminou ou ainda não abriu: diga isso com honestidade e apresente o",
     "  que está valendo.",
     "- Nunca invente data, vaga, preço ou condição que não esteja escrito aqui ou na tabela.",
+    "- No campo ofertaEmFoco da sua resposta, ponha o código (F1, F2…) da oferta de que a conversa",
+    "  está tratando; deixe vazio se não mudou e escreva NENHUMA se a conversa deixou de ser sobre",
+    "  uma oferta. Quando a conversa está numa oferta, o sistema traz o conhecimento dela.",
     "- O que uma oferta define vale só para ela. As instruções de cada oferta valem dentro dos",
     "  dados cadastrados e das regras que você nunca pode quebrar; se houver conflito, vale o",
     "  dado cadastrado.",
@@ -227,6 +240,157 @@ export function secaoOQueEstaValendo(
       '  da oferta, com o nome dela, sem inventar urgência ("últimas vagas"). O que a promoção não',
       "  define (regiões, ml, sessões), diga que é definido na avaliação. Não some itens nem crie",
       "  desconto extra. Não vale para paciente modelo.",
+    );
+  }
+  return linhas;
+}
+
+// ── O código de cada oferta e a oferta em foco ─────────────────────────────
+
+export interface OfertaComCodigo {
+  codigo: string;
+  oferta: Oferta;
+}
+
+/**
+ * As ofertas abertas, numeradas F1, F2… na ordem do bloco. O modelo devolve o
+ * código, nunca o id: é contra esta lista que ele é validado, a mesma que
+ * montou a instrução.
+ */
+export function catalogoDeOfertas(
+  lista: Oferta[],
+  hoje: string,
+  opcoes: OpcoesDoMapa = {},
+): OfertaComCodigo[] {
+  return ofertasValendo(lista, hoje, opcoes).map((oferta, i) => ({
+    codigo: `F${i + 1}`,
+    oferta,
+  }));
+}
+
+/**
+ * O que o modelo disse sobre a oferta em foco, validado: o id da oferta, ou
+ * `limpar` quando a conversa deixou de ser sobre uma oferta. `null` = não
+ * mudou (vazio, ou um código que não está na lista).
+ */
+export function focoEscolhido(
+  codigo: string,
+  catalogo: OfertaComCodigo[],
+): { id: string | null; limpar: boolean } | null {
+  const c = String(codigo ?? "")
+    .trim()
+    .toUpperCase();
+  if (!c) return null;
+  if (c === "NENHUMA") return { id: null, limpar: true };
+  const achada = catalogo.find((x) => x.codigo === c);
+  return achada ? { id: achada.oferta.id, limpar: false } : null;
+}
+
+function semAcento(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+function termosDaOferta(o: Oferta): string[] {
+  const dos = (o.comoReconhecer ?? "")
+    .split(/[,;\n]/)
+    .map((t) => semAcento(t).trim())
+    .filter((t) => t.length >= 4);
+  const nome = semAcento(o.nome).trim();
+  return nome.length >= 4 ? [...dos, nome] : dos;
+}
+
+/**
+ * Em que oferta a conversa está, pelo que a pessoa escreveu e, na falta disso,
+ * pelo anúncio. Só devolve quando UMA oferta combina: com empate ou sem
+ * combinação, `null` — quem decide, nesse caso, é a própria assistente, pelo
+ * campo `ofertaEmFoco` da resposta. É uma pista para o primeiro turno, não uma
+ * regra: a mensagem da pessoa vence o anúncio.
+ */
+export function ofertaEmFocoDoContato(p: {
+  catalogo: OfertaComCodigo[];
+  mensagens?: readonly string[];
+  anuncio?: string | null;
+}): string | null {
+  const unica = (texto: string): string | null => {
+    const t = semAcento(texto);
+    if (!t.trim()) return null;
+    const achadas = p.catalogo.filter((c) => termosDaOferta(c.oferta).some((x) => t.includes(x)));
+    return achadas.length === 1 ? achadas[0].oferta.id : null;
+  };
+  const dasMensagens = unica((p.mensagens ?? []).join(" \n "));
+  if (dasMensagens) return dasMensagens;
+  // Mensagem que menciona mais de uma oferta é ambígua: o anúncio não desempata.
+  const mencionadas = p.catalogo.filter((c) =>
+    termosDaOferta(c.oferta).some((x) => semAcento((p.mensagens ?? []).join(" ")).includes(x)),
+  );
+  if (mencionadas.length > 1) return null;
+  return unica(p.anuncio ?? "");
+}
+
+// ── Conhecimento: o que a assistente consulta quando a conversa é sobre a oferta
+
+export interface Conhecimento {
+  id: string;
+  ofertaId: string;
+  titulo: string;
+  quandoUsar: string | null;
+  texto: string;
+  ordem: number;
+  ativo: boolean;
+}
+
+// deno-lint-ignore no-explicit-any
+export function conhecimentoDoBanco(r: any): Conhecimento {
+  return {
+    id: String(r.id),
+    ofertaId: String(r.oferta_id),
+    titulo: String(r?.titulo ?? "")
+      .trim()
+      .slice(0, 80),
+    quandoUsar: texto(r?.quando_usar, 200),
+    texto: String(r?.texto ?? "")
+      .trim()
+      .slice(0, LIMITE_DO_BLOCO),
+    ordem: Number.isFinite(Number(r?.ordem)) ? Number(r.ordem) : 0,
+    ativo: r?.ativo !== false,
+  };
+}
+
+/**
+ * A seção de conhecimento da oferta em foco. Vazia sem blocos ativos. Os
+ * blocos entram na ordem do cadastro, até o teto: o que passar dele é cortado e
+ * a seção avisa, em vez de crescer sem limite a cada oferta nova.
+ */
+export function secaoDeConhecimento(oferta: Oferta, blocos: Conhecimento[]): string[] {
+  const ativos = blocos
+    .filter((b) => b.ativo && b.titulo && b.texto)
+    .sort((a, b) => a.ordem - b.ordem);
+  if (!ativos.length) return [];
+  const linhas = [
+    `## Conhecimento sobre ${oferta.nome}`,
+    "",
+    "Esta conversa é sobre esta oferta. Consulte os textos abaixo quando a pessoa perguntar sobre o",
+    "assunto de cada um. Eles não substituem os dados cadastrados (preço, datas, vagas) nem as",
+    "regras que você nunca pode quebrar: se algo aqui contradisser um dado cadastrado, vale o",
+    "cadastrado. Responda o que a pessoa perguntou, com as suas palavras, sem despejar o texto.",
+    "",
+  ];
+  let usado = 0;
+  let cortou = false;
+  for (const b of ativos) {
+    if (usado + b.texto.length > LIMITE_DO_CONHECIMENTO) {
+      cortou = true;
+      break;
+    }
+    usado += b.texto.length;
+    linhas.push(`### ${b.titulo}`);
+    if (b.quandoUsar) linhas.push(`Quando usar: ${b.quandoUsar}`);
+    linhas.push(b.texto, "");
+  }
+  if (cortou) {
+    linhas.push(
+      "(Há mais textos desta oferta que não couberam aqui. Se a pessoa perguntar algo que não está",
+      "acima, diga que vai confirmar com a equipe.)",
     );
   }
   return linhas;

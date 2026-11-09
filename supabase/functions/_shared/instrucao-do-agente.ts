@@ -139,6 +139,11 @@ export interface EntradaDaInstrucao {
   /** Na simulação as ofertas em teste valem; Paciente Modelo vale quando o módulo vale. */
   ofertasOpcoes?: OpcoesDoMapa;
   /**
+   * O conhecimento da oferta em que a conversa está (`secaoDeConhecimento`).
+   * Vazio ou ausente fora de uma oferta: só o resumo do bloco vale.
+   */
+  conhecimentoDaOferta?: string[] | null;
+  /**
    * O manual de condução escrito pela clínica (o LUNA V1).
    *
    * Quando vem, SUBSTITUI o método gerado a partir do aprendizado — não soma.
@@ -1162,6 +1167,7 @@ export function montarInstrucao({
   campanhas,
   ofertas,
   ofertasOpcoes,
+  conhecimentoDaOferta,
 }: EntradaDaInstrucao): string {
   // As variáveis de identidade da MD ({{ASSISTENTE}}, {{CONSULTORIO}},
   // {{RESPONSAVEL}}…) são trocadas aqui, antes de a instrução ir para a IA. Uma
@@ -1270,6 +1276,7 @@ export function montarInstrucao({
     ? secaoOQueEstaValendo(ofertas, hoje ?? "0000-00-00", ofertasOpcoes ?? {})
     : secaoDeCampanhas(campanhas ?? [], hoje ?? "0000-00-00");
   if (blocoDeCampanhas.length) partes.push("", ...blocoDeCampanhas);
+  if (conhecimentoDaOferta?.length) partes.push("", ...conhecimentoDaOferta);
   partes.push("", secaoDeHorarios(horarios, responsavel));
   // Depois dos preços e dos horários de propósito: é a seção que RESTRINGE os
   // dois, e uma restrição lida antes da regra que ela restringe se perde.

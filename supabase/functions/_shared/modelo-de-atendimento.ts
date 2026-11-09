@@ -434,6 +434,12 @@ export interface RespostaAoPaciente {
   pagamentoInformado: string;
   /** MODEL_PATIENT, MENTORING_STUDENT, REGULAR_CLINIC ou UNKNOWN. */
   intencao: string;
+  /**
+   * A oferta de que a conversa está tratando, pelo código do bloco "O que está
+   * valendo agora" (F1, F2…). Vazio = não mudou; NENHUMA = a conversa deixou de
+   * ser sobre uma oferta. Validado em `mapa-de-ofertas.ts`, não aqui.
+   */
+  ofertaEmFoco: string;
 }
 
 /**
@@ -472,6 +478,7 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
       "entrarNaLista",
       "pagamentoInformado",
       "intencao",
+      "ofertaEmFoco",
     ],
     properties: {
       bolhas: {
@@ -551,6 +558,11 @@ const FORMATO_DA_RESPOSTA: FormatoPedido = {
         description:
           '"sim" quando a pessoa acabou de dizer que pagou o sinal ou mandou comprovante. Isso não confirma nada. Vazio no resto, que é o normal.',
       },
+      ofertaEmFoco: {
+        type: "string",
+        description:
+          'O código (F1, F2…) da oferta do bloco "O que está valendo agora" de que a conversa está tratando agora, exatamente como está na lista. Vazio quando não mudou ou quando não há oferta na lista. "NENHUMA" quando a conversa deixou de ser sobre uma oferta (por exemplo, voltou a um procedimento comum).',
+      },
       intencao: {
         type: "string",
         enum: ["MODEL_PATIENT", "MENTORING_STUDENT", "REGULAR_CLINIC", "UNKNOWN"],
@@ -608,6 +620,7 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
     entrarNaLista: "",
     pagamentoInformado: "",
     intencao: "",
+    ofertaEmFoco: "",
   };
   if (!cru) return vazia;
   try {
@@ -627,6 +640,7 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
       entrarNaLista?: unknown;
       pagamentoInformado?: unknown;
       intencao?: unknown;
+      ofertaEmFoco?: unknown;
     };
     if (!obj || typeof obj !== "object") return { ...vazia, texto: cru, bolhas: [cru] };
     // `resposta` (um texto só) era o formato até a V4.2; continua aceito para
@@ -667,6 +681,7 @@ export function lerRespostaAoPaciente(bruto: string): RespostaAoPaciente {
           entrarNaLista: curto(obj.entrarNaLista, 4).toLowerCase(),
           pagamentoInformado: curto(obj.pagamentoInformado, 4).toLowerCase(),
           intencao: curto(obj.intencao, 20).toUpperCase(),
+          ofertaEmFoco: curto(obj.ofertaEmFoco, 10).toUpperCase(),
         }
       : // JSON sem fala nenhuma: mandar o próprio JSON seria pior que calar
         // (V4.2, E12: "não passar JSON bruto ao paciente"). Vazio vira "resposta

@@ -56,7 +56,17 @@ import type { RespostaAoPaciente } from "./modelo-de-atendimento.ts";
 import { podeAtender } from "./plano-no-banco.ts";
 import { identidadeDoConsultorio, quemAvalia } from "./identidade-do-consultorio.ts";
 import { ehPublico, publicoDoContato, type Publico } from "./publico.ts";
-import { ofertaDoBanco, type Oferta } from "./mapa-de-ofertas.ts";
+import {
+  catalogoDeOfertas,
+  conhecimentoDoBanco,
+  focoEscolhido,
+  ofertaDoBanco,
+  ofertaEmFocoDoContato,
+  secaoDeConhecimento,
+  type Conhecimento,
+  type Oferta,
+  type OfertaComCodigo,
+} from "./mapa-de-ofertas.ts";
 import {
   carregarModuloPacienteModelo,
   moduloValeAqui,
@@ -249,6 +259,8 @@ export interface Dependencias {
    * exemplo). Só a simulação passa isto; nada é gravado na sessão.
    */
   publicoDaSimulacao?: Publico;
+  /** Na tela Testar: a oferta em foco escolhida ("" = nenhuma). Não grava. */
+  ofertaEmFocoDaSimulacao?: string | null;
   /**
    * Pular a espera que agrupa as bolhas. **Só a simulação da tela passa isto.**
    *
@@ -596,6 +608,7 @@ export async function atender(
   let entrouNaLista = false;
   let pagamentoInformado = false;
   let intencaoDita: Publico | null = null;
+  let focoDito: { id: string | null; limpar: boolean } | null = null;
   try {
     if (agente.mode === "ia") {
       const r = await responderComModelo(
@@ -620,6 +633,7 @@ export async function atender(
       entrouNaLista = r.entrarNaLista;
       pagamentoInformado = r.pagamentoInformado;
       intencaoDita = r.intencao;
+      focoDito = r.foco;
     } else {
       texto = String(agente.echo_message ?? "").trim();
       bolhas = [texto];
@@ -882,6 +896,16 @@ export async function atender(
   // A intenção que a pessoa deixou explícita vence o anúncio (MD, 4.1):
   // quem chegou pelo anúncio de paciente modelo e disse que é profissional
   // querendo o curso passa para o funil de mentoria, e vice-versa.
+  // A oferta de que a conversa trata agora, indicada pela assistente: vale
+  // para a mensagem seguinte. Coluna ausente (migration pendente) só avisa.
+  if (focoDito && deps.ignorarInterruptor !== true) {
+    const { error } = await supabase
+      .from("ai_agent_sessions")
+      .update({ oferta_em_foco: focoDito.limpar ? null : focoDito.id })
+      .eq("id", sessao.id);
+    if (error) console.warn("[atendimento] não deu para gravar a oferta em foco:", error.message);
+  }
+
   if (intencaoDita && intencaoDita !== publico && deps.ignorarInterruptor !== true) {
     const { error } = await supabase
       .from("ai_agent_sessions")
@@ -978,6 +1002,9 @@ export interface InstrucaoMontada {
    *  lista que o código da cidade é validado, e remontá-la depois poderia
    *  numerar diferente. */
   unidades: UnidadeComCodigo[];
+  /** As ofertas abertas com código (`F1`, `F2`), para validar o `ofertaEmFoco`
+   *  que o modelo devolver contra a MESMA lista que montou a instrução. */
+  ofertas: OfertaComCodigo[];
 }
 
 /** A unidade como a instrução a usa: com id, nome, endereço e a marca de
@@ -1018,6 +1045,8 @@ export async function instrucaoDaLuna(
   publico?: Publico | null,
   /** É a tela Testar: o módulo "só no teste" vale aqui. */
   simulacao?: boolean,
+  /** Na simulação: a oferta em foco escolhida na tela (id), ou "" para nenhuma. */
+  ofertaEmFocoDaSimulacao?: string | null,
 ): Promise<InstrucaoMontada> {
   const { data: playbook } = await supabase
     .from("ai_sales_playbooks")
@@ -1166,35 +1195,39 @@ export async function instrucaoDaLuna(
   // (decisão da clínica, 01/11). Antes da coluna existir, todos.
   const usosDosCasos =
     publico === "paciente_modelo" ? ["paciente_modelo"] : ["geral", "paciente_modelo"];
+  // `oferta_id` liga o caso a uma oferta (migration das ofertas, parte 2). As
+  // consultas caem uma de cada vez para o que existir: sem a coluna da oferta,
+  // sem a do uso, como antes.
   try {
-    let { data, error } = await supabase
-      .from("ai_agent_casos")
-      .select("id, titulo, media_path, quando_usar")
-      .eq("owner_id", ownerId)
-      .eq("ativo", true)
-      .in("uso", usosDosCasos)
-      .order("created_at", { ascending: false });
-    if (error && /uso/.test(String(error.message ?? ""))) {
-      ({ data, error } = await supabase
+    const COLUNAS = [
+      "id, titulo, media_path, quando_usar, oferta_id",
+      "id, titulo, media_path, quando_usar",
+    ];
+    for (const cols of COLUNAS) {
+      // deno-lint-ignore no-explicit-any
+      let r: any = await supabase
         .from("ai_agent_casos")
-        .select("id, titulo, media_path, quando_usar")
+        .select(cols)
         .eq("owner_id", ownerId)
         .eq("ativo", true)
-        .order("created_at", { ascending: false }));
+        .in("uso", usosDosCasos)
+        .order("created_at", { ascending: false });
+      if (r.error && /uso/.test(String(r.error.message ?? ""))) {
+        r = await supabase
+          .from("ai_agent_casos")
+          .select(cols)
+          .eq("owner_id", ownerId)
+          .eq("ativo", true)
+          .order("created_at", { ascending: false });
+      }
+      if (!r.error) {
+        casosDaClinica = r.data ?? [];
+        break;
+      }
     }
-    casosDaClinica = data ?? [];
   } catch (e) {
     console.warn("[atendimento] não deu para ler a biblioteca de casos:", e);
   }
-  const casos = catalogoDeCasos(
-    // deno-lint-ignore no-explicit-any
-    casosDaClinica.map((c: any) => ({
-      id: String(c.id),
-      titulo: String(c.titulo ?? ""),
-      mediaPath: String(c.media_path ?? ""),
-      quandoUsar: c.quando_usar ?? null,
-    })),
-  );
 
   // Os horários saem junto com o texto, e não só dentro dele: é por eles que se
   // valida o código que a IA devolve. Reconsultar a agenda depois da resposta
@@ -1234,6 +1267,54 @@ export async function instrucaoDaLuna(
     }
   }
 
+  // ── A oferta em foco e o conhecimento dela ──────────────────────────────
+  //
+  // O foco vem, nesta ordem, da tela Testar, da sessão (o que a assistente
+  // indicou antes) ou, no primeiro turno, de uma pista pelo "como reconhecer".
+  // Só vale se a oferta ainda está aberta. O conhecimento completo entra só com
+  // foco; sem ele, vai apenas o resumo do bloco.
+  const opcoesDoMapa = { simulacao: simulacao === true, moduloPacienteModeloVale: modulo !== null };
+  const catalogoDeFocos: OfertaComCodigo[] = ofertasDoConsultorio
+    ? catalogoDeOfertas(ofertasDoConsultorio, hoje, opcoesDoMapa)
+    : [];
+  const focoGravado =
+    ofertaEmFocoDaSimulacao !== undefined
+      ? ofertaEmFocoDaSimulacao || null
+      : sessaoId
+        ? await lerOfertaEmFoco(supabase, sessaoId)
+        : null;
+  let focoId: string | null =
+    focoGravado && catalogoDeFocos.some((c) => c.oferta.id === focoGravado) ? focoGravado : null;
+  if (!focoId && ofertaEmFocoDaSimulacao === undefined) {
+    focoId = ofertaEmFocoDoContato({
+      catalogo: catalogoDeFocos,
+      mensagens: falasDoPaciente ?? [],
+      anuncio: [anuncio?.titulo, anuncio?.copy, anuncio?.saudacao].filter(Boolean).join(" "),
+    });
+  }
+  const ofertaEmFoco = catalogoDeFocos.find((c) => c.oferta.id === focoId)?.oferta ?? null;
+  const conhecimentoDaOferta = ofertaEmFoco
+    ? secaoDeConhecimento(
+        ofertaEmFoco,
+        await carregarConhecimento(supabase, ownerId, ofertaEmFoco.id),
+      )
+    : [];
+
+  const casos = catalogoDeCasos(
+    casosDaClinica
+      // Um caso ligado a uma oferta só entra quando a conversa está nela; sem
+      // oferta, vale para todas.
+      // deno-lint-ignore no-explicit-any
+      .filter((c: any) => !c.oferta_id || c.oferta_id === focoId)
+      // deno-lint-ignore no-explicit-any
+      .map((c: any) => ({
+        id: String(c.id),
+        titulo: String(c.titulo ?? ""),
+        mediaPath: String(c.media_path ?? ""),
+        quandoUsar: c.quando_usar ?? null,
+      })),
+  );
+
   const texto = montarInstrucao({
     anuncio,
     horarios,
@@ -1264,7 +1345,8 @@ export async function instrucaoDaLuna(
     // Presente (mesmo vazio), o bloco "O que está valendo agora" substitui as
     // campanhas; `null` = a tabela ainda não existe e vale o que já havia.
     ofertas: ofertasDoConsultorio,
-    ofertasOpcoes: { simulacao: simulacao === true, moduloPacienteModeloVale: modulo !== null },
+    ofertasOpcoes: opcoesDoMapa,
+    conhecimentoDaOferta,
     modulo,
     hoje,
     casos,
@@ -1286,7 +1368,51 @@ export async function instrucaoDaLuna(
     unidades: catalogoDasUnidades,
     catalogoDaEdicao: catalogo,
     edicaoId,
+    ofertas: catalogoDeFocos,
   };
+}
+
+/** A oferta em foco gravada na sessão. Coluna ausente (migration pendente) = nenhuma. */
+async function lerOfertaEmFoco(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  sessaoId: string,
+): Promise<string | null> {
+  try {
+    const { data, error } = await supabase
+      .from("ai_agent_sessions")
+      .select("oferta_em_foco")
+      .eq("id", sessaoId)
+      .maybeSingle();
+    if (error) return null;
+    return data?.oferta_em_foco ? String(data.oferta_em_foco) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Os blocos de conhecimento ativos de uma oferta. Falha ou tabela ausente = nenhum. */
+async function carregarConhecimento(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  ownerId: string,
+  ofertaId: string,
+): Promise<Conhecimento[]> {
+  try {
+    const { data, error } = await supabase
+      .from("oferta_conhecimento")
+      .select("*")
+      .eq("owner_id", ownerId)
+      .eq("oferta_id", ofertaId)
+      .eq("ativo", true)
+      .order("ordem", { ascending: true });
+    if (error) return [];
+    // deno-lint-ignore no-explicit-any
+    return (data ?? []).map((r: any) => conhecimentoDoBanco(r));
+  } catch (e) {
+    console.warn("[atendimento] conhecimento da oferta não lido:", e);
+    return [];
+  }
 }
 
 /**
@@ -1461,6 +1587,8 @@ async function responderComModelo(
   cidade: UnidadeComCodigo | null;
   /** O rótulo do Recovery Engine. Conferido em `trilhaDaSequencia`. */
   recuperacao: { rotulo: string; perguntaAberta: string; retornoCombinado: string };
+  /** A oferta em foco que ela indicou, validada contra o bloco. `null` = não mudou. */
+  foco: { id: string | null; limpar: boolean } | null;
 }> {
   const { supabase, ownerId } = deps;
   // O histórico vem ANTES da instrução desde a V4.1: é das falas da pessoa
@@ -1483,6 +1611,7 @@ async function responderComModelo(
     falasDoPaciente,
     publico,
     deps.ignorarInterruptor === true,
+    deps.ofertaEmFocoDaSimulacao,
   );
 
   // ── O conjunto, e não a última bolha ────────────────────────────────────
@@ -1565,6 +1694,7 @@ async function responderComModelo(
     entrarNaLista: resposta.entrarNaLista === "sim",
     pagamentoInformado: resposta.pagamentoInformado === "sim",
     intencao: INTENCAO[resposta.intencao] ?? null,
+    foco: focoEscolhido(resposta.ofertaEmFoco, instrucao.ofertas),
     bolhas: resposta.bolhas?.length ? resposta.bolhas : [resposta.texto],
     vaga,
     caso,

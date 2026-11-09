@@ -912,6 +912,8 @@ async function handleSimular(
   historicoDaTela: { deQuem: "clinica" | "paciente"; texto: string }[] = [],
   /** O público simulado (paciente modelo, mentoria). Ausente = o normal. */
   publico?: "atendimento" | "paciente_modelo" | "mentoria",
+  /** A oferta em foco simulada (id), "" para nenhuma. Ausente = o normal. */
+  ofertaEmFoco?: string,
 ) {
   const enviados: { texto: string; esperaMs: number; caso?: string | null }[] = [];
   const agente = await garantirAgente(ownerId);
@@ -957,6 +959,7 @@ async function handleSimular(
       // A prévia é testada com a mesma frase várias vezes de propósito.
       ignorarRepeticao: true,
       publicoDaSimulacao: publico,
+      ofertaEmFocoDaSimulacao: ofertaEmFoco,
     },
     {
       conversationId: `simulacao-${ownerId}`,
@@ -996,14 +999,16 @@ Deno.serve(async (req) => {
   const barrado = soOSistema(req);
   if (barrado) return barrado;
   try {
-    const { ownerId, action, texto, conversationId, historico, publico } = (await req.json()) as {
-      ownerId?: string;
-      action?: string;
-      texto?: string;
-      conversationId?: string;
-      historico?: { deQuem: "clinica" | "paciente"; texto: string }[];
-      publico?: "atendimento" | "paciente_modelo" | "mentoria";
-    };
+    const { ownerId, action, texto, conversationId, historico, publico, ofertaEmFoco } =
+      (await req.json()) as {
+        ownerId?: string;
+        action?: string;
+        texto?: string;
+        conversationId?: string;
+        historico?: { deQuem: "clinica" | "paciente"; texto: string }[];
+        publico?: "atendimento" | "paciente_modelo" | "mentoria";
+        ofertaEmFoco?: string;
+      };
     if (!ownerId || !action) {
       return new Response(JSON.stringify({ error: "ownerId e action são obrigatórios" }), {
         status: 400,
@@ -1038,6 +1043,7 @@ Deno.serve(async (req) => {
         publico === "paciente_modelo" || publico === "mentoria" || publico === "atendimento"
           ? publico
           : undefined,
+        typeof ofertaEmFoco === "string" ? ofertaEmFoco.slice(0, 64) : undefined,
       );
     else if (action === "sugerir") {
       if (!conversationId) {

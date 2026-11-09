@@ -661,6 +661,8 @@ export const simularAtendimento = createServerFn({ method: "POST" })
       texto: string;
       historico?: { deQuem: "clinica" | "paciente"; texto: string }[];
       publico?: "atendimento" | "paciente_modelo" | "mentoria";
+      /** A oferta em foco (id), ou "" para nenhuma. Ausente = o normal. */
+      ofertaEmFoco?: string;
     }) => {
       if (!input.texto?.trim()) throw new Error("Escreva uma mensagem para simular.");
       return input;
@@ -684,6 +686,7 @@ export const simularAtendimento = createServerFn({ method: "POST" })
         texto: data.texto,
         historico: data.historico ?? [],
         publico: data.publico,
+        ofertaEmFoco: data.ofertaEmFoco,
       });
       return {
         respondeu: !!json.respondeu,

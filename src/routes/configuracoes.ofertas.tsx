@@ -139,6 +139,7 @@ function OfertasPage() {
     inicio: hoje,
     fim: hoje,
     paraQuem: "paciente",
+    resumo: null,
     comoReconhecer: null,
     instrucoes: null,
     itens: [{ nome: "", precoVista: null, parcelas: null, valorParcela: null }],
