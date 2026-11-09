@@ -28,6 +28,7 @@ import { nomeDaAssistente, quemAvalia } from "./identidade-do-consultorio.ts";
 import { resolverVariaveis } from "./variaveis-da-instrucao.ts";
 import { secaoDoAnuncio, type Anuncio } from "./veio-de-anuncio.ts";
 import { catalogoDeVagas, comoReportarFechamento } from "./agendamento-da-ia.ts";
+import { secaoOQueEstaValendo, type OpcoesDoMapa, type Oferta } from "./mapa-de-ofertas.ts";
 import { comoUsarOsCasos, type CasoComCodigo } from "./casos-da-ia.ts";
 import { secaoDeHarmonizacao } from "./modulo-paciente-modelo.ts";
 import {
@@ -126,8 +127,17 @@ export interface EntradaDaInstrucao {
   /** Como o paciente paga, avaliação e políticas. Ausente = o padrão (o que a
    *  NÓS já fazia: avaliação sem custo). */
   condicoes?: CondicoesDoConsultorio | null;
-  /** As campanhas do consultório; só as válidas hoje entram. */
+  /** As campanhas do consultório; só as válidas hoje entram. Usadas só quando a
+   *  tabela de ofertas ainda não existe (`ofertas` ausente). */
   campanhas?: Campanha[] | null;
+  /**
+   * As ofertas do consultório (promoções, Paciente Modelo, Mentoria). Presente
+   * (mesmo vazia), substitui `campanhas`: o bloco "O que está valendo agora"
+   * entra no lugar de "Campanhas valendo agora". Ver `mapa-de-ofertas.ts`.
+   */
+  ofertas?: Oferta[] | null;
+  /** Na simulação as ofertas em teste valem; Paciente Modelo vale quando o módulo vale. */
+  ofertasOpcoes?: OpcoesDoMapa;
   /**
    * O manual de condução escrito pela clínica (o LUNA V1).
    *
@@ -1150,6 +1160,8 @@ export function montarInstrucao({
   assistente,
   condicoes,
   campanhas,
+  ofertas,
+  ofertasOpcoes,
 }: EntradaDaInstrucao): string {
   // As variáveis de identidade da MD ({{ASSISTENTE}}, {{CONSULTORIO}},
   // {{RESPONSAVEL}}…) são trocadas aqui, antes de a instrução ir para a IA. Uma
@@ -1254,7 +1266,9 @@ export function montarInstrucao({
 
   partes.push("", tabelaDePrecos(procedimentos, parcelamento));
   partes.push("", ...secaoDeCondicoes(cond, parcelamento));
-  const blocoDeCampanhas = secaoDeCampanhas(campanhas ?? [], hoje ?? "0000-00-00");
+  const blocoDeCampanhas = ofertas
+    ? secaoOQueEstaValendo(ofertas, hoje ?? "0000-00-00", ofertasOpcoes ?? {})
+    : secaoDeCampanhas(campanhas ?? [], hoje ?? "0000-00-00");
   if (blocoDeCampanhas.length) partes.push("", ...blocoDeCampanhas);
   partes.push("", secaoDeHorarios(horarios, responsavel));
   // Depois dos preços e dos horários de propósito: é a seção que RESTRINGE os

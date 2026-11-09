@@ -88,9 +88,9 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
       },
       {
         kind: "link",
-        to: "/configuracoes/campanhas",
-        label: "Campanhas",
-        description: "Preços especiais com validade",
+        to: "/configuracoes/ofertas",
+        label: "Ofertas",
+        description: "Promoções, Paciente Modelo e Mentoria",
         icon: BadgePercent,
       },
       {

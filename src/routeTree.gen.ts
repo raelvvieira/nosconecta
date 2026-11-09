@@ -44,6 +44,7 @@ import { Route as ConfiguracoesGrupoDoFinanceiroRouteImport } from './routes/con
 import { Route as ConfiguracoesIntegracoesRouteImport } from './routes/configuracoes.integracoes'
 import { Route as ConfiguracoesNotificacoesRouteImport } from './routes/configuracoes.notificacoes'
 import { Route as ConfiguracoesNovosNegociosRouteImport } from './routes/configuracoes.novos-negocios'
+import { Route as ConfiguracoesOfertasRouteImport } from './routes/configuracoes.ofertas'
 import { Route as ConfiguracoesPessoalRouteImport } from './routes/configuracoes.pessoal'
 import { Route as ConfiguracoesPlanoRouteImport } from './routes/configuracoes.plano'
 import { Route as ConfiguracoesTagsRouteImport } from './routes/configuracoes.tags'
@@ -237,6 +238,11 @@ const ConfiguracoesNovosNegociosRoute =
     path: '/novos-negocios',
     getParentRoute: () => ConfiguracoesRoute,
   } as any)
+const ConfiguracoesOfertasRoute = ConfiguracoesOfertasRouteImport.update({
+  id: '/ofertas',
+  path: '/ofertas',
+  getParentRoute: () => ConfiguracoesRoute,
+} as any)
 const ConfiguracoesPessoalRoute = ConfiguracoesPessoalRouteImport.update({
   id: '/pessoal',
   path: '/pessoal',
@@ -330,6 +336,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/novos-negocios': typeof ConfiguracoesNovosNegociosRoute
+  '/configuracoes/ofertas': typeof ConfiguracoesOfertasRoute
   '/configuracoes/pessoal': typeof ConfiguracoesPessoalRoute
   '/configuracoes/plano': typeof ConfiguracoesPlanoRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
@@ -373,6 +380,7 @@ export interface FileRoutesByTo {
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/novos-negocios': typeof ConfiguracoesNovosNegociosRoute
+  '/configuracoes/ofertas': typeof ConfiguracoesOfertasRoute
   '/configuracoes/pessoal': typeof ConfiguracoesPessoalRoute
   '/configuracoes/plano': typeof ConfiguracoesPlanoRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
@@ -422,6 +430,7 @@ export interface FileRoutesById {
   '/configuracoes/integracoes': typeof ConfiguracoesIntegracoesRoute
   '/configuracoes/notificacoes': typeof ConfiguracoesNotificacoesRoute
   '/configuracoes/novos-negocios': typeof ConfiguracoesNovosNegociosRoute
+  '/configuracoes/ofertas': typeof ConfiguracoesOfertasRoute
   '/configuracoes/pessoal': typeof ConfiguracoesPessoalRoute
   '/configuracoes/plano': typeof ConfiguracoesPlanoRoute
   '/configuracoes/tags': typeof ConfiguracoesTagsRoute
@@ -472,6 +481,7 @@ export interface FileRouteTypes {
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
     | '/configuracoes/novos-negocios'
+    | '/configuracoes/ofertas'
     | '/configuracoes/pessoal'
     | '/configuracoes/plano'
     | '/configuracoes/tags'
@@ -515,6 +525,7 @@ export interface FileRouteTypes {
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
     | '/configuracoes/novos-negocios'
+    | '/configuracoes/ofertas'
     | '/configuracoes/pessoal'
     | '/configuracoes/plano'
     | '/configuracoes/tags'
@@ -563,6 +574,7 @@ export interface FileRouteTypes {
     | '/configuracoes/integracoes'
     | '/configuracoes/notificacoes'
     | '/configuracoes/novos-negocios'
+    | '/configuracoes/ofertas'
     | '/configuracoes/pessoal'
     | '/configuracoes/plano'
     | '/configuracoes/tags'
@@ -849,6 +861,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfiguracoesNovosNegociosRouteImport
       parentRoute: typeof ConfiguracoesRoute
     }
+    '/configuracoes/ofertas': {
+      id: '/configuracoes/ofertas'
+      path: '/ofertas'
+      fullPath: '/configuracoes/ofertas'
+      preLoaderRoute: typeof ConfiguracoesOfertasRouteImport
+      parentRoute: typeof ConfiguracoesRoute
+    }
     '/configuracoes/pessoal': {
       id: '/configuracoes/pessoal'
       path: '/pessoal'
@@ -994,6 +1013,7 @@ interface ConfiguracoesRouteChildren {
   ConfiguracoesIntegracoesRoute: typeof ConfiguracoesIntegracoesRoute
   ConfiguracoesNotificacoesRoute: typeof ConfiguracoesNotificacoesRoute
   ConfiguracoesNovosNegociosRoute: typeof ConfiguracoesNovosNegociosRoute
+  ConfiguracoesOfertasRoute: typeof ConfiguracoesOfertasRoute
   ConfiguracoesPessoalRoute: typeof ConfiguracoesPessoalRoute
   ConfiguracoesPlanoRoute: typeof ConfiguracoesPlanoRoute
   ConfiguracoesTagsRoute: typeof ConfiguracoesTagsRoute
@@ -1011,6 +1031,7 @@ const ConfiguracoesRouteChildren: ConfiguracoesRouteChildren = {
   ConfiguracoesIntegracoesRoute: ConfiguracoesIntegracoesRoute,
   ConfiguracoesNotificacoesRoute: ConfiguracoesNotificacoesRoute,
   ConfiguracoesNovosNegociosRoute: ConfiguracoesNovosNegociosRoute,
+  ConfiguracoesOfertasRoute: ConfiguracoesOfertasRoute,
   ConfiguracoesPessoalRoute: ConfiguracoesPessoalRoute,
   ConfiguracoesPlanoRoute: ConfiguracoesPlanoRoute,
   ConfiguracoesTagsRoute: ConfiguracoesTagsRoute,

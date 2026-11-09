@@ -48,3 +48,7 @@ Solução: o código reconhece a V5 pelo cabeçalho da MD (`AGENTE CORE V5…`) 
 ## Plano de reversão
 
 O manual anterior de uma conta é salvo em `scripts/agente/backups/` antes de qualquer troca (`instalar-manual.mjs --aplicar`), e restaurar é rodar o mesmo script apontando para a cópia. A V4.2 segue em `docs/LUNA_V4_2.md`.
+
+## Ofertas (nov/2026)
+
+A camada de Ofertas substitui as "Campanhas valendo agora" pelo bloco "O que está valendo agora". Detalhes e texto para a MD em `docs/OFERTAS_PARA_A_MD.md`.

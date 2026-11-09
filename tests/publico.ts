@@ -53,6 +53,54 @@ conferir(
   "paciente_modelo",
 );
 
+// ── A mensagem da pessoa vence o anúncio ───────────────────────────────────
+const anuncioDeModelo = {
+  anuncioTitulo: "Pacientes modelo · HOF",
+  anuncioCopy: "Estou selecionando pacientes modelo para a mentoria",
+};
+conferir(
+  "anúncio de paciente modelo, mas a pessoa diz que quer ser aluna: mentoria",
+  publicoDoContato({ ...anuncioDeModelo, mensagens: ["Oi, quero ser aluna da mentoria"] }),
+  "mentoria",
+);
+conferir(
+  "anúncio de paciente modelo e mensagem vaga: vale o anúncio (é pista)",
+  publicoDoContato({ ...anuncioDeModelo, mensagens: ["vi o anúncio"] }),
+  "paciente_modelo",
+);
+conferir(
+  "anúncio de mentoria, mas a pessoa quer ser paciente modelo",
+  publicoDoContato({
+    anuncioTitulo: "Mentoria FullFace",
+    anuncioCopy: "Mentoria para profissionais",
+    mensagens: ["Vocês precisam de paciente modelo? Quero participar"],
+  }),
+  "paciente_modelo",
+);
+
+// ── O "como reconhecer" cadastrado soma às palavras fixas ──────────────────
+conferir(
+  "termo cadastrado reconhece o paciente modelo",
+  publicoDoContato({
+    mensagens: ["Posso ser atendida por aluno na prática supervisionada?"],
+    termos: { paciente_modelo: ["prática supervisionada", "atendimento feito por aluno"] },
+  }),
+  "paciente_modelo",
+);
+conferir(
+  "termo cadastrado reconhece a mentoria",
+  publicoDoContato({
+    mensagens: ["tem vaga de aluna na próxima turma?"],
+    termos: { mentoria: ["vaga de aluna", "turma"] },
+  }),
+  "mentoria",
+);
+conferir(
+  "termo curto demais é ignorado",
+  publicoDoContato({ mensagens: ["quero um teste"], termos: { mentoria: ["te"] } }),
+  "atendimento",
+);
+
 if (falhas.length) {
   console.error(falhas.join("\n"));
   process.exit(1);

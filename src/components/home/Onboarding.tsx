@@ -490,7 +490,7 @@ function ConteudoDoPasso({
           <div className="flex flex-wrap gap-2">
             {[
               ["Consultório", "/configuracoes/consultorio"],
-              ["Campanhas", "/configuracoes/campanhas"],
+              ["Ofertas", "/configuracoes/ofertas"],
               ["Procedimentos", "/configuracoes"],
               ["Automações", "/atendimentos/automacoes"],
             ].map(([t, to]) => (

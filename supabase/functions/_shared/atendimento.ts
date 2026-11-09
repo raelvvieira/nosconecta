@@ -56,6 +56,7 @@ import type { RespostaAoPaciente } from "./modelo-de-atendimento.ts";
 import { podeAtender } from "./plano-no-banco.ts";
 import { identidadeDoConsultorio, quemAvalia } from "./identidade-do-consultorio.ts";
 import { ehPublico, publicoDoContato, type Publico } from "./publico.ts";
+import { ofertaDoBanco, type Oferta } from "./mapa-de-ofertas.ts";
 import {
   carregarModuloPacienteModelo,
   moduloValeAqui,
@@ -361,10 +362,14 @@ export async function atender(
   // sessão: é o que liga o módulo de paciente modelo na instrução e o que o
   // Pipeline lê. Uma conversa de atendimento que passa a falar de paciente
   // modelo sobe de público; o contrário nunca acontece sozinho.
+  // As ofertas do consultório: ajudam a reconhecer o que a pessoa quer (o
+  // "como reconhecer" de cada uma) e entram na instrução mais abaixo.
+  const ofertasDoConsultorio = await carregarOfertas(supabase, ownerId);
   const publicoLido = publicoDoContato({
     anuncioTitulo: anuncio?.titulo ?? null,
     anuncioCopy: anuncio?.copy ?? null,
     mensagens: [String(entrada.conteudo ?? "")],
+    termos: termosDasOfertas(ofertasDoConsultorio),
   });
   let publico: Publico = ehPublico(sessao.publico) ? sessao.publico : "atendimento";
   if (deps.publicoDaSimulacao) {
@@ -1197,6 +1202,7 @@ export async function instrucaoDaLuna(
   // pode não estar mais na lista.
   const identidade = await identidadeDoConsultorio(supabase, ownerId);
   const { condicoes, campanhas } = await condicoesECampanhas(supabase, ownerId);
+  const ofertasDoConsultorio = await carregarOfertas(supabase, ownerId);
 
   // ── O módulo Paciente Modelo HOF ────────────────────────────────────────
   //
@@ -1255,6 +1261,10 @@ export async function instrucaoDaLuna(
     parcelamento: agente.parcelamento ?? null,
     condicoes,
     campanhas,
+    // Presente (mesmo vazio), o bloco "O que está valendo agora" substitui as
+    // campanhas; `null` = a tabela ainda não existe e vale o que já havia.
+    ofertas: ofertasDoConsultorio,
+    ofertasOpcoes: { simulacao: simulacao === true, moduloPacienteModeloVale: modulo !== null },
     modulo,
     hoje,
     casos,
@@ -1356,6 +1366,47 @@ async function condicoesECampanhas(
     console.warn("[atendimento] campanhas não lidas:", e);
   }
   return { condicoes, campanhas };
+}
+
+/**
+ * As ofertas do consultório. `null` quando a tabela ainda não existe
+ * (migration pendente): quem chama segue com as campanhas, como antes. Tabela
+ * existente e vazia é uma resposta verdadeira (nenhuma oferta), não um erro.
+ */
+async function carregarOfertas(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  ownerId: string,
+): Promise<Oferta[] | null> {
+  try {
+    const { data, error } = await supabase.from("ofertas").select("*").eq("owner_id", ownerId);
+    if (error) return null;
+    // deno-lint-ignore no-explicit-any
+    return (data ?? []).map((r: any) => ofertaDoBanco(r));
+  } catch (e) {
+    console.warn("[atendimento] ofertas não lidas:", e);
+    return null;
+  }
+}
+
+/** O "como reconhecer" das ofertas de edição, em termos soltos por público. */
+function termosDasOfertas(lista: Oferta[] | null): {
+  paciente_modelo?: string[];
+  mentoria?: string[];
+} {
+  const termos: { paciente_modelo?: string[]; mentoria?: string[] } = {};
+  for (const o of lista ?? []) {
+    if (o.tipo !== "edicao" || !o.modulo || !o.comoReconhecer) continue;
+    if (o.estado === "rascunho" || o.estado === "encerrada") continue;
+    termos[o.modulo] = [
+      ...(termos[o.modulo] ?? []),
+      ...o.comoReconhecer
+        .split(/[,;\n]/)
+        .map((t) => t.trim())
+        .filter((t) => t.length >= 4),
+    ];
+  }
+  return termos;
 }
 
 async function jaMandouCasoNestaConversa(
