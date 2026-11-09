@@ -236,7 +236,7 @@ export function secaoOQueEstaValendo(
   );
   if (temPromocao) {
     linhas.push(
-      "- Os valores de uma promoção valem por cima da tabela, só no período. Diga que é condição",
+      "- Os valores de uma promoção valem por cima da tabela e da regra de harmonização, só no período. Diga que é condição",
       '  da oferta, com o nome dela, sem inventar urgência ("últimas vagas"). O que a promoção não',
       "  define (regiões, ml, sessões), diga que é definido na avaliação. Não some itens nem crie",
       "  desconto extra. Não vale para paciente modelo.",

@@ -458,10 +458,11 @@ export function secaoDeHarmonizacao(
     `avaliação com ${quem}. Explique o procedimento se perguntarem, e`,
     "conduza para a avaliação.",
     "",
-    "As exceções são a lista de preços acima e uma campanha do seu manual com",
-    "preço escrito e dentro da validade: o que está nelas, você pode informar",
-    "do jeito que está escrito. O que não está, não. Campanha fora da validade",
-    "não existe mais: não cite.",
+    "As exceções são a lista de preços acima, uma campanha do seu manual ou uma",
+    'promoção do bloco "O que está valendo agora" com preço escrito e dentro da',
+    "validade: o que está nelas, você pode informar do jeito que está escrito. O",
+    "que não está, não. Campanha ou promoção fora da validade não existe mais:",
+    "não cite.",
     ...(data ? ["", `Hoje é ${data}.`] : []),
   ];
 }

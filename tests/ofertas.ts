@@ -194,7 +194,7 @@ conferir(
 );
 conferir(
   "ofertas vazias: nenhum dos dois blocos",
-  semOfertas.includes("O que está valendo agora") || semOfertas.includes("Campanhas valendo agora"),
+  semOfertas.includes("## O que está valendo agora") || semOfertas.includes("Campanhas valendo agora"),
   false,
 );
 conferir(
@@ -395,6 +395,23 @@ conferir(
   "o rótulo muda com o tipo",
   termometroDaOferta(modelo(), { blocos: 0, materiais: 0 }).itens[2].rotulo,
   "Edição com datas e vagas",
+);
+
+// A promoção vale por cima da regra de harmonização (era assim nas campanhas e a
+// NÓS depende disso para informar o preço de botox e preenchimento).
+conferir(
+  "promoção vale por cima da regra de harmonização",
+  dois.includes("por cima da tabela e da regra de harmonização"),
+  true,
+);
+const instrucaoComPromocao = montarInstrucao({ ...base, ofertas: [promocao()] } as never).replace(
+  /\s+/g,
+  " ",
+);
+conferir(
+  "a seção de harmonização reconhece a promoção do bloco como exceção",
+  instrucaoComPromocao.includes('promoção do bloco "O que está valendo agora"'),
+  true,
 );
 
 if (falhas.length) {
