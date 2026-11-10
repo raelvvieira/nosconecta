@@ -49,7 +49,9 @@ Pontos do formato, como estão no sistema:
 Sul, Santana, Porto Alegre, RS, 90620-130 ("bem próximo ao planetário da UFRGS").
 
 **Novembro, Florianópolis:** práticas em 21/11 das 09h às 19h e em 22/11 das 09h às 18h.
-No cadastro cada dia aparece com **1 vaga**.
+Local: o endereço da unidade NÓS Florianópolis, R. José Brognoli, 117, Saco dos Limões,
+Florianópolis, Sala 612 (a edição usa o endereço da unidade). Não há limite de vagas: cada
+horário está cadastrado com 20, e a Luna diz que sempre há vaga.
 
 Regra de operação (decisão do gestor): existe **uma única edição aberta por vez**, em uma
 cidade só. A Luna nunca pergunta em qual cidade a pessoa prefere participar.
@@ -171,10 +173,8 @@ usar a avaliação como desculpa para não dizer um valor cadastrado.
 
 ## 9. O que está faltando ou parece inconsistente
 
-1. **Endereço da edição de Florianópolis não está cadastrado.** A Luna não deve inventar,
-   mas vai dizer que o endereço ainda não foi publicado. Vale preencher antes de divulgar.
-2. **Vagas:** cada dia de Florianópolis tem 1 vaga no cadastro. Confirme se é isso mesmo,
-   ou se é por horário.
+1. ~~Endereço de Florianópolis~~ e ~~vagas~~: resolvidos. O endereço vem da unidade
+   (confirmado pelo gestor) e não há limite de vagas.
 3. **Preços de novembro** iguais aos de outubro: confirmar.
 4. **Política de fotos com duas versões.** O bloco "O que é e como funciona" diz que a
    imagem pode ser usada pela clínica; a configuração diz que a divulgação só acontece com
