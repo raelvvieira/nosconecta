@@ -57,6 +57,8 @@ const searchSchema = z.object({
   /** Com `meses = 1`: mostra o mês PASSADO em vez do corrente. Os períodos de
    *  3, 6 e 12 meses sempre terminam no mês corrente. */
   passado: z.literal(true).optional(),
+  /** Ids das unidades fora da conta, separados por vírgula (ex.: sem Porto Alegre). */
+  sem: z.string().max(400).optional(),
 });
 
 export const Route = createFileRoute("/dre")({
@@ -78,7 +80,8 @@ function valor(n: number, zeroVazio = true): string {
 }
 
 function DrePage() {
-  const { regime = "caixa", meses = 6, passado } = Route.useSearch();
+  const { regime = "caixa", meses = 6, passado, sem } = Route.useSearch();
+  const excluir = useMemo(() => (sem ? sem.split(",").filter(Boolean) : []), [sem]);
   const navigate = Route.useNavigate();
   const hoje = localDateStr();
   // "Mês passado" só existe para um mês: o período termina no mês anterior.
@@ -87,8 +90,8 @@ function DrePage() {
   const buscar = useServerFn(getDre);
   // Um mês a mais do que a tela mostra, para a variação do primeiro.
   const dre = useQuery({
-    queryKey: ["dre", ate, meses + 1, regime],
-    queryFn: () => buscar({ data: { ate, meses: meses + 1, regime } }),
+    queryKey: ["dre", ate, meses + 1, regime, sem ?? ""],
+    queryFn: () => buscar({ data: { ate, meses: meses + 1, regime, excluir } }),
     staleTime: 60_000,
   });
   const [classificando, setClassificando] = useState(false);
@@ -101,8 +104,20 @@ function DrePage() {
   const receitaTotal = dados ? soma(visivel(dados.linhas.receita.porMes)) : 0;
   const semGrupo = dre.data?.categorias.filter((c) => !c.grupo).length ?? 0;
 
-  const mudar = (patch: { regime?: "caixa" | "competencia"; meses?: Meses; passado?: true }) =>
-    navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
+  const unidades = dre.data?.unidades ?? [];
+  const alternarUnidade = (id: string) => {
+    const novo = excluir.includes(id) ? excluir.filter((x) => x !== id) : [...excluir, id];
+    // Nunca deixa a conta sem nenhuma unidade.
+    if (novo.length >= unidades.length) return;
+    mudar({ sem: novo.length ? novo.join(",") : undefined });
+  };
+
+  const mudar = (patch: {
+    regime?: "caixa" | "competencia";
+    meses?: Meses;
+    passado?: true;
+    sem?: string;
+  }) => navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
 
   return (
     <div className="app-bg flex h-dvh overflow-hidden">
@@ -138,6 +153,50 @@ function DrePage() {
                     : mudar({ meses: Number(v) as Meses, passado: undefined })
                 }
               />
+              {unidades.length > 1 && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-9 gap-2 rounded-full">
+                      {excluir.length
+                        ? `Sem ${unidades
+                            .filter((u) => excluir.includes(u.id))
+                            .map((u) => u.nome.replace(/^NÓS\s+/i, ""))
+                            .join(", ")}`
+                        : "Todas as unidades"}
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-64 p-2">
+                    <p className="px-2 pb-1 pt-1 text-xs text-muted-foreground">
+                      Unidades que entram na conta
+                    </p>
+                    {unidades.map((u) => {
+                      const dentro = !excluir.includes(u.id);
+                      return (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => alternarUnidade(u.id)}
+                          aria-pressed={dentro}
+                          className="flex w-full items-center justify-between rounded-xl px-2 py-2 text-left text-sm hover:bg-muted"
+                        >
+                          <span>{u.nome}</span>
+                          <span
+                            className={cn(
+                              "rounded-full px-2 py-0.5 text-2xs font-semibold",
+                              dentro
+                                ? "bg-foreground text-white"
+                                : "bg-muted text-muted-foreground",
+                            )}
+                          >
+                            {dentro ? "Contando" : "Fora"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </PopoverContent>
+                </Popover>
+              )}
               <Button
                 variant="outline"
                 className="h-9 gap-2 rounded-full"
@@ -407,9 +466,19 @@ function Celula({
 }) {
   const [aberto, setAberto] = useState(false);
   const buscar = useServerFn(getLancamentosDaCelula);
+  const { sem } = Route.useSearch();
   const itens = useQuery({
-    queryKey: ["dre-celula", mes, regime, grupo, categoriaId ?? "todas"],
-    queryFn: () => buscar({ data: { mes, regime, grupo, categoriaId } }),
+    queryKey: ["dre-celula", mes, regime, grupo, categoriaId ?? "todas", sem ?? ""],
+    queryFn: () =>
+      buscar({
+        data: {
+          mes,
+          regime,
+          grupo,
+          categoriaId,
+          excluir: sem ? sem.split(",").filter(Boolean) : [],
+        },
+      }),
     enabled: aberto,
     staleTime: 60_000,
   });

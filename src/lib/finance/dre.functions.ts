@@ -32,6 +32,20 @@ export interface DreDoPeriodo {
   categorias: CategoriaDoDre[];
   /** `true` enquanto a migration da coluna `grupo_dre` não foi aplicada. */
   semColunaDeGrupo: boolean;
+  /** As unidades da conta, para o filtro "com / sem" da tela. Vazio para quem
+   *  já enxerga uma unidade só (o filtro não faz sentido ali). */
+  unidades: { id: string; nome: string }[];
+}
+
+/** Só ids de verdade entram no filtro de unidades (vira texto de consulta). */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function idsValidos(v: unknown): string[] {
+  return Array.isArray(v)
+    ? v
+        .map(String)
+        .filter((x) => UUID.test(x))
+        .slice(0, 20)
+    : [];
 }
 
 /** A coluna `grupo_dre` ainda não existe (migration pendente)? */
@@ -103,6 +117,8 @@ export async function lerLancamentos(
   de: string,
   ate: string,
   porId: Map<string, Categoria>,
+  /** Unidades que NÃO entram na conta (o lançamento sem unidade entra sempre). */
+  excluirUnidades: string[] = [],
 ): Promise<LancamentoLido[]> {
   const cartao = await temColunasDeCartao(supabase);
   const deLargo = `${somarMeses(de.slice(0, 7), -1)}-01`;
@@ -127,6 +143,8 @@ export async function lerLancamentos(
       )
       .range(pagina * 1000, (pagina + 1) * 1000 - 1);
     if (unitId) q = q.eq("unit_id", unitId);
+    else if (excluirUnidades.length)
+      q = q.or(`unit_id.is.null,unit_id.not.in.(${excluirUnidades.join(",")})`);
     const { data: linhas, error } = await q;
     if (error) throw new Error(error.message);
     for (const t of linhas ?? []) {
@@ -154,11 +172,11 @@ export async function lerLancamentos(
 
 export const getDre = createServerFn({ method: "GET" })
   .middleware([exigeFinanceiro])
-  .inputValidator((input: { ate: string; meses: number; regime: Regime }) => {
+  .inputValidator((input: { ate: string; meses: number; regime: Regime; excluir?: string[] }) => {
     if (!/^\d{4}-\d{2}$/.test(input.ate)) throw new Error("Mês inválido.");
     const meses = Math.min(MAXIMO_DE_MESES, Math.max(1, Math.trunc(Number(input.meses) || 6)));
     const regime: Regime = input.regime === "competencia" ? "competencia" : "caixa";
-    return { ate: input.ate, meses, regime };
+    return { ate: input.ate, meses, regime, excluir: idsValidos(input.excluir) };
   })
   .handler(async ({ data, context }): Promise<DreDoPeriodo> => {
     const supabase: any = context.supabase;
@@ -173,8 +191,25 @@ export const getDre = createServerFn({ method: "GET" })
       `${meses[0]}-01`,
       `${data.ate}-01`,
       porId,
+      data.excluir,
     );
-    return { dre: montarDre(lancamentos, meses, data.regime), categorias, semColunaDeGrupo };
+    // O filtro só aparece para quem vê a conta toda e tem mais de uma unidade.
+    let unidades: { id: string; nome: string }[] = [];
+    if (!context.unitId) {
+      const { data: us } = await supabase
+        .from("clinic_units")
+        .select("id, name")
+        .eq("owner_id", context.ownerId)
+        .order("name");
+      if ((us?.length ?? 0) > 1)
+        unidades = us.map((u: any) => ({ id: String(u.id), nome: String(u.name ?? "").trim() }));
+    }
+    return {
+      dre: montarDre(lancamentos, meses, data.regime),
+      categorias,
+      semColunaDeGrupo,
+      unidades,
+    };
   });
 
 export interface LancamentoDaCelula {
@@ -194,7 +229,13 @@ export interface LancamentoDaCelula {
 export const getLancamentosDaCelula = createServerFn({ method: "GET" })
   .middleware([exigeFinanceiro])
   .inputValidator(
-    (input: { mes: string; regime: Regime; grupo: GrupoDre; categoriaId?: string | null }) => {
+    (input: {
+      mes: string;
+      regime: Regime;
+      grupo: GrupoDre;
+      categoriaId?: string | null;
+      excluir?: string[];
+    }) => {
       if (!/^\d{4}-\d{2}$/.test(input.mes)) throw new Error("Mês inválido.");
       if (!GRUPOS_DRE.some((g) => g.id === input.grupo)) throw new Error("Grupo inválido.");
       const regime: Regime = input.regime === "competencia" ? "competencia" : "caixa";
@@ -203,6 +244,7 @@ export const getLancamentosDaCelula = createServerFn({ method: "GET" })
         regime,
         grupo: input.grupo,
         categoriaId: input.categoriaId === undefined ? undefined : (input.categoriaId ?? null),
+        excluir: idsValidos(input.excluir),
       };
     },
   )
@@ -217,6 +259,7 @@ export const getLancamentosDaCelula = createServerFn({ method: "GET" })
       `${data.mes}-01`,
       `${data.mes}-01`,
       porId,
+      data.excluir,
     );
     const saida: LancamentoDaCelula[] = [];
     for (const l of lancamentos) {
