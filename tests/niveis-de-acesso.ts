@@ -34,13 +34,28 @@ function conferir(nome: string, obtido: unknown, esperado: unknown) {
 
 // ── O combinado com a clínica, linha por linha ──────────────────────────
 
-conferir("administrador vê as dez áreas", AREAS_DO_NIVEL.admin.length, 10);
+conferir("administrador vê as onze áreas", AREAS_DO_NIVEL.admin.length, 11);
 // 03/11: a recepção vê tudo, menos o financeiro e a equipe.
 conferir(
   "recepção vê tudo menos financeiro e equipe",
   [...AREAS_DO_NIVEL.reception],
-  ["inicio", "agenda", "pacientes", "atendimentos", "agente_ia", "club", "configuracoes"],
+  [
+    "inicio",
+    "agenda",
+    "pacientes",
+    "atendimentos",
+    "agente_ia",
+    "club",
+    "estoque",
+    "configuracoes",
+  ],
 );
+// 15/11: o estoque é de quem toca o consultório (administrador e recepção).
+conferir("recepção vê o estoque", podeVerArea("reception", "estoque"), true);
+conferir("administrador vê o estoque", podeVerArea("admin", "estoque"), true);
+conferir("dentista não vê o estoque", podeVerArea("dentist", "estoque"), false);
+conferir("financeiro não vê o estoque", podeVerArea("finance", "estoque"), false);
+conferir("dentista não abre o estoque", podeAbrir("dentist", "/estoque"), false);
 conferir("dentista vê três", [...AREAS_DO_NIVEL.dentist], ["inicio", "agenda", "pacientes"]);
 conferir("financeiro vê duas", [...AREAS_DO_NIVEL.finance], ["inicio", "financeiro"]);
 
@@ -110,6 +125,7 @@ const ROTAS: [string, AreaDoApp | null][] = [
   ["/atendimentos/automacoes/funil/novo", "atendimentos"],
   ["/agente-ia", "agente_ia"],
   ["/nos-club", "club"],
+  ["/estoque", "estoque"],
   ["/configuracoes", "configuracoes"],
   ["/configuracoes/dias-de-viagem", "configuracoes"],
   // As quatro telas financeiras, e três delas não começam com "financeiro".

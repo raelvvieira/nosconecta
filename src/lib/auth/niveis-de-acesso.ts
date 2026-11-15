@@ -37,6 +37,8 @@ export type AreaDoApp =
   | "financeiro"
   | "agente_ia"
   | "club"
+  /** O estoque de materiais: itens, entradas, saídas e o que está acabando. */
+  | "estoque"
   | "configuracoes"
   /** O painel de gestão: lucro, margem, crescimento e eficiência. Só do
    *  administrador — nem o nível Financeiro entra, que vê os lançamentos mas
@@ -94,6 +96,7 @@ export const AREAS_DO_NIVEL: Record<NivelDeAcesso, readonly AreaDoApp[]> = {
     "financeiro",
     "agente_ia",
     "club",
+    "estoque",
     "configuracoes",
     "equipe",
   ],
@@ -110,6 +113,7 @@ export const AREAS_DO_NIVEL: Record<NivelDeAcesso, readonly AreaDoApp[]> = {
     "atendimentos",
     "agente_ia",
     "club",
+    "estoque",
     "configuracoes",
   ],
   dentist: ["inicio", "agenda", "pacientes"],
@@ -162,6 +166,7 @@ export function areaDaRota(pathname: string): AreaDoApp | null {
   if (p === "/atendimentos" || p.startsWith("/atendimentos/")) return "atendimentos";
   if (p === "/agente-ia" || p.startsWith("/agente-ia/")) return "agente_ia";
   if (p === "/nos-club" || p.startsWith("/nos-club/")) return "club";
+  if (p === "/estoque" || p.startsWith("/estoque/")) return "estoque";
   // Aparência é preferência da PESSOA, não da clínica: todo nível escolhe a
   // própria cor, inclusive quem não vê o resto de Configurações.
   if (p === "/configuracoes/aparencia") return "inicio";

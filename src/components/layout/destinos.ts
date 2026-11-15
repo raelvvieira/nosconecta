@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   Lock,
+  Package,
   Megaphone,
   MessageCircle,
   Percent,
@@ -46,6 +47,7 @@ export type RotaDoMenu =
   | "/atendimentos"
   | "/agente-ia"
   | "/nos-club"
+  | "/estoque"
   | "/configuracoes"
   | "/financeiro"
   | "/recebimentos"
@@ -88,6 +90,7 @@ export const MODULOS: Destino[] = [
   { label: "Atendimentos", icon: MessageCircle, to: "/atendimentos" },
   { label: "Agente de IA", icon: Sparkles, to: "/agente-ia" },
   { label: "NÓS Club", icon: Gift, to: "/nos-club" },
+  { label: "Estoque", icon: Package, to: "/estoque" },
   { label: "Financeiro", icon: Wallet, to: "/financeiro" },
   { label: "Configurações", icon: Settings, to: "/configuracoes" },
 ];

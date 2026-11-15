@@ -18,6 +18,7 @@ import { Route as ClubRouteImport } from './routes/club'
 import { Route as ComecarRouteImport } from './routes/comecar'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as DreRouteImport } from './routes/dre'
+import { Route as EstoqueRouteImport } from './routes/estoque'
 import { Route as FinanceiroRouteImport } from './routes/financeiro'
 import { Route as GestaoRouteImport } from './routes/gestao'
 import { Route as InicioRouteImport } from './routes/inicio'
@@ -101,6 +102,11 @@ const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
 const DreRoute = DreRouteImport.update({
   id: '/dre',
   path: '/dre',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EstoqueRoute = EstoqueRouteImport.update({
+  id: '/estoque',
+  path: '/estoque',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FinanceiroRoute = FinanceiroRouteImport.update({
@@ -319,6 +325,7 @@ export interface FileRoutesByFullPath {
   '/comecar': typeof ComecarRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/dre': typeof DreRoute
+  '/estoque': typeof EstoqueRoute
   '/financeiro': typeof FinanceiroRoute
   '/gestao': typeof GestaoRoute
   '/inicio': typeof InicioRoute
@@ -366,6 +373,7 @@ export interface FileRoutesByTo {
   '/club': typeof ClubRoute
   '/comecar': typeof ComecarRoute
   '/dre': typeof DreRoute
+  '/estoque': typeof EstoqueRoute
   '/financeiro': typeof FinanceiroRoute
   '/gestao': typeof GestaoRoute
   '/inicio': typeof InicioRoute
@@ -415,6 +423,7 @@ export interface FileRoutesById {
   '/comecar': typeof ComecarRoute
   '/configuracoes': typeof ConfiguracoesRouteWithChildren
   '/dre': typeof DreRoute
+  '/estoque': typeof EstoqueRoute
   '/financeiro': typeof FinanceiroRoute
   '/gestao': typeof GestaoRoute
   '/inicio': typeof InicioRoute
@@ -467,6 +476,7 @@ export interface FileRouteTypes {
     | '/comecar'
     | '/configuracoes'
     | '/dre'
+    | '/estoque'
     | '/financeiro'
     | '/gestao'
     | '/inicio'
@@ -514,6 +524,7 @@ export interface FileRouteTypes {
     | '/club'
     | '/comecar'
     | '/dre'
+    | '/estoque'
     | '/financeiro'
     | '/gestao'
     | '/inicio'
@@ -562,6 +573,7 @@ export interface FileRouteTypes {
     | '/comecar'
     | '/configuracoes'
     | '/dre'
+    | '/estoque'
     | '/financeiro'
     | '/gestao'
     | '/inicio'
@@ -613,6 +625,7 @@ export interface RootRouteChildren {
   ComecarRoute: typeof ComecarRoute
   ConfiguracoesRoute: typeof ConfiguracoesRouteWithChildren
   DreRoute: typeof DreRoute
+  EstoqueRoute: typeof EstoqueRoute
   FinanceiroRoute: typeof FinanceiroRoute
   GestaoRoute: typeof GestaoRoute
   InicioRoute: typeof InicioRoute
@@ -689,6 +702,13 @@ declare module '@tanstack/react-router' {
       path: '/dre'
       fullPath: '/dre'
       preLoaderRoute: typeof DreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/estoque': {
+      id: '/estoque'
+      path: '/estoque'
+      fullPath: '/estoque'
+      preLoaderRoute: typeof EstoqueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/financeiro': {
@@ -1087,6 +1107,7 @@ const rootRouteChildren: RootRouteChildren = {
   ComecarRoute: ComecarRoute,
   ConfiguracoesRoute: ConfiguracoesRouteWithChildren,
   DreRoute: DreRoute,
+  EstoqueRoute: EstoqueRoute,
   FinanceiroRoute: FinanceiroRoute,
   GestaoRoute: GestaoRoute,
   InicioRoute: InicioRoute,
