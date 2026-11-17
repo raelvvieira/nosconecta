@@ -36,6 +36,7 @@ import {
 } from "@/components/painel/CardDoPainel";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { formatBRL } from "@/lib/finance/format";
+import { diaParaLer } from "@/lib/date";
 import { formatWhatsappNumber } from "@/lib/atendimentos/phone";
 import { montarPainel } from "@/lib/atendimentos/painelDoContato";
 import {
@@ -315,7 +316,13 @@ export function PainelDoContato({
         )}
 
         {/* ── Dados ────────────────────────────────────────────────────────── */}
-        <CardDoPainel icone={UserRound} titulo="Dados">
+        <CardDoPainel
+          icone={UserRound}
+          titulo="Dados"
+          recolhivel
+          chave="dados"
+          resumo={painel.dados.find((d) => d.rotulo === "Telefone")?.valor ?? undefined}
+        >
           <div className="divide-y divide-border">
             {painel.dados.map((d) => (
               <LinhaDoPainel key={d.rotulo} rotulo={d.rotulo} valor={d.valor} />
@@ -325,7 +332,19 @@ export function PainelDoContato({
 
         {/* ── Agenda ───────────────────────────────────────────────────────── */}
         {painel.agenda && (
-          <CardDoPainel icone={CalendarDays} titulo="Agenda">
+          <CardDoPainel
+            icone={CalendarDays}
+            titulo="Agenda"
+            recolhivel
+            chave="agenda"
+            resumo={
+              painel.agenda.proxima
+                ? `Próxima ${diaParaLer(painel.agenda.proxima.date)} · ${painel.agenda.proxima.time}`
+                : painel.agenda.ultima
+                  ? `Última ${diaParaLer(painel.agenda.ultima.date)}`
+                  : "Nenhuma consulta"
+            }
+          >
             {!painel.agenda.proxima && !painel.agenda.ultima ? (
               <p className="text-sm text-muted-foreground">Nenhuma consulta registrada.</p>
             ) : (
@@ -343,7 +362,13 @@ export function PainelDoContato({
 
         {/* ── Tratamento ───────────────────────────────────────────────────── */}
         {painel.tratamento && (
-          <CardDoPainel icone={Stethoscope} titulo="Tratamento">
+          <CardDoPainel
+            icone={Stethoscope}
+            titulo="Tratamento"
+            recolhivel
+            chave="tratamento"
+            resumo={`${painel.tratamento.feitas} de ${painel.tratamento.total} sessões`}
+          >
             <p className="text-sm font-medium">{painel.tratamento.nome}</p>
             <p className="mt-1 text-xs text-muted-foreground">
               {painel.tratamento.feitas} de {painel.tratamento.total} sessões
@@ -368,7 +393,25 @@ export function PainelDoContato({
 
         {/* ── Financeiro ───────────────────────────────────────────────────── */}
         {painel.financeiro && (
-          <CardDoPainel icone={CircleDollarSign} titulo="Financeiro">
+          <CardDoPainel
+            icone={CircleDollarSign}
+            titulo="Financeiro"
+            recolhivel
+            chave="financeiro"
+            resumo={
+              (painel.financeiro.atraso ?? 0) > 0 ? (
+                <span className="font-medium text-danger">
+                  {formatBRL(painel.financeiro.atraso ?? 0)} em atraso
+                </span>
+              ) : (painel.financeiro.aReceber ?? 0) > 0 ? (
+                `${formatBRL(painel.financeiro.aReceber ?? 0)} a receber`
+              ) : painel.financeiro.atraso === null &&
+                painel.financeiro.aReceber === null &&
+                painel.financeiro.pago === null ? undefined : (
+                "Em dia"
+              )
+            }
+          >
             <div className="grid grid-cols-3 gap-3">
               <NumeroDoPainel
                 rotulo="Em atraso"
@@ -392,7 +435,7 @@ export function PainelDoContato({
         )}
 
         {/* ── Tags ─────────────────────────────────────────────────────────── */}
-        <CardDoPainel icone={TagIcon} titulo="Tags">
+        <CardDoPainel icone={TagIcon} titulo="Tags" recolhivel chave="tags">
           <SeletorDeTags
             alvo={patientId ? { patientId } : { crmContactId: contactId ?? null }}
             vazio="Adicionar tag"
@@ -401,7 +444,13 @@ export function PainelDoContato({
 
         {/* ── Campanhas ────────────────────────────────────────────────────── */}
         {painel.campanha && (
-          <CardDoPainel icone={Megaphone} titulo="Campanhas">
+          <CardDoPainel
+            icone={Megaphone}
+            titulo="Campanhas"
+            recolhivel
+            chave="campanhas"
+            resumo={painel.campanha.naFila ? "Na fila de disparo" : "Recebeu disparo"}
+          >
             <p className="text-sm">
               {painel.campanha.naFila ? (
                 <>
@@ -423,7 +472,17 @@ export function PainelDoContato({
             a mesma coisa. Duas listas de observação da mesma pessoa seria pior
             que nenhuma. */}
         {chaveDoDesfecho && (
-          <CardDoPainel icone={StickyNote} titulo="Notas">
+          <CardDoPainel
+            icone={StickyNote}
+            titulo="Notas"
+            recolhivel
+            chave="notas"
+            resumo={
+              observacoes.length
+                ? `${observacoes.length} nota${observacoes.length === 1 ? "" : "s"}`
+                : "Nenhuma"
+            }
+          >
             {observacoes.length > 0 && (
               <ul className="mb-3 grid gap-2">
                 {observacoes.map((n) => (
@@ -460,6 +519,17 @@ export function PainelDoContato({
           <CardDoPainel
             icone={Stethoscope}
             titulo="Prontuário"
+            recolhivel
+            chave="prontuario"
+            resumo={
+              painel.prontuario.alergias ? (
+                <span className="inline-flex items-center gap-1 font-medium text-warning">
+                  <AlertTriangle className="h-3 w-3" strokeWidth={2} /> Alergias registradas
+                </span>
+              ) : painel.prontuario.ultimaEvolucao ? (
+                `Evolução ${quando(painel.prontuario.ultimaEvolucao.quando)}`
+              ) : undefined
+            }
             acao={
               patientId && (
                 <Link
