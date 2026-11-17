@@ -475,6 +475,23 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
       if (!data || data.length < POR_PAGINA) break;
     }
 
+    // Quem foi marcado como perdido (com motivo) sai do funil de Leads e passa
+    // a viver no de Perdidos. Reabrir apaga a marca e o lead volta sozinho.
+    {
+      const { data: perdidos, error: erroPerdidos } = await supabase
+        .from("leads_perdidos")
+        .select("fone")
+        .eq("owner_id", context.ownerId);
+      if (erroPerdidos && !ausente(erroPerdidos)) throw new Error(erroPerdidos.message);
+      const fonesPerdidos = new Set(
+        (perdidos ?? []).map((p: any) => foneCanonico(String(p.fone ?? ""))),
+      );
+      if (fonesPerdidos.size) {
+        for (let i = linhas.length - 1; i >= 0; i--)
+          if (fonesPerdidos.has(foneCanonico(String(linhas[i].fone)))) linhas.splice(i, 1);
+      }
+    }
+
     // A leitura de cada conversa. Sem ela (plano sem IA, ou ainda não lida)
     // o lead fica em Novo Contato, ou onde a agenda disser.
     const lidas = new Map<string, any>();

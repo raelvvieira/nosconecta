@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { ContatoSelecionado } from "@/components/atendimentos/contacts/ContactsTab";
 import { BalaoDePosicao, SeletorDePosicao } from "@/components/atendimentos/pipeline/MoverLead";
+import { MarcarComoPerdido } from "@/components/atendimentos/pipeline/MarcarComoPerdido";
 import {
   quantosPodemReceber,
   useDisparoDeColuna,
@@ -476,6 +477,8 @@ function Detalhe({
           </p>
           <SeletorDePosicao lead={lead} publico={publico} colunas={colunas} onFeito={onMovido} />
         </div>
+
+        <MarcarComoPerdido lead={lead} onFeito={onMovido} />
 
         {lead.nota === null && (
           <p className="text-sm text-muted-foreground">
