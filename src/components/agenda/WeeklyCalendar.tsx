@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FiltrosDaAgenda } from "./FiltrosDaAgenda";
 import { useAvisosPorAgendamento } from "@/lib/notifications/use-avisos";
 import { ROTULO_DO_AVISO, TOM_DO_AVISO } from "@/lib/notifications/tipo-do-aviso";
 import type { Appointment, BlockedTime, ViewMode, AgendaFilters } from "./types";
@@ -252,33 +253,13 @@ export function WeeklyCalendar({
             ))}
           </div>
 
-          {/* Filters */}
-          <div className="flex items-center gap-2">
-            <select
-              className="text-xs border border-border rounded-xl px-3 py-1.5 text-muted-foreground bg-white focus:outline-none"
-              value={filters.professionalId}
-              onChange={(e) => onFiltersChange({ ...filters, professionalId: e.target.value })}
-            >
-              <option value="">Todos os profissionais</option>
-              {professionals.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="text-xs border border-border rounded-xl px-3 py-1.5 text-muted-foreground bg-white focus:outline-none"
-              value={filters.roomId}
-              onChange={(e) => onFiltersChange({ ...filters, roomId: e.target.value })}
-            >
-              <option value="">Todas as salas</option>
-              {rooms.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Filtros */}
+          <FiltrosDaAgenda
+            filters={filters}
+            professionals={professionals}
+            rooms={rooms}
+            onFiltersChange={onFiltersChange}
+          />
         </div>
 
         {/* Navigation */}

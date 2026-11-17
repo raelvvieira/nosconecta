@@ -446,11 +446,7 @@ function AgendaPage() {
             <RightSidebar
               selectedDate={selectedDate}
               appointments={appointments}
-              filters={filters}
-              professionals={professionals}
-              rooms={rooms}
               onDateChange={setSelectedDate}
-              onFiltersChange={setFilters}
               onAgendarRetorno={(r) => {
                 setRetornoEmAgendamento(r);
                 setNovoNoHorario(null);

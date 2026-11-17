@@ -1,12 +1,22 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { Appointment, AgendaFilters, Professional, Room } from "./types";
+import type { Appointment } from "./types";
 import { statusStyle, STATUS_LABEL } from "./appointment-utils";
 import { RetornosAAgendarCard } from "./RetornosAAgendarCard";
 import type { RetornoDaLista } from "@/lib/agenda/retornos.functions";
 
 const MONTHS_PT = [
-  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
 ];
 
 function toDateStr(d: Date): string {
@@ -53,14 +63,16 @@ function MiniCalendar({
         <div className="flex gap-1">
           <button
             type="button"
-            onClick={() => navigateMonth(-1)} aria-label="Mês anterior"
+            onClick={() => navigateMonth(-1)}
+            aria-label="Mês anterior"
             className="h-7 w-7 grid place-items-center rounded-lg text-muted-foreground hover:bg-surface transition-colors"
           >
             <ChevronLeft className="h-3.5 w-3.5" strokeWidth={2} />
           </button>
           <button
             type="button"
-            onClick={() => navigateMonth(1)} aria-label="Próximo mês"
+            onClick={() => navigateMonth(1)}
+            aria-label="Próximo mês"
             className="h-7 w-7 grid place-items-center rounded-lg text-muted-foreground hover:bg-surface transition-colors"
           >
             <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} />
@@ -70,7 +82,9 @@ function MiniCalendar({
 
       <div className="grid grid-cols-7 mb-1">
         {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
-          <div key={i} className="text-center text-3xs font-semibold text-muted-foreground py-1">{d}</div>
+          <div key={i} className="text-center text-3xs font-semibold text-muted-foreground py-1">
+            {d}
+          </div>
         ))}
       </div>
 
@@ -95,14 +109,22 @@ function MiniCalendar({
                   isSelected
                     ? { background: "var(--gradient-primary)", color: "var(--primary-foreground)" }
                     : isToday
-                    ? { border: "1.5px solid var(--pink)", color: "var(--pink)" }
-                    : { color: "var(--foreground-secondary)" }
+                      ? { border: "1.5px solid var(--pink)", color: "var(--pink)" }
+                      : { color: "var(--foreground-secondary)" }
                 }
               >
                 {day}
               </span>
               {has && !isSelected && (
-                <div style={{ width: 3, height: 3, borderRadius: 9999, background: "var(--pink)", marginTop: 1 }} />
+                <div
+                  style={{
+                    width: 3,
+                    height: 3,
+                    borderRadius: 9999,
+                    background: "var(--pink)",
+                    marginTop: 1,
+                  }}
+                />
               )}
             </button>
           );
@@ -114,12 +136,24 @@ function MiniCalendar({
 
 // ─── Upcoming Appointments ───────────────────────────────────────────────────
 
-function UpcomingAppointmentsCard({ appointments, selectedDate }: { appointments: Appointment[]; selectedDate: Date }) {
+function UpcomingAppointmentsCard({
+  appointments,
+  selectedDate,
+}: {
+  appointments: Appointment[];
+  selectedDate: Date;
+}) {
   const ds = toDateStr(selectedDate);
   const now = new Date();
   const nowTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const upcoming = appointments
-    .filter((a) => a.date === ds && a.startTime >= nowTime && a.status !== "cancelled" && a.status !== "missed")
+    .filter(
+      (a) =>
+        a.date === ds &&
+        a.startTime >= nowTime &&
+        a.status !== "cancelled" &&
+        a.status !== "missed",
+    )
     .sort((a, b) => a.startTime.localeCompare(b.startTime))
     .slice(0, 4);
 
@@ -146,7 +180,14 @@ function UpcomingAppointmentsCard({ appointments, selectedDate }: { appointments
               >
                 <div className="flex flex-col items-center shrink-0">
                   <span className="text-xs font-bold text-pink">{a.startTime}</span>
-                  <div style={{ width: 1, height: 16, background: "var(--surface-muted)", margin: "2px 0" }} />
+                  <div
+                    style={{
+                      width: 1,
+                      height: 16,
+                      background: "var(--surface-muted)",
+                      margin: "2px 0",
+                    }}
+                  />
                   <span className="text-3xs text-muted-foreground">{a.endTime}</span>
                 </div>
                 <div className="flex-1 min-w-0">
@@ -173,112 +214,23 @@ function UpcomingAppointmentsCard({ appointments, selectedDate }: { appointments
   );
 }
 
-// ─── Quick Filters ───────────────────────────────────────────────────────────
-
-function QuickFiltersCard({
-  filters,
-  professionals,
-  rooms,
-  onFiltersChange,
-}: {
-  filters: AgendaFilters;
-  professionals: Professional[];
-  rooms: Room[];
-  onFiltersChange: (f: AgendaFilters) => void;
-}) {
-  const clearAll = () =>
-    onFiltersChange({ professionalId: "", roomId: "", type: "", status: "" });
-
-  const hasFilters = filters.professionalId || filters.roomId || filters.type || filters.status;
-
-  return (
-    <div className="surface-card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-semibold text-foreground">Filtros</span>
-        {hasFilters && (
-          <button type="button" onClick={clearAll} className="text-xs font-medium text-muted-foreground hover:text-pink transition-colors">
-            Limpar filtros
-          </button>
-        )}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <select
-          className="w-full min-w-0 truncate text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
-          value={filters.professionalId}
-          onChange={(e) => onFiltersChange({ ...filters, professionalId: e.target.value })}
-        >
-          <option value="">Profissional</option>
-          {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-        <select
-          className="w-full min-w-0 truncate text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
-          value={filters.roomId}
-          onChange={(e) => onFiltersChange({ ...filters, roomId: e.target.value })}
-        >
-          <option value="">Sala</option>
-          {rooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-        </select>
-        <select
-          className="w-full min-w-0 truncate text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
-          value={filters.type}
-          onChange={(e) => onFiltersChange({ ...filters, type: e.target.value })}
-        >
-          <option value="">Tipo</option>
-          <option value="consultation">Consulta</option>
-          <option value="evaluation">Avaliação</option>
-          <option value="procedure">Procedimento</option>
-          <option value="return">Retorno</option>
-          <option value="emergency">Emergência</option>
-        </select>
-        <select
-          className="w-full min-w-0 truncate text-xs border border-border rounded-xl px-3 py-2 text-muted-foreground bg-white focus:outline-none"
-          value={filters.status}
-          onChange={(e) => onFiltersChange({ ...filters, status: e.target.value })}
-        >
-          <option value="">Status</option>
-          <option value="confirmed">Confirmado</option>
-          <option value="pending">Pendente</option>
-          <option value="in_progress">Em andamento</option>
-          <option value="completed">Concluído</option>
-          <option value="missed">Faltou</option>
-          <option value="cancelled">Cancelado</option>
-        </select>
-      </div>
-    </div>
-  );
-}
-
 // ─── RightSidebar ────────────────────────────────────────────────────────────
 
 interface RightSidebarProps {
   selectedDate: Date;
   appointments: Appointment[];
-  filters: AgendaFilters;
-  professionals: Professional[];
-  rooms: Room[];
   onDateChange: (d: Date) => void;
-  onFiltersChange: (f: AgendaFilters) => void;
   onAgendarRetorno: (r: RetornoDaLista) => void;
 }
 
 export function RightSidebar({
   selectedDate,
   appointments,
-  filters,
-  professionals,
-  rooms,
   onDateChange,
-  onFiltersChange,
   onAgendarRetorno,
 }: RightSidebarProps) {
   return (
     <div className="flex flex-col gap-4">
-      <QuickFiltersCard
-        filters={filters}
-        professionals={professionals}
-        rooms={rooms}
-        onFiltersChange={onFiltersChange}
-      />
       <RetornosAAgendarCard onAgendar={onAgendarRetorno} />
       <MiniCalendar selected={selectedDate} appointments={appointments} onSelect={onDateChange} />
       <UpcomingAppointmentsCard appointments={appointments} selectedDate={selectedDate} />
