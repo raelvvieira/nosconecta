@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { createAppointment, updateAppointment } from "@/lib/agenda/agenda.functions";
+import { vincularRetornoAoAgendamento } from "@/lib/agenda/retornos.functions";
 import { createPatient, getPatientByCrmContact } from "@/lib/patients/patients.functions";
 import { formatWhatsappNumber, normalizeBrazilianPhone } from "@/lib/atendimentos/phone";
 import { useUnitSelection } from "@/lib/settings/unit-context";
@@ -73,6 +74,7 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
   const queryClient = useQueryClient();
   const createFn = useServerFn(createAppointment);
   const updateFn = useServerFn(updateAppointment);
+  const vincularRetornoFn = useServerFn(vincularRetornoAoAgendamento);
   const createPatientFn = useServerFn(createPatient);
   const findByContactFn = useServerFn(getPatientByCrmContact);
   const { selectedUnitId } = useUnitSelection();
@@ -179,6 +181,7 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       forma,
       parcelas,
       indicadoPor,
+      retornoId,
     }: {
       data: Partial<Appointment>;
       existingId?: string;
@@ -197,6 +200,8 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       /** Quem indicou este paciente, quando a recepção marcou "veio pelo NÓS
        *  Club". Só na CRIAÇÃO: a indicação nasce com o agendamento. */
       indicadoPor?: string | null;
+      /** O lembrete de "Retornos a agendar" que este agendamento resolve. */
+      retornoId?: string | null;
     }) => {
       // Só ao criar: editar um agendamento existente não deve inventar paciente.
       //
@@ -251,6 +256,17 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
               unitId: unidadeDaCadeira(data.roomId) ?? selectedUnitId ?? undefined,
             },
           });
+      // Marcou de verdade: o lembrete sai da lista e passa a apontar para a
+      // consulta. Falhar aqui não desfaz o agendamento — só deixa o lembrete
+      // na lista, onde a recepção pode dispensar.
+      const idSalvo: string | undefined = existingId ?? r?.id;
+      if (retornoId && idSalvo) {
+        try {
+          await vincularRetornoFn({ data: { id: retornoId, appointmentId: idSalvo } });
+        } catch (e) {
+          console.error("[agenda] vincular retorno", e);
+        }
+      }
       return { existingId, retornoEm: retornoEm ?? null, conflitos: r?.conflitos ?? [] };
     },
     onSuccess: ({ existingId, retornoEm, conflitos }) => {
@@ -264,13 +280,14 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
             `Retorno criado em ${quando}, mas ${conflitos[0].patientName} já tem atendimento às ${conflitos[0].startTime}.`,
           );
         } else {
-          toast.success(`Retorno pré-agendado para ${quando}`);
+          toast.success(`Retorno anotado para chamar em ${quando}`);
         }
       }
       toast.success(existingId ? "Agendamento atualizado" : "Agendamento criado");
       // Invalida a Agenda mesmo quando salvo de outra tela — é o que garante
       // que um agendamento feito pelo chat apareça lá sem recarregar.
       queryClient.invalidateQueries({ queryKey: ["agenda-overview"] });
+      queryClient.invalidateQueries({ queryKey: ["retornos-a-agendar"] });
       options?.onSaved?.();
     },
     onError: (e: any) => toast.error(e?.message ?? "Erro ao salvar agendamento"),

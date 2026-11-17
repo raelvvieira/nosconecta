@@ -287,7 +287,7 @@ function AppointmentCard({
    *  "pediu remarcar" em cima de qualquer aviso. */
   comAviso: TipoDeAviso | null;
 }) {
-  const s = statusStyle(appt.status);
+  const s = statusStyle(appt.status, appt.type);
   const cancelado = appt.status === "cancelled";
   // Varredura de 23/10: hora, bolinha de status, avatar com iniciais, nome,
   // selo de status e seta disputavam uma linha de 360px — e quem perdia era
@@ -429,7 +429,7 @@ function MonthGrid({
   const statusDots = (day: number) => {
     const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     const dayAppts = appointments.filter((a) => a.date === ds);
-    return [...new Set(dayAppts.map((a) => statusStyle(a.status).badge))].slice(0, 3);
+    return [...new Set(dayAppts.map((a) => statusStyle(a.status, a.type).badge))].slice(0, 3);
   };
 
   return (

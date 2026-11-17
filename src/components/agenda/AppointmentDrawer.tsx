@@ -84,6 +84,18 @@ interface Props {
   /** "HH:MM" de quem clicou num espaço vazio da agenda. */
   defaultTime?: string | null;
   defaultPatient?: { id: string; name: string } | null;
+  /**
+   * Quando o agendamento nasce de um item da lista "Retornos a agendar": o que
+   * já se sabe do atendimento de origem. Só pré-preenche — a data e o horário
+   * continuam sendo o que a pessoa combinou.
+   */
+  defaultRetorno?: {
+    procedureName?: string | null;
+    professionalId?: string | null;
+    professionalName?: string | null;
+    startTime?: string | null;
+    endTime?: string | null;
+  } | null;
   catalog?: { professionals: Professional[]; procedures: Procedure[]; rooms: Room[] };
   isSaving?: boolean;
   /** Aviso de contexto quando aberto fora da Agenda (ex.: a partir do chat). */
@@ -168,6 +180,7 @@ export function AppointmentDrawer({
   defaultDate,
   defaultTime,
   defaultPatient,
+  defaultRetorno,
   catalog,
   isSaving,
   origin,
@@ -215,17 +228,19 @@ export function AppointmentDrawer({
   const [form, setForm] = useState<Partial<Appointment>>({
     patientId: appointment?.patientId ?? defaultPatient?.id,
     patientName: appointment?.patientName ?? defaultPatient?.name ?? "",
-    procedureName: appointment?.procedureName ?? "",
+    procedureName: appointment?.procedureName ?? defaultRetorno?.procedureName ?? "",
     procedures: appointment?.procedures ?? [],
-    professionalId: appointment?.professionalId ?? "",
-    professionalName: appointment?.professionalName ?? "",
+    professionalId: appointment?.professionalId ?? defaultRetorno?.professionalId ?? "",
+    professionalName: appointment?.professionalName ?? defaultRetorno?.professionalName ?? "",
     roomId: appointment?.roomId ?? "",
     roomName: appointment?.roomName ?? "",
     date: appointment?.date ?? defaultDate ?? localDateStr(),
-    startTime: appointment?.startTime ?? defaultTime ?? "09:00",
-    endTime: appointment?.endTime ?? (defaultTime ? umaHoraDepois(defaultTime) : "10:00"),
+    startTime: appointment?.startTime ?? defaultTime ?? defaultRetorno?.startTime ?? "09:00",
+    endTime:
+      appointment?.endTime ??
+      (defaultTime ? umaHoraDepois(defaultTime) : (defaultRetorno?.endTime ?? "10:00")),
     status: appointment?.status ?? "pending",
-    type: appointment?.type ?? "consultation",
+    type: appointment?.type ?? (defaultRetorno ? "return" : "consultation"),
     expectedRevenue: appointment?.expectedRevenue ?? 0,
     actualRevenue: appointment?.actualRevenue ?? null,
     notes: appointment?.notes ?? "",
@@ -351,17 +366,19 @@ export function AppointmentDrawer({
     setForm({
       patientId: appointment?.patientId ?? defaultPatient?.id,
       patientName: appointment?.patientName ?? defaultPatient?.name ?? "",
-      procedureName: appointment?.procedureName ?? "",
+      procedureName: appointment?.procedureName ?? defaultRetorno?.procedureName ?? "",
       procedures: appointment?.procedures ?? [],
-      professionalId: appointment?.professionalId ?? "",
-      professionalName: appointment?.professionalName ?? "",
+      professionalId: appointment?.professionalId ?? defaultRetorno?.professionalId ?? "",
+      professionalName: appointment?.professionalName ?? defaultRetorno?.professionalName ?? "",
       roomId: appointment?.roomId ?? "",
       roomName: appointment?.roomName ?? "",
       date: appointment?.date ?? defaultDate ?? localDateStr(),
-      startTime: appointment?.startTime ?? defaultTime ?? "09:00",
-      endTime: appointment?.endTime ?? (defaultTime ? umaHoraDepois(defaultTime) : "10:00"),
+      startTime: appointment?.startTime ?? defaultTime ?? defaultRetorno?.startTime ?? "09:00",
+      endTime:
+      appointment?.endTime ??
+      (defaultTime ? umaHoraDepois(defaultTime) : (defaultRetorno?.endTime ?? "10:00")),
       status: appointment?.status ?? "pending",
-      type: appointment?.type ?? "consultation",
+      type: appointment?.type ?? (defaultRetorno ? "return" : "consultation"),
       expectedRevenue: appointment?.expectedRevenue ?? 0,
       actualRevenue: appointment?.actualRevenue ?? null,
       notes: appointment?.notes ?? "",
@@ -378,6 +395,7 @@ export function AppointmentDrawer({
     defaultTime,
     defaultPatient?.id,
     defaultPatient?.name,
+    defaultRetorno,
     contact?.name,
     abrirEditando,
   ]);

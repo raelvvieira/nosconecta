@@ -28,7 +28,11 @@ export const TYPE_LABEL: Record<AppointmentType, string> = {
  * `color-mix` no fundo e na borda em vez de rgba fixo: assim, mexer no token
  * de status acerta o bloco da agenda junto, em vez de deixá-lo para trás.
  */
-export function statusStyle(status: AppointmentStatus): {
+export function statusStyle(
+  status: AppointmentStatus,
+  /** Retorno ainda por confirmar é lilás; confirmado volta ao verde de sempre. */
+  tipo?: string | null,
+): {
   bg: string;
   border: string;
   badge: string;
@@ -50,6 +54,16 @@ export function statusStyle(status: AppointmentStatus): {
     case "in_progress":
       return doToken("--violet");
     case "pending":
+      if (tipo === "return") {
+        // Lilás, mais suave que o violeta de "em andamento", para os dois não
+        // se confundirem no calendário.
+        return {
+          bg: "color-mix(in oklab, var(--violet) 8%, white)",
+          border: "color-mix(in oklab, var(--violet) 22%, white)",
+          badge: "color-mix(in oklab, var(--violet) 60%, white)",
+          text: "color-mix(in oklab, var(--violet) 78%, var(--foreground))",
+        };
+      }
       return doToken("--warning");
     case "missed":
       return doToken("--danger");

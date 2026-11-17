@@ -184,7 +184,7 @@ export function ConfirmCompletion({
         <p className="text-sm font-medium text-foreground">
           Atendimento de {formatBRL(valorConfirmado)}
           {rotuloDoPagamento(forma, parcelas) && ` · ${rotuloDoPagamento(forma, parcelas)}`} ·
-          deixar retorno pré-agendado?
+          lembrar de chamar para um retorno?
         </p>
         <div className="flex flex-wrap gap-1.5">
           {PRAZOS.map((p) => (
@@ -236,13 +236,13 @@ export function ConfirmCompletion({
               className="h-10 flex-1 rounded-xl"
               onClick={() => confirmarCom(dataManual)}
             >
-              {isPending ? "Salvando..." : "Agendar retorno"}
+              {isPending ? "Salvando..." : "Anotar retorno"}
             </Button>
           )}
         </div>
         <p className="text-2xs leading-4 text-muted-foreground">
-          O retorno fica marcado na agenda, mas o paciente não recebe confirmação agora — só os
-          lembretes na véspera.
+          O paciente entra na lista "Retornos a agendar", ao lado da agenda, na data escolhida. Nada
+          é marcado no calendário até a pessoa combinar um dia e horário.
         </p>
       </div>
     );

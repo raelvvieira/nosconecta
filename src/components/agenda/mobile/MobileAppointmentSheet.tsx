@@ -83,7 +83,7 @@ export function MobileAppointmentSheet({
 }: Props) {
   if (!appointment) return null;
   const a = appointment;
-  const s = statusStyle(a.status);
+  const s = statusStyle(a.status, a.type);
 
   const setStatus = (status: AppointmentStatus) => {
     onStatusChange(a.id, status);

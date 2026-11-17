@@ -512,7 +512,7 @@ export function WeeklyCalendar({
 
                       {/* Appointments */}
                       {dayAppts.map((appt) => {
-                        const s = statusStyle(appt.status);
+                        const s = statusStyle(appt.status, appt.type);
                         const lugar = lugares.get(appt.id) ?? COLUNA_INTEIRA;
                         // Dividindo a faixa com outra consulta, o cartão tem
                         // 60–80px: horário completo, nome inteiro, procedimento,

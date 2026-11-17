@@ -13,6 +13,7 @@ import { WeeklyCalendar } from "@/components/agenda/WeeklyCalendar";
 import { AppointmentDrawer, type OpcoesDoSave } from "@/components/agenda/AppointmentDrawer";
 import { ResumoDoPaciente } from "@/components/agenda/ResumoDoPaciente";
 import { CommitmentDrawer } from "@/components/agenda/CommitmentDrawer";
+import type { RetornoDaLista } from "@/lib/agenda/retornos.functions";
 import { RightSidebar } from "@/components/agenda/RightSidebar";
 import { type ExtrasDaConclusao, MobileAgenda } from "@/components/agenda/mobile/MobileAgenda";
 import { STATUS_LABEL } from "@/components/agenda/appointment-utils";
@@ -114,6 +115,8 @@ function AgendaPage() {
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
   // O dia e a hora do espaço vazio clicado na grade; nulo no "+ Novo".
   const [novoNoHorario, setNovoNoHorario] = useState<{ date: string; time: string } | null>(null);
+  // Item da lista "Retornos a agendar" que está virando consulta de verdade.
+  const [retornoEmAgendamento, setRetornoEmAgendamento] = useState<RetornoDaLista | null>(null);
   const [selectedBlock, setSelectedBlock] = useState<BlockedTime | null>(null);
 
   useEffect(() => {
@@ -136,6 +139,7 @@ function AgendaPage() {
     onSaved: () => {
       setApptDrawerOpen(false);
       setSelectedAppt(null);
+      setRetornoEmAgendamento(null);
     },
   });
 
@@ -198,7 +202,7 @@ function AgendaPage() {
         `Retorno criado em ${quando}, mas ${conflitos[0].patientName} já tem atendimento às ${conflitos[0].startTime}.`,
       );
     } else {
-      toast.success(`Retorno pré-agendado para ${quando}`);
+      toast.success(`Retorno anotado para chamar em ${quando}`);
     }
   };
 
@@ -238,6 +242,7 @@ function AgendaPage() {
       forma: opcoes?.forma,
       parcelas: opcoes?.parcelas,
       indicadoPor: opcoes?.indicadoPor,
+      retornoId: selectedAppt ? null : (retornoEmAgendamento?.id ?? null),
     });
   const handleSaveBlock = (data: Partial<(typeof blocked)[number]>) =>
     saveBlockMutation.mutate(data);
@@ -446,6 +451,12 @@ function AgendaPage() {
               rooms={rooms}
               onDateChange={setSelectedDate}
               onFiltersChange={setFilters}
+              onAgendarRetorno={(r) => {
+                setRetornoEmAgendamento(r);
+                setNovoNoHorario(null);
+                setSelectedAppt(null);
+                setApptDrawerOpen(true);
+              }}
             />
           </div>
         </div>
@@ -455,11 +466,28 @@ function AgendaPage() {
       <AppointmentDrawer
         open={apptDrawerOpen}
         appointment={selectedAppt}
-        defaultDate={novoNoHorario?.date ?? todayStr}
+        defaultDate={novoNoHorario?.date ?? retornoEmAgendamento?.data_prevista ?? todayStr}
         defaultTime={novoNoHorario?.time ?? null}
         defaultPatient={
-          search.patientId && search.patientName
-            ? { id: search.patientId, name: search.patientName }
+          retornoEmAgendamento
+            ? {
+                // Sem ficha: o formulário cria uma, como em qualquer nome digitado.
+                id: (retornoEmAgendamento.patient_id ?? undefined) as string,
+                name: retornoEmAgendamento.patient_name,
+              }
+            : search.patientId && search.patientName
+              ? { id: search.patientId, name: search.patientName }
+              : null
+        }
+        defaultRetorno={
+          retornoEmAgendamento
+            ? {
+                procedureName: retornoEmAgendamento.procedure_name,
+                professionalId: retornoEmAgendamento.professional_id,
+                professionalName: retornoEmAgendamento.professional_name,
+                startTime: retornoEmAgendamento.hora_sugerida,
+                endTime: retornoEmAgendamento.hora_fim_sugerida,
+              }
             : null
         }
         catalog={{ professionals, rooms, procedures }}
@@ -483,6 +511,7 @@ function AgendaPage() {
         onClose={() => {
           setApptDrawerOpen(false);
           setSelectedAppt(null);
+          setRetornoEmAgendamento(null);
         }}
         onSave={handleSaveAppt}
         onTrocarParaCompromisso={() => {

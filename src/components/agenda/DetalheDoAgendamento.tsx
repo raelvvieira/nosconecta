@@ -57,7 +57,7 @@ export function DetalheDoAgendamento({
   notes: string;
   notifications?: Appointment["notifications"];
 }) {
-  const cor = statusStyle(status);
+  const cor = statusStyle(status, type);
   const duracao = durationBetween(startTime, endTime);
 
   // Concluído mostra o COBRADO; o resto mostra o previsto. São números

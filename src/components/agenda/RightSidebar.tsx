@@ -1,6 +1,8 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Appointment, AgendaFilters, Professional, Room } from "./types";
 import { statusStyle, STATUS_LABEL } from "./appointment-utils";
+import { RetornosAAgendarCard } from "./RetornosAAgendarCard";
+import type { RetornoDaLista } from "@/lib/agenda/retornos.functions";
 
 const MONTHS_PT = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -135,7 +137,7 @@ function UpcomingAppointmentsCard({ appointments, selectedDate }: { appointments
       ) : (
         <div className="space-y-2">
           {upcoming.map((a) => {
-            const s = statusStyle(a.status);
+            const s = statusStyle(a.status, a.type);
             return (
               <div
                 key={a.id}
@@ -256,6 +258,7 @@ interface RightSidebarProps {
   rooms: Room[];
   onDateChange: (d: Date) => void;
   onFiltersChange: (f: AgendaFilters) => void;
+  onAgendarRetorno: (r: RetornoDaLista) => void;
 }
 
 export function RightSidebar({
@@ -266,6 +269,7 @@ export function RightSidebar({
   rooms,
   onDateChange,
   onFiltersChange,
+  onAgendarRetorno,
 }: RightSidebarProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -275,6 +279,7 @@ export function RightSidebar({
         rooms={rooms}
         onFiltersChange={onFiltersChange}
       />
+      <RetornosAAgendarCard onAgendar={onAgendarRetorno} />
       <MiniCalendar selected={selectedDate} appointments={appointments} onSelect={onDateChange} />
       <UpcomingAppointmentsCard appointments={appointments} selectedDate={selectedDate} />
     </div>

@@ -576,6 +576,54 @@ async function gravarProcedimentos(
   if (error && !semTabela(error)) throw new Error(error.message);
 }
 
+/**
+ * Grava o lembrete na lista "Retornos a agendar". Devolve "sem-tabela" quando a
+ * migração ainda não foi aplicada, para o chamador cair no caminho antigo.
+ * Concluir, reabrir e concluir de novo não empilha: o índice único por
+ * atendimento recusa o segundo, e aqui só atualizamos a data prevista.
+ */
+async function registrarRetornoNaLista(
+  supabase: any,
+  ownerId: string,
+  appointmentId: string,
+  row: any,
+  dataPrevista: string,
+): Promise<"ok" | "sem-tabela"> {
+  const registro = {
+    owner_id: ownerId,
+    unit_id: row.unit_id ?? null,
+    patient_id: row.patient_id ?? null,
+    patient_name: row.patient_name,
+    origem_appointment_id: appointmentId,
+    procedure_name: row.procedure_name || null,
+    professional_id: row.professional_id ?? null,
+    professional_name: row.professional_name || null,
+    hora_sugerida: row.start_time ? String(row.start_time).slice(0, 5) : null,
+    hora_fim_sugerida: row.end_time ? String(row.end_time).slice(0, 5) : null,
+    data_prevista: dataPrevista,
+    situacao: "aguardando",
+  };
+  const { error } = await supabase.from("retornos_a_agendar").insert(registro);
+  if (!error) return "ok";
+  if (
+    error.code === "42P01" ||
+    error.code === "PGRST205" ||
+    /does not exist|schema cache/i.test(String(error.message ?? ""))
+  )
+    return "sem-tabela";
+  if (error.code === "23505") {
+    const { error: e2 } = await supabase
+      .from("retornos_a_agendar")
+      .update({ data_prevista: dataPrevista, updated_at: new Date().toISOString() })
+      .eq("owner_id", ownerId)
+      .eq("origem_appointment_id", appointmentId)
+      .eq("situacao", "aguardando");
+    if (e2) throw new Error(e2.message);
+    return "ok";
+  }
+  throw new Error(error.message);
+}
+
 export async function criarAgendamento(
   supabase: any,
   ownerId: string,
@@ -927,6 +975,14 @@ async function onStatusTransition(
   // caminhos que concluem um atendimento — o formulário e o botão do celular —
   // e os dois passam por esta função. Duplicar no cliente sairia do ar.
   if (row.status === "completed" && retornoEm) {
+    // O retorno agora é um LEMBRETE na lista "Retornos a agendar" da barra
+    // lateral — não um evento na agenda. Ninguém combinou aquele horário com o
+    // paciente, e o evento ocupava vaga e disparava lembrete de consulta que
+    // ele nunca marcou. Só se a tabela ainda não existir (migração não
+    // aplicada) cai no comportamento antigo abaixo.
+    const lista = await registrarRetornoNaLista(supabase, ownerId, id, row, retornoEm);
+    if (lista !== "sem-tabela") return [];
+
     const inicio = String(row.start_time ?? "09:00").slice(0, 5);
     const fim = String(row.end_time ?? "10:00").slice(0, 5);
 
