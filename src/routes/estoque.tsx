@@ -23,6 +23,7 @@ import { KpiCard } from "@/components/finance/KpiCard";
 import { Sidebar } from "@/components/finance/Sidebar";
 import { PageHeading } from "@/components/layout/PageHeading";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
+import { FolhaDeNota } from "@/components/estoque/FolhaDeNota";
 import {
   FolhaDeAjuste,
   FolhaDeEntrada,
@@ -86,7 +87,8 @@ type Folha =
   | { tipo: "entrada"; itemId: string | null }
   | { tipo: "saida"; itemId: string | null }
   | { tipo: "ajuste"; itemId: string | null }
-  | { tipo: "item"; item: ItemDoEstoque | null };
+  | { tipo: "item"; item: ItemDoEstoque | null }
+  | { tipo: "nota" };
 
 function EstoquePage() {
   const { unidade, acabando, q } = Route.useSearch();
@@ -161,23 +163,19 @@ function EstoquePage() {
             </span>
           </span>
         </button>
-        <div
-          className="flex w-full cursor-not-allowed items-start gap-3 rounded-xl px-3 py-2.5 opacity-55"
-          aria-disabled="true"
+        <button
+          type="button"
+          onClick={() => setFolha({ tipo: "nota" })}
+          className="flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-muted"
         >
-          <FileScan className="mt-0.5 h-4 w-4 shrink-0" />
+          <FileScan className="mt-0.5 h-4 w-4 shrink-0 text-pink" />
           <span>
-            <span className="block text-sm font-medium">
-              Ler uma nota com IA{" "}
-              <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-2xs font-semibold">
-                em breve
-              </span>
-            </span>
+            <span className="block text-sm font-medium">Ler nota, foto ou folha com IA</span>
             <span className="block text-xs text-muted-foreground">
-              Envie a foto ou o PDF da nota e a IA traz os itens, quantidades e preços.
+              Envie a foto ou o PDF e a IA traz os itens, quantidades e preços para você conferir.
             </span>
           </span>
-        </div>
+        </button>
       </PopoverContent>
     </Popover>
   );
@@ -415,6 +413,13 @@ function EstoquePage() {
         {...base}
         aberto={folha.tipo === "ajuste"}
         itemInicial={folha.tipo === "ajuste" ? folha.itemId : null}
+      />
+      <FolhaDeNota
+        aberto={folha.tipo === "nota"}
+        aoFechar={fechar}
+        itens={painel?.itens ?? []}
+        unidades={painel?.unidades ?? []}
+        unidadeAtual={painel?.unidadeAtual ?? null}
       />
       <FolhaDeItem
         aberto={folha.tipo === "item"}
