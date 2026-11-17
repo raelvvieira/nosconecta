@@ -26,7 +26,14 @@ import {
   type Mecanismo,
   type Trilha,
 } from "../supabase/functions/_shared/recuperacao.ts";
-import { pedidoDaRetomada, lerRetomada } from "../supabase/functions/_shared/recuperacao-prompt.ts";
+import {
+  ESTRATEGIAS_DO_MOTOR,
+  FORMATO_DA_RETOMADA,
+  lerRetomada,
+  nomeRegistrado,
+  pedidoDaRetomada,
+} from "../supabase/functions/_shared/recuperacao-prompt.ts";
+import { MECANISMOS } from "../supabase/functions/_shared/recuperacao.ts";
 import { configInicial, PRESETS } from "../src/lib/agente-ia/recovery.ts";
 
 let ok = 0;
@@ -604,6 +611,10 @@ const min = (base: Date, m: number) => new Date(base.getTime() + m * 60_000);
     '"previous_mechanisms": [',
     "Acompanhe o tom que a pessoa usou",
     "pular = true",
+    "Mecanismo que o sistema sugere",
+    "NO_MESSAGE",
+    "motivoDePular",
+    "UNRESOLVED_QUESTION",
     "Já usados nesta sequência: PRESENCE_CHECK, OPEN_LOOP",
   ]) {
     conferir(`pedido traz: ${trecho}`, pedido.includes(trecho), true);
@@ -611,7 +622,62 @@ const min = (base: Date, m: number) => new Date(base.getTime() + m * 60_000);
   conferir(
     "leitura: JSON certo",
     lerRetomada('{"mensagem":"Oi","mecanismoUsado":"OPEN_LOOP","pular":false,"casoEnviado":""}'),
-    { mensagem: "Oi", mecanismoUsado: "OPEN_LOOP", pular: false, casoEnviado: "" },
+    {
+      mensagem: "Oi",
+      mecanismoUsado: "OPEN_LOOP",
+      pular: false,
+      motivoDePular: "",
+      casoEnviado: "",
+    },
+  );
+  // ── Motor de Recuperação V2 (MD V5.4) ──
+  conferir(
+    "leitura: o motivo de pular vira código curto",
+    lerRetomada(
+      '{"mensagem":"","mecanismoUsado":"","pular":true,"motivoDePular":" Human Owner! ","casoEnviado":""}',
+    ).motivoDePular,
+    "human_owner_",
+  );
+  conferir(
+    "leitura: motivo gigante é cortado",
+    lerRetomada(`{"mensagem":"","pular":true,"motivoDePular":"${"a".repeat(200)}"}`).motivoDePular
+      .length,
+    40,
+  );
+  conferir(
+    "o formato exige motivoDePular",
+    (FORMATO_DA_RETOMADA.schema as { required: string[] }).required.includes("motivoDePular"),
+    true,
+  );
+  conferir(
+    "nomeRegistrado: GRACEFUL_CLOSE é o BREAKUP",
+    nomeRegistrado("GRACEFUL_CLOSE", "OPEN_LOOP", MECANISMOS),
+    "BREAKUP",
+  );
+  conferir(
+    "nomeRegistrado: estratégia nova fica com o nome verdadeiro",
+    nomeRegistrado("unresolved_question", "OPEN_LOOP", MECANISMOS),
+    "UNRESOLVED_QUESTION",
+  );
+  conferir(
+    "nomeRegistrado: mecanismo antigo fica como está",
+    nomeRegistrado("SOCIAL_PROOF", "OPEN_LOOP", MECANISMOS),
+    "SOCIAL_PROOF",
+  );
+  conferir(
+    "nomeRegistrado: lixo volta ao do plano",
+    nomeRegistrado("INVENTADO", "PRESENCE_CHECK", MECANISMOS),
+    "PRESENCE_CHECK",
+  );
+  conferir(
+    "nomeRegistrado: vazio volta ao do plano",
+    nomeRegistrado("", "FRICTION_REDUCTION", MECANISMOS),
+    "FRICTION_REDUCTION",
+  );
+  conferir(
+    "as estratégias novas não repetem as do plano",
+    Object.keys(ESTRATEGIAS_DO_MOTOR).filter((n) => (MECANISMOS as readonly string[]).includes(n)),
+    [],
   );
   conferir("leitura: lixo vira pular", lerRetomada("Oi tudo bem?").pular, true);
   conferir(

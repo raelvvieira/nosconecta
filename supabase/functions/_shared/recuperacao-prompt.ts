@@ -36,6 +36,47 @@ export const COMO_E_O_MECANISMO: Record<Mecanismo, string> = {
     "Despedida curta e gentil: tirar a pressão, dizer que vai parar de chamar e deixar a porta aberta. Sem cobrança e sem culpa.",
 };
 
+/**
+ * As estratégias que o Motor de Recuperação V2 (Parte D6 da MD) acrescentou
+ * às dez que o sistema já planejava. O sistema continua escolhendo QUANDO e
+ * QUANTAS (o plano), e sugere um mecanismo; o Motor pode trocar pela estratégia
+ * que o diagnóstico da conversa pedir, e a que ele de fato usou é a que fica
+ * registrada. Cada uma com a função, em uma linha, para o pedido.
+ */
+export const ESTRATEGIAS_DO_MOTOR: Record<string, string> = {
+  RELATIONAL_CHECK_IN:
+    "saber como a situação evoluiu, sem exigir compra (só com vínculo e conversa anterior)",
+  CONTEXTUAL_REMEMBRANCE: "retomar um interesse que a pessoa disse com as próprias palavras",
+  UNRESOLVED_QUESTION: "oferecer a resposta a uma dúvida real que ficou em aberto",
+  RELEVANT_ALTERNATIVE:
+    "apresentar outra modalidade, só quando a original não encaixou e a alternativa existe",
+  EXPERIENCE_PREVIEW:
+    "explicar como será ser atendida, quando não conhecer a experiência é o obstáculo",
+  TIMELY_CONTEXT: "ligar a retomada a um momento real e autêntico, nunca a uma data artificial",
+  VERIFIED_AVAILABILITY_CHANGE:
+    "avisar uma novidade concreta e verificável (vaga, nova turma), nunca inventada",
+  SERVICE_RECOVERY: "corrigir um atendimento que deixou dúvida, informação ou promessa sem retorno",
+  HUMAN_TRUST_BRIDGE: "sugerir o contato real do responsável (vira sugestão interna, não promessa)",
+  CONTRAST: "saber se a necessidade foi resolvida em outro lugar, em contato antigo com vínculo",
+  GRACEFUL_CLOSE:
+    "encerrar sem cobrança, só quando a sequência esgotou (é o BREAKUP, com outro nome)",
+};
+
+/** O nome que fica registrado: GRACEFUL_CLOSE e BREAKUP são a mesma coisa, e a
+ *  medição antiga (BREAKUP) não pode ganhar uma segunda coluna. */
+export function nomeRegistrado(
+  usado: string,
+  planejado: string,
+  planejados: readonly string[],
+): string {
+  const nome = String(usado ?? "")
+    .trim()
+    .toUpperCase();
+  if (nome === "GRACEFUL_CLOSE") return "BREAKUP";
+  if (planejados.includes(nome) || nome in ESTRATEGIAS_DO_MOTOR) return nome;
+  return planejado;
+}
+
 /** O que cada trilha pede de cuidado, além do mecanismo. */
 const CUIDADO_DA_TRILHA: Partial<Record<Trilha, string>> = {
   INITIAL_NO_RESPONSE:
@@ -87,7 +128,7 @@ export function pedidoDaRetomada(ctx: ContextoDaRetomada, historico: string): st
       : `cerca de ${Math.round(ctx.minutosDeSilencio / 60)} horas`;
 
   return [
-    "Esta conversa parou e você vai retomá-la, seguindo a Parte D do seu manual (Recovery Engine).",
+    "Esta conversa parou e você vai decidir se vale retomá-la e, se valer, como. Siga a Parte D do seu manual (Motor de Recuperação).",
     "",
     `Conversa até agora:\n${historico}`,
     "",
@@ -99,7 +140,9 @@ export function pedidoDaRetomada(ctx: ContextoDaRetomada, historico: string): st
     JSON.stringify(contexto, null, 2),
     "```",
     "",
-    `Mecanismo desta retomada: ${ctx.mecanismo}. ${COMO_E_O_MECANISMO[ctx.mecanismo]}`,
+    `Mecanismo que o sistema sugere para esta etapa: ${ctx.mecanismo}. ${COMO_E_O_MECANISMO[ctx.mecanismo]}`,
+    "É uma sugestão: se o diagnóstico da conversa pedir outra estratégia da Parte D, escolha-a e diga qual em mecanismoUsado. Estas também valem:",
+    ...Object.entries(ESTRATEGIAS_DO_MOTOR).map(([nome, funcao]) => `- ${nome}: ${funcao}.`),
     CUIDADO_DA_TRILHA[ctx.trilha] ?? "",
     ctx.mecanismosAnteriores.length
       ? `Já usados nesta sequência: ${ctx.mecanismosAnteriores.join(", ")}. Não repita a mesma abordagem com outras palavras.`
@@ -116,8 +159,8 @@ export function pedidoDaRetomada(ctx: ContextoDaRetomada, historico: string): st
     "- Proibido: 'ainda tem interesse?', 'só passando para…', 'você sumiu', 'não recebi resposta', e dizer que é mensagem automática.",
     "- Não repita o que já está acima marcado com VOCÊ. Não invente preço, horário, endereço ou caso.",
     "",
-    "Se não houver nada útil e novo para dizer nesta etapa, não escreva: responda com pular = true.",
-    "O manual diz que só se volta com motivo novo, e uma mensagem vazia é pior que nenhuma.",
+    "Não enviar é uma decisão válida (NO_MESSAGE no manual). Se não houver razão nova, verdadeira e diferente da última tentativa, ou se algo impedir o contato, responda com pular = true e diga o motivo em motivoDePular, com um código curto como no_valid_reason, user_requested_pause, already_converted, human_owner, offer_expired ou sensitive_context.",
+    "Uma mensagem vazia é pior que nenhuma. Não prometa ação que só o sistema pode fazer (agendar, gravar vídeo, criar tarefa).",
   ]
     .filter((linha, i, todas) => linha !== "" || todas[i - 1] !== "")
     .join("\n");
@@ -129,7 +172,7 @@ export const FORMATO_DA_RETOMADA: FormatoPedido = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["mensagem", "mecanismoUsado", "pular", "casoEnviado"],
+    required: ["mensagem", "mecanismoUsado", "pular", "motivoDePular", "casoEnviado"],
     properties: {
       mensagem: {
         type: "string",
@@ -137,11 +180,17 @@ export const FORMATO_DA_RETOMADA: FormatoPedido = {
       },
       mecanismoUsado: {
         type: "string",
-        description: "O mecanismo que a mensagem de fato usa, com o nome do manual (OPEN_LOOP…).",
+        description:
+          "A estratégia que a mensagem de fato usa, com o nome do manual (OPEN_LOOP, UNRESOLVED_QUESTION…). Vazio quando pular for true.",
       },
       pular: {
         type: "boolean",
         description: "true quando não há nada útil e novo para dizer nesta etapa.",
+      },
+      motivoDePular: {
+        type: "string",
+        description:
+          "Quando pular for true, o código curto do motivo (no_valid_reason, human_owner…). Vazio quando a mensagem vai.",
       },
       casoEnviado: {
         type: "string",
@@ -155,13 +204,21 @@ export interface RetomadaEscrita {
   mensagem: string;
   mecanismoUsado: string;
   pular: boolean;
+  /** Por que a Luna decidiu não enviar (vazio quando enviou). */
+  motivoDePular: string;
   casoEnviado: string;
 }
 
 /** A resposta do modelo virando retomada. Na dúvida, pula: aqui não há
  *  paciente esperando, e mandar um JSON cru seria pior que não mandar. */
 export function lerRetomada(bruto: string): RetomadaEscrita {
-  const nada: RetomadaEscrita = { mensagem: "", mecanismoUsado: "", pular: true, casoEnviado: "" };
+  const nada: RetomadaEscrita = {
+    mensagem: "",
+    mecanismoUsado: "",
+    pular: true,
+    motivoDePular: "",
+    casoEnviado: "",
+  };
   try {
     const o = JSON.parse(String(bruto ?? "").trim()) as Record<string, unknown>;
     if (!o || typeof o !== "object") return nada;
@@ -170,6 +227,15 @@ export function lerRetomada(bruto: string): RetomadaEscrita {
       mensagem,
       mecanismoUsado: typeof o.mecanismoUsado === "string" ? o.mecanismoUsado.trim() : "",
       pular: o.pular === true || !mensagem,
+      // Só o código curto: vai para o registro, que não é lugar de texto livre.
+      motivoDePular:
+        typeof o.motivoDePular === "string"
+          ? o.motivoDePular
+              .trim()
+              .toLowerCase()
+              .replace(/[^a-z0-9_]/g, "_")
+              .slice(0, 40)
+          : "",
       casoEnviado: typeof o.casoEnviado === "string" ? o.casoEnviado.trim() : "",
     };
   } catch {

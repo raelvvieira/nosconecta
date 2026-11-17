@@ -63,6 +63,7 @@ import {
 import {
   FORMATO_DA_RETOMADA,
   lerRetomada,
+  nomeRegistrado,
   pedidoDaRetomada,
   type RetomadaEscrita,
 } from "../_shared/recuperacao-prompt.ts";
@@ -520,10 +521,13 @@ async function executarEtapa(
     if (mensagem && pareceGenerica(mensagem, mecanismo)) mensagem = "";
   }
   if (!mensagem) {
-    return {
-      estado: depoisDe(estado, { tipo: "pulou", motivo: "sem motivo novo para voltar" }),
-      motivo: "sem motivo novo para voltar",
-    };
+    // O Motor pode dizer por que decidiu não enviar (NO_MESSAGE). O código curto
+    // vai junto, para a equipe ver a razão e a medição separar "não havia motivo"
+    // de "a pessoa já tinha agendado".
+    const motivo = escrita.motivoDePular
+      ? `sem motivo novo para voltar (${escrita.motivoDePular})`
+      : "sem motivo novo para voltar";
+    return { estado: depoisDe(estado, { tipo: "pulou", motivo }), motivo };
   }
   if (jaDisseIssoAgora(mensagem, jaDitas)) {
     return {
@@ -544,8 +548,12 @@ async function executarEtapa(
     };
   }
 
-  const usado: Mecanismo = (MECANISMOS as readonly string[]).includes(escrita.mecanismoUsado)
-    ? (escrita.mecanismoUsado as Mecanismo)
+  // A estratégia que a Luna de fato usou. Para o estado da sequência (que evita
+  // repetir mecanismo) vale o do plano quando ela escolheu uma estratégia nova;
+  // para a medição, fica o nome verdadeiro.
+  const registrada = nomeRegistrado(escrita.mecanismoUsado, mecanismo, MECANISMOS);
+  const usado: Mecanismo = (MECANISMOS as readonly string[]).includes(registrada)
+    ? (registrada as Mecanismo)
     : mecanismo;
   const caso =
     mecanismo === "SOCIAL_PROOF"
@@ -569,7 +577,7 @@ async function executarEtapa(
       caso_id: midia ? (caso?.id ?? null) : null,
       recovery_trilha: trilha,
       recovery_passo: etapa.passo,
-      recovery_mecanismo: usado,
+      recovery_mecanismo: registrada,
     })
     .select("id")
     .maybeSingle();
