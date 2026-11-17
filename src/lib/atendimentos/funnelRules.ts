@@ -77,7 +77,7 @@ export const CONDICOES: Record<Condicao, { rotulo: string; parametro: string | n
   falou_ha_menos_de_dias: { rotulo: "Falou há menos de", parametro: "dias" },
   calado_ha_mais_de_dias: { rotulo: "Calado há mais de", parametro: "dias" },
   tem_horario_marcado: { rotulo: "Tem horário marcado (de hoje em diante)", parametro: null },
-  nao_compareceu: { rotulo: "O horário passou e não foi confirmado", parametro: null },
+  nao_compareceu: { rotulo: "Não confirmado até 48 h depois do horário (ou marcado como faltou)", parametro: null },
   recebeu_horarios: { rotulo: "A clínica ofereceu horários", parametro: null },
   recebeu_proposta: { rotulo: "A clínica falou o valor", parametro: null },
   mostrou_interesse: { rotulo: "Disse o procedimento que quer", parametro: null },
@@ -189,7 +189,7 @@ export const REGRAS_LEADS_PADRAO: RegraDeFunil[] = [
     cor: "#EF4444",
     condicao: "nao_compareceu",
     ativa: true,
-    explica: "O horário passou e o atendimento não foi confirmado",
+    explica: "O atendimento não foi confirmado até 48 h depois do horário, ou foi marcado como faltou na agenda",
   },
   {
     id: "agendado",

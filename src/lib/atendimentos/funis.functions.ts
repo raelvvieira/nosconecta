@@ -558,7 +558,12 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
       const reserva = reservas.get(foneCanonico(String(row.fone)) ?? "");
       const colunaDaReserva = reserva ? COLUNA_DA_RESERVA[reserva.status] : undefined;
       const etapaManual = manuais.get(foneCanonico(String(row.fone)) ?? "")?.etapa ?? null;
-      const manual = !!etapaManual && colunas.some((c) => c.id === etapaManual);
+      // "Não compareceu" marcado à mão vale só até haver um horário futuro:
+      // quem voltou a agendar está em "Agendado", como a recepção espera.
+      const manual =
+        !!etapaManual &&
+        colunas.some((c) => c.id === etapaManual) &&
+        !(etapaManual === "nao_compareceu" && situacao === "agendado");
       const stage = manual
         ? (etapaManual as string)
         : colunaDaReserva && regras.some((r) => r.id === colunaDaReserva)
