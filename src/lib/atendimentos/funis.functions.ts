@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
+import { clinicTodayStr } from "@/lib/date";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import {
   REGRAS_CLIENTES_PADRAO,
@@ -215,6 +216,49 @@ function comEscopo(query: any, context: any) {
   return context.unitId ? q.eq("unit_id", context.unitId) : q;
 }
 
+const HORAS_PARA_FALTA = 48;
+
+/**
+ * Quem agendou, não teve o atendimento confirmado e não tem outro horário.
+ *
+ * Mesma regra do funil de Leads, para clientes: o agendamento só vira falta
+ * 48 h depois do fim do horário (ou na hora, se marcado como "faltou"), e um
+ * horário futuro — do mesmo cadastro OU de outro com o mesmo nome — tira a
+ * pessoa da falta, como numa remarcação. Devolve os ids dos pacientes em falta.
+ */
+async function pacientesEmFalta(supabase: any, ownerId: string): Promise<Set<string>> {
+  const hoje = clinicTodayStr();
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("patient_id, patient_name, date, end_time, status")
+    .eq("owner_id", ownerId)
+    .not("status", "in", "(cancelled,completed)")
+    .limit(5000);
+  if (error) throw new Error(error.message);
+  const nome = (n: unknown) =>
+    String(n ?? "")
+      .trim()
+      .toLowerCase();
+  const comFuturo = new Set<string>();
+  const nomesComFuturo = new Set<string>();
+  for (const a of data ?? []) {
+    if (String(a.date) >= hoje) {
+      if (a.patient_id) comFuturo.add(String(a.patient_id));
+      if (nome(a.patient_name)) nomesComFuturo.add(nome(a.patient_name));
+    }
+  }
+  const agora = Date.now();
+  const emFalta = new Set<string>();
+  for (const a of data ?? []) {
+    if (!a.patient_id || String(a.date) >= hoje) continue;
+    if (comFuturo.has(String(a.patient_id)) || nomesComFuturo.has(nome(a.patient_name))) continue;
+    const fim = Date.parse(`${a.date}T${String(a.end_time ?? "23:59").slice(0, 8)}-03:00`);
+    if (a.status === "missed" || (!Number.isNaN(fim) && fim + HORAS_PARA_FALTA * 36e5 < agora))
+      emFalta.add(String(a.patient_id));
+  }
+  return emFalta;
+}
+
 /**
  * Todos os pacientes já classificados, com a contagem por coluna.
  *
@@ -239,7 +283,12 @@ export const getFunilDeClientes = createServerFn({ method: "GET" })
       .eq("owner_id", context.ownerId)
       .maybeSingle();
     // Configuração ausente não é erro: significa "usar as regras de fábrica".
-    const regras = regrasOuPadrao(erroConfig ? null : config?.clientes, REGRAS_CLIENTES_PADRAO);
+    const regrasBase = regrasOuPadrao(erroConfig ? null : config?.clientes, REGRAS_CLIENTES_PADRAO);
+    // "Não Compareceu" é a mesma coluna dos Leads e existe sempre, mesmo que a
+    // clínica tenha editado as regras de Clientes: não depende de configuração.
+    const colunaDaFalta = REGRAS_LEADS_PADRAO.find((r) => r.id === "nao_compareceu")!;
+    const regras = [colunaDaFalta, ...regrasBase.filter((r) => r.id !== "nao_compareceu")];
+    const emFalta = await pacientesEmFalta(supabase, context.ownerId);
 
     const linhas: any[] = [];
     for (let pagina = 0; ; pagina++) {
@@ -279,13 +328,15 @@ export const getFunilDeClientes = createServerFn({ method: "GET" })
     const clientes: ClienteNoFunil[] = linhas
       .filter((row) => publicoDoFone(publicos, row.phone) === entrada.publico)
       .map((row) => {
-        const stage = classificar(regras, {
-          teveConsulta: !!row.teve_consulta,
-          consultasConcluidas: Number(row.consultas_concluidas ?? 0),
-          temOrcamentoAberto: !!row.tem_orcamento_aberto,
-          temTratamentoPendente: !!row.tem_tratamento_pendente,
-          diasSemConsulta: row.dias_sem_consulta ?? null,
-        });
+        const stage = emFalta.has(String(row.patient_id))
+          ? "nao_compareceu"
+          : classificar(regrasBase, {
+              teveConsulta: !!row.teve_consulta,
+              consultasConcluidas: Number(row.consultas_concluidas ?? 0),
+              temOrcamentoAberto: !!row.tem_orcamento_aberto,
+              temTratamentoPendente: !!row.tem_tratamento_pendente,
+              diasSemConsulta: row.dias_sem_consulta ?? null,
+            });
         contagem[stage] = (contagem[stage] ?? 0) + 1;
         return {
           patientId: String(row.patient_id),
@@ -591,8 +642,12 @@ export const getFunilDeLeads = createServerFn({ method: "GET" })
               situacaoNaAgenda: situacao,
               etapaDaConversa: leitura?.etapa ?? null,
             });
+      // Quem faltou é justamente quem a recepção precisa chamar para remarcar:
+      // nunca fica escondido em "parados", por mais tempo que a conversa esteja
+      // calada.
       const parado =
         situacao !== "agendado" &&
+        situacao !== "nao_compareceu" &&
         row.dias_em_silencio !== null &&
         row.dias_em_silencio !== undefined &&
         row.dias_em_silencio > DIAS_PARA_PARADO;
