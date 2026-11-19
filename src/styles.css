@@ -136,7 +136,9 @@
 
      O tom não é preto puro: `24,24,30` é o neutro levemente frio da escala,
      e sombra preta sobre uma paleta quente cinza-suja a superfície. */
-  --shadow-1: 0 1px 2px rgba(24, 24, 30, 0.045);
+  --shadow-1:
+    0 1px 2px rgba(24, 24, 30, 0.05),
+    0 4px 16px rgba(24, 24, 30, 0.05);
   --shadow-2: 0 8px 24px rgba(24, 24, 30, 0.06), 0 1px 2px rgba(24, 24, 30, 0.03);
   --shadow-3:
     0 16px 45px rgba(24, 24, 30, 0.1), 0 2px 8px rgba(24, 24, 30, 0.04),
@@ -293,7 +295,7 @@
      isso lia como dois produtos. Fica esta por dois motivos: é a que o
      financeiro, pacientes e configurações já usam, e cinza azulado briga com
      uma marca rosa-laranja — o quente e o frio se anulam. */
-  --background: #f6f6f7;
+  --background: #ffffff;
   --foreground: #1b1b1f;
 
   /* Degraus de texto abaixo de --foreground. --muted-foreground fica no meio;
@@ -733,7 +735,12 @@ html[data-tema="grafite"] {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-1);
+  /* Fundo da tela é branco e o card também: quem separa um do outro é a
+     sombra, leve e em duas camadas (uma curta que fecha a borda, uma longa e
+     bem suave que levanta o card). */
+  box-shadow:
+    0 1px 2px rgba(24, 24, 30, 0.05),
+    0 4px 18px rgba(24, 24, 30, 0.055);
 }
 
 /* Cartão de destaque: um degrau acima do de dado, para o bloco que a tela
@@ -742,7 +749,9 @@ html[data-tema="grafite"] {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-feature);
-  box-shadow: var(--shadow-2);
+  box-shadow:
+    0 1px 2px rgba(24, 24, 30, 0.05),
+    0 8px 28px rgba(24, 24, 30, 0.08);
 }
 
 @utility bg-gradient-primary {

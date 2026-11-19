@@ -2,17 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Ban,
-  Check,
-  Copy,
-  Link2,
-  MoreHorizontal,
-  Stethoscope,
-  Trash2,
-  UserPlus,
-  Users,
-} from "lucide-react";
+import { Ban, Check, Copy, Link2, MoreHorizontal, Stethoscope, Trash2, UserPlus, Users } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -136,10 +126,6 @@ function PessoalPage() {
         <header className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
             <h1 className="flex items-center gap-2.5 text-[22px] font-semibold md:text-3xl">
-              <Users
-                className="hidden h-[1.1em] w-[1.1em] shrink-0 text-pink lg:block"
-                strokeWidth={1.75}
-              />
               Pessoal
             </h1>
             <p className="mt-1.5 hidden max-w-prose text-sm text-muted-foreground lg:block">

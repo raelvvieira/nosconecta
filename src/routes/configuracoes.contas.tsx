@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Wallet } from "lucide-react";
+
 import { z } from "zod";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { ContasECartoes } from "@/components/finance/GerenciarContasSheet";
@@ -55,7 +55,6 @@ function ContasPage() {
     <main className="w-full px-4 pb-nav pt-7 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
       <header className="mb-7">
         <h1 className="flex items-center gap-2.5 text-2xl font-semibold md:text-3xl">
-          <Wallet className="h-[1.1em] w-[1.1em] shrink-0 text-coral" strokeWidth={1.75} />
           Contas e cartões
         </h1>
         <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">

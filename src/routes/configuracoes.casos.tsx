@@ -99,7 +99,6 @@ function CasosPage() {
         <header className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
             <h1 className="flex items-center gap-2.5 text-2xl font-semibold md:text-3xl">
-              <Images className="h-[1.1em] w-[1.1em] shrink-0 text-pink" strokeWidth={1.75} />
               Biblioteca de casos
             </h1>
             <p className="mt-1.5 max-w-prose text-sm text-muted-foreground">

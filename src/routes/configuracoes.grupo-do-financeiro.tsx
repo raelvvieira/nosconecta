@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, MessageSquare, Receipt, Trash2 } from "lucide-react";
+import { Check, MessageSquare, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import { Button } from "@/components/ui/button";
@@ -112,7 +112,6 @@ function GrupoDoFinanceiroPage() {
     <main className="mx-auto w-full max-w-3xl space-y-6 p-4 pb-24 sm:p-6">
       <header className="space-y-1">
         <h1 className="flex items-center gap-2 text-xl font-semibold">
-          <Receipt className="h-5 w-5" />
           Grupo do financeiro
         </h1>
         <p className="text-sm text-muted-foreground">

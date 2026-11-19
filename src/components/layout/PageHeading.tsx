@@ -14,7 +14,6 @@ import { VoltarAoInicio } from "./VoltarAoInicio";
  * qualquer ajuste de cabeçalho acontece — em vez de dezoito.
  */
 export function PageHeading({
-  icon: Icon,
   title,
   subtitle,
   actions,
@@ -22,9 +21,9 @@ export function PageHeading({
   acaoMobile,
   className,
 }: {
-  /** Sempre presente: é o que identifica a seção de relance, e a ausência dele
-   *  em algumas telas era a incoerência mais visível do conjunto. */
-  icon: LucideIcon;
+  /** Não é mais exibido: o título vai sozinho, sem ícone. A prop continua aceita
+   *  para não obrigar a mexer em todas as telas de uma vez. */
+  icon?: LucideIcon;
   title: string;
   subtitle?: string;
   /** Botões e filtros da tela. Descem para baixo do título no celular. */
@@ -61,12 +60,7 @@ export function PageHeading({
           </p>
         )}
         <div className="flex items-center justify-between gap-3">
-          <h1 className="flex min-w-0 items-center gap-2.5 text-[26px] font-semibold tracking-tight text-foreground md:text-3xl">
-            <Icon
-              className="hidden h-[1.1em] w-[1.1em] shrink-0 text-pink lg:block"
-              strokeWidth={1.75}
-              aria-hidden="true"
-            />
+          <h1 className="flex min-w-0 items-center text-[26px] font-semibold tracking-tight text-foreground md:text-3xl">
             <span className="truncate">{title}</span>
           </h1>
           {acaoMobile && <div className="shrink-0 lg:hidden">{acaoMobile}</div>}

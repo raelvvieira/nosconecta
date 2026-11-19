@@ -215,7 +215,6 @@ function FunilPage() {
           </Button>
           <div className="min-w-0">
             <h1 className="flex items-center gap-2.5 text-xl font-semibold md:text-2xl">
-              <Icone className="h-[1.1em] w-[1.1em] shrink-0 text-pink" strokeWidth={1.75} />
               {meta.titulo}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
