@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { createAppointment, updateAppointment } from "@/lib/agenda/agenda.functions";
 import { vincularRetornoAoAgendamento } from "@/lib/agenda/retornos.functions";
+import { enviarReciboDoAtendimento } from "@/lib/agenda/recibo.functions";
 import { createPatient, getPatientByCrmContact } from "@/lib/patients/patients.functions";
 import { formatWhatsappNumber, normalizeBrazilianPhone } from "@/lib/atendimentos/phone";
 import { useUnitSelection } from "@/lib/settings/unit-context";
@@ -75,6 +76,7 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
   const createFn = useServerFn(createAppointment);
   const updateFn = useServerFn(updateAppointment);
   const vincularRetornoFn = useServerFn(vincularRetornoAoAgendamento);
+  const enviarReciboFn = useServerFn(enviarReciboDoAtendimento);
   const createPatientFn = useServerFn(createPatient);
   const findByContactFn = useServerFn(getPatientByCrmContact);
   const { selectedUnitId } = useUnitSelection();
@@ -182,6 +184,7 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       parcelas,
       indicadoPor,
       retornoId,
+      enviarRecibo,
     }: {
       data: Partial<Appointment>;
       existingId?: string;
@@ -202,6 +205,8 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       indicadoPor?: string | null;
       /** O lembrete de "Retornos a agendar" que este agendamento resolve. */
       retornoId?: string | null;
+      /** Mandar o recibo em PDF para o WhatsApp do paciente depois de salvar. */
+      enviarRecibo?: boolean;
     }) => {
       // Só ao criar: editar um agendamento existente não deve inventar paciente.
       //
@@ -267,9 +272,23 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
           console.error("[agenda] vincular retorno", e);
         }
       }
-      return { existingId, retornoEm: retornoEm ?? null, conflitos: r?.conflitos ?? [] };
+      // O recibo vai DEPOIS de salvar: precisa do atendimento já concluído e do
+      // valor gravado. Se falhar, o atendimento continua confirmado — só o
+      // aviso diz que o recibo não saiu.
+      let recibo: "enviado" | string | null = null;
+      if (enviarRecibo && idSalvo) {
+        try {
+          await enviarReciboFn({ data: { appointmentId: idSalvo } });
+          recibo = "enviado";
+        } catch (e) {
+          recibo = (e as Error)?.message || "Não foi possível enviar o recibo.";
+        }
+      }
+      return { existingId, retornoEm: retornoEm ?? null, conflitos: r?.conflitos ?? [], recibo };
     },
-    onSuccess: ({ existingId, retornoEm, conflitos }) => {
+    onSuccess: ({ existingId, retornoEm, conflitos, recibo }) => {
+      if (recibo === "enviado") toast.success("Recibo enviado");
+      else if (recibo) toast.error(`Recibo não enviado: ${recibo}`);
       if (retornoEm) {
         const quando = retornoEm.split("-").reverse().join("/");
         if (conflitos.length) {

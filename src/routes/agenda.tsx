@@ -14,6 +14,7 @@ import { AppointmentDrawer, type OpcoesDoSave } from "@/components/agenda/Appoin
 import { ResumoDoPaciente } from "@/components/agenda/ResumoDoPaciente";
 import { CommitmentDrawer } from "@/components/agenda/CommitmentDrawer";
 import type { RetornoDaLista } from "@/lib/agenda/retornos.functions";
+import { enviarReciboDoAtendimento } from "@/lib/agenda/recibo.functions";
 import { RightSidebar } from "@/components/agenda/RightSidebar";
 import { type ExtrasDaConclusao, MobileAgenda } from "@/components/agenda/mobile/MobileAgenda";
 import { STATUS_LABEL } from "@/components/agenda/appointment-utils";
@@ -90,6 +91,7 @@ function AgendaPage() {
 
   const fetchOverview = useServerFn(getAgendaOverview);
   const updateStatusFn = useServerFn(updateAppointmentStatus);
+  const enviarReciboFn = useServerFn(enviarReciboDoAtendimento);
   const updateApptFn = useServerFn(updateAppointment);
   const createBlockFn = useServerFn(createBlockedTime);
   const { selectedUnitId } = useUnitSelection();
@@ -207,20 +209,55 @@ function AgendaPage() {
   };
 
   const statusMutation = useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       id,
       status,
       actualRevenue,
       retornoEm,
       generateFinancial,
+      pagamentoRecebido,
+      forma,
+      parcelas,
+      enviarRecibo,
     }: {
       id: string;
       status: AppointmentStatus;
       actualRevenue?: number;
       retornoEm?: string | null;
       generateFinancial?: boolean;
-    }) => updateStatusFn({ data: { id, status, actualRevenue, retornoEm, generateFinancial } }),
+      pagamentoRecebido?: boolean;
+      forma?: string | null;
+      parcelas?: number | null;
+      enviarRecibo?: boolean;
+    }) => {
+      const r = await updateStatusFn({
+        data: {
+          id,
+          status,
+          actualRevenue,
+          retornoEm,
+          generateFinancial,
+          pagamentoRecebido,
+          forma,
+          parcelas,
+        },
+      });
+      // O recibo sai depois da confirmação gravada; se falhar, o atendimento
+      // segue confirmado e só o aviso muda.
+      let recibo: string | null = null;
+      if (enviarRecibo) {
+        try {
+          await enviarReciboFn({ data: { appointmentId: id } });
+          recibo = "enviado";
+        } catch (e) {
+          recibo = (e as Error)?.message || "Não foi possível enviar o recibo.";
+        }
+      }
+      return { ...r, recibo };
+    },
     onSuccess: (r, { status, actualRevenue, retornoEm }) => {
+      if (r.recibo === "enviado") toast.success("Recibo enviado");
+      else if (r.recibo) toast.error(`Recibo não enviado: ${r.recibo}`);
       toast.success(
         status === "completed" && actualRevenue !== undefined
           ? `Atendimento confirmado · ${formatBRL(actualRevenue)}`
@@ -243,6 +280,7 @@ function AgendaPage() {
       parcelas: opcoes?.parcelas,
       indicadoPor: opcoes?.indicadoPor,
       retornoId: selectedAppt ? null : (retornoEmAgendamento?.id ?? null),
+      enviarRecibo: opcoes?.enviarRecibo,
     });
   const handleSaveBlock = (data: Partial<(typeof blocked)[number]>) =>
     saveBlockMutation.mutate(data);

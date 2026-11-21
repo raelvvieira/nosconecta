@@ -1130,6 +1130,10 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
       generateFinancial?: boolean;
       /** Decidido na confirmação, pelo mesmo motivo: já foi pago? */
       pagamentoRecebido?: boolean;
+      /** Como foi pago e em quantas vezes — o celular não mandava, e o
+       *  recebimento nascia sem forma. */
+      forma?: string | null;
+      parcelas?: number | null;
     }) => {
       assertValorAoConcluir(input.status, input.actualRevenue);
       return input;
@@ -1175,7 +1179,12 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
       data.id,
       antes?.status,
       updated,
-      { retornoEm: data.retornoEm, pagamentoRecebido: data.pagamentoRecebido },
+      {
+        retornoEm: data.retornoEm,
+        pagamentoRecebido: data.pagamentoRecebido,
+        forma: data.forma,
+        parcelas: data.parcelas,
+      },
     );
     return { ok: true, conflitos };
   });

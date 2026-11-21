@@ -30,6 +30,8 @@ export interface ExtrasDaConclusao {
   pagamentoRecebido?: boolean;
   forma?: string | null;
   parcelas?: number | null;
+  /** Mandar o recibo em PDF no WhatsApp do paciente. */
+  enviarRecibo?: boolean;
 }
 
 interface Props {
@@ -161,6 +163,7 @@ export function MobileAppointmentSheet({
               pagamentoRecebido,
               forma,
               parcelas,
+              enviarRecibo,
             }) => {
               onStatusChange(a.id, "completed", {
                 actualRevenue: valor,
@@ -169,6 +172,7 @@ export function MobileAppointmentSheet({
                 pagamentoRecebido,
                 forma,
                 parcelas,
+                enviarRecibo,
               });
               onClose();
             }}

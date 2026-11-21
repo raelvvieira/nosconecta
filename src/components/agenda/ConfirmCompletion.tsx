@@ -86,6 +86,8 @@ export interface ConfirmacaoAtendimento {
   forma: FormaDePagamento | null;
   /** Em quantas vezes, quando foi cartão parcelado. */
   parcelas: number | null;
+  /** Mandar o recibo em PDF para o paciente, no WhatsApp. */
+  enviarRecibo: boolean;
 }
 
 export function ConfirmCompletion({
@@ -137,6 +139,10 @@ export function ConfirmCompletion({
   const [forma, setForma] = useState<FormaDePagamento | null>(null);
   const [parcelas, setParcelas] = useState<number | null>(null);
 
+  // Desligado por padrão: mandar documento ao paciente é uma decisão, não um
+  // efeito colateral de confirmar o atendimento.
+  const [enviarRecibo, setEnviarRecibo] = useState(false);
+
   if (actualRevenue !== null && actualRevenue !== undefined) {
     return (
       <div className="flex items-center gap-2.5 rounded-xl bg-success-soft px-3 py-2.5">
@@ -178,6 +184,7 @@ export function ConfirmCompletion({
         pagamentoRecebido,
         forma,
         parcelas,
+        enviarRecibo: enviarRecibo && !ehCortesia(valorConfirmado),
       });
     return (
       <div className="space-y-2.5 rounded-xl border border-coral/30 bg-coral-soft px-3 py-3">
@@ -431,6 +438,22 @@ export function ConfirmCompletion({
             checked={pagamentoRecebido}
             onCheckedChange={setPagamentoRecebido}
           />
+        </label>
+      )}
+
+      {/* O recibo: PDF com o logo da NÓS, na conversa do WhatsApp do paciente.
+          Cortesia não tem o que recibar. */}
+      {!ehCortesia(valorDigitado) && (
+        <label className="flex items-start justify-between gap-3 rounded-xl bg-white px-3 py-2.5">
+          <span className="min-w-0 text-sm text-foreground-secondary">
+            Enviar recibo em PDF
+            <span className="mt-0.5 block text-2xs leading-4 text-muted-foreground">
+              {enviarRecibo
+                ? "O recibo vai para o WhatsApp do paciente ao confirmar."
+                : "Manda o recibo na conversa com o paciente."}
+            </span>
+          </span>
+          <Switch data-enviar-recibo="" checked={enviarRecibo} onCheckedChange={setEnviarRecibo} />
         </label>
       )}
 

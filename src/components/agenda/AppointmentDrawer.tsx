@@ -75,6 +75,8 @@ export interface OpcoesDoSave {
   parcelas?: number | null;
   /** O paciente que indicou este, quando veio pelo NÓS Club. Só na criação. */
   indicadoPor?: string | null;
+  /** Mandar o recibo em PDF no WhatsApp do paciente, depois de salvar. */
+  enviarRecibo?: boolean;
 }
 
 interface Props {
@@ -537,7 +539,15 @@ export function AppointmentDrawer({
         appointmentDate={form.date ?? localDateStr()}
         generateFinancial={form.generateFinancial ?? true}
         isPending={isSaving}
-        onConfirm={({ valor, retornoEm, gerarCobranca, pagamentoRecebido, forma, parcelas }) => {
+        onConfirm={({
+          valor,
+          retornoEm,
+          gerarCobranca,
+          pagamentoRecebido,
+          forma,
+          parcelas,
+          enviarRecibo,
+        }) => {
           // Criando pelo registro retroativo, este é o botão que grava —
           // então a checagem do paciente tem de valer aqui também.
           const nome = conferirPaciente();
@@ -549,7 +559,7 @@ export function AppointmentDrawer({
               actualRevenue: valor,
               generateFinancial: gerarCobranca,
             },
-            { retornoEm, nome, pagamentoRecebido, forma, parcelas },
+            { retornoEm, nome, pagamentoRecebido, forma, parcelas, enviarRecibo },
           );
         }}
       />
