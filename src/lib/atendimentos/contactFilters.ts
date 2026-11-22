@@ -1,4 +1,5 @@
 import { ddd } from "./base-de-contatos";
+import { pessoaCasa } from "@/lib/pessoas/busca";
 import { variantesDoNumero } from "./phone";
 
 /** O mínimo que qualquer contato precisa ter pra ser buscado/filtrado/selecionado
@@ -50,9 +51,6 @@ export function filtrarContatos<T extends ContatoFiltravel>(
     naAgenda?: ReadonlySet<string> | null;
   },
 ): T[] {
-  const q = busca.trim().toLocaleLowerCase("pt-BR");
-  const digitos = busca.replace(/\D/g, "");
-
   return contatos.filter((c) => {
     // Antes do DDD e da busca: é o corte mais barato e o mais restritivo.
     if (naAgenda && !esteveNaAgenda(c.phone, naAgenda)) return false;
@@ -62,11 +60,8 @@ export function filtrarContatos<T extends ContatoFiltravel>(
       // colocaria alguém que não é de lá dentro do disparo.
       if (!d || !ddds.has(d)) return false;
     }
-    if (!q) return true;
-    if (c.name.toLocaleLowerCase("pt-BR").includes(q)) return true;
-    // Número compara só dígitos: quem digita "98419" procura
-    // "+55 (48) 98419-5309", que na tela tem parênteses e traço no meio.
-    return Boolean(digitos) && (c.phone ?? "").replace(/\D/g, "").includes(digitos);
+    // Mesma regra de busca de todo o sistema (acento, palavras, 9º dígito).
+    return pessoaCasa(busca, c);
   });
 }
 

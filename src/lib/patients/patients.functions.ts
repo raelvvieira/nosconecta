@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { pessoaCasa } from "@/lib/pessoas/busca";
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import {
@@ -242,28 +243,34 @@ function paraConsultaDaFicha(c: ConsultaDoHistorico): PatientAppointment {
  * papel de qualquer forma.
  */
 async function fetchBase(supabase: any, ownerId: string, unitId: string | null) {
-  let patientsQuery = supabase
-    .from("patients")
-    .select("*")
-    .eq("owner_id", ownerId)
-    .order("name")
-    .limit(10000);
-  if (unitId) patientsQuery = patientsQuery.eq("unit_id", unitId);
-  const [patientsRes, transactionsRes] = await Promise.all([
-    patientsQuery,
-    supabase
-      .from("financial_transactions")
-      .select("id,patient_id,description,amount,due_date,paid_date,status")
-      .eq("type", "receivable"),
-  ]);
-  if (patientsRes.error) throw new Error(patientsRes.error.message);
-  return { rows: patientsRes.data ?? [], transactions: transactionsRes.data ?? [] };
+  // O servidor entrega no máximo 1000 linhas por pedido, mesmo com `.limit(10000)`:
+  // lê por páginas para a lista (e a busca) não parar no 1000º paciente.
+  const rows: any[] = [];
+  for (let pagina = 0; ; pagina++) {
+    let patientsQuery = supabase
+      .from("patients")
+      .select("*")
+      .eq("owner_id", ownerId)
+      .order("name")
+      .range(pagina * 1000, pagina * 1000 + 999);
+    if (unitId) patientsQuery = patientsQuery.eq("unit_id", unitId);
+    const { data, error } = await patientsQuery;
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if ((data ?? []).length < 1000) break;
+  }
+  const transactionsRes = await supabase
+    .from("financial_transactions")
+    .select("id,patient_id,description,amount,due_date,paid_date,status")
+    .eq("type", "receivable");
+  if (transactionsRes.error) throw new Error(transactionsRes.error.message);
+  return { rows, transactions: transactionsRes.data ?? [] };
 }
 
 export const getPatientsOverview = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .inputValidator((input: { q?: string; status?: PatientFilter; unitId?: string } | undefined) => ({
-    q: input?.q?.trim().toLocaleLowerCase("pt-BR") ?? "",
+    q: input?.q?.trim() ?? "",
     status: input?.status ?? "all",
     unitId: input?.unitId ?? null,
   }))
@@ -274,11 +281,7 @@ export const getPatientsOverview = createServerFn({ method: "GET" })
     const base = await fetchBase(context.supabase, context.ownerId, unitFilter);
     const all = base.rows.map((row: any) => buildSummary(row, base.transactions));
     const patients = all.filter((patient: PatientSummary) => {
-      const matchesQuery =
-        !data.q ||
-        `${patient.name} ${patient.phone ?? ""} ${patient.email ?? ""} ${patient.cpf ?? ""}`
-          .toLocaleLowerCase("pt-BR")
-          .includes(data.q);
+      const matchesQuery = pessoaCasa(data.q, patient, [patient.email, patient.cpf]);
       const matchesStatus = data.status === "all" || patient.status === data.status;
       return matchesQuery && matchesStatus;
     });
@@ -773,24 +776,30 @@ export interface PatientSearchResult {
 export const searchPatients = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
   .inputValidator((input: { q?: string } | undefined) => ({
-    q: input?.q?.trim().toLocaleLowerCase("pt-BR") ?? "",
+    q: input?.q?.trim() ?? "",
   }))
   .handler(async ({ data, context }): Promise<PatientSearchResult[]> => {
     const supabase: any = context.supabase;
-    let query = supabase
-      .from("patients")
-      .select("id,name,phone")
-      .eq("owner_id", context.ownerId)
-      .order("name")
-      .limit(20);
-    if (data.q) query = query.ilike("name", `%${data.q}%`);
-    const { data: rows, error } = await query;
-    if (error) throw new Error(error.message);
-    return (rows ?? []).map((row: any) => ({
-      id: row.id,
-      name: row.name,
-      phone: row.phone ?? null,
-    }));
+    const LIMITE = 30;
+    const achados: PatientSearchResult[] = [];
+    // O banco não ignora acento e não olha o telefone; a regra única de busca
+    // roda aqui, sobre a base paginada (o servidor entrega no máximo 1000 por vez).
+    for (let pagina = 0; achados.length < LIMITE; pagina++) {
+      const { data: rows, error } = await supabase
+        .from("patients")
+        .select("id,name,phone")
+        .eq("owner_id", context.ownerId)
+        .order("name")
+        .range(pagina * 1000, pagina * 1000 + 999);
+      if (error) throw new Error(error.message);
+      for (const row of rows ?? []) {
+        if (!pessoaCasa(data.q, row)) continue;
+        achados.push({ id: row.id, name: row.name, phone: row.phone ?? null });
+        if (achados.length >= LIMITE) break;
+      }
+      if ((rows ?? []).length < 1000) break;
+    }
+    return achados;
   });
 
 export const deletePatient = createServerFn({ method: "POST" })

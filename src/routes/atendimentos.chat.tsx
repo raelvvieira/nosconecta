@@ -1,3 +1,4 @@
+import { pessoaCasa } from "@/lib/pessoas/busca";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -162,11 +163,8 @@ function ChatPage() {
 
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
-    const q = query.trim().toLocaleLowerCase("pt-BR");
-    if (!q) return conversations;
-    return conversations.filter((c) =>
-      `${c.contactName ?? ""} ${c.phone ?? ""}`.toLocaleLowerCase("pt-BR").includes(q),
-    );
+    if (!query.trim()) return conversations;
+    return conversations.filter((c) => pessoaCasa(query, { name: c.contactName, phone: c.phone }));
   }, [conversations, query]);
 
   // Uma linha por pessoa. A busca roda ANTES de agrupar, sobre as conversas

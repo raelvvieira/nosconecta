@@ -1,3 +1,4 @@
+import { pessoaCasa } from "@/lib/pessoas/busca";
 import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -553,11 +554,10 @@ export function QuadroDeLeads({ busca, publico }: { busca: string; publico: Publ
   });
 
   const { porEtapa, parados } = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
     const mapa = new Map<string, LeadNoFunil[]>();
     let parados = 0;
     for (const l of funil.data?.leads ?? []) {
-      if (termo && !l.name.toLowerCase().includes(termo) && !l.fone.includes(termo)) continue;
+      if (!pessoaCasa(busca, { name: l.name, phone: l.fone })) continue;
       if (l.parado) {
         parados++;
         if (!verParados) continue;

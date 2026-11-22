@@ -1,3 +1,4 @@
+import { pessoaCasa } from "@/lib/pessoas/busca";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -131,12 +132,9 @@ export function QuadroDeClientes({ busca, publico }: { busca: string; publico: P
   });
 
   const porEtapa = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
     const mapa = new Map<string, ClienteNoFunil[]>();
     for (const c of funil.data?.clientes ?? []) {
-      if (termo && !c.name.toLowerCase().includes(termo) && !(c.phone ?? "").includes(termo)) {
-        continue;
-      }
+      if (!pessoaCasa(busca, c)) continue;
       mapa.set(c.stage, [...(mapa.get(c.stage) ?? []), c]);
     }
     return mapa;

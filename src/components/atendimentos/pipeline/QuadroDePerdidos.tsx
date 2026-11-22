@@ -1,3 +1,4 @@
+import { pessoaCasa } from "@/lib/pessoas/busca";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -151,8 +152,6 @@ export function QuadroDePerdidos({
   });
 
   const perdidos = useMemo<Perdido[]>(() => {
-    const termo = busca.trim().toLowerCase();
-
     // Card → conversa, pelas duas chaves que um card pode ter. O card de
     // "pessoa" guarda o telefone, então o mapa é por telefone normalizado —
     // a mesma chave que a caixa de entrada usa para juntar as conversas de um
@@ -170,7 +169,9 @@ export function QuadroDePerdidos({
       const deal = deals.get(item.id);
       if (!deal || deal.status !== "lost") continue;
       const nome = item.title ?? "";
-      if (termo && !nome.toLowerCase().includes(termo)) continue;
+      const foneDoItem =
+        item.type === "pessoa" ? item.itemId : (porConversa.get(item.itemId)?.phone ?? null);
+      if (!pessoaCasa(busca, { name: nome, phone: foneDoItem })) continue;
       // O público do card, pelo telefone: quem não está no mapa é atendimento.
       const telefoneDoCard =
         item.type === "pessoa" ? item.itemId : (porConversa.get(item.itemId)?.phone ?? null);
@@ -209,7 +210,7 @@ export function QuadroDePerdidos({
 
     // Os leads do WhatsApp marcados como perdidos pelo card do funil de Leads.
     for (const l of leadsPerdidos.data ?? []) {
-      if (termo && !l.name.toLowerCase().includes(termo)) continue;
+      if (!pessoaCasa(busca, { name: l.name, phone: l.fone })) continue;
       const chave = chaveDoTelefone(l.fone);
       if (((chave && publicos[chave]) || "atendimento") !== publico) continue;
       const conversa = chave ? porTelefone.get(chave) : undefined;
