@@ -258,6 +258,18 @@ export function SettingsFormSheet({
 
           {section === "procedures" && (
             <>
+              <Field label="Nome curto (opcional)">
+                <Input
+                  value={String(form.shortName ?? "")}
+                  onChange={(event) => set("shortName", event.target.value)}
+                  placeholder="Ex.: Bioestimulador"
+                  maxLength={40}
+                />
+                <p className="mt-1 text-2xs text-muted-foreground">
+                  É o nome que aparece na agenda, nos avisos e no recibo. Em branco, vale o nome
+                  completo.
+                </p>
+              </Field>
               <Field label="Categoria">
                 <Input
                   value={String(form.category ?? "")}

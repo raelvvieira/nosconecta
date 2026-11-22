@@ -37,6 +37,8 @@ export interface Room {
 export interface Procedure {
   id: string;
   name: string;
+  /** O nome completo do catálogo, quando `name` é o nome curto. Para a busca. */
+  fullName?: string;
   duration: number;
   price: number;
 }

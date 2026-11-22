@@ -181,7 +181,12 @@ export function ProcedimentosDoAgendamento({
           // seria um passo inventado. Fechar sem escolher devolve o botão.
           defaultOpen
           onClose={() => setAdicionando(false)}
-          options={disponiveis.map((p) => ({ value: p.id, label: p.name }))}
+          // Com nome curto, a busca vale para os dois: "Bioestimulador · Bioestimulador
+          // de colágeno (Sculptra)". O curto vem primeiro, que é o que se lê.
+          options={disponiveis.map((p) => ({
+            value: p.id,
+            label: p.fullName && p.fullName !== p.name ? `${p.name} · ${p.fullName}` : p.name,
+          }))}
           placeholder="Selecionar..."
           searchPlaceholder="Buscar procedimento..."
           emptyText="Nenhum procedimento encontrado"

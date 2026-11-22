@@ -49,7 +49,9 @@ export function useAgendaCatalog() {
       .filter((item) => item.active)
       .map((item) => ({
         id: item.id,
-        name: item.name,
+        // O nome curto, quando existe, é o que vai para a agenda e o recibo.
+        name: item.shortName?.trim() || item.name,
+        fullName: item.name,
         duration: item.durationMinutes,
         price: item.price,
       })) ?? fallbackProcedures;

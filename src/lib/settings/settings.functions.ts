@@ -48,6 +48,8 @@ export interface ChairSetting {
 export interface ProcedureSetting {
   id: string;
   name: string;
+  /** Como aparece na agenda, nos avisos e no recibo. Vazio = usa o nome. */
+  shortName?: string;
   category: string;
   durationMinutes: number;
   price: number;
@@ -136,6 +138,7 @@ export const getSettings = createServerFn({ method: "GET" })
       procedures: ((procedures.data ?? []) as any[]).map((row) => ({
         id: row.id,
         name: row.name,
+        shortName: row.short_name ?? "",
         category: row.category ?? "",
         durationMinutes: Number(row.duration_minutes ?? 60),
         price: Number(row.price ?? 0),
@@ -225,6 +228,9 @@ export const saveSetting = createServerFn({ method: "POST" })
       row = {
         ...common,
         name: item.name,
+        // Vazio grava nulo (volta a valer o nome completo). Exige a coluna
+        // `short_name` — a migração vai ao banco antes deste código.
+        short_name: String(item.shortName ?? "").trim() || null,
         category: item.category || null,
         duration_minutes: Number(item.durationMinutes || 60),
         price: Number(item.price || 0),
