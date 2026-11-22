@@ -1,4 +1,6 @@
 import { useId, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +9,13 @@ import { Switch } from "@/components/ui/switch";
 import { PagamentoDoAtendimento, ResumoDoSinalNaConfirmacao } from "./PagamentoDoAtendimento";
 import { formatBRL, parseBRLInput } from "@/lib/finance/format";
 import { addMonths } from "@/lib/date";
+import { listarSinais } from "@/lib/agenda/sinal.functions";
+import { saldoAReceber } from "@/lib/agenda/sinal";
+import {
+  dividirPagamento,
+  recusaDoSegundoPagamento,
+  type SegundoPagamento,
+} from "@/lib/agenda/pagamento-dividido";
 import { podeConcluir, ehCortesia, recusaDoValor } from "@/lib/agenda/valor-ao-concluir";
 import {
   FORMAS,
@@ -89,6 +98,8 @@ export interface ConfirmacaoAtendimento {
   parcelas: number | null;
   /** Mandar o recibo em PDF para o paciente, no WhatsApp. */
   enviarRecibo: boolean;
+  /** A segunda forma de pagamento, quando o valor foi dividido em duas. */
+  segundoPagamento: SegundoPagamento | null;
 }
 
 export function ConfirmCompletion({
@@ -143,6 +154,23 @@ export function ConfirmCompletion({
   const [forma, setForma] = useState<FormaDePagamento | null>(null);
   const [parcelas, setParcelas] = useState<number | null>(null);
 
+  // Pago em duas formas (parte no Pix, parte no cartão…). Fechado por padrão:
+  // é exceção, e aberto sempre seria um segundo formulário para quase ninguém.
+  const [dividir, setDividir] = useState(false);
+  const [valor2, setValor2] = useState("");
+  const [forma2, setForma2] = useState<FormaDePagamento | null>(null);
+  const [parcelas2, setParcelas2] = useState<number | null>(null);
+
+  // Os sinais já pagos: a divisão é sobre o que falta receber, não sobre o total.
+  const listarSinaisFn = useServerFn(listarSinais);
+  const sinaisQuery = useQuery({
+    queryKey: ["sinais-do-atendimento", appointmentId ?? ""],
+    queryFn: () => listarSinaisFn({ data: { appointmentId: appointmentId! } }),
+    enabled: Boolean(appointmentId),
+    staleTime: 15_000,
+  });
+  const sinaisPagos = sinaisQuery.data ?? [];
+
   // Desligado por padrão: mandar documento ao paciente é uma decisão, não um
   // efeito colateral de confirmar o atendimento.
   const [enviarRecibo, setEnviarRecibo] = useState(false);
@@ -187,6 +215,16 @@ export function ConfirmCompletion({
       setErro(pago.mensagem);
       return;
     }
+    if (dividir && !ehCortesia(n)) {
+      const recusa2 =
+        recusaDoSegundoPagamento(saldoAReceber(n, sinaisPagos), { valor: parseBRLInput(valor2) }) ??
+        recusaDoPagamento(forma2, parcelas2)?.mensagem ??
+        null;
+      if (recusa2) {
+        setErro(recusa2);
+        return;
+      }
+    }
     setErro(null);
     setValorConfirmado(n);
   };
@@ -202,6 +240,10 @@ export function ConfirmCompletion({
         forma,
         parcelas,
         enviarRecibo: enviarRecibo && !ehCortesia(valorConfirmado),
+        segundoPagamento:
+          dividir && !ehCortesia(valorConfirmado)
+            ? { valor: parseBRLInput(valor2), forma: forma2, parcelas: parcelas2 }
+            : null,
       });
     return (
       <div className="space-y-2.5 rounded-xl border border-coral/30 bg-coral-soft px-3 py-3">
@@ -434,6 +476,121 @@ export function ConfirmCompletion({
               O valor gravado é o cobrado da paciente. A taxa do cartão e a antecipação ainda não
               são descontadas.
             </p>
+          )}
+
+          {/* ── Duas formas de pagamento ─────────────────────────────────
+              Uma linha discreta que vira um segundo bloco só para quem
+              precisa. A primeira forma fica com o resto, calculado sozinho. */}
+          {!dividir ? (
+            <button
+              type="button"
+              onClick={() => setDividir(true)}
+              className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              + Dividir em duas formas
+            </button>
+          ) : (
+            <div className="space-y-2 border-t border-border/60 pt-2.5">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-foreground-secondary">Segunda forma</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDividir(false);
+                    setValor2("");
+                    setForma2(null);
+                    setParcelas2(null);
+                    if (erro) setErro(null);
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Remover
+                </button>
+              </div>
+              <Input
+                inputMode="decimal"
+                placeholder="Valor da segunda forma"
+                aria-label="Valor da segunda forma de pagamento"
+                value={valor2}
+                onChange={(e) => {
+                  setValor2(e.target.value);
+                  if (erro) setErro(null);
+                }}
+                className="rounded-xl border-border bg-white"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {FORMAS.map((f) => (
+                  <button
+                    key={f.valor}
+                    type="button"
+                    aria-pressed={forma2 === f.valor}
+                    onClick={() => {
+                      const mesma = forma2 === f.valor;
+                      setForma2(mesma ? null : f.valor);
+                      if (mesma || !f.pedeParcelas) setParcelas2(null);
+                      if (erro) setErro(null);
+                    }}
+                    className={
+                      forma2 === f.valor
+                        ? "h-9 rounded-xl border border-coral bg-coral-soft px-3 text-xs font-medium text-foreground"
+                        : "h-9 rounded-xl border border-border px-3 text-xs text-foreground-secondary hover:bg-muted/50"
+                    }
+                  >
+                    {f.rotulo}
+                  </button>
+                ))}
+              </div>
+              {pedeParcelas(forma2) && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">Em quantas vezes?</span>
+                  {Array.from(
+                    { length: MAX_PARCELAS - MIN_PARCELAS + 1 },
+                    (_, i) => i + MIN_PARCELAS,
+                  ).map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      aria-pressed={parcelas2 === n}
+                      onClick={() => {
+                        setParcelas2(n);
+                        if (erro) setErro(null);
+                      }}
+                      className={
+                        parcelas2 === n
+                          ? "h-8 w-9 rounded-lg border border-coral bg-coral-soft text-xs font-medium tabular-nums text-foreground"
+                          : "h-8 w-9 rounded-lg border border-border text-xs tabular-nums text-foreground-secondary hover:bg-muted/50"
+                      }
+                    >
+                      {n}x
+                    </button>
+                  ))}
+                </div>
+              )}
+              {(() => {
+                // A conta à vista: quanto fica em cada forma.
+                const aReceber = saldoAReceber(valorDigitado ?? 0, sinaisPagos);
+                const n2 = parseBRLInput(valor2);
+                if (Number.isNaN(n2) || recusaDoSegundoPagamento(aReceber, { valor: n2 }))
+                  return (
+                    <p className="text-2xs text-muted-foreground">
+                      A primeira forma fica com o restante de {formatBRL(aReceber)}.
+                    </p>
+                  );
+                const partes = dividirPagamento(aReceber, { valor: n2 });
+                return (
+                  <p className="text-2xs text-muted-foreground">
+                    {rotuloDoPagamento(forma, parcelas) || "1ª forma"}{" "}
+                    <span className="font-semibold text-foreground">
+                      {formatBRL(partes.primeira)}
+                    </span>{" "}
+                    + {rotuloDoPagamento(forma2, parcelas2) || "2ª forma"}{" "}
+                    <span className="font-semibold text-foreground">
+                      {formatBRL(partes.segunda)}
+                    </span>
+                  </p>
+                );
+              })()}
+            </div>
           )}
         </div>
       )}

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { createAppointment, updateAppointment } from "@/lib/agenda/agenda.functions";
 import { vincularRetornoAoAgendamento } from "@/lib/agenda/retornos.functions";
 import { enviarReciboDoAtendimento } from "@/lib/agenda/recibo.functions";
+import type { SegundoPagamento } from "@/lib/agenda/pagamento-dividido";
 import { createPatient, getPatientByCrmContact } from "@/lib/patients/patients.functions";
 import { formatWhatsappNumber, normalizeBrazilianPhone } from "@/lib/atendimentos/phone";
 import { useUnitSelection } from "@/lib/settings/unit-context";
@@ -185,6 +186,7 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       indicadoPor,
       retornoId,
       enviarRecibo,
+      segundoPagamento,
     }: {
       data: Partial<Appointment>;
       existingId?: string;
@@ -207,6 +209,8 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       retornoId?: string | null;
       /** Mandar o recibo em PDF para o WhatsApp do paciente depois de salvar. */
       enviarRecibo?: boolean;
+      /** A segunda forma de pagamento, quando o valor foi dividido em duas. */
+      segundoPagamento?: SegundoPagamento | null;
     }) => {
       // Só ao criar: editar um agendamento existente não deve inventar paciente.
       //
@@ -242,7 +246,9 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
       // único ponto por onde passam os dois caminhos que concluem (formulário
       // e botão do celular).
       const r: any = existingId
-        ? await updateFn({ data: { ...payload, retornoEm, pagamentoRecebido, forma, parcelas } })
+        ? await updateFn({
+            data: { ...payload, retornoEm, pagamentoRecebido, forma, parcelas, segundoPagamento },
+          })
         : await createFn({
             data: {
               ...payload,
@@ -257,6 +263,7 @@ export function useSaveAppointment(options?: { onSaved?: () => void }) {
               pagamentoRecebido,
               forma,
               parcelas,
+              segundoPagamento,
               indicadoPor,
               unitId: unidadeDaCadeira(data.roomId) ?? selectedUnitId ?? undefined,
             },

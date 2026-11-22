@@ -26,6 +26,7 @@ import {
 import { STATUS_LABEL, TYPE_LABEL } from "./appointment-utils";
 import { AvisosDeWhatsapp } from "./notification-utils";
 import { ConfirmCompletion } from "./ConfirmCompletion";
+import type { SegundoPagamento } from "@/lib/agenda/pagamento-dividido";
 import { formatWhatsappNumber, telefoneBrasileiroValido } from "@/lib/atendimentos/phone";
 import { localDateStr, durationBetween, endTimeFrom } from "@/lib/date";
 import { rotuloDeSala } from "@/lib/agenda/rotuloDeSala";
@@ -77,6 +78,8 @@ export interface OpcoesDoSave {
   indicadoPor?: string | null;
   /** Mandar o recibo em PDF no WhatsApp do paciente, depois de salvar. */
   enviarRecibo?: boolean;
+  /** A segunda forma de pagamento, quando o valor foi dividido em duas. */
+  segundoPagamento?: SegundoPagamento | null;
 }
 
 interface Props {
@@ -377,8 +380,8 @@ export function AppointmentDrawer({
       date: appointment?.date ?? defaultDate ?? localDateStr(),
       startTime: appointment?.startTime ?? defaultTime ?? defaultRetorno?.startTime ?? "09:00",
       endTime:
-      appointment?.endTime ??
-      (defaultTime ? umaHoraDepois(defaultTime) : (defaultRetorno?.endTime ?? "10:00")),
+        appointment?.endTime ??
+        (defaultTime ? umaHoraDepois(defaultTime) : (defaultRetorno?.endTime ?? "10:00")),
       status: appointment?.status ?? "pending",
       type: appointment?.type ?? (defaultRetorno ? "return" : "consultation"),
       expectedRevenue: appointment?.expectedRevenue ?? 0,
@@ -548,6 +551,7 @@ export function AppointmentDrawer({
           forma,
           parcelas,
           enviarRecibo,
+          segundoPagamento,
         }) => {
           // Criando pelo registro retroativo, este é o botão que grava —
           // então a checagem do paciente tem de valer aqui também.
@@ -560,7 +564,7 @@ export function AppointmentDrawer({
               actualRevenue: valor,
               generateFinancial: gerarCobranca,
             },
-            { retornoEm, nome, pagamentoRecebido, forma, parcelas, enviarRecibo },
+            { retornoEm, nome, pagamentoRecebido, forma, parcelas, enviarRecibo, segundoPagamento },
           );
         }}
       />

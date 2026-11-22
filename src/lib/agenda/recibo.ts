@@ -32,6 +32,12 @@ export interface DadosDoRecibo {
    * houve. `sinal`: só o que foi pago de sinal — `valor` é a soma dos sinais.
    */
   tipo?: "sinal" | "completo";
+  /**
+   * Quando o atendimento foi pago em mais de uma forma: cada parte com o seu
+   * valor ("R$ 600,00 - Pix", "R$ 640,00 - Cartão em 3x"). Com uma forma só,
+   * fica vazio e vale `formaDePagamento`.
+   */
+  pagamentos?: { valor: number; forma: string | null }[];
   /** O que foi feito, item a item, com a quantidade quando informada. */
   itens?: { nome: string; quantidade: string | null }[];
   /** Os sinais pagos, para discriminar no recibo. */
@@ -278,17 +284,25 @@ export async function montarReciboPdf(d: DadosDoRecibo): Promise<Uint8Array> {
     [ehSinal ? "Atendimento agendado para" : "Data do atendimento", dataPorExtenso(d.data)],
     ["Local", d.local ?? d.clinica],
   ];
+  // Pago em duas formas: uma linha por forma, com o valor de cada uma.
+  const partes = (d.pagamentos ?? []).filter((p) => p.valor > 0);
+  const linhasDasPartes = partes.map((p) => `${brl(p.valor)}${p.forma ? ` - ${p.forma}` : ""}`);
   if (!ehSinal && sinais.length > 0) {
     // A composição do total: o que foi pago no atendimento e o que foi pago antes.
     detalhes.push([
       "Pago no atendimento",
-      `${brl(Math.max(0, Math.round((d.valor - somaSinais) * 100) / 100))}${d.formaDePagamento ? ` - ${d.formaDePagamento}` : ""}`,
+      partes.length > 1
+        ? linhasDasPartes
+        : `${brl(Math.max(0, Math.round((d.valor - somaSinais) * 100) / 100))}${d.formaDePagamento ? ` - ${d.formaDePagamento}` : ""}`,
     ]);
     for (const s of sinais)
       detalhes.push([
         "Sinal",
         `${brl(s.valor)} - pago em ${dataPorExtenso(s.data)}${s.forma ? ` (${s.forma})` : ""}`,
       ]);
+    detalhes.push(["Total", brl(d.valor)]);
+  } else if (!ehSinal && partes.length > 1) {
+    detalhes.push(["Formas de pagamento", linhasDasPartes]);
     detalhes.push(["Total", brl(d.valor)]);
   } else {
     detalhes.push(["Forma de pagamento", d.formaDePagamento || "-"]);

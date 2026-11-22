@@ -15,6 +15,7 @@ import { ResumoDoPaciente } from "@/components/agenda/ResumoDoPaciente";
 import { CommitmentDrawer } from "@/components/agenda/CommitmentDrawer";
 import type { RetornoDaLista } from "@/lib/agenda/retornos.functions";
 import { enviarReciboDoAtendimento } from "@/lib/agenda/recibo.functions";
+import type { SegundoPagamento } from "@/lib/agenda/pagamento-dividido";
 import { RightSidebar } from "@/components/agenda/RightSidebar";
 import { type ExtrasDaConclusao, MobileAgenda } from "@/components/agenda/mobile/MobileAgenda";
 import { STATUS_LABEL } from "@/components/agenda/appointment-utils";
@@ -219,6 +220,7 @@ function AgendaPage() {
       forma,
       parcelas,
       enviarRecibo,
+      segundoPagamento,
     }: {
       id: string;
       status: AppointmentStatus;
@@ -229,6 +231,7 @@ function AgendaPage() {
       forma?: string | null;
       parcelas?: number | null;
       enviarRecibo?: boolean;
+      segundoPagamento?: SegundoPagamento | null;
     }) => {
       const r = await updateStatusFn({
         data: {
@@ -240,6 +243,7 @@ function AgendaPage() {
           pagamentoRecebido,
           forma,
           parcelas,
+          segundoPagamento,
         },
       });
       // O recibo sai depois da confirmação gravada; se falhar, o atendimento
@@ -281,6 +285,7 @@ function AgendaPage() {
       indicadoPor: opcoes?.indicadoPor,
       retornoId: selectedAppt ? null : (retornoEmAgendamento?.id ?? null),
       enviarRecibo: opcoes?.enviarRecibo,
+      segundoPagamento: opcoes?.segundoPagamento,
     });
   const handleSaveBlock = (data: Partial<(typeof blocked)[number]>) =>
     saveBlockMutation.mutate(data);

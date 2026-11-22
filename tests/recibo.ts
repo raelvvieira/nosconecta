@@ -101,6 +101,18 @@ const comItens = await montarReciboPdf({
   ],
 });
 conferir("PDF com itens e quantidades", new TextDecoder().decode(comItens.slice(0, 5)), "%PDF-");
+const duasFormas = await montarReciboPdf({
+  ...base,
+  valor: 1390,
+  formaDePagamento: "Pix",
+  itens: [{ nome: "Bioestimulador de colágeno", quantidade: "2 ml" }],
+  sinais: [{ valor: 150, data: "2026-11-14", forma: "Pix" }],
+  pagamentos: [
+    { valor: 600, forma: "Pix" },
+    { valor: 640, forma: "Cartão em 3x" },
+  ],
+});
+conferir("PDF com duas formas", new TextDecoder().decode(duasFormas.slice(0, 5)), "%PDF-");
 const completoComSinal = await montarReciboPdf({
   ...base,
   valor: 1390,
@@ -122,6 +134,7 @@ if (S) {
   await Bun.write(`${S}/completo-sinal.pdf`, completoComSinal);
   await Bun.write(`${S}/sinal.pdf`, sinalSo);
   await Bun.write(`${S}/itens.pdf`, comItens);
+  await Bun.write(`${S}/duas.pdf`, duasFormas);
 }
 
 if (falhas.length) {

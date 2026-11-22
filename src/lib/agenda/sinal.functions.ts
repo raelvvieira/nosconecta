@@ -75,8 +75,19 @@ async function acertarRecebimentoDoAtendimento(
     .eq("source_id", String(appt.id))
     .maybeSingle();
   if (!principal?.id) return;
+  // Se o atendimento foi pago em duas formas, a segunda parte já tem o
+  // recebimento dela; o principal fica com o resto.
+  const { data: parte2 } = await supabase
+    .from("financial_transactions")
+    .select("amount, status")
+    .eq("owner_id", ownerId)
+    .eq("source_type", "agendamento_parte2")
+    .eq("source_id", String(appt.id))
+    .maybeSingle();
+  const jaNaSegunda = parte2 && parte2.status !== "cancelled" ? Number(parte2.amount ?? 0) : 0;
+  const resto = Math.round((saldo - jaNaSegunda) * 100) / 100;
   const patch: Record<string, unknown> =
-    saldo > 0 ? { amount: saldo } : { amount: 0.01, status: "cancelled" };
+    resto > 0 ? { amount: resto } : { amount: 0.01, status: "cancelled" };
   const { error } = await supabase
     .from("financial_transactions")
     .update(patch)

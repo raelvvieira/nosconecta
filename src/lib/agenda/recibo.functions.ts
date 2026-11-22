@@ -7,6 +7,7 @@ import { callEdgeFunction } from "@/lib/atendimentos/atendimentos.functions";
 import { clinicTodayStr } from "@/lib/date";
 import { rotuloDoPagamento } from "./forma-de-pagamento";
 import { quantidadeEmTexto } from "./procedimentos";
+import { ORIGEM_DA_SEGUNDA_PARTE } from "./pagamento-dividido";
 import { foneCanonico } from "../../../supabase/functions/_shared/inteligencia-do-lead.ts";
 import { montarReciboPdf, numeroDoRecibo, rotuloDoMetodo, textoSeguro } from "./recibo";
 
@@ -116,13 +117,29 @@ export const enviarReciboDoAtendimento = createServerFn({ method: "POST" })
         : Promise.resolve({ data: null }),
       supabase
         .from("financial_transactions")
-        .select("payment_method, installment_total")
+        .select("amount, status, payment_method, installment_total")
         .eq("owner_id", context.ownerId)
         .eq("source_type", "agendamento")
         .eq("source_id", String(a.id))
         .limit(1)
         .maybeSingle(),
     ]);
+    // A segunda forma de pagamento, quando o atendimento foi pago em duas.
+    const { data: parte2 } = await supabase
+      .from("financial_transactions")
+      .select("amount, status, payment_method, installment_total")
+      .eq("owner_id", context.ownerId)
+      .eq("source_type", ORIGEM_DA_SEGUNDA_PARTE)
+      .eq("source_id", String(a.id))
+      .limit(1)
+      .maybeSingle();
+    const pagamentos =
+      !ehSinal && parte2 && parte2.status !== "cancelled" && lancamento
+        ? [lancamento, parte2].map((t: any) => ({
+            valor: Number(t.amount ?? 0),
+            forma: rotuloDoMetodo(t.payment_method, t.installment_total),
+          }))
+        : [];
 
     const nomeDaClinica = clinica?.nome || "NÓS Odontologia";
     const local = unidade?.address
@@ -135,6 +152,7 @@ export const enviarReciboDoAtendimento = createServerFn({ method: "POST" })
       numero: `${numeroDoRecibo(String(a.date), String(a.id))}${ehSinal ? "-S" : ""}`,
       tipo: data.tipo,
       itens,
+      pagamentos,
       sinais: ehSinal ? [] : sinais,
       clinica: nomeDaClinica,
       local,

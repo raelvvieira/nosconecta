@@ -19,6 +19,7 @@ import type { Appointment, AppointmentStatus } from "../types";
 import { statusStyle, STATUS_LABEL, TYPE_LABEL } from "../appointment-utils";
 import { AvisosDeWhatsapp } from "../notification-utils";
 import { ConfirmCompletion } from "../ConfirmCompletion";
+import type { SegundoPagamento } from "@/lib/agenda/pagamento-dividido";
 import { formatBRL } from "@/lib/finance/format";
 
 /** O que a confirmação de atendimento decide, além do status. */
@@ -32,6 +33,8 @@ export interface ExtrasDaConclusao {
   parcelas?: number | null;
   /** Mandar o recibo em PDF no WhatsApp do paciente. */
   enviarRecibo?: boolean;
+  /** A segunda forma de pagamento, quando o valor foi dividido em duas. */
+  segundoPagamento?: SegundoPagamento | null;
 }
 
 interface Props {
@@ -165,6 +168,7 @@ export function MobileAppointmentSheet({
               forma,
               parcelas,
               enviarRecibo,
+              segundoPagamento,
             }) => {
               onStatusChange(a.id, "completed", {
                 actualRevenue: valor,
@@ -174,6 +178,7 @@ export function MobileAppointmentSheet({
                 forma,
                 parcelas,
                 enviarRecibo,
+                segundoPagamento,
               });
               onClose();
             }}

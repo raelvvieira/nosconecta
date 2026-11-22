@@ -13,6 +13,11 @@ import { mesDe } from "./resumo-da-agenda";
 import { decidirRecebimento } from "@/lib/finance/recebimento-do-atendimento";
 import { recusaDoValor } from "./valor-ao-concluir";
 import { comoGravar, recusaDoPagamento } from "./forma-de-pagamento";
+import {
+  ORIGEM_DA_SEGUNDA_PARTE,
+  dividirPagamento,
+  type SegundoPagamento,
+} from "./pagamento-dividido";
 import { valorDaConversao } from "@/lib/integrations/valor-da-conversao";
 import type {
   Appointment,
@@ -442,6 +447,8 @@ const appointmentInput = (input: {
   /** Como foi pago, e em quantas vezes. Ver `forma-de-pagamento.ts`. */
   forma?: string | null;
   parcelas?: number | null;
+  /** A segunda forma de pagamento, quando o valor foi dividido em duas. */
+  segundoPagamento?: SegundoPagamento | null;
   /**
    * Quem indicou este paciente, quando ele veio pelo NÓS Club.
    *
@@ -508,6 +515,7 @@ const appointmentInput = (input: {
     __pagamentoRecebido: input.pagamentoRecebido ?? true,
     __forma: input.forma ?? null,
     __parcelas: input.parcelas ?? null,
+    __segundoPagamento: input.segundoPagamento ?? null,
     __indicadoPor: input.indicadoPor ?? null,
   };
 };
@@ -642,6 +650,7 @@ export async function criarAgendamento(
     /** Como foi pago, e em quantas vezes. Ausente = ninguém informou. */
     forma?: string | null;
     parcelas?: number | null;
+    segundoPagamento?: SegundoPagamento | null;
     /** O paciente que indicou este, quando veio pelo NÓS Club. */
     indicadoPor?: string | null;
   } = {},
@@ -775,6 +784,11 @@ export async function criarAgendamento(
       {
         retornoEm: opcoes.retornoEm,
         pagamentoRecebido: opcoes.pagamentoRecebido,
+        // Faltavam aqui: o registro retroativo criado já concluído nascia sem
+        // forma de pagamento no recebimento.
+        forma: opcoes.forma,
+        parcelas: opcoes.parcelas,
+        segundoPagamento: opcoes.segundoPagamento,
         registroRetroativo: jaAconteceu,
       },
     );
@@ -799,6 +813,7 @@ export const createAppointment = createServerFn({ method: "POST" })
       __pagamentoRecebido: pagamentoRecebido,
       __forma: forma,
       __parcelas: parcelas,
+      __segundoPagamento: segundoPagamento,
       __indicadoPor: indicadoPor,
       unitId: rawUnitId,
       ...row
@@ -817,6 +832,7 @@ export const createAppointment = createServerFn({ method: "POST" })
         pagamentoRecebido,
         forma,
         parcelas,
+        segundoPagamento,
         indicadoPor,
       },
     );
@@ -868,6 +884,8 @@ async function onStatusTransition(
     retornoEm?: string | null;
     /** A pessoa marcou "pagamento já recebido" na confirmação. */
     pagamentoRecebido?: boolean;
+    /** A segunda forma de pagamento, quando o valor foi dividido em duas. */
+    segundoPagamento?: SegundoPagamento | null;
     /** Como foi pago, e em quantas vezes. Vira `payment_method` e
      *  `installment_total` no recebimento — é o que permite cruzar o
      *  atendimento com o crédito que a maquininha deposita dias depois. */
@@ -946,8 +964,26 @@ async function onStatusTransition(
         .eq("appointment_id", id);
       const { saldoAReceber } = await import("./sinal");
       const aReceber = saldoAReceber(Number(row.actual_revenue ?? 0), sinais ?? []);
+      // Pago em duas formas: dois recebimentos, um por forma, que somam
+      // exatamente o saldo. Sem segunda parte válida, tudo fica no primeiro.
+      const partes = dividirPagamento(aReceber, opcoes.segundoPagamento);
+      if (partes.segunda > 0) {
+        await createAppointmentReceivable(supabase, ownerId, row.unit_id, {
+          amount: partes.segunda,
+          description: `${row.procedure_name || "Atendimento"} · ${row.patient_name} (2ª forma)`,
+          dueDate,
+          patientId: row.patient_id,
+          professionalId: row.professional_id ?? null,
+          paidOn,
+          origem: { source_type: ORIGEM_DA_SEGUNDA_PARTE, source_id: String(id) },
+          pagamento: comoGravar(
+            opcoes.segundoPagamento?.forma ?? null,
+            opcoes.segundoPagamento?.parcelas ?? null,
+          ),
+        });
+      }
       await createAppointmentReceivable(supabase, ownerId, row.unit_id, {
-        amount: aReceber,
+        amount: partes.primeira,
         description: `${row.procedure_name || "Atendimento"} · ${row.patient_name}`,
         dueDate,
         patientId: row.patient_id,
@@ -1076,6 +1112,7 @@ export const updateAppointment = createServerFn({ method: "POST" })
       __pagamentoRecebido: pagamentoRecebido,
       __forma: forma,
       __parcelas: parcelas,
+      __segundoPagamento: segundoPagamento,
       // Não é coluna, e não vira indicação numa edição: a indicação nasce com
       // o agendamento. Editar um agendamento antigo para dizer "ah, foi
       // indicação" é um caso que a tela do membro cobre melhor, com o botão de
@@ -1129,7 +1166,7 @@ export const updateAppointment = createServerFn({ method: "POST" })
       id,
       antes?.status,
       updated,
-      { retornoEm, pagamentoRecebido, forma, parcelas },
+      { retornoEm, pagamentoRecebido, forma, parcelas, segundoPagamento },
     );
     return { ok: true, conflitos };
   });
@@ -1150,6 +1187,7 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
        *  recebimento nascia sem forma. */
       forma?: string | null;
       parcelas?: number | null;
+      segundoPagamento?: SegundoPagamento | null;
     }) => {
       assertValorAoConcluir(input.status, input.actualRevenue);
       return input;
@@ -1200,6 +1238,7 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
         pagamentoRecebido: data.pagamentoRecebido,
         forma: data.forma,
         parcelas: data.parcelas,
+        segundoPagamento: data.segundoPagamento,
       },
     );
     return { ok: true, conflitos };
