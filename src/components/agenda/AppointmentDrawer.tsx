@@ -539,6 +539,7 @@ export function AppointmentDrawer({
         appointmentDate={form.date ?? localDateStr()}
         generateFinancial={form.generateFinancial ?? true}
         isPending={isSaving}
+        appointmentId={appointment?.id}
         onConfirm={({
           valor,
           retornoEm,

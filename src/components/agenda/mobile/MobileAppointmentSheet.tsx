@@ -156,6 +156,7 @@ export function MobileAppointmentSheet({
             actualRevenue={a.status === "completed" ? (a.actualRevenue ?? 0) : null}
             appointmentDate={a.date}
             generateFinancial={a.generateFinancial ?? true}
+            appointmentId={a.id}
             onConfirm={({
               valor,
               retornoEm,

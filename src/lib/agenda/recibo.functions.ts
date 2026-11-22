@@ -110,5 +110,44 @@ export const enviarReciboDoAtendimento = createServerFn({ method: "POST" })
       // Mensagem automática do sistema: não tira a conversa da assistente.
       assumir: false,
     });
+    // O registro do envio. Falhar aqui não desfaz o envio que já saiu: só deixa
+    // a tela sem o "enviado em…". Sem a tabela (migração ainda não aplicada),
+    // segue sem registrar.
+    const { error: erroRegistro } = await supabase.from("recibos_enviados").insert({
+      owner_id: context.ownerId,
+      appointment_id: a.id,
+      numero: numeroDoRecibo(String(a.date), String(a.id)),
+      valor,
+      enviado_por: context.userId,
+    });
+    if (erroRegistro) console.warn("[recibo] não registrei o envio:", erroRegistro.message);
     return { ok: true as const };
+  });
+
+export interface SituacaoDoRecibo {
+  /** Quantas vezes o recibo já foi enviado. */
+  vezes: number;
+  /** O último envio, ISO. */
+  ultimoEm: string | null;
+}
+
+/** Já mandei o recibo deste atendimento? Para mostrar "enviado em…" e "enviar novamente". */
+export const situacaoDoRecibo = createServerFn({ method: "GET" })
+  .middleware([requireClinicMembership])
+  .inputValidator((input: { appointmentId: string }) => {
+    if (!input?.appointmentId) throw new Error("Atendimento inválido.");
+    return { appointmentId: input.appointmentId };
+  })
+  .handler(async ({ data, context }): Promise<SituacaoDoRecibo> => {
+    const { data: linhas, error } = await (context.supabase as any)
+      .from("recibos_enviados")
+      .select("enviado_em")
+      .eq("owner_id", context.ownerId)
+      .eq("appointment_id", data.appointmentId)
+      .order("enviado_em", { ascending: false })
+      .limit(50);
+    // Sem a tabela ainda, ou qualquer falha de leitura: trata como "nunca
+    // enviado" — o botão continua funcionando.
+    if (error) return { vezes: 0, ultimoEm: null };
+    return { vezes: (linhas ?? []).length, ultimoEm: linhas?.[0]?.enviado_em ?? null };
   });

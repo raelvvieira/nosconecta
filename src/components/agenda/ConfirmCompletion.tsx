@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { ReciboDoAtendimento } from "./ReciboDoAtendimento";
 import { formatBRL, parseBRLInput } from "@/lib/finance/format";
 import { addMonths } from "@/lib/date";
 import { podeConcluir, ehCortesia, recusaDoValor } from "@/lib/agenda/valor-ao-concluir";
@@ -96,6 +97,7 @@ export function ConfirmCompletion({
   appointmentDate,
   generateFinancial = true,
   isPending,
+  appointmentId,
   onConfirm,
 }: {
   expectedRevenue: number;
@@ -106,6 +108,8 @@ export function ConfirmCompletion({
   /** Preferência salva no agendamento; o interruptor começa por ela. */
   generateFinancial?: boolean;
   isPending?: boolean;
+  /** Para o recibo de um atendimento já confirmado. */
+  appointmentId?: string;
   onConfirm: (dados: ConfirmacaoAtendimento) => void;
 }) {
   // id próprio: o mesmo bloco pode aparecer no formulário e na gaveta do
@@ -145,11 +149,19 @@ export function ConfirmCompletion({
 
   if (actualRevenue !== null && actualRevenue !== undefined) {
     return (
-      <div className="flex items-center gap-2.5 rounded-xl bg-success-soft px-3 py-2.5">
-        <CheckCircle2 className="h-4 w-4 shrink-0 text-success" strokeWidth={2} />
-        <p className="text-sm text-foreground-secondary">
-          Atendimento realizado · <span className="font-semibold">{formatBRL(actualRevenue)}</span>
-        </p>
+      <div className="space-y-2">
+        <div className="flex items-center gap-2.5 rounded-xl bg-success-soft px-3 py-2.5">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-success" strokeWidth={2} />
+          <p className="text-sm text-foreground-secondary">
+            Atendimento realizado ·{" "}
+            <span className="font-semibold">{formatBRL(actualRevenue)}</span>
+          </p>
+        </div>
+        {/* Recibo também para quem já foi atendido: clientes antigos, ou o
+            paciente que perdeu o arquivo. Cortesia não tem o que recibar. */}
+        {appointmentId && actualRevenue > 0 && (
+          <ReciboDoAtendimento appointmentId={appointmentId} />
+        )}
       </div>
     );
   }
