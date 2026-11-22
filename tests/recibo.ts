@@ -90,6 +90,17 @@ const base = {
   data: "2026-11-21",
   emitidoEm: "2026-11-21",
 };
+const comItens = await montarReciboPdf({
+  ...base,
+  valor: 1390,
+  formaDePagamento: "Pix",
+  itens: [
+    { nome: "Bioestimulador de colágeno", quantidade: "2 ml" },
+    { nome: "Preenchimento de mento", quantidade: "1,5 ml" },
+    { nome: "Toxina botulínica", quantidade: null },
+  ],
+});
+conferir("PDF com itens e quantidades", new TextDecoder().decode(comItens.slice(0, 5)), "%PDF-");
 const completoComSinal = await montarReciboPdf({
   ...base,
   valor: 1390,
@@ -110,6 +121,7 @@ const S = process.env.SAIDA_PDF;
 if (S) {
   await Bun.write(`${S}/completo-sinal.pdf`, completoComSinal);
   await Bun.write(`${S}/sinal.pdf`, sinalSo);
+  await Bun.write(`${S}/itens.pdf`, comItens);
 }
 
 if (falhas.length) {

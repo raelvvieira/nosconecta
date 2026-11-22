@@ -32,6 +32,8 @@ export interface DadosDoRecibo {
    * houve. `sinal`: só o que foi pago de sinal — `valor` é a soma dos sinais.
    */
   tipo?: "sinal" | "completo";
+  /** O que foi feito, item a item, com a quantidade quando informada. */
+  itens?: { nome: string; quantidade: string | null }[];
   /** Os sinais pagos, para discriminar no recibo. */
   sinais?: { valor: number; data: string; forma: string | null }[];
 }
@@ -263,9 +265,15 @@ export async function montarReciboPdf(d: DadosDoRecibo): Promise<Uint8Array> {
   // ── Detalhes ───────────────────────────────────────────────────────────
   y -= 12;
   const somaSinais = sinais.reduce((acc, s) => acc + Math.round(s.valor * 100), 0) / 100;
-  const detalhes: [string, string][] = [
+  const itens = (d.itens ?? []).filter((i) => i.nome.trim());
+  const detalhes: [string, string | string[]][] = [
     ["Paciente", d.paciente],
-    ["Procedimento", d.procedimento ?? "-"],
+    itens.length > 0
+      ? [
+          itens.length > 1 ? "Procedimentos" : "Procedimento",
+          itens.map((i) => (i.quantidade ? `${i.nome} - ${i.quantidade}` : i.nome)),
+        ]
+      : ["Procedimento", d.procedimento ?? "-"],
     ["Profissional", d.profissional ?? "-"],
     [ehSinal ? "Atendimento agendado para" : "Data do atendimento", dataPorExtenso(d.data)],
     ["Local", d.local ?? d.clinica],
@@ -288,7 +296,9 @@ export async function montarReciboPdf(d: DadosDoRecibo): Promise<Uint8Array> {
   for (const [rotulo, valor] of detalhes) {
     regua(y + 14);
     pagina.texto(textoSeguro(rotulo), margem, y, 9.5, "normal", suave);
-    const linhasV = quebrar(textoSeguro(valor), "negrito", 10.5, miolo - 150);
+    const linhasV = (Array.isArray(valor) ? valor : [valor]).flatMap((v) =>
+      quebrar(textoSeguro(v), "negrito", 10.5, miolo - 150),
+    );
     linhasV.forEach((l, i) => pagina.texto(l, margem + 150, y - i * 13, 10.5, "negrito", tinta));
     y -= 14 + Math.max(0, linhasV.length - 1) * 13 + 12;
   }

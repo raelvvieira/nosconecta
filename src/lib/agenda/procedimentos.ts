@@ -17,6 +17,44 @@ export interface ProcedimentoDoAgendamento {
   price: number;
   /** Em minutos. */
   duration: number;
+  /** Quanto foi feito/usado (ex.: 2 ml). Opcional: nulo quando ninguém informou. */
+  quantity?: number | null;
+  /** A unidade da quantidade ("ml", "un"…). */
+  unit?: string | null;
+}
+
+/** As unidades que a tela oferece. Texto livre não entra: "ml", "ML" e "mL"
+ *  virariam três coisas diferentes num recibo. */
+export const UNIDADES_DE_QUANTIDADE = [
+  "ml",
+  "un",
+  "mg",
+  "g",
+  "sessão",
+  "ampola",
+  "seringa",
+] as const;
+
+/** "2 ml", "1,5 ml", "3 un" — a quantidade como se escreve no recibo. Vazio se não há. */
+export function quantidadeEmTexto(
+  quantity: number | null | undefined,
+  unit: string | null | undefined,
+): string {
+  if (typeof quantity !== "number" || !Number.isFinite(quantity) || !(quantity > 0)) return "";
+  const n = Number.isInteger(quantity)
+    ? String(quantity)
+    : quantity.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+  return unit ? `${n} ${unit}` : n;
+}
+
+/** O que a pessoa digitou ("1,5") como número, ou null quando não vale. */
+export function lerQuantidade(texto: string): number | null {
+  const n = Number(
+    String(texto ?? "")
+      .trim()
+      .replace(",", "."),
+  );
+  return Number.isFinite(n) && n > 0 && n < 100000 ? Math.round(n * 1000) / 1000 : null;
 }
 
 /**

@@ -4,7 +4,10 @@ import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/finance/Combobox";
 import { formatBRL } from "@/lib/finance/format";
 import {
+  UNIDADES_DE_QUANTIDADE,
   duracaoEmTexto,
+  lerQuantidade,
+  quantidadeEmTexto,
   resumoDosProcedimentos,
   type ProcedimentoDoAgendamento,
 } from "@/lib/agenda/procedimentos";
@@ -43,6 +46,27 @@ export function ProcedimentosDoAgendamento({
   onChange: (lista: ProcedimentoDoAgendamento[]) => void;
 }) {
   const [adicionando, setAdicionando] = useState(false);
+  // Qual linha está com o campo de quantidade aberto. Fechado por padrão: a
+  // quantidade é opcional e a maioria dos procedimentos não tem.
+  const [editandoQtd, setEditandoQtd] = useState<number | null>(null);
+  const [textoQtd, setTextoQtd] = useState("");
+  const [unidadeQtd, setUnidadeQtd] = useState<string>("ml");
+
+  const abrirQtd = (i: number) => {
+    const p = procedimentos[i];
+    setTextoQtd(p.quantity ? String(p.quantity).replace(".", ",") : "");
+    setUnidadeQtd(p.unit || "ml");
+    setEditandoQtd(i);
+  };
+  const salvarQtd = (i: number) => {
+    const q = lerQuantidade(textoQtd);
+    onChange(
+      procedimentos.map((p, j) =>
+        j === i ? { ...p, quantity: q, unit: q ? unidadeQtd : null } : p,
+      ),
+    );
+    setEditandoQtd(null);
+  };
 
   const resumo = resumoDosProcedimentos(procedimentos);
 
@@ -78,24 +102,71 @@ export function ProcedimentosDoAgendamento({
       {procedimentos.length > 0 && (
         <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border">
           {procedimentos.map((p, i) => (
-            <li
-              key={`${p.procedureId ?? "livre"}-${i}`}
-              className="flex items-center gap-2 bg-white px-3 py-2"
-            >
-              {/* `min-w-0` + `truncate`: nome comprido corta, não empurra o
+            <li key={`${p.procedureId ?? "livre"}-${i}`} className="bg-white px-3 py-2">
+              <div className="flex items-center gap-2">
+                {/* `min-w-0` + `truncate`: nome comprido corta, não empurra o
                   preço para fora nem quebra a linha em duas. */}
-              <span className="min-w-0 flex-1 truncate text-sm text-foreground">{p.name}</span>
-              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                {formatBRL(p.price)} · {duracaoEmTexto(p.duration)}
-              </span>
-              <button
-                type="button"
-                onClick={() => remover(i)}
-                aria-label={`Remover ${p.name}`}
-                className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
-              >
-                <X className="h-4 w-4" strokeWidth={1.75} />
-              </button>
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">{p.name}</span>
+                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                  {formatBRL(p.price)} · {duracaoEmTexto(p.duration)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => remover(i)}
+                  aria-label={`Remover ${p.name}`}
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+                >
+                  <X className="h-4 w-4" strokeWidth={1.75} />
+                </button>
+              </div>
+              {/* Quantidade, opcional: "2 ml" de um produto, "3 un"… Aparece no
+                  recibo junto do procedimento. */}
+              {editandoQtd === i ? (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <input
+                    autoFocus
+                    inputMode="decimal"
+                    value={textoQtd}
+                    onChange={(e) => setTextoQtd(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") salvarQtd(i);
+                      if (e.key === "Escape") setEditandoQtd(null);
+                    }}
+                    placeholder="0"
+                    aria-label={`Quantidade de ${p.name}`}
+                    className="h-8 w-20 rounded-lg border border-border bg-white px-2 text-sm tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-foreground/10"
+                  />
+                  <select
+                    value={unidadeQtd}
+                    onChange={(e) => setUnidadeQtd(e.target.value)}
+                    aria-label="Unidade"
+                    className="h-8 rounded-lg border border-border bg-white px-2 text-sm focus:outline-none"
+                  >
+                    {UNIDADES_DE_QUANTIDADE.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => salvarQtd(i)}
+                    className="h-8 rounded-lg bg-foreground px-3 text-xs font-medium text-background"
+                  >
+                    OK
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => abrirQtd(i)}
+                  className="mt-1 text-2xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {quantidadeEmTexto(p.quantity, p.unit)
+                    ? `Quantidade: ${quantidadeEmTexto(p.quantity, p.unit)} · editar`
+                    : "+ quantidade (opcional)"}
+                </button>
+              )}
             </li>
           ))}
         </ul>

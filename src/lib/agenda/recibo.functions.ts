@@ -6,6 +6,7 @@ import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { callEdgeFunction } from "@/lib/atendimentos/atendimentos.functions";
 import { clinicTodayStr } from "@/lib/date";
 import { rotuloDoPagamento } from "./forma-de-pagamento";
+import { quantidadeEmTexto } from "./procedimentos";
 import { foneCanonico } from "../../../supabase/functions/_shared/inteligencia-do-lead.ts";
 import { montarReciboPdf, numeroDoRecibo, rotuloDoMetodo, textoSeguro } from "./recibo";
 
@@ -65,6 +66,19 @@ export const enviarReciboDoAtendimento = createServerFn({ method: "POST" })
       forma: rotuloDoPagamento(s.forma, s.parcelas) || null,
     }));
 
+    // O que foi feito, item a item. Sem a tabela (ou sem as colunas de
+    // quantidade) cai no resumo do atendimento.
+    const { data: linhasItens } = await supabase
+      .from("appointment_procedures")
+      .select("procedure_name, quantity, unit, position")
+      .eq("owner_id", context.ownerId)
+      .eq("appointment_id", a.id)
+      .order("position", { ascending: true });
+    const itens = (linhasItens ?? []).map((p: any) => ({
+      nome: String(p.procedure_name ?? ""),
+      quantidade: quantidadeEmTexto(p.quantity == null ? null : Number(p.quantity), p.unit) || null,
+    }));
+
     let valor: number;
     if (ehSinal) {
       if (sinais.length === 0) throw new Error("Este atendimento não tem sinal registrado.");
@@ -120,6 +134,7 @@ export const enviarReciboDoAtendimento = createServerFn({ method: "POST" })
     const pdf = await montarReciboPdf({
       numero: `${numeroDoRecibo(String(a.date), String(a.id))}${ehSinal ? "-S" : ""}`,
       tipo: data.tipo,
+      itens,
       sinais: ehSinal ? [] : sinais,
       clinica: nomeDaClinica,
       local,

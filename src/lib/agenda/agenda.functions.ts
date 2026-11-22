@@ -190,7 +190,9 @@ export const getAgendaOverview = createServerFn({ method: "GET" })
       // que não editamos — ainda não a conhece. Mesmo caminho dos cartões.
       (supabase as any)
         .from("appointment_procedures")
-        .select("appointment_id, procedure_id, procedure_name, price, duration_minutes, position")
+        .select(
+          "appointment_id, procedure_id, procedure_name, price, duration_minutes, position, quantity, unit",
+        )
         .eq("owner_id", context.ownerId)
         .order("position", { ascending: true })
         .limit(8000),
@@ -235,6 +237,8 @@ export const getAgendaOverview = createServerFn({ method: "GET" })
         name: row.procedure_name,
         price: Number(row.price ?? 0),
         duration: Number(row.duration_minutes ?? 0),
+        quantity: row.quantity == null ? null : Number(row.quantity),
+        unit: row.unit ?? null,
       });
       procByAppt.set(row.appointment_id, list);
     }
@@ -570,6 +574,8 @@ async function gravarProcedimentos(
       procedure_name: p.name,
       price: p.price ?? 0,
       duration_minutes: Math.max(0, Math.trunc(p.duration ?? 0)),
+      quantity: p.quantity && p.quantity > 0 ? p.quantity : null,
+      unit: p.quantity && p.quantity > 0 ? (p.unit ?? null) : null,
       position: i,
     })),
   );
