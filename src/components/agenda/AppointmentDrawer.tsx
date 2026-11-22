@@ -31,7 +31,7 @@ import { formatWhatsappNumber, telefoneBrasileiroValido } from "@/lib/atendiment
 import { localDateStr, durationBetween, endTimeFrom } from "@/lib/date";
 import { rotuloDeSala } from "@/lib/agenda/rotuloDeSala";
 import { reenviarConversaoDoAgendamento } from "@/lib/integrations/meta-capi.functions";
-import { deleteAppointment } from "@/lib/agenda/agenda.functions";
+import { deleteAppointment, salvarProcedimentosDoAtendimento } from "@/lib/agenda/agenda.functions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -318,6 +318,29 @@ export function AppointmentDrawer({
   // Excluir o agendamento pelo card, com confirmação: some da agenda e dos
   // lembretes, sem volta.
   const queryClient = useQueryClient();
+
+  // Ajustar o que foi feito sem sair do modo leitura: quem chega e decide fazer
+  // mais um procedimento não deveria precisar abrir o formulário inteiro.
+  const salvarProcedimentosFn = useServerFn(salvarProcedimentosDoAtendimento);
+  const [ajustando, setAjustando] = useState<ProcedimentoDoAgendamento[] | null>(null);
+  const salvarAjuste = useMutation({
+    mutationFn: (lista: ProcedimentoDoAgendamento[]) =>
+      salvarProcedimentosFn({ data: { appointmentId: appointment!.id, procedures: lista } }),
+    onSuccess: (r, lista) => {
+      // A tela reflete na hora — inclusive o valor previsto, que é o que a
+      // confirmação pré-preenche logo abaixo.
+      setForm((f) => ({
+        ...f,
+        procedures: lista,
+        procedureName: r.procedureName,
+        expectedRevenue: r.expectedRevenue,
+      }));
+      setAjustando(null);
+      toast.success("Procedimentos atualizados");
+      queryClient.invalidateQueries({ queryKey: ["agenda-overview"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const excluirFn = useServerFn(deleteAppointment);
   const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
   const exclusao = useMutation({
@@ -724,6 +747,46 @@ export function AppointmentDrawer({
                   notes={form.notes ?? ""}
                   notifications={appointment?.notifications}
                 />
+                {/* O que foi feito, ajustável aqui mesmo: procedimentos a mais e
+                    as quantidades, antes (ou depois) de confirmar. */}
+                {appointment?.id &&
+                  (ajustando === null ? (
+                    <button
+                      type="button"
+                      onClick={() => setAjustando(form.procedures ?? [])}
+                      className="flex h-9 w-full items-center justify-center rounded-xl border border-dashed border-border text-sm text-foreground-secondary transition-colors hover:border-pink/40 hover:text-pink"
+                    >
+                      Ajustar procedimentos e quantidades
+                    </button>
+                  ) : (
+                    <div className="space-y-3 rounded-2xl border border-border px-4 py-3">
+                      <ProcedimentosDoAgendamento
+                        procedimentos={ajustando}
+                        catalogo={procedures}
+                        onChange={setAjustando}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-9 flex-1 rounded-xl"
+                          disabled={salvarAjuste.isPending}
+                          onClick={() => setAjustando(null)}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="premium"
+                          className="h-9 flex-1 rounded-xl"
+                          disabled={salvarAjuste.isPending || ajustando.length === 0}
+                          onClick={() => salvarAjuste.mutate(ajustando)}
+                        >
+                          {salvarAjuste.isPending ? "Salvando…" : "Salvar"}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 {blocoConfirmar}
               </>
             ) : (

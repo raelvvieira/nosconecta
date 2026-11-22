@@ -591,6 +591,41 @@ async function gravarProcedimentos(
 }
 
 /**
+ * Ajusta SÓ os procedimentos (e as quantidades) de um atendimento que já existe.
+ *
+ * É o caso de quem chega para um procedimento e decide fazer mais um: a
+ * recepção corrige a lista ali no card, antes de confirmar. Não passa pelo
+ * `updateAppointment` de propósito — ele regrava a linha inteira e dispara a
+ * transição de status; aqui nada disso muda. O resumo (`procedure_name`) e o
+ * valor previsto são recalculados pelo gatilho do banco.
+ */
+export const salvarProcedimentosDoAtendimento = createServerFn({ method: "POST" })
+  .inputValidator((input: { appointmentId: string; procedures: ProcedimentoDoAgendamento[] }) => {
+    if (!input?.appointmentId) throw new Error("Atendimento inválido.");
+    if (!Array.isArray(input.procedures) || input.procedures.length === 0)
+      throw new Error("Deixe pelo menos um procedimento.");
+    return { appointmentId: input.appointmentId, procedures: semRepetidos(input.procedures) };
+  })
+  .middleware([requireClinicMembership])
+  .handler(async ({ data, context }) => {
+    const supabase: any = context.supabase;
+    const { data: a, error } = await supabase
+      .from("appointments")
+      .select("id, unit_id")
+      .eq("id", data.appointmentId)
+      .eq("owner_id", context.ownerId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!a) throw new Error("Atendimento não encontrado.");
+    await gravarProcedimentos(supabase, context.ownerId, a.unit_id ?? null, a.id, data.procedures);
+    return {
+      ok: true as const,
+      procedureName: nomeDosProcedimentos(data.procedures),
+      expectedRevenue: valorDosProcedimentos(data.procedures),
+    };
+  });
+
+/**
  * Grava o lembrete na lista "Retornos a agendar". Devolve "sem-tabela" quando a
  * migração ainda não foi aplicada, para o chamador cair no caminho antigo.
  * Concluir, reabrir e concluir de novo não empilha: o índice único por
