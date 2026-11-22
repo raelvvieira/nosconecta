@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { PagamentoDoAtendimento, ResumoDoSinalNaConfirmacao } from "./PagamentoDoAtendimento";
+import { PagamentoDoAtendimento } from "./PagamentoDoAtendimento";
 import { formatBRL, parseBRLInput } from "@/lib/finance/format";
 import { addMonths } from "@/lib/date";
 import { listarSinais } from "@/lib/agenda/sinal.functions";
-import { saldoAReceber } from "@/lib/agenda/sinal";
+import { saldoAReceber, somaDosSinais } from "@/lib/agenda/sinal";
 import {
   dividirPagamento,
   recusaDoSegundoPagamento,
@@ -170,6 +170,11 @@ export function ConfirmCompletion({
     staleTime: 15_000,
   });
   const sinaisPagos = sinaisQuery.data ?? [];
+  const somaDosSinaisPagos = somaDosSinais(sinaisPagos);
+  // Com sinal já pago, o número digitado pode ser o TOTAL ou só o que entrou
+  // HOJE. Não há padrão: em 22/11 três atendimentos ficaram R$ 150 menores
+  // porque o sistema supôs "total" e a recepção tinha digitado o do dia.
+  const [valorEh, setValorEh] = useState<"total" | "hoje" | null>(null);
 
   // Desligado por padrão: mandar documento ao paciente é uma decisão, não um
   // efeito colateral de confirmar o atendimento.
@@ -215,9 +220,20 @@ export function ConfirmCompletion({
       setErro(pago.mensagem);
       return;
     }
-    if (dividir && !ehCortesia(n)) {
+    if (sinaisPagos.length > 0 && valorEh === null) {
+      setErro("Diga se o valor digitado é o total do atendimento ou só o recebido hoje.");
+      return;
+    }
+    // O que fica gravado como valor cobrado é sempre o TOTAL.
+    const total =
+      sinaisPagos.length > 0 && valorEh === "hoje"
+        ? Math.round((n + somaDosSinaisPagos) * 100) / 100
+        : n;
+    if (dividir && !ehCortesia(total)) {
       const recusa2 =
-        recusaDoSegundoPagamento(saldoAReceber(n, sinaisPagos), { valor: parseBRLInput(valor2) }) ??
+        recusaDoSegundoPagamento(saldoAReceber(total, sinaisPagos), {
+          valor: parseBRLInput(valor2),
+        }) ??
         recusaDoPagamento(forma2, parcelas2)?.mensagem ??
         null;
       if (recusa2) {
@@ -226,7 +242,7 @@ export function ConfirmCompletion({
       }
     }
     setErro(null);
-    setValorConfirmado(n);
+    setValorConfirmado(total);
   };
 
   // Passo do retorno: o valor já passou, falta decidir se o paciente volta.
@@ -359,6 +375,13 @@ export function ConfirmCompletion({
   // vale" aqui é como as duas pontas divergem: a tela aceita, o servidor
   // recusa, e a pessoa vê um erro depois de um botão que estava aceso.
   const podeConfirmar = podeConcluir(valorDigitado);
+  // O total que será gravado, já somando o sinal quando o digitado é só o de hoje.
+  const totalEfetivo =
+    valorDigitado === null
+      ? null
+      : sinaisPagos.length > 0 && valorEh === "hoje"
+        ? Math.round((valorDigitado + somaDosSinaisPagos) * 100) / 100
+        : valorDigitado;
 
   return (
     <div className="space-y-2 rounded-xl border border-coral/30 bg-coral-soft px-3 py-3">
@@ -397,8 +420,45 @@ export function ConfirmCompletion({
         </p>
       )}
 
-      {appointmentId && (
-        <ResumoDoSinalNaConfirmacao appointmentId={appointmentId} total={valorDigitado} />
+      {sinaisPagos.length > 0 && (
+        <div className="space-y-1.5 rounded-xl bg-white px-3 py-2.5">
+          <p className="text-sm text-foreground-secondary">
+            Já há {formatBRL(somaDosSinaisPagos)} de sinal pago. O valor acima é:
+          </p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {(
+              [
+                { v: "hoje", t: "Só o recebido hoje" },
+                { v: "total", t: "O total, com o sinal" },
+              ] as const
+            ).map((o) => (
+              <button
+                key={o.v}
+                type="button"
+                aria-pressed={valorEh === o.v}
+                onClick={() => {
+                  setValorEh(o.v);
+                  if (erro) setErro(null);
+                }}
+                className={
+                  valorEh === o.v
+                    ? "h-9 rounded-xl border border-coral bg-coral-soft px-2 text-xs font-medium text-foreground"
+                    : "h-9 rounded-xl border border-border px-2 text-xs text-foreground-secondary hover:bg-muted/50"
+                }
+              >
+                {o.t}
+              </button>
+            ))}
+          </div>
+          {valorEh !== null && totalEfetivo !== null && (
+            <p className="text-2xs text-muted-foreground">
+              Total do atendimento{" "}
+              <span className="font-semibold text-foreground">{formatBRL(totalEfetivo)}</span> ={" "}
+              {formatBRL(somaDosSinaisPagos)} de sinal +{" "}
+              {formatBRL(saldoAReceber(totalEfetivo, sinaisPagos))} hoje.
+            </p>
+          )}
+        </div>
       )}
 
       {/* ── Como foi pago ──────────────────────────────────────────────
@@ -568,7 +628,7 @@ export function ConfirmCompletion({
               )}
               {(() => {
                 // A conta à vista: quanto fica em cada forma.
-                const aReceber = saldoAReceber(valorDigitado ?? 0, sinaisPagos);
+                const aReceber = saldoAReceber(totalEfetivo ?? 0, sinaisPagos);
                 const n2 = parseBRLInput(valor2);
                 if (Number.isNaN(n2) || recusaDoSegundoPagamento(aReceber, { valor: n2 }))
                   return (
@@ -601,7 +661,7 @@ export function ConfirmCompletion({
         <span className="text-sm text-foreground-secondary">
           {ehCortesia(valorDigitado)
             ? "Gerar recebimento (nada a receber)"
-            : `Gerar recebimento${valorDigitado !== null ? ` de ${formatBRL(valorDigitado)}` : ""}`}
+            : `Gerar recebimento${totalEfetivo !== null ? ` de ${formatBRL(saldoAReceber(totalEfetivo, sinaisPagos))}` : ""}`}
         </span>
         <Switch checked={gerarCobranca} onCheckedChange={setGerarCobranca} />
       </label>

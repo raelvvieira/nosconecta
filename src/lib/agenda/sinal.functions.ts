@@ -108,6 +108,13 @@ export const registrarSinal = createServerFn({ method: "POST" })
       pagoEm: string;
       forma?: string | null;
       parcelas?: number | null;
+      /**
+       * Só para atendimento JÁ confirmado: o valor cobrado gravado já inclui
+       * este sinal? `false` = o sinal é a mais (o valor gravado era só o
+       * recebido no dia) e é somado ao total. Obrigatório nesse caso: adivinhar
+       * foi o que fez três recebimentos saírem R$ 150 menores em 22/11.
+       */
+      jaIncluso?: boolean;
     }) => {
       if (!input?.appointmentId) throw new Error("Atendimento inválido.");
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.pagoEm ?? "")))
@@ -128,10 +135,15 @@ export const registrarSinal = createServerFn({ method: "POST" })
     if (a.status === "cancelled") throw new Error("Este atendimento foi cancelado.");
 
     const jaRegistrados = await lerSinais(supabase, context.ownerId, a.id);
-    const total = Number(
-      a.status === "completed" ? (a.actual_revenue ?? 0) : (a.expected_revenue ?? 0),
-    );
     const valor = Math.round(Number(data.valor) * 100) / 100;
+    const concluido = a.status === "completed";
+    if (concluido && typeof data.jaIncluso !== "boolean")
+      throw new Error("Diga se o valor do atendimento já inclui este sinal ou se ele é a mais.");
+    // "A mais": o total passa a ser o que estava gravado + o sinal.
+    const somar = concluido && data.jaIncluso === false;
+    const total = Number(
+      concluido ? Number(a.actual_revenue ?? 0) + (somar ? valor : 0) : (a.expected_revenue ?? 0),
+    );
     const recusa = recusaDoSinal({ valor, total, jaRegistrado: jaRegistrados.map(paraSinal) });
     if (recusa) throw new Error(recusa);
 
@@ -155,6 +167,7 @@ export const registrarSinal = createServerFn({ method: "POST" })
             ? pagamento.installment_total
             : null,
         criado_por: context.userId,
+        ...(somar ? { somado_ao_total: true } : {}),
       })
       .select("id")
       .single();
@@ -182,10 +195,21 @@ export const registrarSinal = createServerFn({ method: "POST" })
             .update({ transaction_id: transacao })
             .eq("id", criado.id);
       }
-      await acertarRecebimentoDoAtendimento(supabase, context.ownerId, a, [
-        ...jaRegistrados.map(paraSinal),
-        { valor },
-      ]);
+      if (somar) {
+        // O valor cobrado sobe; o recebimento do dia fica como está. Atualização
+        // direta, sem transição de status: nada é reenviado para a Meta.
+        const { error: erroTotal } = await supabase
+          .from("appointments")
+          .update({ actual_revenue: total })
+          .eq("id", a.id)
+          .eq("owner_id", context.ownerId);
+        if (erroTotal) throw new Error(erroTotal.message);
+      } else {
+        await acertarRecebimentoDoAtendimento(supabase, context.ownerId, a, [
+          ...jaRegistrados.map(paraSinal),
+          { valor },
+        ]);
+      }
     } catch (e) {
       await supabase.from("atendimento_sinais").delete().eq("id", criado.id);
       throw e;
@@ -203,7 +227,7 @@ export const removerSinal = createServerFn({ method: "POST" })
     const supabase = context.supabase as any;
     const { data: s } = await supabase
       .from("atendimento_sinais")
-      .select("id, appointment_id, transaction_id")
+      .select("*")
       .eq("id", data.id)
       .eq("owner_id", context.ownerId)
       .maybeSingle();
@@ -227,7 +251,16 @@ export const removerSinal = createServerFn({ method: "POST" })
       .eq("id", s.appointment_id)
       .eq("owner_id", context.ownerId)
       .maybeSingle();
-    if (a) {
+    if (a && s.somado_ao_total && a.status === "completed") {
+      // Desfaz a soma: o total volta a ser o que era antes deste sinal.
+      const semOSinal =
+        Math.round((Number(a.actual_revenue ?? 0) - Number(s.valor ?? 0)) * 100) / 100;
+      await supabase
+        .from("appointments")
+        .update({ actual_revenue: Math.max(0, semOSinal) })
+        .eq("id", a.id)
+        .eq("owner_id", context.ownerId);
+    } else if (a) {
       const restantes = await lerSinais(supabase, context.ownerId, a.id);
       await acertarRecebimentoDoAtendimento(supabase, context.ownerId, a, restantes.map(paraSinal));
     }

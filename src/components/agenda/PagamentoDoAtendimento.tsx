@@ -94,7 +94,19 @@ function LinhaDeRecibo({
 }
 
 /** O formulário de registrar um sinal, aberto no próprio card. */
-function NovoSinal({ appointmentId, onFeito }: { appointmentId: string; onFeito: () => void }) {
+function NovoSinal({
+  appointmentId,
+  valorJaConfirmado,
+  onFeito,
+}: {
+  appointmentId: string;
+  /** O valor cobrado, quando o atendimento já foi confirmado. Nulo se ainda não. */
+  valorJaConfirmado: number | null;
+  onFeito: () => void;
+}) {
+  // Atendimento já confirmado: o valor gravado inclui este sinal, ou o sinal é
+  // a mais? Sem resposta pronta — a pessoa escolhe, porque só ela sabe.
+  const [jaIncluso, setJaIncluso] = useState<boolean | null>(null);
   const qc = useQueryClient();
   const registrarFn = useServerFn(registrarSinal);
   const [valor, setValor] = useState("");
@@ -104,7 +116,14 @@ function NovoSinal({ appointmentId, onFeito }: { appointmentId: string; onFeito:
   const registrar = useMutation({
     mutationFn: () =>
       registrarFn({
-        data: { appointmentId, valor: parseBRLInput(valor), pagoEm, forma, parcelas },
+        data: {
+          appointmentId,
+          valor: parseBRLInput(valor),
+          pagoEm,
+          forma,
+          parcelas,
+          ...(valorJaConfirmado !== null && jaIncluso !== null ? { jaIncluso } : {}),
+        },
       }),
     onSuccess: () => {
       toast.success("Sinal registrado");
@@ -115,7 +134,10 @@ function NovoSinal({ appointmentId, onFeito }: { appointmentId: string; onFeito:
     onError: (e: Error) => toast.error(e.message),
   });
   const n = parseBRLInput(valor);
-  const valido = !recusaDoSinal({ valor: n, total: 0, jaRegistrado: [] }) && !!pagoEm;
+  const valido =
+    !recusaDoSinal({ valor: n, total: 0, jaRegistrado: [] }) &&
+    !!pagoEm &&
+    (valorJaConfirmado === null || jaIncluso !== null);
   return (
     <div className="mt-2 space-y-2.5 rounded-xl bg-surface px-3 py-3">
       <div className="grid grid-cols-2 gap-2">
@@ -179,6 +201,40 @@ function NovoSinal({ appointmentId, onFeito }: { appointmentId: string; onFeito:
                 {p}x
               </button>
             ),
+          )}
+        </div>
+      )}
+      {valorJaConfirmado !== null && (
+        <div className="space-y-1.5">
+          <p className="text-xs text-foreground-secondary">
+            O atendimento está com {formatBRL(valorJaConfirmado)}. Esse valor já inclui o sinal?
+          </p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { v: false, t: "Não, o sinal é a mais" },
+              { v: true, t: "Sim, já inclui" },
+            ].map((o) => (
+              <button
+                key={o.t}
+                type="button"
+                aria-pressed={jaIncluso === o.v}
+                onClick={() => setJaIncluso(o.v)}
+                className={
+                  jaIncluso === o.v
+                    ? "h-9 rounded-lg border border-foreground bg-foreground px-2 text-xs font-medium text-background"
+                    : "h-9 rounded-lg border border-border bg-white px-2 text-xs text-foreground-secondary"
+                }
+              >
+                {o.t}
+              </button>
+            ))}
+          </div>
+          {jaIncluso !== null && !Number.isNaN(n) && n > 0 && (
+            <p className="text-2xs text-muted-foreground">
+              {jaIncluso
+                ? `Total continua ${formatBRL(valorJaConfirmado)}: ${formatBRL(n)} de sinal + ${formatBRL(Math.max(0, valorJaConfirmado - n))} no dia.`
+                : `Total passa a ${formatBRL(valorJaConfirmado + n)}: ${formatBRL(n)} de sinal + ${formatBRL(valorJaConfirmado)} no dia.`}
+            </p>
           )}
         </div>
       )}
@@ -300,7 +356,13 @@ export function PagamentoDoAtendimento({
         </ul>
       )}
 
-      {abrindo && <NovoSinal appointmentId={appointmentId} onFeito={() => setAbrindo(false)} />}
+      {abrindo && (
+        <NovoSinal
+          appointmentId={appointmentId}
+          valorJaConfirmado={concluido ? (actualRevenue ?? 0) : null}
+          onFeito={() => setAbrindo(false)}
+        />
+      )}
 
       <div className="mt-1 divide-y divide-border/60">
         <LinhaDeRecibo
@@ -318,40 +380,6 @@ export function PagamentoDoAtendimento({
           motivoIndisponivel="Disponível depois de confirmar o atendimento"
         />
       </div>
-    </div>
-  );
-}
-
-/** Na confirmação: se já há sinal, mostra quanto falta receber hoje. */
-export function ResumoDoSinalNaConfirmacao({
-  appointmentId,
-  total,
-}: {
-  appointmentId: string;
-  total: number | null;
-}) {
-  const listarFn = useServerFn(listarSinais);
-  const sinais = useQuery({
-    queryKey: ["sinais-do-atendimento", appointmentId],
-    queryFn: () => listarFn({ data: { appointmentId } }),
-    staleTime: 15_000,
-  });
-  const lista = sinais.data ?? [];
-  if (lista.length === 0) return null;
-  const pago = somaDosSinais(lista);
-  return (
-    <div className="rounded-xl bg-white px-3 py-2.5 text-sm text-foreground-secondary">
-      Sinal já pago <span className="font-semibold">{formatBRL(pago)}</span>
-      {total !== null && total > 0 && (
-        <>
-          {" "}
-          · a receber hoje{" "}
-          <span className="font-semibold">{formatBRL(saldoAReceber(total, lista))}</span>
-        </>
-      )}
-      <span className="mt-0.5 block text-2xs text-muted-foreground">
-        O valor acima é o total do atendimento, com o sinal incluído.
-      </span>
     </div>
   );
 }
