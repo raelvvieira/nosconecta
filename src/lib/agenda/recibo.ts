@@ -27,6 +27,13 @@ export interface DadosDoRecibo {
   formaDePagamento: string | null;
   /** Data de emissão, AAAA-MM-DD. */
   emitidoEm: string;
+  /**
+   * `completo` (padrão): o total do atendimento, com o sinal discriminado quando
+   * houve. `sinal`: só o que foi pago de sinal — `valor` é a soma dos sinais.
+   */
+  tipo?: "sinal" | "completo";
+  /** Os sinais pagos, para discriminar no recibo. */
+  sinais?: { valor: number; data: string; forma: string | null }[];
 }
 
 const UNIDADES = [
@@ -219,7 +226,9 @@ export async function montarReciboPdf(d: DadosDoRecibo): Promise<Uint8Array> {
   pagina.desenharImagem(LOGO_NOS, (width - larguraLogo) / 2, y, larguraLogo, alturaLogo);
 
   y -= 34;
-  centro("RECIBO", y, "negrito", 20);
+  const ehSinal = d.tipo === "sinal";
+  const sinais = d.sinais ?? [];
+  centro(ehSinal ? "RECIBO DE SINAL" : "RECIBO", y, "negrito", 20);
   y -= 18;
   centro(`Nº ${d.numero}`, y, "normal", 10, suave);
   y -= 22;
@@ -238,9 +247,13 @@ export async function montarReciboPdf(d: DadosDoRecibo): Promise<Uint8Array> {
   // ── Texto do recibo ────────────────────────────────────────────────────
   y -= 18;
   const corpo = textoSeguro(
-    `Recebemos de ${d.paciente} a quantia de ${brl(d.valor)} referente a ${
-      d.procedimento ? d.procedimento : "atendimento odontologico"
-    }, realizado em ${dataPorExtenso(d.data)}${d.local ? `, em ${d.local}` : ""}.`,
+    ehSinal
+      ? `Recebemos de ${d.paciente} a quantia de ${brl(d.valor)} como sinal de reserva de horário, referente a ${
+          d.procedimento ? d.procedimento : "atendimento odontológico"
+        }, agendado para ${dataPorExtenso(d.data)}${d.local ? `, em ${d.local}` : ""}. O valor será descontado do total do atendimento.`
+      : `Recebemos de ${d.paciente} a quantia de ${brl(d.valor)} referente a ${
+          d.procedimento ? d.procedimento : "atendimento odontológico"
+        }, realizado em ${dataPorExtenso(d.data)}${d.local ? `, em ${d.local}` : ""}.`,
   );
   for (const l of quebrar(corpo, "normal", 11.5, miolo)) {
     pagina.texto(l, margem, y, 11.5, "normal", tinta);
@@ -249,14 +262,29 @@ export async function montarReciboPdf(d: DadosDoRecibo): Promise<Uint8Array> {
 
   // ── Detalhes ───────────────────────────────────────────────────────────
   y -= 12;
+  const somaSinais = sinais.reduce((acc, s) => acc + Math.round(s.valor * 100), 0) / 100;
   const detalhes: [string, string][] = [
     ["Paciente", d.paciente],
     ["Procedimento", d.procedimento ?? "-"],
     ["Profissional", d.profissional ?? "-"],
-    ["Data do atendimento", dataPorExtenso(d.data)],
+    [ehSinal ? "Atendimento agendado para" : "Data do atendimento", dataPorExtenso(d.data)],
     ["Local", d.local ?? d.clinica],
-    ["Forma de pagamento", d.formaDePagamento || "-"],
   ];
+  if (!ehSinal && sinais.length > 0) {
+    // A composição do total: o que foi pago no atendimento e o que foi pago antes.
+    detalhes.push([
+      "Pago no atendimento",
+      `${brl(Math.max(0, Math.round((d.valor - somaSinais) * 100) / 100))}${d.formaDePagamento ? ` - ${d.formaDePagamento}` : ""}`,
+    ]);
+    for (const s of sinais)
+      detalhes.push([
+        "Sinal",
+        `${brl(s.valor)} - pago em ${dataPorExtenso(s.data)}${s.forma ? ` (${s.forma})` : ""}`,
+      ]);
+    detalhes.push(["Total", brl(d.valor)]);
+  } else {
+    detalhes.push(["Forma de pagamento", d.formaDePagamento || "-"]);
+  }
   for (const [rotulo, valor] of detalhes) {
     regua(y + 14);
     pagina.texto(textoSeguro(rotulo), margem, y, 9.5, "normal", suave);

@@ -5,6 +5,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
 import { callEdgeFunction } from "@/lib/atendimentos/atendimentos.functions";
 import { clinicTodayStr } from "@/lib/date";
+import { rotuloDoPagamento } from "./forma-de-pagamento";
 import { foneCanonico } from "../../../supabase/functions/_shared/inteligencia-do-lead.ts";
 import { montarReciboPdf, numeroDoRecibo, rotuloDoMetodo, textoSeguro } from "./recibo";
 
@@ -27,9 +28,15 @@ function paraBase64(bytes: Uint8Array): string {
  */
 export const enviarReciboDoAtendimento = createServerFn({ method: "POST" })
   .middleware([requireClinicMembership])
-  .inputValidator((input: { appointmentId: string }) => {
+  .inputValidator((input: { appointmentId: string; tipo?: "sinal" | "completo" }) => {
     if (!input?.appointmentId) throw new Error("Atendimento inválido.");
-    return { appointmentId: input.appointmentId };
+    return {
+      appointmentId: input.appointmentId,
+      tipo: input.tipo === "sinal" ? "sinal" : "completo",
+    } as {
+      appointmentId: string;
+      tipo: "sinal" | "completo";
+    };
   })
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as any;
@@ -43,10 +50,33 @@ export const enviarReciboDoAtendimento = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!a) throw new Error("Atendimento não encontrado.");
-    if (a.status !== "completed")
-      throw new Error("O recibo só sai depois de confirmar que o atendimento aconteceu.");
-    const valor = Number(a.actual_revenue ?? 0);
-    if (!(valor > 0)) throw new Error("Atendimento sem valor cobrado — não há o que recibar.");
+    const ehSinal = data.tipo === "sinal";
+
+    // Os sinais pagos: o recibo completo os discrimina; o de sinal é só deles.
+    const { data: linhasSinais } = await supabase
+      .from("atendimento_sinais")
+      .select("valor, pago_em, forma, parcelas")
+      .eq("owner_id", context.ownerId)
+      .eq("appointment_id", a.id)
+      .order("pago_em", { ascending: true });
+    const sinais = (linhasSinais ?? []).map((s: any) => ({
+      valor: Number(s.valor),
+      data: String(s.pago_em),
+      forma: rotuloDoPagamento(s.forma, s.parcelas) || null,
+    }));
+
+    let valor: number;
+    if (ehSinal) {
+      if (sinais.length === 0) throw new Error("Este atendimento não tem sinal registrado.");
+      valor = sinais.reduce((acc: number, s: any) => acc + Math.round(s.valor * 100), 0) / 100;
+    } else {
+      if (a.status !== "completed")
+        throw new Error(
+          "O recibo completo só sai depois de confirmar que o atendimento aconteceu.",
+        );
+      valor = Number(a.actual_revenue ?? 0);
+      if (!(valor > 0)) throw new Error("Atendimento sem valor cobrado — não há o que recibar.");
+    }
 
     const { data: paciente } = a.patient_id
       ? await supabase
@@ -88,7 +118,9 @@ export const enviarReciboDoAtendimento = createServerFn({ method: "POST" })
         : null;
 
     const pdf = await montarReciboPdf({
-      numero: numeroDoRecibo(String(a.date), String(a.id)),
+      numero: `${numeroDoRecibo(String(a.date), String(a.id))}${ehSinal ? "-S" : ""}`,
+      tipo: data.tipo,
+      sinais: ehSinal ? [] : sinais,
       clinica: nomeDaClinica,
       local,
       paciente: a.patient_name,
@@ -96,16 +128,20 @@ export const enviarReciboDoAtendimento = createServerFn({ method: "POST" })
       profissional: a.professional_name || null,
       data: String(a.date),
       valor,
-      formaDePagamento: rotuloDoMetodo(lancamento?.payment_method, lancamento?.installment_total),
+      formaDePagamento: ehSinal
+        ? [...new Set(sinais.map((s: any) => s.forma).filter(Boolean))].join(" / ") || null
+        : rotuloDoMetodo(lancamento?.payment_method, lancamento?.installment_total),
       emitidoEm: clinicTodayStr(),
     });
 
-    const nomeDoArquivo = `Recibo ${textoSeguro(String(a.patient_name)).trim() || "atendimento"} - ${String(a.date).split("-").reverse().join("-")}.pdf`;
+    const nomeDoArquivo = `${ehSinal ? "Recibo de sinal" : "Recibo"} ${textoSeguro(String(a.patient_name)).trim() || "atendimento"} - ${String(a.date).split("-").reverse().join("-")}.pdf`;
     // O id da conversa do WhatsApp É o jid do número; o `wa-enviar` entende.
     await callEdgeFunction("wa-enviar", {
       ownerId: context.ownerId,
       conversationId: `${fone}@s.whatsapp.net`,
-      content: `Olá, ${String(a.patient_name).split(" ")[0]}! Segue o recibo do seu atendimento. Qualquer dúvida, é só chamar.`,
+      content: ehSinal
+        ? `Olá, ${String(a.patient_name).split(" ")[0]}! Segue o recibo do sinal que você pagou. Qualquer dúvida, é só chamar.`
+        : `Olá, ${String(a.patient_name).split(" ")[0]}! Segue o recibo do seu atendimento. Qualquer dúvida, é só chamar.`,
       attachments: [{ name: nomeDoArquivo, type: "application/pdf", data: paraBase64(pdf) }],
       // Mensagem automática do sistema: não tira a conversa da assistente.
       assumir: false,
@@ -118,6 +154,7 @@ export const enviarReciboDoAtendimento = createServerFn({ method: "POST" })
       appointment_id: a.id,
       numero: numeroDoRecibo(String(a.date), String(a.id)),
       valor,
+      tipo: data.tipo,
       enviado_por: context.userId,
     });
     if (erroRegistro) console.warn("[recibo] não registrei o envio:", erroRegistro.message);
@@ -134,9 +171,15 @@ export interface SituacaoDoRecibo {
 /** Já mandei o recibo deste atendimento? Para mostrar "enviado em…" e "enviar novamente". */
 export const situacaoDoRecibo = createServerFn({ method: "GET" })
   .middleware([requireClinicMembership])
-  .inputValidator((input: { appointmentId: string }) => {
+  .inputValidator((input: { appointmentId: string; tipo?: "sinal" | "completo" }) => {
     if (!input?.appointmentId) throw new Error("Atendimento inválido.");
-    return { appointmentId: input.appointmentId };
+    return {
+      appointmentId: input.appointmentId,
+      tipo: input.tipo === "sinal" ? "sinal" : "completo",
+    } as {
+      appointmentId: string;
+      tipo: "sinal" | "completo";
+    };
   })
   .handler(async ({ data, context }): Promise<SituacaoDoRecibo> => {
     const { data: linhas, error } = await (context.supabase as any)
@@ -144,6 +187,7 @@ export const situacaoDoRecibo = createServerFn({ method: "GET" })
       .select("enviado_em")
       .eq("owner_id", context.ownerId)
       .eq("appointment_id", data.appointmentId)
+      .eq("tipo", data.tipo)
       .order("enviado_em", { ascending: false })
       .limit(50);
     // Sem a tabela ainda, ou qualquer falha de leitura: trata como "nunca

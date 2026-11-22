@@ -930,8 +930,18 @@ async function onStatusTransition(
         hoje: clinicTodayStr(),
         pagamentoRecebido: opcoes.pagamentoRecebido ?? true,
       });
+      // O sinal já entrou no financeiro quando foi pago. O recebimento do
+      // atendimento é só o SALDO — senão o sinal contaria duas vezes. O valor
+      // cobrado (`actual_revenue`, o total) não muda: é ele que vai para a Meta.
+      const { data: sinais } = await supabase
+        .from("atendimento_sinais")
+        .select("valor")
+        .eq("owner_id", ownerId)
+        .eq("appointment_id", id);
+      const { saldoAReceber } = await import("./sinal");
+      const aReceber = saldoAReceber(Number(row.actual_revenue ?? 0), sinais ?? []);
       await createAppointmentReceivable(supabase, ownerId, row.unit_id, {
-        amount: row.actual_revenue ?? 0,
+        amount: aReceber,
         description: `${row.procedure_name || "Atendimento"} · ${row.patient_name}`,
         dueDate,
         patientId: row.patient_id,

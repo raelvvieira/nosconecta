@@ -80,6 +80,38 @@ const semLocal = await montarReciboPdf({
 });
 conferir("PDF sem dados opcionais", new TextDecoder().decode(semLocal.slice(0, 5)), "%PDF-");
 
+const base = {
+  numero: "20261121-00ABCD",
+  clinica: "NÓS Odontologia",
+  local: "Rua Exemplo, 100 - Centro, Florianópolis",
+  paciente: "Maria da Conceição Silva",
+  procedimento: "Bioestimulador de colágeno",
+  profissional: "Dra. Mariane",
+  data: "2026-11-21",
+  emitidoEm: "2026-11-21",
+};
+const completoComSinal = await montarReciboPdf({
+  ...base,
+  valor: 1390,
+  formaDePagamento: "Pix",
+  sinais: [{ valor: 150, data: "2026-11-14", forma: "Pix" }],
+});
+const sinalSo = await montarReciboPdf({
+  ...base,
+  numero: "20261121-00ABCD-S",
+  tipo: "sinal",
+  valor: 150,
+  formaDePagamento: "Pix",
+  sinais: [],
+});
+conferir("PDF completo com sinal", new TextDecoder().decode(completoComSinal.slice(0, 5)), "%PDF-");
+conferir("PDF de sinal", new TextDecoder().decode(sinalSo.slice(0, 5)), "%PDF-");
+const S = process.env.SAIDA_PDF;
+if (S) {
+  await Bun.write(`${S}/completo-sinal.pdf`, completoComSinal);
+  await Bun.write(`${S}/sinal.pdf`, sinalSo);
+}
+
 if (falhas.length) {
   console.error(falhas.join("\n"));
   process.exit(1);

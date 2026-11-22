@@ -704,6 +704,12 @@ export async function createAppointmentReceivable(
      * significa "ninguém informou".
      */
     pagamento?: { payment_method: string | null; installment_total: number | null };
+    /**
+     * Outra origem que não o agendamento — o sinal, por exemplo, que é um
+     * recebimento próprio do mesmo atendimento e por isso não pode usar a chave
+     * `agendamento` (que é a trava do recebimento do atendimento em si).
+     */
+    origem?: { source_type: string; source_id: string };
   },
   // Devolve o id do lançamento criado, ou null quando não havia valor.
   //
@@ -714,9 +720,11 @@ export async function createAppointmentReceivable(
 ): Promise<string | null> {
   if (!(params.amount > 0)) return null;
   const recebido = !!params.paidOn;
-  const origem = params.appointmentId
-    ? { source_type: "agendamento", source_id: String(params.appointmentId) }
-    : {};
+  const origem =
+    params.origem ??
+    (params.appointmentId
+      ? { source_type: "agendamento", source_id: String(params.appointmentId) }
+      : {});
   const { data: criado, error } = await supabase
     .from("financial_transactions")
     .insert({

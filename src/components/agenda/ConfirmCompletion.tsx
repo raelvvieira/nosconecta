@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { ReciboDoAtendimento } from "./ReciboDoAtendimento";
+import { PagamentoDoAtendimento, ResumoDoSinalNaConfirmacao } from "./PagamentoDoAtendimento";
 import { formatBRL, parseBRLInput } from "@/lib/finance/format";
 import { addMonths } from "@/lib/date";
 import { podeConcluir, ehCortesia, recusaDoValor } from "@/lib/agenda/valor-ao-concluir";
@@ -159,8 +159,13 @@ export function ConfirmCompletion({
         </div>
         {/* Recibo também para quem já foi atendido: clientes antigos, ou o
             paciente que perdeu o arquivo. Cortesia não tem o que recibar. */}
-        {appointmentId && actualRevenue > 0 && (
-          <ReciboDoAtendimento appointmentId={appointmentId} />
+        {appointmentId && (
+          <PagamentoDoAtendimento
+            appointmentId={appointmentId}
+            status="completed"
+            expectedRevenue={expectedRevenue}
+            actualRevenue={actualRevenue}
+          />
         )}
       </div>
     );
@@ -269,25 +274,37 @@ export function ConfirmCompletion({
 
   if (!abrindo) {
     return (
-      <div className="rounded-xl border border-coral/30 bg-coral-soft px-3 py-3">
-        <p className="text-sm font-medium text-foreground">Este atendimento já aconteceu?</p>
-        <p className="mt-0.5 text-2xs leading-4 text-muted-foreground">
-          Confirmar registra o valor cobrado e envia a conversão.
-        </p>
-        <Button
-          type="button"
-          variant="premium"
-          className="mt-2.5 h-10 w-full rounded-xl"
-          onClick={() => {
-            // Pré-preenche com o previsto: na maioria das vezes é o valor certo,
-            // e quando não é, corrigir um número já digitado é mais rápido que
-            // digitar do zero.
-            setValor(expectedRevenue ? String(expectedRevenue).replace(".", ",") : "");
-            setAbrindo(true);
-          }}
-        >
-          Confirmar atendimento realizado
-        </Button>
+      <div className="space-y-2">
+        <div className="rounded-xl border border-coral/30 bg-coral-soft px-3 py-3">
+          <p className="text-sm font-medium text-foreground">Este atendimento já aconteceu?</p>
+          <p className="mt-0.5 text-2xs leading-4 text-muted-foreground">
+            Confirmar registra o valor cobrado e envia a conversão.
+          </p>
+          <Button
+            type="button"
+            variant="premium"
+            className="mt-2.5 h-10 w-full rounded-xl"
+            onClick={() => {
+              // Pré-preenche com o previsto: na maioria das vezes é o valor certo,
+              // e quando não é, corrigir um número já digitado é mais rápido que
+              // digitar do zero.
+              setValor(expectedRevenue ? String(expectedRevenue).replace(".", ",") : "");
+              setAbrindo(true);
+            }}
+          >
+            Confirmar atendimento realizado
+          </Button>
+        </div>
+        {/* O sinal pago antes e o recibo dele: valem mesmo com o atendimento ainda
+          por acontecer. */}
+        {appointmentId && (
+          <PagamentoDoAtendimento
+            appointmentId={appointmentId}
+            status="pending"
+            expectedRevenue={expectedRevenue}
+            actualRevenue={null}
+          />
+        )}
       </div>
     );
   }
@@ -336,6 +353,10 @@ export function ConfirmCompletion({
           Previsto era {formatBRL(expectedRevenue)}. Informe quanto foi pago — digite 0 se não
           entrou receita.
         </p>
+      )}
+
+      {appointmentId && (
+        <ResumoDoSinalNaConfirmacao appointmentId={appointmentId} total={valorDigitado} />
       )}
 
       {/* ── Como foi pago ──────────────────────────────────────────────
