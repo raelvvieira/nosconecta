@@ -64,7 +64,8 @@ const pdf = await montarReciboPdf({
   emitidoEm: "2026-11-21",
 });
 conferir("PDF começa com %PDF", new TextDecoder().decode(pdf.slice(0, 5)), "%PDF-");
-conferir("PDF tem corpo", pdf.length > 20_000, true);
+conferir("PDF termina em %%EOF", new TextDecoder().decode(pdf.slice(-6)).trim(), "%%EOF");
+conferir("PDF tem corpo", pdf.length > 8_000, true);
 const semLocal = await montarReciboPdf({
   numero: "X",
   clinica: "NÓS",

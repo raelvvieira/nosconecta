@@ -1,14 +1,15 @@
 // O recibo do atendimento, em PDF.
 //
-// Roda no Worker (Cloudflare): só `pdf-lib`, que é JavaScript puro. Nada de
-// `fs`, `canvas` ou `puppeteer`.
+// Roda no Worker (Cloudflare) com o escritor de PDF mínimo de `pdf-minimo.ts`.
+// Nada de `fs`, `canvas`, `puppeteer` — e nada de `pdf-lib`, que não carrega no
+// Worker (ver o comentário em `pdf-minimo.ts`).
 //
 // O que não pode acontecer: o PDF sair com caractere que a fonte padrão não
-// desenha (a pdf-lib LEVANTA exceção em vez de trocar por "?"), valor por
+// desenha (o caractere simplesmente não sai), valor por
 // extenso errado num documento que o paciente guarda, ou data com fuso e cair
 // um dia antes.
-import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
-import { LOGO_NOS_PNG_BASE64 } from "./recibo-logo";
+import { PaginaPdf, larguraDoTexto, type Cor, type Fonte } from "./pdf-minimo";
+import { LOGO_NOS } from "./recibo-logo";
 
 export interface DadosDoRecibo {
   /** Número do recibo, curto e estável (ver `numeroDoRecibo`). */
@@ -177,21 +178,14 @@ export function textoSeguro(texto: string): string {
 const brl = (v: number) =>
   `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-function base64ParaBytes(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-
 /** Quebra o texto em linhas que cabem na largura. */
-function quebrar(texto: string, fonte: PDFFont, tamanho: number, largura: number): string[] {
+function quebrar(texto: string, fonte: Fonte, tamanho: number, largura: number): string[] {
   const palavras = texto.split(/\s+/).filter(Boolean);
   const linhas: string[] = [];
   let atual = "";
   for (const p of palavras) {
     const tentativa = atual ? `${atual} ${p}` : p;
-    if (fonte.widthOfTextAtSize(tentativa, tamanho) <= largura) atual = tentativa;
+    if (larguraDoTexto(tentativa, fonte, tamanho) <= largura) atual = tentativa;
     else {
       if (atual) linhas.push(atual);
       atual = p;
@@ -203,62 +197,41 @@ function quebrar(texto: string, fonte: PDFFont, tamanho: number, largura: number
 
 /** O PDF do recibo (A4, uma página). */
 export async function montarReciboPdf(d: DadosDoRecibo): Promise<Uint8Array> {
-  const pdf = await PDFDocument.create();
-  pdf.setTitle(`Recibo ${d.numero}`);
-  pdf.setAuthor(textoSeguro(d.clinica));
-  const pagina = pdf.addPage([595.28, 841.89]);
-  const { width, height } = pagina.getSize();
-  const normal = await pdf.embedFont(StandardFonts.Helvetica);
-  const negrito = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const tinta = rgb(0.11, 0.11, 0.12);
-  const suave = rgb(0.45, 0.45, 0.48);
-  const linha = rgb(0.88, 0.88, 0.9);
+  const pagina = new PaginaPdf();
+  const { largura: width, altura: height } = pagina;
+  const tinta: Cor = [0.11, 0.11, 0.12];
+  const suave: Cor = [0.45, 0.45, 0.48];
+  const linha: Cor = [0.88, 0.88, 0.9];
   const margem = 56;
   const miolo = width - margem * 2;
 
-  // ── Logo centralizado no topo ──────────────────────────────────────────
-  const logo = await pdf.embedPng(base64ParaBytes(LOGO_NOS_PNG_BASE64));
-  const larguraLogo = 150;
-  const alturaLogo = (logo.height / logo.width) * larguraLogo;
-  let y = height - 52 - alturaLogo;
-  pagina.drawImage(logo, {
-    x: (width - larguraLogo) / 2,
-    y,
-    width: larguraLogo,
-    height: alturaLogo,
-  });
-
-  const centro = (texto: string, yy: number, fonte: PDFFont, tamanho: number, cor = tinta) => {
+  const centro = (texto: string, yy: number, fonte: Fonte, tamanho: number, cor = tinta) => {
     const t = textoSeguro(texto);
-    pagina.drawText(t, {
-      x: (width - fonte.widthOfTextAtSize(t, tamanho)) / 2,
-      y: yy,
-      size: tamanho,
-      font: fonte,
-      color: cor,
-    });
+    pagina.texto(t, (width - larguraDoTexto(t, fonte, tamanho)) / 2, yy, tamanho, fonte, cor);
   };
+  const regua = (yy: number, espessura = 0.5) =>
+    pagina.linha(margem, yy, width - margem, yy, espessura, linha);
+
+  // ── Logo centralizado no topo ──────────────────────────────────────────
+  const larguraLogo = 150;
+  const alturaLogo = (LOGO_NOS.altura / LOGO_NOS.largura) * larguraLogo;
+  let y = height - 52 - alturaLogo;
+  pagina.desenharImagem(LOGO_NOS, (width - larguraLogo) / 2, y, larguraLogo, alturaLogo);
 
   y -= 34;
-  centro("RECIBO", y, negrito, 20);
+  centro("RECIBO", y, "negrito", 20);
   y -= 18;
-  centro(`Nº ${d.numero}`, y, normal, 10, suave);
+  centro(`Nº ${d.numero}`, y, "normal", 10, suave);
   y -= 22;
-  pagina.drawLine({
-    start: { x: margem, y },
-    end: { x: width - margem, y },
-    thickness: 0.8,
-    color: linha,
-  });
+  regua(y, 0.8);
 
   // ── Valor em destaque ──────────────────────────────────────────────────
   y -= 44;
-  centro(brl(d.valor), y, negrito, 30);
+  centro(brl(d.valor), y, "negrito", 30);
   y -= 20;
   const extenso = textoSeguro(`(${valorPorExtenso(d.valor)})`);
-  const linhasExtenso = quebrar(extenso, normal, 10, miolo);
-  for (const l of linhasExtenso) {
-    centro(l, y, normal, 10, suave);
+  for (const l of quebrar(extenso, "normal", 10, miolo)) {
+    centro(l, y, "normal", 10, suave);
     y -= 14;
   }
 
@@ -269,8 +242,8 @@ export async function montarReciboPdf(d: DadosDoRecibo): Promise<Uint8Array> {
       d.procedimento ? d.procedimento : "atendimento odontologico"
     }, realizado em ${dataPorExtenso(d.data)}${d.local ? `, em ${d.local}` : ""}.`,
   );
-  for (const l of quebrar(corpo, normal, 11.5, miolo)) {
-    pagina.drawText(l, { x: margem, y, size: 11.5, font: normal, color: tinta });
+  for (const l of quebrar(corpo, "normal", 11.5, miolo)) {
+    pagina.texto(l, margem, y, 11.5, "normal", tinta);
     y -= 17;
   }
 
@@ -285,51 +258,27 @@ export async function montarReciboPdf(d: DadosDoRecibo): Promise<Uint8Array> {
     ["Forma de pagamento", d.formaDePagamento || "-"],
   ];
   for (const [rotulo, valor] of detalhes) {
-    pagina.drawLine({
-      start: { x: margem, y: y + 14 },
-      end: { x: width - margem, y: y + 14 },
-      thickness: 0.5,
-      color: linha,
-    });
-    pagina.drawText(textoSeguro(rotulo), { x: margem, y, size: 9.5, font: normal, color: suave });
-    const v = textoSeguro(valor);
-    const linhasV = quebrar(v, negrito, 10.5, miolo - 150);
-    linhasV.forEach((l, i) =>
-      pagina.drawText(l, {
-        x: margem + 150,
-        y: y - i * 13,
-        size: 10.5,
-        font: negrito,
-        color: tinta,
-      }),
-    );
+    regua(y + 14);
+    pagina.texto(textoSeguro(rotulo), margem, y, 9.5, "normal", suave);
+    const linhasV = quebrar(textoSeguro(valor), "negrito", 10.5, miolo - 150);
+    linhasV.forEach((l, i) => pagina.texto(l, margem + 150, y - i * 13, 10.5, "negrito", tinta));
     y -= 14 + Math.max(0, linhasV.length - 1) * 13 + 12;
   }
-  pagina.drawLine({
-    start: { x: margem, y: y + 14 },
-    end: { x: width - margem, y: y + 14 },
-    thickness: 0.5,
-    color: linha,
-  });
+  regua(y + 14);
 
   // ── Assinatura / emissão ───────────────────────────────────────────────
   y -= 54;
-  pagina.drawLine({
-    start: { x: width / 2 - 110, y },
-    end: { x: width / 2 + 110, y },
-    thickness: 0.8,
-    color: tinta,
-  });
+  pagina.linha(width / 2 - 110, y, width / 2 + 110, y, 0.8, tinta);
   y -= 14;
-  centro(d.clinica, y, negrito, 10.5);
+  centro(d.clinica, y, "negrito", 10.5);
   if (d.local) {
     y -= 13;
-    centro(d.local, y, normal, 9, suave);
+    centro(d.local, y, "normal", 9, suave);
   }
 
-  centro(`Recibo emitido em ${dataPorExtenso(d.emitidoEm)}`, 44, normal, 8.5, suave);
+  centro(`Recibo emitido em ${dataPorExtenso(d.emitidoEm)}`, 44, "normal", 8.5, suave);
 
-  return await pdf.save();
+  return pagina.gerar(`Recibo ${d.numero}`, textoSeguro(d.clinica));
 }
 
 /** O método gravado no financeiro → o texto do recibo. */
