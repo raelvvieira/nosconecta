@@ -737,7 +737,10 @@ function Finance({ patient, onReceive }: { patient: PatientDetail; onReceive: ()
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{item.description}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Vencimento {formatDate(item.dueDate)}
+                  {item.status === "paid" && item.paidDate
+                    ? `Pago em ${formatDate(item.paidDate)}`
+                    : `Vencimento ${formatDate(item.dueDate)}`}
+                  {item.method ? ` · ${item.method}` : ""}
                 </p>
               </div>
               <div className="text-right">

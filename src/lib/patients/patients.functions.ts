@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { metodoDeRecebimento } from "@/lib/finance/metodo-de-recebimento";
 import { pessoaCasa } from "@/lib/pessoas/busca";
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
@@ -86,6 +87,8 @@ export interface PatientFinanceRow {
   dueDate: string;
   paidDate: string | null;
   status: string;
+  /** Como foi pago ("Pix", "Cartão de crédito em 3x"…); null se não foi gravado. */
+  method: string | null;
 }
 
 export interface PatientDetail extends PatientSummary {
@@ -318,7 +321,9 @@ export const getPatientDetail = createServerFn({ method: "GET" })
     const [transactionsRes, professionalsRes, appointmentsRes] = await Promise.all([
       supabase
         .from("financial_transactions")
-        .select("id,patient_id,description,amount,due_date,paid_date,status")
+        .select(
+          "id,patient_id,description,amount,due_date,paid_date,status,payment_method,installment_total",
+        )
         .eq("type", "receivable")
         .eq("patient_id", data.patientId),
       row.responsible_professional_id
@@ -380,6 +385,7 @@ export const getPatientDetail = createServerFn({ method: "GET" })
         dueDate: item.due_date,
         paidDate: item.paid_date,
         status: item.status,
+        method: metodoDeRecebimento(item.payment_method, item.installment_total),
       }));
     return {
       ...summary,
