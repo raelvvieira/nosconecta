@@ -10,7 +10,7 @@ import {
   type RetornoDaLista,
 } from "@/lib/agenda/retornos.functions";
 import { agruparRetornos, prazoPorExtenso, urgenciaDoRetorno } from "@/lib/agenda/retornos";
-import { normalizeBrazilianPhone } from "@/lib/atendimentos/phone";
+import { useAbrirConversa } from "@/components/atendimentos/chat/useAbrirConversa";
 import { clinicTodayStr } from "@/lib/date";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,22 @@ const COR_DA_URGENCIA = {
   mes: "bg-violet",
   depois: "bg-border",
 } as const;
+
+/** Abre a conversa DENTRO do sistema (a espelhada), não o WhatsApp de fora. */
+function BotaoDeConversa({ patientId, nome }: { patientId: string; nome: string }) {
+  const conversa = useAbrirConversa(patientId);
+  return (
+    <button
+      type="button"
+      disabled={conversa.abrindo}
+      onClick={() => conversa.abrir()}
+      aria-label={`Abrir conversa com ${nome}`}
+      className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground hover:bg-white hover:text-foreground disabled:opacity-50"
+    >
+      <MessageCircle className="h-3.5 w-3.5" strokeWidth={2} />
+    </button>
+  );
+}
 
 /**
  * "Retornos a agendar": quem a recepção precisa chamar, em ordem de data.
@@ -88,7 +104,6 @@ export function RetornosAAgendarCard({ onAgendar }: { onAgendar: (r: RetornoDaLi
               <ul className="space-y-1">
                 {g.itens.map((r) => {
                   const urg = urgenciaDoRetorno(r.data_prevista, hoje);
-                  const fone = r.phone ? normalizeBrazilianPhone(r.phone).replace(/\D/g, "") : "";
                   return (
                     <li
                       key={r.id}
@@ -109,16 +124,8 @@ export function RetornosAAgendarCard({ onAgendar }: { onAgendar: (r: RetornoDaLi
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-0.5 opacity-70 transition-opacity group-hover:opacity-100">
-                        {fone && (
-                          <a
-                            href={`https://wa.me/${fone}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-label={`Chamar ${r.patient_name} no WhatsApp`}
-                            className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground hover:bg-white hover:text-foreground"
-                          >
-                            <MessageCircle className="h-3.5 w-3.5" strokeWidth={2} />
-                          </a>
+                        {r.patient_id && r.phone && (
+                          <BotaoDeConversa patientId={r.patient_id} nome={r.patient_name} />
                         )}
                         <button
                           type="button"
