@@ -72,6 +72,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { haptic } from "@/lib/haptics";
 import { useUnitSelection } from "@/lib/settings/unit-context";
 import { FotoDoContato } from "@/components/atendimentos/chat/FotoDoContato";
+import { SeletorDeOrigem, SeloDeOrigem } from "@/components/atendimentos/chat/OrigemDoLead";
 import { AnexoDaMensagem } from "@/components/atendimentos/chat/AnexoDaMensagem";
 import { UsarFigurinha } from "@/components/atendimentos/chat/UsarFigurinha";
 import { getConexaoPropria } from "@/lib/atendimentos/conexao.functions";
@@ -708,14 +709,17 @@ function ChatPage() {
                     ativo ? "bg-foreground text-white" : "hover:bg-white active:bg-white",
                   )}
                 >
-                  <FotoDoContato
-                    nome={name}
-                    url={row.avatarUrl}
-                    className={cn(
-                      "h-11 w-11",
-                      ativo ? "bg-white/15 text-white" : "bg-coral-soft text-coral",
-                    )}
-                  />
+                  <span className="relative shrink-0">
+                    <FotoDoContato
+                      nome={name}
+                      url={row.avatarUrl}
+                      className={cn(
+                        "h-11 w-11",
+                        ativo ? "bg-white/15 text-white" : "bg-coral-soft text-coral",
+                      )}
+                    />
+                    <SeloDeOrigem tipo={row.origem.tipo} manual={row.origem.manual} />
+                  </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2">
                       <span className="truncate text-sm font-semibold">{name}</span>
@@ -856,6 +860,7 @@ function ChatPage() {
                   iconeNoCelular
                   className="shrink-0"
                 />
+                <SeletorDeOrigem conversa={selected} />
 
                 {pipelineConfigured && pipelineStages.length > 0 && (
                   <div className="flex shrink-0 items-center gap-1.5">

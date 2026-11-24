@@ -4,6 +4,12 @@ import { anexosDoEspelho, mapAttachments, type MessageAttachment } from "./anexo
 import { juntarMensagens } from "./thread";
 import { erroDaEdgeFunction } from "@/lib/atendimentos/erro-de-edge-function";
 import { normalizeBrazilianPhone } from "@/lib/atendimentos/phone";
+import {
+  chaveDaOrigem,
+  ehOrigem,
+  resolverOrigem,
+  type OrigemDaConversa,
+} from "@/lib/atendimentos/origem-do-lead";
 import { exigeAtendimentos } from "@/lib/auth/area.middleware";
 import { figurinhasAprovadas } from "../../../supabase/functions/_shared/recuperacao.ts";
 import { foneCanonico } from "../../../supabase/functions/_shared/inteligencia-do-lead.ts";
@@ -57,6 +63,8 @@ export interface ConversationRow {
    * outra na tela.
    */
   status: "open" | "resolved" | "pending";
+  /** De onde a pessoa veio: escolhida pela recepção ou estimada pelo WhatsApp. */
+  origem: OrigemDaConversa;
 }
 
 export interface OutgoingAttachment {
@@ -321,6 +329,17 @@ async function conversasDoEspelho(
     }
   }
 
+  const origens = await origensDasConversas(
+    supabase,
+    ownerId,
+    (conversas as LinhaDeConversa[]).map((row) => ({
+      id: String(row.crm_conversation_id),
+      phone:
+        (row.crm_contact_id ? porContato.get(`${row.origem}:${row.crm_contact_id}`) : undefined)
+          ?.phone_raw ?? null,
+    })),
+  );
+
   return (conversas as LinhaDeConversa[]).map((row) => {
     const contato = row.crm_contact_id
       ? porContato.get(`${row.origem}:${row.crm_contact_id}`)
@@ -336,9 +355,104 @@ async function conversasDoEspelho(
       unreadCount: Number(row.unread_count ?? 0),
       lastMessageFromMe: row.last_message_from_me === true,
       status: row.status,
+      origem: origens.get(String(row.crm_conversation_id)) ?? { tipo: "organico", manual: false },
     };
   });
 }
+
+/**
+ * A origem de cada conversa: a escolha da recepção (por pessoa) ou, sem ela, o
+ * que o WhatsApp provou (clique em anúncio, frase do botão da página).
+ *
+ * Falha aqui NÃO derruba a caixa de entrada: sem origem, todo mundo aparece
+ * como orgânico, que é o estado de antes — e o erro vai para o log.
+ */
+async function origensDasConversas(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `lead_origem` e a view nascem numa migração; o cliente tipado só as conhece quando o Lovable regenerar types.ts.
+  supabase: any,
+  ownerId: string,
+  conversas: { id: string; phone: string | null }[],
+): Promise<Map<string, OrigemDaConversa>> {
+  const resultado = new Map<string, OrigemDaConversa>();
+  const [auto, manual] = await Promise.all([
+    supabase
+      .from("conversa_origem_automatica")
+      .select("conversation_id, origem")
+      .eq("owner_id", ownerId),
+    supabase.from("lead_origem").select("chave, origem").eq("owner_id", ownerId),
+  ]);
+  for (const r of [auto, manual]) {
+    if (r.error && !/does not exist|schema cache/i.test(String(r.error.message ?? ""))) {
+      console.error("[getConversations] origem do lead:", r.error.message);
+    }
+  }
+  const sinaisPorConversa = new Map<string, string[]>();
+  for (const a of (auto.data ?? []) as { conversation_id: string; origem: string }[]) {
+    sinaisPorConversa.set(a.conversation_id, [
+      ...(sinaisPorConversa.get(a.conversation_id) ?? []),
+      a.origem,
+    ]);
+  }
+  const manualPorChave = new Map<string, string>(
+    ((manual.data ?? []) as { chave: string; origem: string }[]).map((m) => [m.chave, m.origem]),
+  );
+
+  // Os sinais valem para a PESSOA: quem clicou no anúncio numa conversa e
+  // seguiu em outra do mesmo número continua sendo "Meta Ads".
+  const sinaisPorChave = new Map<string, string[]>();
+  for (const c of conversas) {
+    const chave = chaveDaOrigem(c.phone, c.id);
+    sinaisPorChave.set(chave, [
+      ...(sinaisPorChave.get(chave) ?? []),
+      ...(sinaisPorConversa.get(c.id) ?? []),
+    ]);
+  }
+  for (const c of conversas) {
+    const chave = chaveDaOrigem(c.phone, c.id);
+    resultado.set(c.id, resolverOrigem(manualPorChave.get(chave), sinaisPorChave.get(chave) ?? []));
+  }
+  return resultado;
+}
+
+/**
+ * Registra (ou limpa) a origem de uma pessoa. `origem: null` volta à estimada.
+ * A chave é a mesma que a lista usa: telefone da pessoa, ou a conversa.
+ */
+export const definirOrigemDoLead = createServerFn({ method: "POST" })
+  .middleware([requireClinicMembership])
+  .inputValidator(
+    (input: { phone: string | null; conversationId: string; origem: string | null }) => {
+      if (!input?.conversationId) throw new Error("Conversa inválida");
+      if (input.origem !== null && !ehOrigem(input.origem)) throw new Error("Origem inválida");
+      return input;
+    },
+  )
+  .handler(async ({ data, context }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tabela nova, ainda fora de types.ts.
+    const supabase = context.supabase as any;
+    const chave = chaveDaOrigem(data.phone, data.conversationId);
+    if (data.origem === null) {
+      const { error } = await supabase
+        .from("lead_origem")
+        .delete()
+        .eq("owner_id", context.ownerId)
+        .eq("chave", chave);
+      if (error) throw new Error(error.message);
+      return { ok: true };
+    }
+    const { error } = await supabase.from("lead_origem").upsert(
+      {
+        owner_id: context.ownerId,
+        chave,
+        origem: data.origem,
+        definido_por: context.userId ?? null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "owner_id,chave" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
 
 /** Só o que a lista pede de `wa_conversations`. */
 interface LinhaDeConversa {
