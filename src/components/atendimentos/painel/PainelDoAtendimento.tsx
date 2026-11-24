@@ -5,6 +5,7 @@ import { KpiCard } from "@/components/finance/KpiCard";
 import { SobDemanda, nomeado } from "@/components/finance/SobDemanda";
 import { FunilPorEtapa } from "@/components/atendimentos/painel/FunilPorEtapa";
 import { PicoDaSemana } from "@/components/atendimentos/painel/PicoDaSemana";
+import { PorDentista } from "@/components/atendimentos/painel/PorDentista";
 import { duracao, esperaEmMin } from "@/lib/atendimentos/painel/formato";
 import type { FiltroDePeriodo } from "@/lib/atendimentos/painel/metricas";
 import type { PainelDoAtendimento as Dados } from "@/lib/atendimentos/painel.functions";
@@ -292,6 +293,13 @@ export function PainelDoAtendimento({
           </div>
         </Cartao>
       </section>
+
+      <Cartao titulo="Atendimentos por dentista">
+        <PorDentista
+          linhas={dados?.porDentista ?? null}
+          receitaVisivel={dados?.receitaVisivel ?? false}
+        />
+      </Cartao>
 
       <section className="grid grid-cols-1 gap-5 lg:grid-cols-[1.1fr_1fr]">
         <Cartao titulo="Funil">

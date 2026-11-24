@@ -370,3 +370,76 @@ export function aguardando(ultimasDoPaciente: number[], agora: number): Aguardan
     maisAntigaMin: Math.max(0, Math.round((agora - Math.min(...ultimasDoPaciente)) / MINUTO)),
   };
 }
+
+// ── Atendimentos por dentista ───────────────────────────────────────────
+
+export interface AtendimentoDoDentista {
+  professionalId: string | null;
+  professionalName: string | null;
+  /** Só os concluídos entram: o resto ainda não aconteceu ou não vai acontecer. */
+  status: string;
+  /** O valor cobrado no atendimento (já com o sinal dentro). */
+  receita: number | null;
+}
+
+export interface LinhaPorDentista {
+  nome: string;
+  atendimentos: number;
+  /** `null` quando quem vê não tem acesso ao financeiro. */
+  receita: number | null;
+}
+
+/**
+ * Atendimentos concluídos e receita de cada dentista, do que mais atendeu para
+ * o que menos. Empate pela receita, depois pelo nome.
+ *
+ * A chave é o id do profissional (ver abaixo). Atendimento sem nome vira
+ * "Sem dentista" — sumir da conta seria pior: o total não bateria com
+ * a agenda.
+ */
+export function porDentista(
+  linhas: AtendimentoDoDentista[],
+  mostrarReceita: boolean,
+): LinhaPorDentista[] {
+  const minusculo = (t: string) => t.trim().toLocaleLowerCase("pt-BR");
+  // Quem tem id vale pelo id (o mesmo dentista aparece com "Dra. Mariane Botti" e
+  // "Mariane Botti" no nome gravado). Quem não tem id vale pelo nome, e se esse
+  // nome é de um dentista que tem id em outro atendimento, junta-se a ele.
+  const idPorNome = new Map<string, string>();
+  for (const l of linhas) {
+    if (l.professionalId && l.professionalName?.trim())
+      idPorNome.set(minusculo(l.professionalName), l.professionalId);
+  }
+  const mapa = new Map<
+    string,
+    { nomes: Map<string, number>; atendimentos: number; receita: number }
+  >();
+  for (const l of linhas) {
+    if (l.status !== "completed") continue;
+    const nome = l.professionalName?.trim() || "Sem dentista";
+    const chave = l.professionalId ?? idPorNome.get(minusculo(nome)) ?? `nome:${minusculo(nome)}`;
+    const atual = mapa.get(chave) ?? { nomes: new Map(), atendimentos: 0, receita: 0 };
+    atual.nomes.set(nome, (atual.nomes.get(nome) ?? 0) + 1);
+    atual.atendimentos += 1;
+    atual.receita += Number(l.receita ?? 0) || 0;
+    mapa.set(chave, atual);
+  }
+  return [...mapa.values()]
+    .map((d) => ({
+      // O nome mais usado nos atendimentos dele; no empate, o mais completo.
+      nome: [...d.nomes.entries()].sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)[0][0],
+      atendimentos: d.atendimentos,
+      receita: d.receita,
+    }))
+    .sort(
+      (a, b) =>
+        b.atendimentos - a.atendimentos ||
+        b.receita - a.receita ||
+        a.nome.localeCompare(b.nome, "pt-BR"),
+    )
+    .map((d) => ({
+      nome: d.nome,
+      atendimentos: d.atendimentos,
+      receita: mostrarReceita ? Math.round(d.receita * 100) / 100 : null,
+    }));
+}

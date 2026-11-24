@@ -3,6 +3,8 @@ import { variacao, type Variacao } from "@/lib/gestao/indicadores";
 import {
   aguardando,
   atendidas,
+  diaDaClinica,
+  porDentista,
   conversao,
   movimentoPorHora,
   novasConversas,
@@ -14,6 +16,7 @@ import {
   type Aguardando,
   type Atendidas,
   type Conversao,
+  type LinhaPorDentista,
   type FiltroDePeriodo,
   type Mensagem,
   type PicoDaSemana,
@@ -38,6 +41,10 @@ export interface PainelDoAtendimento {
   /** Mensagens recebidas por hora do dia, no período: 24 posições. */
   porHora: number[];
   aguardando: Aguardando;
+  /** Atendimentos concluídos e receita de cada dentista, no período. */
+  porDentista: LinhaPorDentista[];
+  /** `false` quando quem vê não tem acesso ao financeiro: a receita vem nula. */
+  receitaVisivel: boolean;
 }
 
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -83,11 +90,12 @@ export async function montarPainelDoAtendimento(
   ownerId: string,
   filtro: FiltroDePeriodo,
   agora = Date.now(),
+  receitaVisivel = false,
 ): Promise<PainelDoAtendimento> {
   const { atual, anterior } = periodosDoFiltro(filtro, agora);
 
-  // As cinco leituras não dependem uma da outra: saem juntas.
-  const [bruto, lunaIds, entradasLidas, agendamentos, esperando] = await Promise.all([
+  // As seis leituras não dependem uma da outra: saem juntas.
+  const [bruto, lunaIds, entradasLidas, agendamentos, esperando, doDentista] = await Promise.all([
     // As mensagens de duas janelas (a do período e a de comparação) até agora:
     // a resposta a uma pergunta do período pode ter vindo depois do fim dele.
     lerTudo((de, ate) =>
@@ -131,6 +139,20 @@ export async function montarPainelDoAtendimento(
       .like("crm_conversation_id", SO_PESSOAS)
       .eq("last_message_from_me", false)
       .gte("last_message_at", iso(agora - DIA)),
+    // Os atendimentos do período, para a conta por dentista. Por DIA da
+    // clínica (`appointments.date`), não por instante: é como a agenda os conta.
+    lerTudo((de, ate) =>
+      supabase
+        .from("appointments")
+        .select("professional_id, professional_name, status, actual_revenue", { count: "exact" })
+        .eq("owner_id", ownerId)
+        .eq("status", "completed")
+        .gte("date", diaDaClinica(atual.de))
+        .lte("date", diaDaClinica(atual.ate - 1))
+        .order("date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(de, ate),
+    ),
   ]);
 
   const mensagens: Mensagem[] = bruto.map((m) => ({
@@ -189,6 +211,16 @@ export async function montarPainelDoAtendimento(
       (esperando.data ?? []).map((c: any) => Date.parse(c.last_message_at)),
       agora,
     ),
+    porDentista: porDentista(
+      doDentista.map((a) => ({
+        professionalId: a.professional_id ?? null,
+        professionalName: a.professional_name ?? null,
+        status: String(a.status),
+        receita: a.actual_revenue == null ? null : Number(a.actual_revenue),
+      })),
+      receitaVisivel,
+    ),
+    receitaVisivel,
   };
 }
 

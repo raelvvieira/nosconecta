@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { exigeAtendimentos } from "@/lib/auth/area.middleware";
+import { podeVerArea } from "@/lib/auth/niveis-de-acesso";
 import {
   montarPainelDoAtendimento,
   montarPicoDaSemana,
@@ -22,7 +23,14 @@ export const getPainelDoAtendimento = createServerFn({ method: "GET" })
   }))
   .handler(
     async ({ data, context }): Promise<PainelDoAtendimento> =>
-      montarPainelDoAtendimento(context.supabase, context.ownerId, data.filtro),
+      // A receita por dentista é dinheiro: só aparece para quem tem o financeiro.
+      montarPainelDoAtendimento(
+        context.supabase,
+        context.ownerId,
+        data.filtro,
+        Date.now(),
+        podeVerArea(context.memberRole, "financeiro"),
+      ),
   );
 
 /** O mapa de calor da semana: quatro semanas de mensagens, sempre. */
