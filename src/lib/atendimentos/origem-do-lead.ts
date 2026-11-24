@@ -1,7 +1,7 @@
 // De onde veio o lead — as regras, sem banco e sem tela.
 //
 // Duas fontes: a AUTOMÁTICA (o que o WhatsApp prova: clique em anúncio, ou a
-// frase pronta do botão da página) e a MANUAL (a recepção escolhe). A manual
+// frase pronta que o anúncio e o site mandam) e a MANUAL (a recepção escolhe). A manual
 // sempre vale mais. Sem nenhuma das duas, a pessoa é orgânica: chegou no
 // WhatsApp sem rastro de campanha.
 import { chaveDoTelefone } from "./funil";
