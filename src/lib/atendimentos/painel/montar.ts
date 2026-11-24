@@ -91,6 +91,18 @@ export async function montarPainelDoAtendimento(
   filtro: FiltroDePeriodo,
   agora = Date.now(),
   receitaVisivel = false,
+  /**
+   * Quem lê o ESPELHO do WhatsApp (mensagens, conversas, primeira entrada).
+   *
+   * Existe porque o painel lia tudo com a sessão da pessoa, e a regra de acesso
+   * linha a linha (RLS) torna a leitura do espelho lenta: uma página de mil
+   * mensagens, lá pela quarta, levava ~7 s, e a sessão tem teto de 8 s por
+   * consulta. Sem isso, os períodos longos (Este mês, 30 e 90 dias) estouravam o
+   * teto e o painel ficava parado no período anterior. O espelho é da clínica
+   * inteira (a regra dele é só `owner_id`), então ler com a chave de serviço,
+   * sempre com o `owner_id` na consulta, devolve exatamente o mesmo.
+   */
+  espelho: any = supabase,
 ): Promise<PainelDoAtendimento> {
   const { atual, anterior } = periodosDoFiltro(filtro, agora);
 
@@ -99,7 +111,7 @@ export async function montarPainelDoAtendimento(
     // As mensagens de duas janelas (a do período e a de comparação) até agora:
     // a resposta a uma pergunta do período pode ter vindo depois do fim dele.
     lerTudo((de, ate) =>
-      supabase
+      espelho
         .from("wa_messages")
         .select("crm_message_id, crm_conversation_id, from_me, sent_at", { count: "exact" })
         .eq("owner_id", ownerId)
@@ -112,7 +124,7 @@ export async function montarPainelDoAtendimento(
     ),
     // O que foi a assistente que mandou: o id da mensagem que ela registra.
     lerTudo((de, ate) =>
-      supabase
+      espelho
         .from("ai_agent_messages")
         .select("wa_message_id", { count: "exact" })
         .eq("owner_id", ownerId)
@@ -123,7 +135,7 @@ export async function montarPainelDoAtendimento(
         .range(de, ate),
     ).then((linhas) => new Set<string>(linhas.map((r) => String(r.wa_message_id)))),
     // Quem chamou pela primeira vez.
-    supabase
+    espelho
       .from("wa_primeira_entrada")
       .select("crm_conversation_id, primeira_em")
       .eq("owner_id", ownerId)
@@ -132,7 +144,7 @@ export async function montarPainelDoAtendimento(
       .lt("primeira_em", iso(agora + 1)),
     lerAgendamentos(supabase, ownerId, anterior.de),
     // Quem está esperando resposta agora.
-    supabase
+    espelho
       .from("wa_conversations")
       .select("last_message_at")
       .eq("owner_id", ownerId)
@@ -265,6 +277,7 @@ async function lerAgendamentos(
 
 /** As mensagens recebidas nas últimas quatro semanas, por dia da semana e hora. */
 export async function montarPicoDaSemana(
+  // O espelho, lido com a chave de serviço pelo mesmo motivo do painel.
   supabase: any,
   ownerId: string,
   agora = Date.now(),

@@ -21,22 +21,27 @@ export const getPainelDoAtendimento = createServerFn({ method: "GET" })
       ? (input.filtro as FiltroDePeriodo)
       : ("hoje" as FiltroDePeriodo),
   }))
-  .handler(
-    async ({ data, context }): Promise<PainelDoAtendimento> =>
-      // A receita por dentista é dinheiro: só aparece para quem tem o financeiro.
-      montarPainelDoAtendimento(
-        context.supabase,
-        context.ownerId,
-        data.filtro,
-        Date.now(),
-        podeVerArea(context.memberRole, "financeiro"),
-      ),
-  );
+  .handler(async ({ data, context }): Promise<PainelDoAtendimento> => {
+    // O espelho do WhatsApp é lido com a chave de serviço (ver montar.ts): a
+    // regra de acesso por linha o deixava lento demais nos períodos longos.
+    // O acesso à ÁREA já foi checado pelo middleware, e toda consulta leva o
+    // `owner_id` do consultório de quem pediu.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // A receita por dentista é dinheiro: só aparece para quem tem o financeiro.
+    return montarPainelDoAtendimento(
+      context.supabase,
+      context.ownerId,
+      data.filtro,
+      Date.now(),
+      podeVerArea(context.memberRole, "financeiro"),
+      supabaseAdmin,
+    );
+  });
 
 /** O mapa de calor da semana: quatro semanas de mensagens, sempre. */
 export const getPicoDaSemana = createServerFn({ method: "GET" })
   .middleware([exigeAtendimentos])
-  .handler(
-    async ({ context }): Promise<PicoDaSemana> =>
-      montarPicoDaSemana(context.supabase, context.ownerId),
-  );
+  .handler(async ({ context }): Promise<PicoDaSemana> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    return montarPicoDaSemana(supabaseAdmin, context.ownerId);
+  });

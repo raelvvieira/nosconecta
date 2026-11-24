@@ -100,6 +100,23 @@ function DashboardPage() {
         }
       />
       <div className="px-4 sm:px-6 lg:px-10">
+        {/* Sem isto, uma leitura que falha deixa o período ANTERIOR na tela sem
+            aviso — parece que o filtro não funciona. */}
+        {painel.isError && painel.data && (
+          <p
+            role="alert"
+            className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-danger-soft px-4 py-3 text-sm text-danger"
+          >
+            Não foi possível carregar este período. Os números abaixo são do período anterior.
+            <button
+              type="button"
+              className="font-semibold underline"
+              onClick={() => painel.refetch()}
+            >
+              Tentar de novo
+            </button>
+          </p>
+        )}
         <PainelDoAtendimento
           dados={painel.data ?? null}
           pico={pico.data ?? null}

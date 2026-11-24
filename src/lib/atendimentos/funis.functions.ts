@@ -53,17 +53,24 @@ const PALAVRAS_DO_PUBLICO =
  * aparece no mapa é atendimento.
  */
 async function mapaDePublicos(supabase: any, ownerId: string): Promise<Map<string, Publico>> {
+  // As sessões da Luna e as mensagens do espelho são lidas com a chave de
+  // serviço, sempre com o `owner_id` na consulta. A regra de acesso por linha
+  // deixa a leitura das mensagens lenta (≈6 s com o teto de 8 s da sessão), e
+  // quando estourava o painel inteiro falhava. Ambas as tabelas são da clínica
+  // toda (a regra delas é só `owner_id`), então o resultado é o mesmo.
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const leitor: any = supabaseAdmin;
   const anuncios = new Map<string, { titulo: string | null; copy: string | null }>();
   const gravados = new Map<string, Publico>();
   for (let pagina = 0; ; pagina++) {
-    let { data, error } = await supabase
+    let { data, error } = await leitor
       .from("ai_agent_sessions")
       .select("contact_id, anuncio, publico")
       .eq("owner_id", ownerId)
       .range(pagina * POR_PAGINA, (pagina + 1) * POR_PAGINA - 1);
     // Antes da migration dos módulos a coluna `publico` não existe.
     if (error && /publico/.test(String(error.message ?? ""))) {
-      ({ data, error } = await supabase
+      ({ data, error } = await leitor
         .from("ai_agent_sessions")
         .select("contact_id, anuncio")
         .eq("owner_id", ownerId)
@@ -92,7 +99,7 @@ async function mapaDePublicos(supabase: any, ownerId: string): Promise<Map<strin
 
   const mensagens = new Map<string, string[]>();
   for (let pagina = 0; ; pagina++) {
-    const { data, error } = await supabase
+    const { data, error } = await leitor
       .from("wa_messages")
       .select("crm_conversation_id, body")
       .eq("owner_id", ownerId)
