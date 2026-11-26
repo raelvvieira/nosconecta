@@ -54,6 +54,20 @@ function Card({ cliente }: { cliente: ClienteNoFunil }) {
       <p className="mt-0.5 truncate text-2xs text-muted-foreground">
         Última consulta: {quando(cliente.ultimaConsulta)}
       </p>
+      {(cliente.consultas >= 3 || cliente.planoEmAberto) && (
+        <p className="mt-1.5 flex flex-wrap gap-1">
+          {cliente.consultas >= 3 && (
+            <span className="rounded-full bg-success-soft px-2 py-0.5 text-3xs font-medium text-success">
+              Cliente fiel · {cliente.consultas} consultas
+            </span>
+          )}
+          {cliente.planoEmAberto && (
+            <span className="rounded-full bg-warning-soft px-2 py-0.5 text-3xs font-medium text-warning">
+              Plano em aberto
+            </span>
+          )}
+        </p>
+      )}
     </Link>
   );
 }

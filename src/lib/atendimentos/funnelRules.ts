@@ -21,6 +21,10 @@ export type CondicaoCliente =
   | "tem_tratamento_pendente"
   | "sem_consulta_ha_dias"
   | "tratamento_pendente_ha_dias"
+  /** A agenda: tem consulta marcada de hoje em diante (retorno já combinado). */
+  | "tem_consulta_futura"
+  /** A última consulta concluída foi há NO MÁXIMO tantos dias. */
+  | "ultima_consulta_ha_ate_dias"
   /** O "resto": casa sempre. Só a última regra pode usar. */
   | "sempre";
 
@@ -69,6 +73,8 @@ export const CONDICOES: Record<Condicao, { rotulo: string; parametro: string | n
     rotulo: "Tem tratamento pendente e sem consulta há mais de",
     parametro: "dias",
   },
+  tem_consulta_futura: { rotulo: "Tem consulta marcada (retorno combinado)", parametro: null },
+  ultima_consulta_ha_ate_dias: { rotulo: "Última consulta há no máximo", parametro: "dias" },
   motivo_definitivo: { rotulo: "Motivo da perda é definitivo", parametro: null },
   respondeu_apos_disparo: { rotulo: "Respondeu depois do disparo", parametro: null },
   recebeu_disparo_apos_perda: { rotulo: "Recebeu disparo depois da perda", parametro: null },
@@ -77,7 +83,10 @@ export const CONDICOES: Record<Condicao, { rotulo: string; parametro: string | n
   falou_ha_menos_de_dias: { rotulo: "Falou há menos de", parametro: "dias" },
   calado_ha_mais_de_dias: { rotulo: "Calado há mais de", parametro: "dias" },
   tem_horario_marcado: { rotulo: "Tem horário marcado (de hoje em diante)", parametro: null },
-  nao_compareceu: { rotulo: "Não confirmado até 48 h depois do horário (ou marcado como faltou)", parametro: null },
+  nao_compareceu: {
+    rotulo: "Não confirmado até 48 h depois do horário (ou marcado como faltou)",
+    parametro: null,
+  },
   recebeu_horarios: { rotulo: "A clínica ofereceu horários", parametro: null },
   recebeu_proposta: { rotulo: "A clínica falou o valor", parametro: null },
   mostrou_interesse: { rotulo: "Disse o procedimento que quer", parametro: null },
@@ -105,68 +114,75 @@ export interface RegraDeFunil {
 // de ninguém.
 
 export const REGRAS_CLIENTES_PADRAO: RegraDeFunil[] = [
+  // ── Desde 26/11: o quadro de Clientes é uma ESCADA DE TEMPO ──────────────
+  //
+  // Cliente é quem tem consulta CONCLUÍDA (com ou sem valor lançado). A coluna
+  // diz o que fazer com ele agora, pelo tempo desde a última consulta:
+  //
+  //   retorno marcado → recém-atendido → em acompanhamento → hora de voltar →
+  //   em risco → inativo
+  //
+  // Antes eram "Novo" (qualquer um com UMA consulta, sem prazo — 91 de 101
+  // clientes) e "Manutenção" (todo o resto, sem prazo), mais três colunas de
+  // plano de tratamento que ninguém usava (2 planos no sistema inteiro). A
+  // fronteira de 14/10 se mantém: quem não teve consulta concluída é lead.
+  //
+  // "Não Compareceu" não mora mais aqui: é do funil de Leads. Plano de
+  // tratamento virou etiqueta no cartão (`planoEmAberto`), não coluna.
+  //
+  // A primeira regra que casar vence, então a ordem é parte do significado:
+  // quem já tem consulta marcada não precisa de contato, e fica na frente.
   {
-    // ⚠️ Esta regra foi INVERTIDA em 14/10, e é a mudança mais fácil de
-    // entender errado deste arquivo.
-    //
-    // Antes, "Novo" era `nunca_teve_consulta` — ou seja, ficha sem atendimento.
-    // Com a importação antiga, isso punha 3.227 das 3.268 fichas numa coluna
-    // chamada "Novo", que ninguém nunca abriria: a maioria é cadastro herdado
-    // de gente que nunca falou com a clínica.
-    //
-    // A clínica redefiniu: cliente é quem teve atendimento CONFIRMADO, e
-    // "Novo" é quem acabou de confirmar o primeiro. Quem ainda não confirmou
-    // não é cliente nenhum — é lead, e vive no funil de Leads.
-    id: "novo",
-    nome: "Novo",
-    cor: "#8B5CF6",
-    condicao: "primeira_consulta",
-    ativa: true,
-    explica: "Veio uma vez — acabou de virar cliente",
-  },
-  {
-    id: "orcamento_aberto",
-    nome: "Orçamento aberto",
-    cor: "#F59E0B",
-    condicao: "tem_orcamento_aberto",
-    ativa: true,
-    explica: "Apresentado e ainda sem resposta",
-  },
-  {
-    // Vem antes de "Em tratamento" de propósito: é o caso que pede alguém
-    // ligando, e ficaria escondido junto de quem está fluindo normalmente.
-    id: "tratamento_parado",
-    nome: "Tratamento parado",
-    cor: "#EF4444",
-    condicao: "tratamento_pendente_ha_dias",
-    valor: 60,
-    ativa: true,
-    explica: "Aprovado, mas parado há mais de 60 dias",
-  },
-  {
-    id: "em_tratamento",
-    nome: "Em tratamento",
+    id: "retorno_marcado",
+    nome: "Retorno marcado",
     cor: "#0EA5E9",
-    condicao: "tem_tratamento_pendente",
+    condicao: "tem_consulta_futura",
     ativa: true,
-    explica: "Aprovado e em andamento",
+    explica: "Já tem consulta marcada — nada a fazer",
+  },
+  {
+    id: "recem_atendido",
+    nome: "Recém-atendido",
+    cor: "#22C55E",
+    condicao: "ultima_consulta_ha_ate_dias",
+    valor: 30,
+    ativa: true,
+    explica: "Veio há até 30 dias e ainda não marcou o retorno",
+  },
+  {
+    id: "em_acompanhamento",
+    nome: "Em acompanhamento",
+    cor: "#14B8A6",
+    condicao: "ultima_consulta_ha_ate_dias",
+    valor: 90,
+    ativa: true,
+    explica: "Veio há 31 a 90 dias — dentro do intervalo normal",
+  },
+  {
+    id: "hora_de_voltar",
+    nome: "Hora de voltar",
+    cor: "#F59E0B",
+    condicao: "ultima_consulta_ha_ate_dias",
+    valor: 180,
+    ativa: true,
+    explica: "Veio há 3 a 6 meses e não tem retorno marcado",
+  },
+  {
+    id: "em_risco",
+    nome: "Em risco",
+    cor: "#EF4444",
+    condicao: "ultima_consulta_ha_ate_dias",
+    valor: 365,
+    ativa: true,
+    explica: "Não vem há 6 a 12 meses",
   },
   {
     id: "inativo",
     nome: "Inativo",
     cor: "#94A3B8",
-    condicao: "sem_consulta_ha_dias",
-    valor: 183,
-    ativa: true,
-    explica: "Sem consulta há mais de 6 meses",
-  },
-  {
-    id: "manutencao",
-    nome: "Manutenção",
-    cor: "#22C55E",
     condicao: "sempre",
     ativa: true,
-    explica: "Em dia, sem pendência",
+    explica: "Não vem há mais de 12 meses",
   },
 ];
 
@@ -189,7 +205,8 @@ export const REGRAS_LEADS_PADRAO: RegraDeFunil[] = [
     cor: "#EF4444",
     condicao: "nao_compareceu",
     ativa: true,
-    explica: "O atendimento não foi confirmado até 48 h depois do horário, ou foi marcado como faltou na agenda",
+    explica:
+      "O atendimento não foi confirmado até 48 h depois do horário, ou foi marcado como faltou na agenda",
   },
   {
     id: "agendado",
@@ -295,6 +312,8 @@ export interface SinaisDoCliente {
   temTratamentoPendente: boolean;
   /** `null` para quem nunca foi atendido — que é diferente de "muitos dias". */
   diasSemConsulta: number | null;
+  /** Há consulta marcada de hoje em diante (não cancelada, não faltou). */
+  temConsultaFutura?: boolean;
 }
 
 /** O que o funil de Leads sabe sobre quem chamou. */
@@ -346,6 +365,12 @@ function casa(regra: RegraDeFunil, s: Sinais): boolean {
     // Condição composta e EXPLÍCITA, em vez de um caso especial amarrado ao id
     // da regra. Com id, renomear ou reordenar na tela de edição quebraria a
     // regra sem nenhum sinal — e é justamente essa tela que estamos abrindo.
+    case "tem_consulta_futura":
+      return !!cliente.temConsultaFutura;
+    case "ultima_consulta_ha_ate_dias":
+      // Sem consulta concluída não casa: `null` é ausência de informação.
+      if (cliente.diasSemConsulta === null || cliente.diasSemConsulta === undefined) return false;
+      return cliente.diasSemConsulta <= n;
     case "tratamento_pendente_ha_dias":
       if (!cliente.temTratamentoPendente) return false;
       if (cliente.diasSemConsulta === null || cliente.diasSemConsulta === undefined) return false;

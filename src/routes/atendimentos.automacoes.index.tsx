@@ -201,7 +201,7 @@ function AutomacoesPage() {
     {
       funil: "clientes" as const,
       titulo: "Movimentação do funil de Clientes",
-      entrada: "Todo paciente da base",
+      entrada: "Todo paciente com consulta concluída",
       icone: Users,
       etapas: (regrasQuery.data?.clientes ?? REGRAS_CLIENTES_PADRAO).filter((r) => r.ativa).length,
     },

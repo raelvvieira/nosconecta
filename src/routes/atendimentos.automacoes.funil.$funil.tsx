@@ -44,13 +44,11 @@ const FUNIS = {
   },
   clientes: {
     titulo: "Movimentação do funil de Clientes",
-    entrada: "Todo paciente da base",
+    entrada: "Todo paciente com consulta concluída",
     icone: Users,
     condicoes: [
-      "nunca_teve_consulta",
-      "tem_orcamento_aberto",
-      "tem_tratamento_pendente",
-      "tratamento_pendente_ha_dias",
+      "tem_consulta_futura",
+      "ultima_consulta_ha_ate_dias",
       "sem_consulta_ha_dias",
     ] as Condicao[],
   },
