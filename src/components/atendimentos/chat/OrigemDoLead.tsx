@@ -8,6 +8,8 @@ import {
   Instagram,
   MessageCircle,
   Phone,
+  Search,
+  Sparkles,
   Tag,
   Users,
 } from "lucide-react";
@@ -22,7 +24,12 @@ import {
   definirOrigemDoLead,
   type ConversationRow,
 } from "@/lib/atendimentos/atendimentos.functions";
-import { ORIGENS, rotuloDaOrigem, type OrigemDoLead } from "@/lib/atendimentos/origem-do-lead";
+import {
+  ORIGENS,
+  rotuloDaOrigem,
+  type OrigemDaConversa,
+  type OrigemDoLead,
+} from "@/lib/atendimentos/origem-do-lead";
 import { cn } from "@/lib/utils";
 
 /**
@@ -65,6 +72,18 @@ function Simbolo({ tipo }: { tipo: OrigemDoLead }) {
           style={{ color: "#4285F4", fontSize: "0.7em", lineHeight: 1 }}
         >
           G
+        </span>
+      );
+    case "google":
+      return (
+        <span className={base} style={{ backgroundColor: "#4285F4" }}>
+          <Search className="h-[58%] w-[58%]" strokeWidth={2.6} />
+        </span>
+      );
+    case "chatgpt":
+      return (
+        <span className={base} style={{ backgroundColor: "#10A37F" }}>
+          <Sparkles className="h-[58%] w-[58%]" strokeWidth={2.4} />
         </span>
       );
     case "instagram":
@@ -121,6 +140,77 @@ function SimboloPequeno({ tipo }: { tipo: OrigemDoLead }) {
 }
 
 /**
+ * O menu de origem, sem saber de onde veio a pessoa: recebe a origem atual e
+ * avisa qual foi escolhida (`null` = voltar à estimativa). É o mesmo no chat e
+ * no card de agendamento, para a recepção ver a mesma lista nos dois lugares.
+ */
+export function MenuDeOrigem({
+  origem,
+  onEscolher,
+  className,
+  compacto = true,
+}: {
+  origem: OrigemDaConversa;
+  onEscolher: (origem: OrigemDoLead | null) => void;
+  className?: string;
+  /** No celular, só o símbolo (como Tag, Etapa e Desfecho no cabeçalho do chat). */
+  compacto?: boolean;
+}) {
+  const { tipo, manual } = origem;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Origem do lead: ${rotuloDaOrigem(tipo)}${manual ? "" : " (estimada)"}`}
+          className={cn(
+            "flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-white text-xs font-semibold",
+            compacto ? "max-lg:w-9 max-lg:justify-center lg:px-3" : "px-3",
+            className,
+          )}
+        >
+          <SimboloPequeno tipo={tipo} />
+          <span className={compacto ? "max-lg:hidden" : undefined}>{rotuloDaOrigem(tipo)}</span>
+          {!manual && (
+            <span
+              className={cn(
+                "text-2xs font-normal text-muted-foreground",
+                compacto && "max-lg:hidden",
+              )}
+            >
+              estimada
+            </span>
+          )}
+          <ChevronDown
+            className={cn("h-3.5 w-3.5 text-muted-foreground", compacto && "max-lg:hidden")}
+          />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-52">
+        <p className="px-2 pb-1 pt-1.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground">
+          Origem do lead
+        </p>
+        {ORIGENS.map((o) => (
+          <DropdownMenuItem key={o.id} onClick={() => onEscolher(o.id)} className="gap-2.5">
+            <SimboloPequeno tipo={o.id} />
+            <span className="flex-1">{o.rotulo}</span>
+            {manual && tipo === o.id && <Check className="h-3.5 w-3.5 text-muted-foreground" />}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled={!manual}
+          onClick={() => onEscolher(null)}
+          className="text-muted-foreground"
+        >
+          {manual ? "Voltar à estimativa" : "Estimada pelo WhatsApp"}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/**
  * "Origem do lead" no cabeçalho da conversa, ao lado da Tag.
  *
  * Mostra a origem atual; escolher outra grava para a PESSOA (vale em todas as
@@ -139,47 +229,17 @@ export function SeletorDeOrigem({
   const mutacao = useMutation({
     mutationFn: (origem: OrigemDoLead | null) =>
       definir({ data: { phone: conversa.phone, conversationId: conversa.id, origem } }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["conversations"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["origem-do-paciente"] });
+    },
     onError: (e: Error) => toast.error(e.message || "Não foi possível salvar a origem"),
   });
-  const { tipo, manual } = conversa.origem;
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label={`Origem do lead: ${rotuloDaOrigem(tipo)}${manual ? "" : " (estimada)"}`}
-          className={cn(
-            "flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-white text-xs font-semibold max-lg:w-9 max-lg:justify-center lg:px-3",
-            className,
-          )}
-        >
-          <SimboloPequeno tipo={tipo} />
-          <span className="max-lg:hidden">{rotuloDaOrigem(tipo)}</span>
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground max-lg:hidden" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-52">
-        <p className="px-2 pb-1 pt-1.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground">
-          Origem do lead
-        </p>
-        {ORIGENS.map((o) => (
-          <DropdownMenuItem key={o.id} onClick={() => mutacao.mutate(o.id)} className="gap-2.5">
-            <SimboloPequeno tipo={o.id} />
-            <span className="flex-1">{o.rotulo}</span>
-            {manual && tipo === o.id && <Check className="h-3.5 w-3.5 text-muted-foreground" />}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          disabled={!manual}
-          onClick={() => mutacao.mutate(null)}
-          className="text-muted-foreground"
-        >
-          {manual ? "Voltar à estimativa" : "Estimada pelo WhatsApp"}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <MenuDeOrigem
+      origem={conversa.origem}
+      onEscolher={(o) => mutacao.mutate(o)}
+      className={className}
+    />
   );
 }

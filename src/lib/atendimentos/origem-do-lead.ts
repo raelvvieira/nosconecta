@@ -4,11 +4,13 @@
 // frase pronta que o anúncio e o site mandam) e a MANUAL (a recepção escolhe). A manual
 // sempre vale mais. Sem nenhuma das duas, a pessoa é orgânica: chegou no
 // WhatsApp sem rastro de campanha.
-import { chaveDoTelefone } from "./funil";
+import { normalizeBrazilianPhone } from "./phone";
 
 export type OrigemDoLead =
   | "meta_ads"
   | "google_ads"
+  | "google"
+  | "chatgpt"
   | "instagram"
   | "indicacao"
   | "site"
@@ -18,9 +20,11 @@ export type OrigemDoLead =
 export const ORIGENS: { id: OrigemDoLead; rotulo: string }[] = [
   { id: "meta_ads", rotulo: "Meta Ads" },
   { id: "google_ads", rotulo: "Google Ads" },
-  { id: "instagram", rotulo: "Instagram" },
+  { id: "google", rotulo: "Google" },
+  { id: "chatgpt", rotulo: "ChatGPT" },
   { id: "site", rotulo: "Site" },
   { id: "indicacao", rotulo: "Indicação" },
+  { id: "instagram", rotulo: "Instagram" },
   { id: "organico", rotulo: "Orgânico" },
   { id: "outro", rotulo: "Outro" },
 ];
@@ -41,11 +45,26 @@ export interface OrigemDaConversa {
 }
 
 /**
+ * O telefone da pessoa na forma canônica: com o 55 e SEM o nono dígito de
+ * celular. Gêmea de `foneCanonico` (supabase/functions/_shared) — e precisa ser,
+ * porque a ficha do paciente guarda "5548996266217" e o WhatsApp "554896266217":
+ * sem tratar o nono dígito, a origem escolhida na agenda não apareceria no chat
+ * (nem o contrário), por serem "duas pessoas" diferentes.
+ */
+function foneDaPessoa(telefone: string | null | undefined): string | null {
+  if (!telefone?.trim()) return null;
+  const d = normalizeBrazilianPhone(telefone);
+  if (d.length === 13 && /^9[6-9]$/.test(d.slice(4, 6))) return d.slice(0, 4) + d.slice(5);
+  return d.length === 12 || d.length === 13 ? d : null;
+}
+
+/**
  * A chave sob a qual a escolha manual é guardada: o telefone da pessoa, para
- * valer em todas as conversas do mesmo número; sem telefone, a própria conversa.
+ * valer em todas as conversas do mesmo número e na agenda; sem telefone, a
+ * própria conversa (ou "paciente:<id>", vindo da agenda).
  */
 export function chaveDaOrigem(telefone: string | null | undefined, conversationId: string) {
-  return chaveDoTelefone(telefone) ?? `conv:${conversationId}`;
+  return foneDaPessoa(telefone) ?? `conv:${conversationId}`;
 }
 
 /** Entre os sinais automáticos de uma conversa, o mais forte. */

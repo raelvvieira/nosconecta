@@ -28,6 +28,7 @@ import { AvisosDeWhatsapp } from "./notification-utils";
 import { ConfirmCompletion } from "./ConfirmCompletion";
 import type { SegundoPagamento } from "@/lib/agenda/pagamento-dividido";
 import { formatWhatsappNumber, telefoneBrasileiroValido } from "@/lib/atendimentos/phone";
+import { OrigemNoAgendamento } from "./OrigemNoAgendamento";
 import { localDateStr, durationBetween, endTimeFrom } from "@/lib/date";
 import { rotuloDeSala } from "@/lib/agenda/rotuloDeSala";
 import { reenviarConversaoDoAgendamento } from "@/lib/integrations/meta-capi.functions";
@@ -868,6 +869,20 @@ export function AppointmentDrawer({
                       />
                     )}
                   </div>
+
+                  {/* De onde veio o lead. Só quando dá para saber QUEM é: paciente com
+                      ficha, ou um telefone válido (o do contato do chat ou o digitado
+                      para a ficha nova). */}
+                  {(form.patientId || contact?.phone || telefoneOk) && (
+                    <OrigemNoAgendamento
+                      patientId={form.patientId}
+                      phone={
+                        form.patientId
+                          ? null
+                          : (contact?.phone ?? (telefoneOk ? telefoneNovo : null))
+                      }
+                    />
+                  )}
 
                   {/* NÓS Club: a pergunta que a clínica faz no balcão.
                       Só ao criar — ver o comentário em `indicadoPor`. */}

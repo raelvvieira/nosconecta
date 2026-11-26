@@ -41,12 +41,29 @@ conferir("sinal desconhecido é ignorado", resolverOrigem(null, ["x"]), {
   manual: false,
 });
 
-conferir("chave pelo telefone", chaveDaOrigem("(48) 99626-6217", "c1"), "5548996266217");
+conferir(
+  "chave pelo telefone (sem o nono dígito)",
+  chaveDaOrigem("(48) 99626-6217", "c1"),
+  "554896266217",
+);
+conferir(
+  "ficha e WhatsApp dão a mesma chave",
+  chaveDaOrigem("5548996266217", "c1"),
+  chaveDaOrigem("554896266217", "c2"),
+);
+conferir("fixo mantém", chaveDaOrigem("(48) 3333-4444", "c1"), "554833334444");
+conferir("sem telefone, da agenda", chaveDaOrigem(null, "paciente:abc"), "conv:paciente:abc");
 conferir("chave sem telefone", chaveDaOrigem(null, "c1"), "conv:c1");
 conferir("telefone curto vira conversa", chaveDaOrigem("123", "c1"), "conv:c1");
 
 conferir("ehOrigem", ehOrigem("meta_ads"), true);
 conferir("ehOrigem inválida", ehOrigem("tiktok"), false);
+conferir("google e chatgpt existem", ehOrigem("google") && ehOrigem("chatgpt"), true);
+conferir(
+  "rótulos novos",
+  [rotuloDaOrigem("google"), rotuloDaOrigem("chatgpt")],
+  ["Google", "ChatGPT"],
+);
 conferir("rótulo", rotuloDaOrigem("meta_ads"), "Meta Ads");
 conferir(
   "todas as opções têm rótulo",
