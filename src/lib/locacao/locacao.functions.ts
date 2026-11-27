@@ -294,6 +294,8 @@ export interface LocacaoDaEquipe {
   total: number | null;
   valorHoraPadrao: number;
   paciente: string | null;
+  /** "Esteticista · CRBM 123": o que o locatário informou, se informou. */
+  perfil: string | null;
 }
 
 export const listarLocacoes = createServerFn({ method: "GET" })
@@ -303,7 +305,7 @@ export const listarLocacoes = createServerFn({ method: "GET" })
     let q = adm
       .from("locacoes")
       .select(
-        "id, unit_id, inicio, fim, status, tenant_nome, observacao, horas_reais, valor_hora, total, clinic_chairs(name), clinic_units(preco_hora_locacao), locatario_pacientes(nome)",
+        "id, unit_id, tenant_user_id, inicio, fim, status, tenant_nome, observacao, horas_reais, valor_hora, total, clinic_chairs(name), clinic_units(preco_hora_locacao), locatario_pacientes(nome)",
       )
       .eq("owner_id", context.ownerId)
       .order("inicio", { ascending: false })
@@ -312,8 +314,23 @@ export const listarLocacoes = createServerFn({ method: "GET" })
     if (!context.isAdmin && context.unitId) q = q.eq("unit_id", context.unitId);
     const { data, error } = await q;
     if (error) throw new Error(error.message);
+    const ids = [...new Set(((data ?? []) as any[]).map((l) => String(l.tenant_user_id)))];
+    const { data: membros } = ids.length
+      ? await adm
+          .from("clinic_members")
+          .select("user_id, profissao, registro_profissional")
+          .eq("owner_id", context.ownerId)
+          .in("user_id", ids)
+      : { data: [] };
+    const perfilDe = new Map<string, string>(
+      ((membros ?? []) as any[]).map((m) => [
+        String(m.user_id),
+        [m.profissao, m.registro_profissional].filter(Boolean).join(" · "),
+      ]),
+    );
     return ((data ?? []) as any[]).map((l) => ({
       id: String(l.id),
+      perfil: perfilDe.get(String(l.tenant_user_id)) || null,
       sala: String(l.clinic_chairs?.name ?? "").trim(),
       inicio: String(l.inicio).slice(0, 16).replace(" ", "T"),
       fim: String(l.fim).slice(0, 16).replace(" ", "T"),
@@ -636,4 +653,23 @@ export const listarPacientesDosLocatarios = createServerFn({ method: "GET" })
       locatario: nomeDe.get(String(l.tenant_user_id)) || "Locatário",
       tambemDaClinica: iguais.has(soDigitos(l.telefone).slice(-8)),
     }));
+  });
+
+/** A atividade do locatário e o registro profissional (CRO, CRBM, CREFITO…),
+ *  ambos opcionais: nem todo locatário é dentista. */
+export const salvarMeuPerfil = createServerFn({ method: "POST" })
+  .middleware([exigeLocatario])
+  .inputValidator((input: { profissao?: string | null; registro?: string | null }) => ({
+    profissao: limpa(input?.profissao, 80),
+    registro: limpa(input?.registro, 60),
+  }))
+  .handler(async ({ data, context }) => {
+    const adm = await clienteAdmin();
+    const { error } = await adm
+      .from("clinic_members")
+      .update({ profissao: data.profissao, registro_profissional: data.registro })
+      .eq("user_id", context.userId)
+      .eq("owner_id", context.ownerId);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
   });

@@ -123,7 +123,8 @@ function Locacoes() {
             >
               <div className="min-w-0 text-sm">
                 <p className="truncate font-medium">
-                  {l.locatario || "Locatário"} · {l.sala}
+                  {l.locatario || "Locatário"}
+                  {l.perfil ? ` (${l.perfil})` : ""} · {l.sala}
                   {l.paciente ? ` · paciente ${l.paciente}` : ""}
                 </p>
                 <p className="text-xs text-muted-foreground">
