@@ -103,3 +103,26 @@ export function mensagemDeConfirmacao(d: {
     `Esta mensagem é enviada pelo WhatsApp do ${d.consultorio}, onde ${primeiroNome(d.locatario)} atende. Qualquer dúvida, é só responder por aqui.`,
   ].join("\n\n");
 }
+
+/** Conselhos profissionais da lista; "Outro" abre um campo para a sigla. */
+export const CONSELHOS = [
+  "CRO",
+  "CRM",
+  "CRBM",
+  "CREFITO",
+  "COREN",
+  "CRN",
+  "CRP",
+  "CREF",
+  "CRF",
+] as const;
+
+/** "CRO" + "SC 12345" → "CRO SC 12345". Sem número, não há registro. */
+export function montarRegistro(conselho: string, numero: string): string | null {
+  const num = String(numero ?? "").trim();
+  const sigla = String(conselho ?? "")
+    .trim()
+    .toUpperCase();
+  if (!num || !sigla) return null;
+  return `${sigla} ${num}`.slice(0, 60);
+}

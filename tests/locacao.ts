@@ -6,6 +6,7 @@ import {
   sobrepoe,
   totalDaLocacao,
   mensagemDeConfirmacao,
+  montarRegistro,
 } from "../src/lib/locacao/regras.ts";
 
 let ok = 0;
@@ -74,6 +75,11 @@ c(
   msg.includes("WhatsApp do NÓS Odontologia"),
   true,
 );
+
+c("registro CRO", montarRegistro("CRO", " SC 12345 "), "CRO SC 12345");
+c("registro outro em minúscula", montarRegistro("crefito", "12345-F"), "CREFITO 12345-F");
+c("sem número não há registro", montarRegistro("CRO", "  "), null);
+c("sem conselho não há registro", montarRegistro("", "123"), null);
 
 if (falhas.length) {
   console.error(falhas.join("\n"));

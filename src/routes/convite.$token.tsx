@@ -13,6 +13,7 @@ import { NIVEIS } from "@/lib/auth/niveis-de-acesso";
 import { ESPECIALIDADES } from "@/lib/settings/especialidades";
 import { cn } from "@/lib/utils";
 import { salvarMeuPerfil } from "@/lib/locacao/locacao.functions";
+import { CONSELHOS, montarRegistro } from "@/lib/locacao/regras";
 import { convitePublico, criarContaDoConvite } from "@/lib/settings/pessoal.functions";
 import { motivoDaConta } from "@/lib/auth/erro-do-convite";
 
@@ -74,6 +75,8 @@ function ConvitePage() {
   // aqui — é combinação comercial, e quem define é quem administra.
   const [atende, setAtende] = useState(false);
   const [profissao, setProfissao] = useState("");
+  const [conselho, setConselho] = useState<string>("CRO");
+  const [outroConselho, setOutroConselho] = useState("");
   const [registro, setRegistro] = useState("");
   const [avisos, setAvisos] = useState(false);
   const doPerfil = useServerFn(salvarMeuPerfil);
@@ -218,8 +221,14 @@ function ConvitePage() {
     toast.success("Pronto! Seu acesso já está liberado.");
     if (convite.data?.nivel === "tenant") {
       // Atividade e registro são opcionais; se falhar, o acesso já está feito.
-      if (profissao.trim() || registro.trim() || avisos)
-        await doPerfil({ data: { profissao, registro, avisos } }).catch(() => null);
+      const registroCompleto = montarRegistro(
+        conselho === "OUTRO" ? outroConselho : conselho,
+        registro,
+      );
+      if (profissao.trim() || registroCompleto || avisos)
+        await doPerfil({ data: { profissao, registro: registroCompleto, avisos } }).catch(
+          () => null,
+        );
       navigate({ to: "/minhas-locacoes", replace: true });
       return;
     }
@@ -390,15 +399,40 @@ function ConvitePage() {
                   </datalist>
                 </div>
                 <div>
-                  <Label htmlFor="registro-prof">Registro profissional</Label>
-                  <Input
-                    id="registro-prof"
-                    value={registro}
-                    onChange={(e) => setRegistro(e.target.value)}
-                    placeholder="CRO, CRBM, CREFITO, COREN, CRM… (se tiver)"
-                    className="mt-1"
-                    maxLength={60}
-                  />
+                  <Label htmlFor="registro-prof">Registro profissional (se tiver)</Label>
+                  <div className="mt-1 flex gap-2">
+                    <select
+                      value={conselho}
+                      onChange={(e) => setConselho(e.target.value)}
+                      aria-label="Conselho"
+                      className="h-10 w-28 shrink-0 rounded-xl border border-border bg-background px-2 text-sm"
+                    >
+                      {CONSELHOS.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                      <option value="OUTRO">Outro…</option>
+                    </select>
+                    {conselho === "OUTRO" && (
+                      <Input
+                        value={outroConselho}
+                        onChange={(e) => setOutroConselho(e.target.value)}
+                        placeholder="Sigla"
+                        aria-label="Sigla do conselho"
+                        className="w-24 shrink-0"
+                        maxLength={12}
+                      />
+                    )}
+                    <Input
+                      id="registro-prof"
+                      value={registro}
+                      onChange={(e) => setRegistro(e.target.value)}
+                      placeholder="Número (ex.: SC 12345)"
+                      className="min-w-0 flex-1"
+                      maxLength={40}
+                    />
+                  </div>
                 </div>
                 <div className="rounded-lg bg-muted/60 p-3">
                   <label className="flex items-start justify-between gap-3 text-sm font-medium">
