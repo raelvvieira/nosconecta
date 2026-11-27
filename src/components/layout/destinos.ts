@@ -9,6 +9,7 @@ import {
   ArrowUpCircle,
   Bot,
   CalendarDays,
+  DoorOpen,
   Gift,
   Home,
   LayoutDashboard,
@@ -43,6 +44,7 @@ export type RotaDoMenu =
   | "/inicio"
   | "/gestao"
   | "/agenda"
+  | "/locacoes"
   | "/pacientes"
   | "/atendimentos"
   | "/agente-ia"
@@ -86,6 +88,7 @@ export const MODULOS: Destino[] = [
   { label: "Início", icon: Home, to: "/inicio" },
   { label: "Gestão", icon: Gauge, to: "/gestao" },
   { label: "Agenda", icon: CalendarDays, to: "/agenda" },
+  { label: "Locações", icon: DoorOpen, to: "/locacoes" },
   { label: "Pacientes", icon: Users, to: "/pacientes" },
   { label: "Atendimentos", icon: MessageCircle, to: "/atendimentos" },
   { label: "Agente de IA", icon: Sparkles, to: "/agente-ia" },

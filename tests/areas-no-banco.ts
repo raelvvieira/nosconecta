@@ -18,8 +18,14 @@ const sql = readFileSync(
   "utf8",
 );
 
+// O mapa vigente é o da migration mais recente que redefine `areas_do_membro`.
+const sqlDoMapa = readFileSync(
+  new URL("../supabase/migrations/20261127160000_locatario.sql", import.meta.url),
+  "utf8",
+);
+
 for (const [nivel, areas] of Object.entries(AREAS_DO_NIVEL)) {
-  const m = new RegExp(`WHEN '${nivel}' THEN ARRAY\\[([^\\]]*)\\]`).exec(sql);
+  const m = new RegExp(`WHEN '${nivel}' THEN ARRAY\\[([^\\]]*)\\]`).exec(sqlDoMapa);
   const doSql = m ? [...m[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]) : null;
   conferir(`áreas do nível ${nivel}`, doSql && [...doSql].sort(), [...areas].sort());
 }

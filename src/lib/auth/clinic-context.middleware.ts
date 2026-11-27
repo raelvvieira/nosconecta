@@ -2,7 +2,7 @@ import { extrasValidos } from "@/lib/auth/niveis-de-acesso";
 import { createMiddleware } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-export type MemberRole = "admin" | "reception" | "dentist" | "finance";
+export type MemberRole = "admin" | "reception" | "dentist" | "finance" | "tenant";
 
 /**
  * Resolve, a partir de quem logou (`context.userId`, o `auth.uid()` puro),
@@ -38,6 +38,9 @@ export const requireClinicMembership = createMiddleware({ type: "function" })
     if (!member || member.status !== "active") {
       throw new Error("ACCOUNT_NOT_APPROVED");
     }
+    // O locatário não é da equipe: nenhuma função da clínica atende ele. Só as
+    // de locação (`exigeLocatario`) leem a matrícula dele por conta própria.
+    if (member.role === "tenant") throw new Error("Seu nível de acesso não inclui esta área.");
 
     return next({
       context: {

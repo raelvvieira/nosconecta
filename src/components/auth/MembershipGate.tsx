@@ -212,14 +212,15 @@ function SoOQueENivelDela({
   const liberado = podeAbrir(nivel, pathname, recursos, acessosExtras);
 
   useEffect(() => {
-    if (!liberado) navigate({ to: ROTA_INICIAL, replace: true });
+    if (!liberado)
+      navigate({ to: nivel === "tenant" ? "/minhas-locacoes" : ROTA_INICIAL, replace: true });
   }, [liberado, navigate]);
 
   if (!liberado) {
     return (
       <GateScreen
         icon={<Loader2 className="h-6 w-6 animate-spin" />}
-        title="Levando você para o Início…"
+        title={nivel === "tenant" ? "Levando você para as salas…" : "Levando você para o Início…"}
       />
     );
   }

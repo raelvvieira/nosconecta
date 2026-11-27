@@ -25,7 +25,7 @@
 // ver o COMMENT que a migration de 20/10 deixou nela.
 
 /** Os níveis, como a clínica os definiu em 20/10. */
-export type NivelDeAcesso = "admin" | "reception" | "dentist" | "finance";
+export type NivelDeAcesso = "admin" | "reception" | "dentist" | "finance" | "tenant";
 
 /** Cada módulo do app. É por área que o nível decide, não por rota: o
  *  Financeiro tem quatro páginas e nenhuma delas faz sentido sozinha. */
@@ -46,7 +46,10 @@ export type AreaDoApp =
   | "gestao"
   /** Quem trabalha no consultório (convidar, tirar, mudar o nível) e o plano
    *  pago. Fica só com quem administra: quem entra aqui decide quem vê o quê. */
-  | "equipe";
+  | "equipe"
+  /** A página do locatário: salas livres e as próprias reservas. É a ÚNICA
+   *  área dele — o locatário não tem nada da clínica, nem o Início. */
+  | "locacao";
 
 export interface NivelNaTela {
   valor: NivelDeAcesso;
@@ -77,6 +80,12 @@ export const NIVEIS: readonly NivelNaTela[] = [
     valor: "finance",
     rotulo: "Financeiro",
     resumo: "Só o financeiro: recebimentos, pagamentos e planejamento.",
+  },
+  {
+    valor: "tenant",
+    rotulo: "Locatário",
+    resumo:
+      "Aluga salas por hora. Vê só se cada sala está livre ou ocupada e as próprias reservas — nenhum dado de paciente ou da clínica.",
   },
 ];
 
@@ -118,6 +127,8 @@ export const AREAS_DO_NIVEL: Record<NivelDeAcesso, readonly AreaDoApp[]> = {
   ],
   dentist: ["inicio", "agenda", "pacientes"],
   finance: ["inicio", "financeiro"],
+  // Nem o Início: o locatário não é da equipe, só usa as salas.
+  tenant: ["locacao"],
 };
 
 /** O nível vê esta área? Nível desconhecido não vê nada além do Início —
@@ -174,6 +185,7 @@ export const ROTULO_DA_AREA: Record<AreaDoApp, string> = {
   configuracoes: "Configurações",
   gestao: "Gestão (resultado da clínica)",
   equipe: "Equipe e plano",
+  locacao: "Locação de salas",
 };
 
 /** Só o que é de fato uma área concedível; o resto é descartado. */
@@ -213,6 +225,9 @@ export function areaDaRota(pathname: string): AreaDoApp | null {
   if (p === "/agente-ia" || p.startsWith("/agente-ia/")) return "agente_ia";
   if (p === "/nos-club" || p.startsWith("/nos-club/")) return "club";
   if (p === "/estoque" || p.startsWith("/estoque/")) return "estoque";
+  // A página do locatário e, do lado da equipe, as locações pedidas.
+  if (p === "/minhas-locacoes") return "locacao";
+  if (p === "/locacoes") return "agenda";
   // Aparência é preferência da PESSOA, não da clínica: todo nível escolhe a
   // própria cor, inclusive quem não vê o resto de Configurações.
   if (p === "/configuracoes/aparencia") return "inicio";

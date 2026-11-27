@@ -22,6 +22,8 @@ import { Route as EstoqueRouteImport } from './routes/estoque'
 import { Route as FinanceiroRouteImport } from './routes/financeiro'
 import { Route as GestaoRouteImport } from './routes/gestao'
 import { Route as InicioRouteImport } from './routes/inicio'
+import { Route as LocacoesRouteImport } from './routes/locacoes'
+import { Route as MinhasLocacoesRouteImport } from './routes/minhas-locacoes'
 import { Route as NosClubRouteImport } from './routes/nos-club'
 import { Route as PacientesRouteImport } from './routes/pacientes'
 import { Route as PagamentosRouteImport } from './routes/pagamentos'
@@ -122,6 +124,16 @@ const GestaoRoute = GestaoRouteImport.update({
 const InicioRoute = InicioRouteImport.update({
   id: '/inicio',
   path: '/inicio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocacoesRoute = LocacoesRouteImport.update({
+  id: '/locacoes',
+  path: '/locacoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MinhasLocacoesRoute = MinhasLocacoesRouteImport.update({
+  id: '/minhas-locacoes',
+  path: '/minhas-locacoes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NosClubRoute = NosClubRouteImport.update({
@@ -329,6 +341,8 @@ export interface FileRoutesByFullPath {
   '/financeiro': typeof FinanceiroRoute
   '/gestao': typeof GestaoRoute
   '/inicio': typeof InicioRoute
+  '/locacoes': typeof LocacoesRoute
+  '/minhas-locacoes': typeof MinhasLocacoesRoute
   '/nos-club': typeof NosClubRoute
   '/pacientes': typeof PacientesRouteWithChildren
   '/pagamentos': typeof PagamentosRoute
@@ -377,6 +391,8 @@ export interface FileRoutesByTo {
   '/financeiro': typeof FinanceiroRoute
   '/gestao': typeof GestaoRoute
   '/inicio': typeof InicioRoute
+  '/locacoes': typeof LocacoesRoute
+  '/minhas-locacoes': typeof MinhasLocacoesRoute
   '/nos-club': typeof NosClubRoute
   '/pagamentos': typeof PagamentosRoute
   '/planejamento': typeof PlanejamentoRoute
@@ -427,6 +443,8 @@ export interface FileRoutesById {
   '/financeiro': typeof FinanceiroRoute
   '/gestao': typeof GestaoRoute
   '/inicio': typeof InicioRoute
+  '/locacoes': typeof LocacoesRoute
+  '/minhas-locacoes': typeof MinhasLocacoesRoute
   '/nos-club': typeof NosClubRoute
   '/pacientes': typeof PacientesRouteWithChildren
   '/pagamentos': typeof PagamentosRoute
@@ -480,6 +498,8 @@ export interface FileRouteTypes {
     | '/financeiro'
     | '/gestao'
     | '/inicio'
+    | '/locacoes'
+    | '/minhas-locacoes'
     | '/nos-club'
     | '/pacientes'
     | '/pagamentos'
@@ -528,6 +548,8 @@ export interface FileRouteTypes {
     | '/financeiro'
     | '/gestao'
     | '/inicio'
+    | '/locacoes'
+    | '/minhas-locacoes'
     | '/nos-club'
     | '/pagamentos'
     | '/planejamento'
@@ -577,6 +599,8 @@ export interface FileRouteTypes {
     | '/financeiro'
     | '/gestao'
     | '/inicio'
+    | '/locacoes'
+    | '/minhas-locacoes'
     | '/nos-club'
     | '/pacientes'
     | '/pagamentos'
@@ -629,6 +653,8 @@ export interface RootRouteChildren {
   FinanceiroRoute: typeof FinanceiroRoute
   GestaoRoute: typeof GestaoRoute
   InicioRoute: typeof InicioRoute
+  LocacoesRoute: typeof LocacoesRoute
+  MinhasLocacoesRoute: typeof MinhasLocacoesRoute
   NosClubRoute: typeof NosClubRoute
   PacientesRoute: typeof PacientesRouteWithChildren
   PagamentosRoute: typeof PagamentosRoute
@@ -730,6 +756,20 @@ declare module '@tanstack/react-router' {
       path: '/inicio'
       fullPath: '/inicio'
       preLoaderRoute: typeof InicioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/locacoes': {
+      id: '/locacoes'
+      path: '/locacoes'
+      fullPath: '/locacoes'
+      preLoaderRoute: typeof LocacoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/minhas-locacoes': {
+      id: '/minhas-locacoes'
+      path: '/minhas-locacoes'
+      fullPath: '/minhas-locacoes'
+      preLoaderRoute: typeof MinhasLocacoesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/nos-club': {
@@ -1111,6 +1151,8 @@ const rootRouteChildren: RootRouteChildren = {
   FinanceiroRoute: FinanceiroRoute,
   GestaoRoute: GestaoRoute,
   InicioRoute: InicioRoute,
+  LocacoesRoute: LocacoesRoute,
+  MinhasLocacoesRoute: MinhasLocacoesRoute,
   NosClubRoute: NosClubRoute,
   PacientesRoute: PacientesRouteWithChildren,
   PagamentosRoute: PagamentosRoute,
