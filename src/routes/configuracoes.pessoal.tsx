@@ -2,7 +2,17 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Copy, Link2, MoreHorizontal, Stethoscope, Trash2, UserPlus, Users } from "lucide-react";
+import {
+  Ban,
+  Check,
+  Copy,
+  Link2,
+  MoreHorizontal,
+  Stethoscope,
+  Trash2,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,7 +51,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { NIVEIS, type NivelDeAcesso } from "@/lib/auth/niveis-de-acesso";
+import {
+  AREAS_CONCEDIVEIS,
+  AREAS_DO_NIVEL,
+  NIVEIS,
+  ROTULO_DA_AREA,
+  type AreaDoApp,
+  type NivelDeAcesso,
+} from "@/lib/auth/niveis-de-acesso";
 import { ESPECIALIDADES } from "@/lib/settings/especialidades";
 import { getSettings, saveSetting, type UnitSetting } from "@/lib/settings/settings.functions";
 import {
@@ -688,6 +705,7 @@ function SheetDeAcesso({
   const doSalvar = useServerFn(salvarAcesso);
   const [nivel, setNivel] = useState<NivelDeAcesso>("reception");
   const [marcadas, setMarcadas] = useState<string[]>([]);
+  const [extras, setExtras] = useState<AreaDoApp[]>([]);
   const [carregado, setCarregado] = useState<string | null>(null);
 
   // Sincroniza com a pessoa aberta sem efeito: comparar a chave durante a
@@ -697,11 +715,20 @@ function SheetDeAcesso({
     setCarregado(pessoa.chave);
     setNivel((pessoa.nivel ?? "reception") as NivelDeAcesso);
     setMarcadas(pessoa.unidadeIds);
+    setExtras(pessoa.acessosExtras ?? []);
   }
 
   const salvar = useMutation({
     mutationFn: () =>
-      doSalvar({ data: { memberId: pessoa!.memberId!, nivel, unidadeIds: marcadas } }),
+      doSalvar({
+        data: {
+          memberId: pessoa!.memberId!,
+          nivel,
+          unidadeIds: marcadas,
+          // O que o nível já dá não precisa ser guardado como extra.
+          acessosExtras: extras.filter((a) => !AREAS_DO_NIVEL[nivel].includes(a)),
+        },
+      }),
     onSuccess: () => {
       toast.success("Acesso atualizado.");
       aoSalvar();
@@ -771,6 +798,48 @@ function SheetDeAcesso({
               <p className="mt-2 text-xs text-muted-foreground">
                 A primeira marcada vale como unidade padrão dos cadastros que ela criar.
               </p>
+            </div>
+          )}
+
+          {nivel !== "admin" && (
+            <div>
+              <Label>Acessos personalizados</Label>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Além do que o nível já dá, libere áreas específicas só para esta pessoa. Só quem é
+                administrador vê e muda isto.
+              </p>
+              <div className="mt-3 space-y-2">
+                {AREAS_CONCEDIVEIS.map((area) => {
+                  const doNivel = AREAS_DO_NIVEL[nivel].includes(area);
+                  return (
+                    <label key={area} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="min-w-0">
+                        <span className="block truncate">{ROTULO_DA_AREA[area]}</span>
+                        {doNivel && (
+                          <span className="block text-2xs text-muted-foreground">
+                            já incluído no nível
+                          </span>
+                        )}
+                      </span>
+                      <Switch
+                        checked={doNivel || extras.includes(area)}
+                        disabled={doNivel}
+                        onCheckedChange={(v) =>
+                          setExtras((atual) =>
+                            v ? [...new Set([...atual, area])] : atual.filter((x) => x !== area),
+                          )
+                        }
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+              {extras.some((a) => a === "financeiro" || a === "gestao") && (
+                <p className="mt-2 rounded-xl bg-warning-soft px-3 py-2 text-xs leading-5 text-warning">
+                  Financeiro e Gestão mostram dinheiro e resultado da clínica. Libere só para quem
+                  precisa.
+                </p>
+              )}
             </div>
           )}
 

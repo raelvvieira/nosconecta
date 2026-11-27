@@ -362,8 +362,14 @@ export interface ConfigDeAtendimento {
 export const getAtendimento = createServerFn({ method: "GET" })
   .middleware([exigeAgenteIa])
   .handler(async ({ context }): Promise<ConfigDeAtendimento> => {
+    // Esta leitura traz a chave da IA (para mostrar só os 4 últimos caracteres),
+    // e o navegador não a lê mais direto do banco: a leitura é feita aqui, com a
+    // chave de serviço, sempre do consultório de quem pediu (a área já foi
+    // conferida pelo middleware). `supabase` continua sendo o da pessoa, para o
+    // resto desta função.
     const supabase: any = context.supabase;
-    const { data: agente } = await supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: agente } = await (supabaseAdmin as any)
       .from("ai_agents")
       .select("*")
       .eq("owner_id", context.ownerId)
@@ -595,9 +601,10 @@ export const listarModelosDaIa = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<{ modelos: string[]; erro: string | null }> => {
     // `types.ts` é gerado pelo Lovable e não conhece a coluna `model`, que
     // nasceu agora — mesma razão do `any` nas outras funções deste arquivo.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase: any = context.supabase;
-    const { data: agente } = await supabase
+    // A chave só é lida no servidor (o navegador não tem mais permissão de
+    // leitura sobre ela), sempre do consultório de quem pediu.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: agente } = await (supabaseAdmin as any)
       .from("ai_agents")
       .select("api_key")
       .eq("owner_id", context.ownerId)

@@ -1,7 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { MemberRole } from "@/lib/auth/clinic-context.middleware";
-import type { RecursosDoConsultorio } from "@/lib/auth/niveis-de-acesso";
+import {
+  extrasValidos,
+  type AreaDoApp,
+  type RecursosDoConsultorio,
+} from "@/lib/auth/niveis-de-acesso";
 import {
   consultorioParado,
   lerFichaDoSite,
@@ -12,6 +16,8 @@ import {
 export interface MembershipStatus {
   status: "pending" | "active" | "rejected" | "disabled";
   role: MemberRole | null;
+  /** Áreas que o administrador concedeu a esta pessoa além do nível dela. */
+  acessosExtras: AreaDoApp[];
   unitId: string | null;
   name: string | null;
   /** O que o plano liga, para a rota respeitar além do nível. */
@@ -38,7 +44,7 @@ export const getMembershipStatus = createServerFn({ method: "GET" })
     const supabase: any = context.supabase;
     const { data, error } = await supabase
       .from("clinic_members")
-      .select("status, role, unit_id, name, owner_id")
+      .select("status, role, unit_id, name, owner_id, acessos_extras")
       .eq("user_id", context.userId)
       .maybeSingle();
     if (error) throw new Error("Falha ao verificar seu cadastro.");
@@ -51,6 +57,7 @@ export const getMembershipStatus = createServerFn({ method: "GET" })
     return {
       status: data.status as MembershipStatus["status"],
       role: (data.role ?? null) as MemberRole | null,
+      acessosExtras: extrasValidos(data.acessos_extras),
       unitId: data.unit_id ?? null,
       name: data.name ?? null,
       recursos: data.status === "active" ? recursosDaFicha(ficha, agora) : null,

@@ -7,18 +7,22 @@ import {
   type UnitSetting,
 } from "@/lib/settings/settings.functions";
 import type { MemberRole } from "@/lib/auth/clinic-context.middleware";
-import type { RecursosDoConsultorio } from "@/lib/auth/niveis-de-acesso";
+import type { AreaDoApp, RecursosDoConsultorio } from "@/lib/auth/niveis-de-acesso";
 import { settingsQuery } from "@/components/settings/SettingsNav";
 
 type SettingsFetcher = () => Promise<SettingsData>;
 
 const STORAGE_KEY = "nosconecta:selectedUnitId";
+/** Sempre a mesma referência: um `[]` novo a cada render refaria os menus. */
+const NENHUM_EXTRA: AreaDoApp[] = [];
 
 interface UnitContextValue {
   isAdmin: boolean;
   /** O nível de acesso de quem está logado. É daqui que o menu e as rotas
    *  decidem o que mostrar — ver `niveis-de-acesso.ts`. */
   nivel: MemberRole | null;
+  /** Áreas que o administrador concedeu a esta pessoa além do nível dela. */
+  acessosExtras: AreaDoApp[];
   /** O que o plano do consultório liga. `null` enquanto carrega: aí vale só
    *  o nível, como antes. */
   recursos: RecursosDoConsultorio | null;
@@ -46,6 +50,7 @@ export function UnitProvider({ children }: { children: ReactNode }) {
   // mostrar o Financeiro por um quadro para quem não pode vê-lo.
   const nivel = settingsResult.data?.nivel ?? null;
   const recursos = settingsResult.data?.recursos ?? null;
+  const acessosExtras = settingsResult.data?.acessosExtras ?? NENHUM_EXTRA;
 
   const [selectedUnitId, setSelectedUnitIdState] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -76,7 +81,15 @@ export function UnitProvider({ children }: { children: ReactNode }) {
 
   return (
     <UnitContext.Provider
-      value={{ isAdmin, nivel, recursos, units, selectedUnitId, setSelectedUnitId }}
+      value={{
+        isAdmin,
+        nivel,
+        acessosExtras,
+        recursos,
+        units,
+        selectedUnitId,
+        setSelectedUnitId,
+      }}
     >
       {children}
     </UnitContext.Provider>

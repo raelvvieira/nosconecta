@@ -167,7 +167,10 @@ export const lerArquivosDeEstoque = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<LeituraDaNota> => {
     const supabase: any = context.supabase;
 
-    const { data: agente } = await supabase
+    // A chave da IA só é lida no servidor: o navegador não tem mais permissão de
+    // leitura sobre ela. Sempre do consultório de quem pediu.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: agente } = await (supabaseAdmin as any)
       .from("ai_agents")
       .select("api_key, model")
       .eq("owner_id", context.ownerId)

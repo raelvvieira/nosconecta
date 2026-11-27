@@ -22,10 +22,10 @@ export function IlhaDoMais({ pathname, aoNavegar }: { pathname: string; aoNavega
   // A gaveta do celular esconde o mesmo que o menu lateral. Sem este filtro
   // ela seria o caminho de volta para tudo que o nível fechou — e é a lista
   // mais completa do app, justamente.
-  const { nivel, recursos } = useUnitSelection();
+  const { nivel, recursos, acessosExtras } = useUnitSelection();
   const grupos = GRUPOS_DO_MAIS.map((g) => ({
     ...g,
-    itens: doNivel(g.itens, nivel, recursos),
+    itens: doNivel(g.itens, nivel, recursos, acessosExtras),
   })).filter((g) => g.itens.length > 0);
 
   return (

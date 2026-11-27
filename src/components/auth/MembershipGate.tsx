@@ -186,7 +186,11 @@ function MembershipCheck({ children }: { children: ReactNode }) {
   //
   // Então quem abre o que não é dele volta para o Início, sem alarde.
   return (
-    <SoOQueENivelDela nivel={status.role} recursos={status.recursos}>
+    <SoOQueENivelDela
+      nivel={status.role}
+      acessosExtras={status.acessosExtras}
+      recursos={status.recursos}
+    >
       {children}
     </SoOQueENivelDela>
   );
@@ -194,16 +198,18 @@ function MembershipCheck({ children }: { children: ReactNode }) {
 
 function SoOQueENivelDela({
   nivel,
+  acessosExtras,
   recursos,
   children,
 }: {
   nivel: MemberRole | null;
+  acessosExtras: readonly string[];
   recursos: RecursosDoConsultorio | null;
   children: ReactNode;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
-  const liberado = podeAbrir(nivel, pathname, recursos);
+  const liberado = podeAbrir(nivel, pathname, recursos, acessosExtras);
 
   useEffect(() => {
     if (!liberado) navigate({ to: ROTA_INICIAL, replace: true });

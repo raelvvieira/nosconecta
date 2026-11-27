@@ -162,12 +162,13 @@ export function doNivel<T extends ItemDoMenu>(
   itens: readonly T[],
   nivel: NivelDeAcesso | null | undefined,
   recursos?: RecursosDoConsultorio | null,
+  extras?: readonly string[] | null,
 ): T[] {
   return itens.filter((i) => {
     const area = areaDaRota(i.to);
     // Destino fora das áreas conhecidas não é escondido por nível — quem o
     // criou decide, e esconder calado seria pior que mostrar.
-    return area === null || podeVerArea(nivel, area, recursos);
+    return area === null || podeVerArea(nivel, area, recursos, extras);
   });
 }
 

@@ -1,3 +1,4 @@
+import { extrasValidos } from "@/lib/auth/niveis-de-acesso";
 import { createMiddleware } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
@@ -29,7 +30,7 @@ export const requireClinicMembership = createMiddleware({ type: "function" })
     const supabase: any = context.supabase;
     const { data: member, error } = await supabase
       .from("clinic_members")
-      .select("owner_id, unit_id, role, status, permissions")
+      .select("owner_id, unit_id, role, status, permissions, acessos_extras")
       .eq("user_id", context.userId)
       .maybeSingle();
 
@@ -42,6 +43,8 @@ export const requireClinicMembership = createMiddleware({ type: "function" })
       context: {
         ownerId: member.owner_id as string,
         memberRole: (member.role ?? null) as MemberRole | null,
+        /** Áreas concedidas a esta pessoa pelo administrador, além do nível. */
+        acessosExtras: extrasValidos(member.acessos_extras),
         permissions: (member.permissions ?? []) as string[],
         // null = admin, enxerga todas as unidades da clínica.
         unitId: (member.unit_id ?? null) as string | null,

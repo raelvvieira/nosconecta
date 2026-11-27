@@ -76,12 +76,15 @@ export function Sidebar() {
   const fabCtx = useMobileFab();
   const fab = fabCtx?.fab ?? null;
   const handlers = fabCtx?.handlers ?? {};
-  const { isAdmin, nivel, recursos, units } = useUnitSelection();
+  const { isAdmin, nivel, acessosExtras, recursos, units } = useUnitSelection();
 
   // O menu passa a mostrar só o que o nível alcança. Até 20/10 todo mundo via
   // tudo — a recepção abria o faturamento da clínica pelo menu lateral. Ver
   // `niveis-de-acesso.ts`.
-  const modulos = useMemo(() => doNivel(MODULOS, nivel, recursos), [nivel, recursos]);
+  const modulos = useMemo(
+    () => doNivel(MODULOS, nivel, recursos, acessosExtras),
+    [nivel, recursos, acessosExtras],
+  );
   // O painel de todos os consultórios: só para quem administra a plataforma.
   const perguntarPlataforma = useServerFn(souDaPlataforma);
   const { data: daPlataforma = false } = useQuery({
@@ -117,7 +120,7 @@ export function Sidebar() {
   const setVoltouAosModulos = (v: boolean) => setRotaDoDesvio(v ? pathname : null);
   const submenuDaRota = rotaDoDesvio === pathname || !secaoDaRota ? null : SUBMENUS[secaoDaRota];
   const submenu = submenuDaRota
-    ? { ...submenuDaRota, itens: doNivel(submenuDaRota.itens, nivel, recursos) }
+    ? { ...submenuDaRota, itens: doNivel(submenuDaRota.itens, nivel, recursos, acessosExtras) }
     : null;
 
   // Duas leituras de "ativo", porque a pergunta é diferente em cada lista.
@@ -181,7 +184,6 @@ export function Sidebar() {
     toast.success("Sessão encerrada.");
     navigate({ to: "/auth", replace: true });
   };
-
 
   // As ações da conta: ícones com o nome na dica. A unidade só para quem
   // administra mais de uma; Consultórios só para quem é da plataforma.
@@ -560,6 +562,7 @@ export function Sidebar() {
               : MODULOS.filter((m) => m.to !== "/configuracoes" && m.to !== "/atendimentos"),
             nivel,
             recursos,
+            acessosExtras,
           ).slice(0, MAX_DESTINOS_DA_ILHA);
           return (
             <>

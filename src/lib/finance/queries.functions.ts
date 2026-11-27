@@ -245,7 +245,7 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
     // blocos de dinheiro pelo mesmo nível (ver `inicio.tsx`): o número não
     // chega, e o espaço dele também não fica aparecendo zerado, que seria uma
     // informação errada em vez de nenhuma.
-    if (!podeVerArea(context.memberRole, "financeiro")) {
+    if (!podeVerArea(context.memberRole, "financeiro", null, context.acessosExtras)) {
       return semFinanceiro(range);
     }
     const prev = previousRange(range);

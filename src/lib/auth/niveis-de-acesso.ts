@@ -127,15 +127,61 @@ export function podeVerArea(
   nivel: NivelDeAcesso | null | undefined,
   area: AreaDoApp,
   recursos?: RecursosDoConsultorio | null,
+  /** Áreas que o administrador concedeu a ESTA pessoa além do nível dela. */
+  extras?: readonly string[] | null,
 ): boolean {
   const areas = AREAS_DO_NIVEL[nivel as NivelDeAcesso];
   if (!areas) return area === "inicio";
-  if (!areas.includes(area)) return false;
+  // O que o nível dá, mais o que o administrador concedeu a esta pessoa.
+  if (!areas.includes(area) && !extras?.includes(area)) return false;
   // O nível diz o que a PESSOA vê; o plano diz o que o CONSULTÓRIO tem. Sem
   // recursos informados (carregando, ou quem chama não sabe), vale só o nível.
   if (recursos && area === "agente_ia" && !recursos.ia) return false;
   if (recursos && area === "club" && !recursos.club) return false;
   return true;
+}
+
+/**
+ * As áreas que o administrador pode conceder a uma pessoa, além do nível dela.
+ *
+ * "Início" fica de fora (todo nível já tem), e "equipe" também: quem convida
+ * gente pode se dar qualquer nível, então conceder essa área a alguém seria
+ * conceder tudo. Os acessos extras só ACRESCENTAM; retirar o que o nível dá
+ * é trocar o nível.
+ */
+export const AREAS_CONCEDIVEIS: readonly AreaDoApp[] = [
+  "agenda",
+  "pacientes",
+  "atendimentos",
+  "financeiro",
+  "agente_ia",
+  "club",
+  "estoque",
+  "configuracoes",
+  "gestao",
+];
+
+/** Rótulo de cada área, para a tela de acessos da pessoa. */
+export const ROTULO_DA_AREA: Record<AreaDoApp, string> = {
+  inicio: "Início",
+  agenda: "Agenda",
+  pacientes: "Pacientes",
+  atendimentos: "Atendimentos (WhatsApp e funil)",
+  financeiro: "Financeiro",
+  agente_ia: "Agente de IA",
+  club: "NÓS Club",
+  estoque: "Estoque",
+  configuracoes: "Configurações",
+  gestao: "Gestão (resultado da clínica)",
+  equipe: "Equipe e plano",
+};
+
+/** Só o que é de fato uma área concedível; o resto é descartado. */
+export function extrasValidos(valor: unknown): AreaDoApp[] {
+  if (!Array.isArray(valor)) return [];
+  return [...new Set(valor)].filter((a): a is AreaDoApp =>
+    (AREAS_CONCEDIVEIS as readonly unknown[]).includes(a),
+  );
 }
 
 /** O que o plano do consultório liga. Ver `src/lib/plataforma/recursos.ts`. */
@@ -201,10 +247,11 @@ export function podeAbrir(
   nivel: NivelDeAcesso | null | undefined,
   pathname: string,
   recursos?: RecursosDoConsultorio | null,
+  extras?: readonly string[] | null,
 ): boolean {
   const area = areaDaRota(pathname);
   if (!area) return true;
-  return podeVerArea(nivel, area, recursos);
+  return podeVerArea(nivel, area, recursos, extras);
 }
 
 /**

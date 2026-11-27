@@ -240,10 +240,11 @@ export function SettingsNav() {
     item.kind === "section"
       ? !item.adminOnly ||
         !!counts?.isAdmin ||
-        (item.value === "units" && podeVerArea(counts?.nivel, "configuracoes"))
+        (item.value === "units" &&
+          podeVerArea(counts?.nivel, "configuracoes", null, counts?.acessosExtras))
       : item.soPlataforma
         ? daPlataforma.data === true
-        : !counts || podeAbrir(counts.nivel, item.to);
+        : !counts || podeAbrir(counts.nivel, item.to, null, counts.acessosExtras);
 
   const activeSection: PageSection = search.section ?? "chairs";
   const { searchStr } = useLocation();

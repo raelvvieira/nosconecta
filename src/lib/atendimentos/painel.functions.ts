@@ -33,7 +33,7 @@ export const getPainelDoAtendimento = createServerFn({ method: "GET" })
       context.ownerId,
       data.filtro,
       Date.now(),
-      podeVerArea(context.memberRole, "financeiro"),
+      podeVerArea(context.memberRole, "financeiro", null, context.acessosExtras),
       supabaseAdmin,
     );
   });

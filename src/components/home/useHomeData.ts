@@ -37,7 +37,7 @@ export function useHomeData(): HomeData | null {
   const fetchAvisos = useServerFn(listarAvisos);
 
   // O nível decide se a tela mostra dinheiro. Ver `HomeData.verFinanceiro`.
-  const { nivel } = useUnitSelection();
+  const { nivel, acessosExtras } = useUnitSelection();
 
   const overview = useQuery(homeOverviewOptions(fetchOverview as any));
   const today = useQuery(homeTodayOptions(fetchToday as any));
@@ -56,9 +56,9 @@ export function useHomeData(): HomeData | null {
             overview.data,
             today.data,
             avisos.data?.naoLidos ?? 0,
-            podeVerArea(nivel, "financeiro"),
+            podeVerArea(nivel, "financeiro", null, acessosExtras),
           )
         : null,
-    [overview.data, today.data, avisos.data, nivel],
+    [overview.data, today.data, avisos.data, nivel, acessosExtras],
   );
 }

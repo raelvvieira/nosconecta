@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
 import { exigeConfiguracoes } from "@/lib/auth/area.middleware";
-import type { NivelDeAcesso } from "@/lib/auth/niveis-de-acesso";
+import { extrasValidos, type AreaDoApp, type NivelDeAcesso } from "@/lib/auth/niveis-de-acesso";
 import { motivoDaConta, type MotivoDaConta } from "@/lib/auth/erro-do-convite";
 
 /**
@@ -38,6 +38,8 @@ export interface PessoaDaClinica {
   telefone: string | null;
   /** Nulo para quem só tem ficha clínica, sem acesso ao sistema. */
   nivel: NivelDeAcesso | null;
+  /** Áreas que o administrador concedeu a esta pessoa além do nível dela. */
+  acessosExtras: AreaDoApp[];
   situacao: "ativo" | "desativado" | "sem_acesso";
   /** `true` quando existe um login de verdade ligado a esta linha. Uma linha
    *  "ativa" sem login é um cadastro que nunca virou conta — e era o que
@@ -88,7 +90,9 @@ export const listarPessoal = createServerFn({ method: "GET" })
     const [membros, vinculos, fichas] = await Promise.all([
       supabase
         .from("clinic_members")
-        .select("id, name, email, phone, role, status, unit_id, user_id, professional_id")
+        .select(
+          "id, name, email, phone, role, status, unit_id, user_id, professional_id, acessos_extras",
+        )
         .eq("owner_id", context.ownerId)
         .in("status", ["active", "disabled"])
         .order("name"),
@@ -135,6 +139,7 @@ export const listarPessoal = createServerFn({ method: "GET" })
         email: String(m.email ?? ""),
         telefone: m.phone ?? null,
         nivel: (m.role ?? null) as NivelDeAcesso | null,
+        acessosExtras: extrasValidos(m.acessos_extras),
         situacao: m.status === "active" ? "ativo" : "desativado",
         temLogin: !!m.user_id,
         unidadeIds: [...unidades],
@@ -158,6 +163,7 @@ export const listarPessoal = createServerFn({ method: "GET" })
         email: f.email ?? "",
         telefone: f.phone ?? null,
         nivel: null,
+        acessosExtras: [],
         situacao: "sem_acesso",
         temLogin: false,
         unidadeIds: f.unit_id ? [String(f.unit_id)] : [],
@@ -175,14 +181,23 @@ export const listarPessoal = createServerFn({ method: "GET" })
 /** Nível e unidades de quem já tem acesso. */
 export const salvarAcesso = createServerFn({ method: "POST" })
   .middleware([exigeConfiguracoes])
-  .inputValidator((input: { memberId: string; nivel: NivelDeAcesso; unidadeIds: string[] }) => {
-    if (!input.memberId?.trim()) throw new Error("Pessoa inválida.");
-    return {
-      memberId: input.memberId.trim(),
-      nivel: input.nivel,
-      unidadeIds: [...new Set((input.unidadeIds ?? []).filter(Boolean))],
-    };
-  })
+  .inputValidator(
+    (input: {
+      memberId: string;
+      nivel: NivelDeAcesso;
+      unidadeIds: string[];
+      /** Áreas concedidas além do nível. Só as concedíveis passam. */
+      acessosExtras?: string[];
+    }) => {
+      if (!input.memberId?.trim()) throw new Error("Pessoa inválida.");
+      return {
+        memberId: input.memberId.trim(),
+        nivel: input.nivel,
+        acessosExtras: extrasValidos(input.acessosExtras ?? []),
+        unidadeIds: [...new Set((input.unidadeIds ?? []).filter(Boolean))],
+      };
+    },
+  )
   .handler(async ({ data, context }) => {
     assertAdmin(context);
     const supabase: any = context.supabase;
@@ -197,7 +212,14 @@ export const salvarAcesso = createServerFn({ method: "POST" })
 
     const { error } = await supabase
       .from("clinic_members")
-      .update({ role: data.nivel, unit_id: principal, updated_at: new Date().toISOString() })
+      .update({
+        role: data.nivel,
+        unit_id: principal,
+        // Administrador já tem tudo; guardar extras nele só confundiria a tela
+        // se ele voltasse a ser outro nível.
+        acessos_extras: data.nivel === "admin" ? [] : data.acessosExtras,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", data.memberId)
       .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);

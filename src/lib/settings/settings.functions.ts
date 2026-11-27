@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { podeVerArea } from "@/lib/auth/niveis-de-acesso";
+import { podeVerArea, type AreaDoApp } from "@/lib/auth/niveis-de-acesso";
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership, type MemberRole } from "@/lib/auth/clinic-context.middleware";
 import { exigeConfiguracoes } from "@/lib/auth/area.middleware";
@@ -87,6 +87,8 @@ export interface SettingsData {
    * passa a saber quais módulos mostrar. Ver `niveis-de-acesso.ts`.
    */
   nivel: MemberRole | null;
+  /** Áreas concedidas a esta pessoa pelo administrador, além do nível. */
+  acessosExtras: AreaDoApp[];
   /** O que o plano do consultório liga (assistente, Club). */
   recursos: RecursosDoConsultorio;
 }
@@ -156,6 +158,7 @@ export const getSettings = createServerFn({ method: "GET" })
       })),
       isAdmin: context.isAdmin,
       nivel: context.memberRole,
+      acessosExtras: context.acessosExtras,
       recursos: recursosDaFicha(ficha, new Date()),
     };
   });
@@ -176,7 +179,7 @@ export const saveSetting = createServerFn({ method: "POST" })
     let row: Record<string, unknown>;
 
     if (data.section === "units") {
-      if (!podeVerArea(context.memberRole, "configuracoes"))
+      if (!podeVerArea(context.memberRole, "configuracoes", null, context.acessosExtras))
         throw new Error("Quem não configura o consultório não mexe nas unidades.");
       table = "clinic_units";
       row = {
@@ -249,7 +252,10 @@ export const deleteSetting = createServerFn({ method: "POST" })
   .inputValidator((input: { section: SettingsSection; id: string }) => input)
   .handler(async ({ data, context }) => {
     const supabase: any = context.supabase;
-    if (data.section === "units" && !podeVerArea(context.memberRole, "configuracoes")) {
+    if (
+      data.section === "units" &&
+      !podeVerArea(context.memberRole, "configuracoes", null, context.acessosExtras)
+    ) {
       throw new Error("Quem não configura o consultório não mexe nas unidades.");
     }
     const tables: Record<SettingsSection, string> = {

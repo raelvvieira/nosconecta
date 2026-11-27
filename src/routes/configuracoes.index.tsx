@@ -96,6 +96,7 @@ function SettingsRegistryPage() {
     units: [],
     isAdmin: false,
     nivel: null,
+    acessosExtras: [],
     recursos: { ia: true, club: true },
   };
   const [query, setQuery] = useState("");

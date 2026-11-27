@@ -715,7 +715,7 @@ export const salvarConfigDoClub = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }) => {
-    if (!podeVerArea(context.memberRole, "configuracoes"))
+    if (!podeVerArea(context.memberRole, "configuracoes", null, context.acessosExtras))
       throw new Error("Quem não configura o consultório não muda os valores do Club.");
     const supabase: any = context.supabase;
     const linha = {
@@ -771,7 +771,7 @@ export const salvarNivel = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }) => {
-    if (!podeVerArea(context.memberRole, "configuracoes"))
+    if (!podeVerArea(context.memberRole, "configuracoes", null, context.acessosExtras))
       throw new Error("Quem não configura o consultório não muda a régua do Club.");
     const supabase: any = context.supabase;
     const campos = {

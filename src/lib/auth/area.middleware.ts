@@ -33,7 +33,7 @@ export function exigeArea(area: AreaDoApp) {
         area === "agente_ia" || area === "club"
           ? recursosDaFicha(await lerFichaDoSite(context.supabase, context.ownerId), new Date())
           : null;
-      if (!podeVerArea(context.memberRole, area, recursos)) {
+      if (!podeVerArea(context.memberRole, area, recursos, context.acessosExtras)) {
         // Mensagem curta e sem detalhe: quem chegou aqui ou errou o caminho,
         // ou está tentando. Nenhum dos dois ganha nada sabendo mais.
         throw new Error("Seu nível de acesso não inclui esta área.");
