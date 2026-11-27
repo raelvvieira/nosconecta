@@ -21,7 +21,7 @@ import {
   salvarMeuPaciente,
   type PacienteDoLocatario,
 } from "@/lib/locacao/locacao.functions";
-import { sobrepoe, type CategoriaDaSala } from "@/lib/locacao/regras";
+import { horasEntre, sobrepoe, totalDaLocacao, type CategoriaDaSala } from "@/lib/locacao/regras";
 import { clinicNowStamp, clinicTodayStr } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
@@ -305,6 +305,25 @@ function MinhasLocacoes() {
               {salasQ.data?.salas.find((x) => x.id === sel.roomId)?.nome} ·{" "}
               {dia.split("-").reverse().join("/")} · {hhmm(sel.a)} às {hhmm(fim)}
             </p>
+            {salasQ.data && (
+              <p className="mt-1 text-sm">
+                {horasEntre(`${dia}T${hhmm(sel.a)}`, `${dia}T${hhmm(fim)}`)}h × R${"$ "}
+                {salasQ.data.valorHora.toFixed(2).replace(".", ",")} ={" "}
+                <strong>
+                  R${"$ "}
+                  {totalDaLocacao(
+                    horasEntre(`${dia}T${hhmm(sel.a)}`, `${dia}T${hhmm(fim)}`),
+                    salasQ.data.valorHora,
+                  )
+                    .toFixed(2)
+                    .replace(".", ",")}
+                </strong>
+                <span className="text-xs text-muted-foreground">
+                  {" "}
+                  (estimado; o valor final é confirmado pela clínica)
+                </span>
+              </p>
+            )}
             {!livreNaFaixa && (
               <p className="mt-1 text-xs text-destructive">Há horário ocupado nessa faixa.</p>
             )}

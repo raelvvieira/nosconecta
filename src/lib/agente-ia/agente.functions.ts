@@ -357,6 +357,8 @@ export interface ConfigDeAtendimento {
   olhoModelo: string;
   /** Deixar o olho buscar boas práticas na internet. */
   olhoNaWeb: boolean;
+  /** A chave da IA é só do administrador: quem não é nem vê o final dela. */
+  podeVerChave: boolean;
 }
 
 export const getAtendimento = createServerFn({ method: "GET" })
@@ -388,7 +390,10 @@ export const getAtendimento = createServerFn({ method: "GET" })
       // o que desce para o navegador é só a marca. Ler de volta uma chave que
       // alguém digitou não serve para nada e é o jeito mais fácil de ela
       // vazar num print de tela.
-      chaveResumida: agente.api_key ? `••••••••${String(agente.api_key).slice(-4)}` : "",
+      // Nem os 4 últimos caracteres saem para quem não é administrador.
+      podeVerChave: context.isAdmin,
+      chaveResumida:
+        agente.api_key && context.isAdmin ? `••••••••${String(agente.api_key).slice(-4)}` : "",
       // `!== false` e não `!!`: linha criada antes da coluna traz `undefined`,
       // e com `!!` o filtro nasceria desligado justamente na clínica que já
       // tinha agente — o oposto do `DEFAULT true` da migration.
@@ -504,6 +509,10 @@ export const salvarAtendimento = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }) => {
+    // A chave da IA é só do administrador: trocar ou remover também. A recepção
+    // tem a área do agente, mas esta parte não.
+    if (data.chaveDaIa !== undefined && !context.isAdmin)
+      throw new Error("Só o administrador pode trocar a chave da IA.");
     const supabase: any = context.supabase;
     const campos: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (data.debounceSegundos !== undefined) campos.debounce_seconds = data.debounceSegundos;

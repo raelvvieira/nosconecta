@@ -71,6 +71,18 @@ export function ChaveDaIa() {
   const modelos = modelosQuery.data?.modelos ?? [];
   const modeloEscolhido = config?.modelo ?? "";
 
+  // A chave é só do administrador: quem não é não vê o campo, nem o final dela.
+  if (config && !config.podeVerChave) {
+    return (
+      <Bloco
+        titulo="A chave da IA"
+        descricao="Esta chave é gerenciada pelo administrador do consultório."
+      >
+        {null}
+      </Bloco>
+    );
+  }
+
   return (
     <Bloco
       titulo="A chave da IA"
