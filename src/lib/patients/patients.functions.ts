@@ -262,9 +262,12 @@ async function fetchBase(supabase: any, ownerId: string, unitId: string | null) 
     rows.push(...(data ?? []));
     if ((data ?? []).length < 1000) break;
   }
-  const transactionsRes = await supabase
+  // Financeiro pelo servidor: o navegador não lê essa tabela. Filtro de dono explícito.
+  const { clienteAdmin } = await import("@/lib/auth/cliente-admin");
+  const transactionsRes = await (await clienteAdmin())
     .from("financial_transactions")
     .select("id,patient_id,description,amount,due_date,paid_date,status")
+    .eq("owner_id", ownerId)
     .eq("type", "receivable");
   if (transactionsRes.error) throw new Error(transactionsRes.error.message);
   return { rows, transactions: transactionsRes.data ?? [] };
@@ -319,13 +322,18 @@ export const getPatientDetail = createServerFn({ method: "GET" })
     // ela somaria uma ida inteira ao banco em toda abertura de ficha e de
     // conversa. Em paralelo, a chamada fica MAIS rápida que antes.
     const [transactionsRes, professionalsRes, appointmentsRes] = await Promise.all([
-      supabase
-        .from("financial_transactions")
-        .select(
-          "id,patient_id,description,amount,due_date,paid_date,status,payment_method,installment_total",
-        )
-        .eq("type", "receivable")
-        .eq("patient_id", data.patientId),
+      (await import("@/lib/auth/cliente-admin"))
+        .clienteAdmin()
+        .then((adm) =>
+          adm
+            .from("financial_transactions")
+            .select(
+              "id,patient_id,description,amount,due_date,paid_date,status,payment_method,installment_total",
+            )
+            .eq("owner_id", context.ownerId)
+            .eq("type", "receivable")
+            .eq("patient_id", data.patientId),
+        ),
       row.responsible_professional_id
         ? supabase
             .from("professionals")

@@ -792,7 +792,10 @@ export const confirmarSinal = createServerFn({ method: "POST" })
 
     let transactionId: string | null = r.transaction_id ? String(r.transaction_id) : null;
     if (!transactionId && Number(r.sinal_valor ?? 0) > 0) {
-      const { data: tx, error: e2 } = await supabase
+      const { clienteAdmin } = await import("@/lib/auth/cliente-admin");
+      const { data: tx, error: e2 } = await (
+        await clienteAdmin()
+      )
         .from("financial_transactions")
         .insert({
           owner_id: context.ownerId,

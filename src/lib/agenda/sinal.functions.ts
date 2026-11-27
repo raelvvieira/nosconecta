@@ -3,6 +3,7 @@
    Lovable regenerar (mesmo escape das outras funções da agenda). */
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { clienteAdmin } from "@/lib/auth/cliente-admin";
 import { comoGravar, ehForma } from "./forma-de-pagamento";
 import { recusaDoSinal, saldoAReceber } from "./sinal";
 
@@ -50,7 +51,7 @@ export const listarSinais = createServerFn({ method: "GET" })
     return { appointmentId: input.appointmentId };
   })
   .handler(async ({ data, context }): Promise<SinalDoAtendimento[]> => {
-    const linhas = await lerSinais(context.supabase as any, context.ownerId, data.appointmentId);
+    const linhas = await lerSinais(await clienteAdmin(), context.ownerId, data.appointmentId);
     return linhas.map(paraSinal);
   });
 
@@ -123,7 +124,7 @@ export const registrarSinal = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase as any;
+    const supabase = await clienteAdmin();
     const { data: a, error } = await supabase
       .from("appointments")
       .select(SELECT_ATENDIMENTO)
@@ -224,7 +225,7 @@ export const removerSinal = createServerFn({ method: "POST" })
     return { id: input.id };
   })
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase as any;
+    const supabase = await clienteAdmin();
     const { data: s } = await supabase
       .from("atendimento_sinais")
       .select("*")

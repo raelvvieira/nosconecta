@@ -3,6 +3,7 @@
    todas as colunas, e o Supabase devolve `any` aqui. */
 import { createServerFn } from "@tanstack/react-start";
 import { requireClinicMembership } from "@/lib/auth/clinic-context.middleware";
+import { clienteAdmin } from "@/lib/auth/cliente-admin";
 import { callEdgeFunction } from "@/lib/atendimentos/atendimentos.functions";
 import { clinicTodayStr } from "@/lib/date";
 import { rotuloDoPagamento } from "./forma-de-pagamento";
@@ -41,7 +42,7 @@ export const enviarReciboDoAtendimento = createServerFn({ method: "POST" })
     };
   })
   .handler(async ({ data, context }) => {
-    const supabase = context.supabase as any;
+    const supabase = await clienteAdmin();
     const { data: a, error } = await supabase
       .from("appointments")
       .select(
@@ -215,7 +216,7 @@ export const situacaoDoRecibo = createServerFn({ method: "GET" })
     };
   })
   .handler(async ({ data, context }): Promise<SituacaoDoRecibo> => {
-    const { data: linhas, error } = await (context.supabase as any)
+    const { data: linhas, error } = await (await clienteAdmin())
       .from("recibos_enviados")
       .select("enviado_em")
       .eq("owner_id", context.ownerId)

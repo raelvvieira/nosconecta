@@ -1,3 +1,4 @@
+import { clienteAdmin } from "@/lib/auth/cliente-admin";
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -255,13 +256,13 @@ export const getReceivablesOverview = createServerFn({ method: "GET" })
             `and(status.eq.paid,paid_date.gte.${evoStartStr},paid_date.lte.${evoEnd}),and(status.in.(pending,overdue),due_date.gte.${evoStartStr},due_date.lte.${evoEnd})`,
           ),
       ),
-      supabase.rpc("finance_revenue_by_category", {
+      (await clienteAdmin()).rpc("finance_revenue_by_category", {
         p_owner_id: ownerId,
         p_unit_id: unitId,
         p_from: range.from,
         p_to: range.to,
       }),
-      supabase.rpc("finance_revenue_by_professional", {
+      (await clienteAdmin()).rpc("finance_revenue_by_professional", {
         p_owner_id: ownerId,
         p_unit_id: unitId,
         p_from: range.from,

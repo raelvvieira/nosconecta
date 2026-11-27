@@ -85,7 +85,10 @@ export const getTratamentos = createServerFn({ method: "GET" })
     const { data: itens, error: erroItens } = await supabase
       .from("treatment_items")
       .select("id, plan_id, procedure_name, tooth, amount, status, transaction_id")
-      .in("plan_id", lista.map((p: any) => p.id))
+      .in(
+        "plan_id",
+        lista.map((p: any) => p.id),
+      )
       .order("created_at", { ascending: true });
     lancarSeErroReal(erroItens);
 
@@ -128,7 +131,12 @@ export const salvarPlano = createServerFn({ method: "POST" })
     (input: {
       patientId: string;
       title: string;
-      itens: { procedureId?: string | null; procedureName: string; tooth?: string | null; amount: number }[];
+      itens: {
+        procedureId?: string | null;
+        procedureName: string;
+        tooth?: string | null;
+        amount: number;
+      }[];
     }) => {
       if (!input.patientId) throw new Error("Paciente não informado.");
       if (!input.title?.trim()) throw new Error("Dê um nome ao orçamento.");
@@ -255,8 +263,9 @@ export const concluirItem = createServerFn({ method: "POST" })
       }
 
       const { createAppointmentReceivable } = await import("@/lib/finance/receivables.functions");
+      const { clienteAdmin } = await import("@/lib/auth/cliente-admin");
       transactionId = await createAppointmentReceivable(
-        supabase,
+        await clienteAdmin(),
         context.ownerId,
         paciente.unit_id,
         {

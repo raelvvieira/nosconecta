@@ -1,3 +1,4 @@
+import { clienteAdmin } from "@/lib/auth/cliente-admin";
 import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -309,13 +310,13 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
           .eq("owner_id", ownerId)
           .order("name"),
       ),
-      supabase.rpc("finance_revenue_by_category", {
+      (await clienteAdmin()).rpc("finance_revenue_by_category", {
         p_owner_id: ownerId,
         p_unit_id: unitId,
         p_from: fromStr,
         p_to: toStr,
       }),
-      supabase.rpc("finance_revenue_by_professional", {
+      (await clienteAdmin()).rpc("finance_revenue_by_professional", {
         p_owner_id: ownerId,
         p_unit_id: unitId,
         p_from: fromStr,
@@ -370,7 +371,7 @@ export const getFinanceOverview = createServerFn({ method: "GET" })
             .lte("due_date", toStr),
         ),
       ),
-      supabase.rpc("finance_cash_flow_series", {
+      (await clienteAdmin()).rpc("finance_cash_flow_series", {
         p_owner_id: ownerId,
         p_unit_id: unitId,
         p_from: fromStr,

@@ -974,6 +974,9 @@ async function onStatusTransition(
       if (!row.unit_id)
         throw new Error("Agendamento sem unidade — não é possível gerar o recebimento.");
       const { createAppointmentReceivable } = await import("@/lib/finance/receivables.functions");
+      // Financeiro pelo servidor: o navegador não lê essas tabelas.
+      const { clienteAdmin } = await import("@/lib/auth/cliente-admin");
+      const fin = await clienteAdmin();
       // O default "pago" mora AQUI, e não dentro de
       // `createAppointmentReceivable`: lá embaixo ele seria herdado por quem
       // conclui item de plano de tratamento, que é o caso oposto — o
@@ -992,7 +995,7 @@ async function onStatusTransition(
       // O sinal já entrou no financeiro quando foi pago. O recebimento do
       // atendimento é só o SALDO — senão o sinal contaria duas vezes. O valor
       // cobrado (`actual_revenue`, o total) não muda: é ele que vai para a Meta.
-      const { data: sinais } = await supabase
+      const { data: sinais } = await fin
         .from("atendimento_sinais")
         .select("valor")
         .eq("owner_id", ownerId)
@@ -1003,7 +1006,7 @@ async function onStatusTransition(
       // exatamente o saldo. Sem segunda parte válida, tudo fica no primeiro.
       const partes = dividirPagamento(aReceber, opcoes.segundoPagamento);
       if (partes.segunda > 0) {
-        await createAppointmentReceivable(supabase, ownerId, row.unit_id, {
+        await createAppointmentReceivable(fin, ownerId, row.unit_id, {
           amount: partes.segunda,
           description: `${row.procedure_name || "Atendimento"} · ${row.patient_name} (2ª forma)`,
           dueDate,
@@ -1017,7 +1020,7 @@ async function onStatusTransition(
           ),
         });
       }
-      await createAppointmentReceivable(supabase, ownerId, row.unit_id, {
+      await createAppointmentReceivable(fin, ownerId, row.unit_id, {
         amount: partes.primeira,
         description: `${row.procedure_name || "Atendimento"} · ${row.patient_name}`,
         dueDate,

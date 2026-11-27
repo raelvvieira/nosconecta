@@ -285,7 +285,8 @@ export async function montarVisaoDeGestao(
   }
 
   // ── Caixa ──────────────────────────────────────────────────────────
-  const { data: contas, error: erroContas } = await supabase
+  const { clienteAdmin } = await import("@/lib/auth/cliente-admin");
+  const { data: contas, error: erroContas } = await (await clienteAdmin())
     .from("financial_accounts")
     .select("current_balance")
     .eq("owner_id", ownerId);
