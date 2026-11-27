@@ -61,9 +61,22 @@ conferir("financeiro vê duas", [...AREAS_DO_NIVEL.finance], ["inicio", "finance
 
 // O Início é de todos: um nível sem página nenhuma é uma conta que entra e não
 // mostra nada.
+// A exceção é o Locatário: ele não é da equipe e só tem a página de locação.
 for (const n of NIVEIS) {
+  if (n.valor === "tenant") continue;
   conferir(`${n.rotulo} tem Início`, podeVerArea(n.valor, "inicio"), true);
 }
+
+// O Locatário: só a própria página, nada da clínica, e extras não o abrem.
+conferir("locatário vê locação", podeVerArea("tenant", "locacao"), true);
+conferir("locatário não vê Início", podeVerArea("tenant", "inicio"), false);
+conferir("locatário não vê agenda", podeVerArea("tenant", "agenda"), false);
+conferir("locatário não vê financeiro", podeVerArea("tenant", "financeiro"), false);
+conferir("locatário não abre /pacientes", podeAbrir("tenant", "/pacientes"), false);
+conferir("locatário abre /minhas-locacoes", podeAbrir("tenant", "/minhas-locacoes"), true);
+conferir("dentista não abre /minhas-locacoes", podeAbrir("dentist", "/minhas-locacoes"), false);
+conferir("dentista abre /locacoes (é da agenda)", podeAbrir("dentist", "/locacoes"), true);
+conferir("financeiro não abre /locacoes", podeAbrir("finance", "/locacoes"), false);
 
 // ── O que o nível fecha ─────────────────────────────────────────────────
 
