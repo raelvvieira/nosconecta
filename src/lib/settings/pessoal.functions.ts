@@ -401,12 +401,15 @@ function novoToken(): string {
 
 export const criarConvite = createServerFn({ method: "POST" })
   .middleware([exigeConfiguracoes])
-  .inputValidator((input: { nivel: NivelDeAcesso; nome?: string | null }) => ({
-    nivel: input.nivel,
-    nome: String(input.nome ?? "")
-      .trim()
-      .slice(0, 80),
-  }))
+  .inputValidator(
+    (input: { nivel: NivelDeAcesso; nome?: string | null; acessosExtras?: unknown }) => ({
+      nivel: input.nivel,
+      acessosExtras: input.nivel === "admin" ? [] : extrasValidos(input.acessosExtras),
+      nome: String(input.nome ?? "")
+        .trim()
+        .slice(0, 80),
+    }),
+  )
   .handler(async ({ data, context }): Promise<{ token: string }> => {
     assertAdmin(context);
     const supabase: any = context.supabase;
@@ -416,6 +419,7 @@ export const criarConvite = createServerFn({ method: "POST" })
       token,
       role: data.nivel,
       convidado_nome: data.nome || null,
+      acessos_extras: data.acessosExtras,
       created_by: context.userId,
     });
     if (error) throw new Error(error.message);

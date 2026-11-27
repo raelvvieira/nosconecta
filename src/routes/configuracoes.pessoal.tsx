@@ -582,6 +582,53 @@ async function copiarLink(token: string) {
   }
 }
 
+function AcessosPersonalizados({
+  nivel,
+  extras,
+  aoMudar,
+}: {
+  nivel: NivelDeAcesso;
+  extras: AreaDoApp[];
+  aoMudar: (v: AreaDoApp[]) => void;
+}) {
+  return (
+    <div>
+      <Label>Acessos personalizados</Label>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+        Além do que o nível já dá, libere áreas específicas só para esta pessoa. Só quem é
+        administrador vê e muda isto.
+      </p>
+      <div className="mt-3 space-y-2">
+        {AREAS_CONCEDIVEIS.map((area) => {
+          const doNivel = (AREAS_DO_NIVEL[nivel] as readonly string[]).includes(area);
+          return (
+            <label key={area} className="flex items-center justify-between gap-3 text-sm">
+              <span className="min-w-0">
+                <span className="block truncate">{ROTULO_DA_AREA[area]}</span>
+                {doNivel && (
+                  <span className="block text-2xs text-muted-foreground">já incluído no nível</span>
+                )}
+              </span>
+              <Switch
+                checked={doNivel || extras.includes(area)}
+                disabled={doNivel}
+                onCheckedChange={(v) =>
+                  aoMudar(v ? [...new Set([...extras, area])] : extras.filter((x) => x !== area))
+                }
+              />
+            </label>
+          );
+        })}
+      </div>
+      {extras.some((a) => a === "financeiro" || a === "gestao") && (
+        <p className="mt-2 rounded-xl bg-warning-soft px-3 py-2 text-xs leading-5 text-warning">
+          Financeiro e Gestão mostram dinheiro e resultado da clínica. Libere só para quem precisa.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function SheetDeConvite({
   aberto,
   aoFechar,
@@ -594,10 +641,11 @@ function SheetDeConvite({
   const doCriar = useServerFn(criarConvite);
   const [nivel, setNivel] = useState<NivelDeAcesso>("reception");
   const [nome, setNome] = useState("");
+  const [extras, setExtras] = useState<AreaDoApp[]>([]);
   const [token, setToken] = useState<string | null>(null);
 
   const criar = useMutation({
-    mutationFn: () => doCriar({ data: { nivel, nome } }),
+    mutationFn: () => doCriar({ data: { nivel, nome, acessosExtras: extras } }),
     onSuccess: (r) => {
       setToken(r.token);
       aoCriar();
@@ -609,6 +657,7 @@ function SheetDeConvite({
     setToken(null);
     setNome("");
     setNivel("reception");
+    setExtras([]);
     aoFechar();
   };
 
@@ -675,6 +724,10 @@ function SheetDeConvite({
                 <p className="mt-1.5 text-xs text-muted-foreground">{escolhido.resumo}</p>
               ) : null}
             </div>
+
+            {nivel !== "admin" && (
+              <AcessosPersonalizados nivel={nivel} extras={extras} aoMudar={setExtras} />
+            )}
 
             <p className="rounded-xl bg-muted px-3 py-2 text-xs leading-5 text-muted-foreground">
               A pessoa escolhe as unidades em que atende na hora de se cadastrar. Você pode mudar
@@ -802,45 +855,7 @@ function SheetDeAcesso({
           )}
 
           {nivel !== "admin" && (
-            <div>
-              <Label>Acessos personalizados</Label>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                Além do que o nível já dá, libere áreas específicas só para esta pessoa. Só quem é
-                administrador vê e muda isto.
-              </p>
-              <div className="mt-3 space-y-2">
-                {AREAS_CONCEDIVEIS.map((area) => {
-                  const doNivel = AREAS_DO_NIVEL[nivel].includes(area);
-                  return (
-                    <label key={area} className="flex items-center justify-between gap-3 text-sm">
-                      <span className="min-w-0">
-                        <span className="block truncate">{ROTULO_DA_AREA[area]}</span>
-                        {doNivel && (
-                          <span className="block text-2xs text-muted-foreground">
-                            já incluído no nível
-                          </span>
-                        )}
-                      </span>
-                      <Switch
-                        checked={doNivel || extras.includes(area)}
-                        disabled={doNivel}
-                        onCheckedChange={(v) =>
-                          setExtras((atual) =>
-                            v ? [...new Set([...atual, area])] : atual.filter((x) => x !== area),
-                          )
-                        }
-                      />
-                    </label>
-                  );
-                })}
-              </div>
-              {extras.some((a) => a === "financeiro" || a === "gestao") && (
-                <p className="mt-2 rounded-xl bg-warning-soft px-3 py-2 text-xs leading-5 text-warning">
-                  Financeiro e Gestão mostram dinheiro e resultado da clínica. Libere só para quem
-                  precisa.
-                </p>
-              )}
-            </div>
+            <AcessosPersonalizados nivel={nivel} extras={extras} aoMudar={setExtras} />
           )}
 
           <Button type="submit" variant="premium" className="w-full" disabled={salvar.isPending}>
