@@ -5,6 +5,7 @@ import {
   recusaDoPedido,
   sobrepoe,
   totalDaLocacao,
+  mensagemDeConfirmacao,
 } from "../src/lib/locacao/regras.ts";
 
 let ok = 0;
@@ -56,6 +57,23 @@ c("cancela 23h antes", podeCancelar("2026-12-02T07:00", "2026-12-01T08:00"), fal
 c("total 2,5h x 50", totalDaLocacao(2.5, 50), 125);
 c("total 3h x 47,5", totalDaLocacao(3, 47.5), 142.5);
 c("total zero horas", totalDaLocacao(0, 50), 0);
+
+const msg = mensagemDeConfirmacao({
+  paciente: "Maria Souza",
+  locatario: "Ana Lima",
+  consultorio: "NÓS Odontologia",
+  unidade: "Porto Alegre",
+  inicio: "2026-12-02T09:00",
+  fim: "2026-12-02T10:00",
+});
+c("aviso cita o paciente", msg.startsWith("Olá, Maria!"), true);
+c("aviso diz a data e hora", msg.includes("02/12/2026 às 09:00"), true);
+c("aviso diz quem atende", msg.includes("Quem vai te atender: Ana Lima."), true);
+c(
+  "aviso diz que sai do WhatsApp do consultório",
+  msg.includes("WhatsApp do NÓS Odontologia"),
+  true,
+);
 
 if (falhas.length) {
   console.error(falhas.join("\n"));

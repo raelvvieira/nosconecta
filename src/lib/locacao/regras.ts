@@ -75,3 +75,31 @@ export function totalDaLocacao(horas: number, valorHora: number): number {
 }
 
 export const VALOR_HORA_PADRAO = 50;
+
+const primeiroNome = (n: string) =>
+  String(n ?? "")
+    .trim()
+    .split(/\s+/)[0] || "";
+const dataBr = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
+
+/**
+ * O aviso ao paciente do locatário. Diz QUEM atende (o nome no cadastro de
+ * quem está locando) e de onde vem a mensagem — o paciente recebe de um número
+ * que não é o do profissional dele, então a frase precisa explicar.
+ */
+export function mensagemDeConfirmacao(d: {
+  paciente: string;
+  locatario: string;
+  consultorio: string;
+  unidade: string | null;
+  inicio: string;
+  fim: string;
+}): string {
+  const quando = `${dataBr(d.inicio)} às ${d.inicio.slice(11, 16)}`;
+  const onde = d.unidade ? `${d.consultorio} - ${d.unidade}` : d.consultorio;
+  return [
+    `Olá, ${primeiroNome(d.paciente)}! Seu atendimento está confirmado para ${quando}, em ${onde}.`,
+    `Quem vai te atender: ${d.locatario}.`,
+    `Esta mensagem é enviada pelo WhatsApp do ${d.consultorio}, onde ${primeiroNome(d.locatario)} atende. Qualquer dúvida, é só responder por aqui.`,
+  ].join("\n\n");
+}

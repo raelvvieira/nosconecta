@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import {
+  adicionarAoMeuProntuario,
   arquivarMeuPaciente,
+  listarMeuProntuario,
   cancelarMinhaLocacao,
   listarMeusPacientes,
   minhasLocacoes,
@@ -20,7 +22,7 @@ import {
   type PacienteDoLocatario,
 } from "@/lib/locacao/locacao.functions";
 import { sobrepoe, type CategoriaDaSala } from "@/lib/locacao/regras";
-import { clinicTodayStr } from "@/lib/date";
+import { clinicNowStamp, clinicTodayStr } from "@/lib/date";
 import { cn } from "@/lib/utils";
 
 // A única página do locatário. Ele vê, por sala e por horário, só "livre",
@@ -74,6 +76,7 @@ function MinhasLocacoes() {
   const [obs, setObs] = useState("");
   const [pacienteId, setPacienteId] = useState("");
   const [edit, setEdit] = useState<Partial<PacienteDoLocatario> | null>(null);
+  const [abertoPront, setAbertoPront] = useState<string | null>(null);
 
   const salasQ = useQuery({ queryKey: ["loc-salas"], queryFn: () => getSalas(), retry: false });
   const ocupQ = useQuery({
@@ -87,6 +90,19 @@ function MinhasLocacoes() {
     retry: false,
   });
   const minhasQ = useQuery({ queryKey: ["loc-minhas"], queryFn: () => getMinhas(), retry: false });
+
+  // Próximas primeiro (da mais perto para a mais longe), depois as anteriores.
+  const minhasOrdenadas = useMemo(() => {
+    const agora = clinicNowStamp();
+    const lista = minhasQ.data ?? [];
+    const prox = lista
+      .filter((l) => l.fim >= agora && (l.status === "pending" || l.status === "approved"))
+      .sort((a, b) => a.inicio.localeCompare(b.inicio));
+    const resto = lista
+      .filter((l) => !prox.includes(l))
+      .sort((a, b) => b.inicio.localeCompare(a.inicio));
+    return [...prox, ...resto];
+  }, [minhasQ.data]);
 
   const salas = (salasQ.data?.salas ?? []).filter(
     (s) => filtro === "todas" || s.categoria === filtro,
@@ -329,13 +345,13 @@ function MinhasLocacoes() {
 
         <section className="mt-8">
           <h2 className="text-2xs font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
-            Minhas reservas
+            Minha agenda
           </h2>
           <div className="mt-2 space-y-2">
-            {(minhasQ.data ?? []).length === 0 && (
+            {minhasOrdenadas.length === 0 && (
               <p className="text-sm text-muted-foreground">Você ainda não tem reservas.</p>
             )}
-            {(minhasQ.data ?? []).map((l) => (
+            {minhasOrdenadas.map((l) => (
               <div
                 key={l.id}
                 className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card px-4 py-3"
@@ -435,33 +451,93 @@ function MinhasLocacoes() {
               <p className="text-sm text-muted-foreground">Nenhum paciente cadastrado ainda.</p>
             )}
             {(pacientesQ.data ?? []).map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card px-4 py-3"
-              >
-                <div className="min-w-0 text-sm">
-                  <p className="truncate font-medium">{p.nome}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {[p.telefone, p.email].filter(Boolean).join(" · ") || "Sem contato"}
-                  </p>
+              <div key={p.id}>
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card px-4 py-3">
+                  <div className="min-w-0 text-sm">
+                    <p className="truncate font-medium">{p.nome}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {[p.telefone, p.email].filter(Boolean).join(" · ") || "Sem contato"}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAbertoPront(abertoPront === p.id ? null : p.id)}
+                    >
+                      Prontuário
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setEdit(p)}>
+                      Editar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={arquivar.isPending}
+                      onClick={() => arquivar.mutate(p.id)}
+                    >
+                      Remover
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setEdit(p)}>
-                    Editar
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={arquivar.isPending}
-                    onClick={() => arquivar.mutate(p.id)}
-                  >
-                    Remover
-                  </Button>
-                </div>
+                {abertoPront === p.id && <ProntuarioDoPaciente pacienteId={p.id} />}
               </div>
             ))}
           </div>
         </section>
+      </div>
+    </div>
+  );
+}
+
+function ProntuarioDoPaciente({ pacienteId }: { pacienteId: string }) {
+  const qc = useQueryClient();
+  const listar = useServerFn(listarMeuProntuario);
+  const adicionar = useServerFn(adicionarAoMeuProntuario);
+  const [texto, setTexto] = useState("");
+  const q = useQuery({
+    queryKey: ["loc-prontuario", pacienteId],
+    queryFn: () => listar({ data: { pacienteId } }),
+    retry: false,
+  });
+  const salvar = useMutation({
+    mutationFn: () => adicionar({ data: { pacienteId, texto } }),
+    onSuccess: () => {
+      setTexto("");
+      qc.invalidateQueries({ queryKey: ["loc-prontuario", pacienteId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  return (
+    <div className="mt-1 space-y-2 rounded-xl border border-border/70 bg-muted/40 p-3">
+      <textarea
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        placeholder="Novo registro do atendimento (queixa, conduta, observações…)"
+        rows={3}
+        maxLength={5000}
+        className="w-full rounded-lg border border-border bg-background p-2 text-sm"
+      />
+      <Button
+        size="sm"
+        variant="premium"
+        disabled={!texto.trim() || salvar.isPending}
+        onClick={() => salvar.mutate()}
+      >
+        {salvar.isPending ? "Salvando…" : "Adicionar ao prontuário"}
+      </Button>
+      <div className="space-y-2">
+        {(q.data ?? []).length === 0 && (
+          <p className="text-xs text-muted-foreground">Nenhum registro ainda.</p>
+        )}
+        {(q.data ?? []).map((r) => (
+          <div key={r.id} className="rounded-lg bg-card p-2 text-sm">
+            <p className="text-2xs text-muted-foreground">
+              {r.data.split("-").reverse().join("/")}
+            </p>
+            <p className="whitespace-pre-wrap">{r.texto}</p>
+          </div>
+        ))}
       </div>
     </div>
   );

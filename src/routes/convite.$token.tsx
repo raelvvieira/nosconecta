@@ -75,6 +75,7 @@ function ConvitePage() {
   const [atende, setAtende] = useState(false);
   const [profissao, setProfissao] = useState("");
   const [registro, setRegistro] = useState("");
+  const [avisos, setAvisos] = useState(false);
   const doPerfil = useServerFn(salvarMeuPerfil);
   const [cro, setCro] = useState("");
   const [especialidades, setEspecialidades] = useState<string[]>([]);
@@ -217,8 +218,8 @@ function ConvitePage() {
     toast.success("Pronto! Seu acesso já está liberado.");
     if (convite.data?.nivel === "tenant") {
       // Atividade e registro são opcionais; se falhar, o acesso já está feito.
-      if (profissao.trim() || registro.trim())
-        await doPerfil({ data: { profissao, registro } }).catch(() => null);
+      if (profissao.trim() || registro.trim() || avisos)
+        await doPerfil({ data: { profissao, registro, avisos } }).catch(() => null);
       navigate({ to: "/minhas-locacoes", replace: true });
       return;
     }
@@ -398,6 +399,17 @@ function ConvitePage() {
                     className="mt-1"
                     maxLength={60}
                   />
+                </div>
+                <div className="rounded-lg bg-muted/60 p-3">
+                  <label className="flex items-start justify-between gap-3 text-sm font-medium">
+                    <span>Enviar confirmação de agendamento aos meus pacientes</span>
+                    <Switch checked={avisos} onCheckedChange={(v) => setAvisos(v === true)} />
+                  </label>
+                  <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
+                    Quando uma reserva com paciente for confirmada, ele recebe um aviso automático.
+                    A mensagem sai do WhatsApp do consultório e informa que quem vai atender é você.
+                    Isso aumenta a taxa de comparecimento. Você pode deixar desligado.
+                  </p>
                 </div>
               </div>
             </div>

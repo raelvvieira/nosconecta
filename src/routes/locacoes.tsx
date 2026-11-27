@@ -22,6 +22,7 @@ import {
   decidirLocacao,
   listarLocacoes,
   listarPacientesDosLocatarios,
+  listarProntuarioParaEquipe,
   type LocacaoDaEquipe,
 } from "@/lib/locacao/locacao.functions";
 import { horasEntre, totalDaLocacao } from "@/lib/locacao/regras";
@@ -59,6 +60,7 @@ function Locacoes() {
     queryFn: () => listarPac(),
     retry: false,
   });
+  const [prontAberto, setProntAberto] = useState<string | null>(null);
   const [fechando, setFechando] = useState<LocacaoDaEquipe | null>(null);
   const [horas, setHoras] = useState("");
   const [valor, setValor] = useState("");
@@ -190,7 +192,17 @@ function Locacoes() {
                 key={p.id}
                 className="rounded-xl border border-border/70 bg-card px-4 py-3 text-sm"
               >
-                <p className="truncate font-medium">{p.nome}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate font-medium">{p.nome}</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setProntAberto(prontAberto === p.id ? null : p.id)}
+                  >
+                    Prontuário
+                  </Button>
+                </div>
+                {prontAberto === p.id && <ProntuarioParaEquipe pacienteId={p.id} />}
                 <p className="truncate text-xs text-muted-foreground">
                   Origem: Locatário {p.locatario}
                   {p.telefone ? ` · ${p.telefone}` : ""}
@@ -245,6 +257,27 @@ function Locacoes() {
           </DialogContent>
         </Dialog>
       </main>
+    </div>
+  );
+}
+
+function ProntuarioParaEquipe({ pacienteId }: { pacienteId: string }) {
+  const listar = useServerFn(listarProntuarioParaEquipe);
+  const q = useQuery({
+    queryKey: ["loc-prontuario-equipe", pacienteId],
+    queryFn: () => listar({ data: { pacienteId } }),
+    retry: false,
+  });
+  return (
+    <div className="mt-2 space-y-2 rounded-lg bg-muted/40 p-2">
+      {q.isPending && <p className="text-xs text-muted-foreground">Carregando…</p>}
+      {q.data?.length === 0 && <p className="text-xs text-muted-foreground">Sem registros.</p>}
+      {q.data?.map((r) => (
+        <div key={r.id} className="rounded-md bg-card p-2">
+          <p className="text-2xs text-muted-foreground">{r.data.split("-").reverse().join("/")}</p>
+          <p className="whitespace-pre-wrap">{r.texto}</p>
+        </div>
+      ))}
     </div>
   );
 }

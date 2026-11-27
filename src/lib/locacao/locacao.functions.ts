@@ -5,9 +5,12 @@ import { clienteAdmin } from "@/lib/auth/cliente-admin";
 import { exigeLocatario } from "@/lib/auth/locatario.middleware";
 import { exigeArea } from "@/lib/auth/area.middleware";
 import { clinicNowStamp } from "@/lib/date";
+import { callEdgeFunction } from "@/lib/atendimentos/atendimentos.functions";
+import { foneCanonico } from "../../../supabase/functions/_shared/inteligencia-do-lead.ts";
 import {
   categoriaDaSala,
   horasEntre,
+  mensagemDeConfirmacao,
   podeCancelar,
   recusaDoPedido,
   sobrepoe,
@@ -373,8 +376,65 @@ export const decidirLocacao = createServerFn({ method: "POST" })
       .eq("id", l.id)
       .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
+    if (data.aprovar)
+      await avisarPaciente(adm, context.ownerId, l).catch((e) =>
+        console.warn("[locacao] aviso ao paciente não saiu:", e?.message ?? e),
+      );
     return { ok: true as const };
   });
+
+/**
+ * Confirmação ao paciente do locatário, pelo WhatsApp do consultório — só se o
+ * locatário aceitou no autocadastro, a reserva tem paciente com telefone e o
+ * aviso ainda não saiu. Falhar aqui não desfaz a aprovação.
+ */
+async function avisarPaciente(adm: any, ownerId: string, l: any) {
+  if (!l.paciente_id || l.aviso_enviado_em) return;
+  const [{ data: membro }, { data: pac }, { data: clin }, { data: uni }] = await Promise.all([
+    adm
+      .from("clinic_members")
+      .select("name, avisos_automaticos")
+      .eq("user_id", l.tenant_user_id)
+      .eq("owner_id", ownerId)
+      .maybeSingle(),
+    adm
+      .from("locatario_pacientes")
+      .select("nome, telefone")
+      .eq("id", l.paciente_id)
+      .eq("owner_id", ownerId)
+      .maybeSingle(),
+    adm.from("clinicas").select("nome").eq("owner_id", ownerId).maybeSingle(),
+    adm
+      .from("clinic_units")
+      .select("name")
+      .eq("id", l.unit_id)
+      .eq("owner_id", ownerId)
+      .maybeSingle(),
+  ]);
+  if (!membro?.avisos_automaticos || !pac) return;
+  const fone = foneCanonico(pac.telefone);
+  if (!fone) return;
+  const texto = mensagemDeConfirmacao({
+    paciente: String(pac.nome),
+    locatario: String(membro.name || l.tenant_nome || "Profissional"),
+    consultorio: String(clin?.nome || "consultório"),
+    unidade: uni?.name ? String(uni.name).trim() : null,
+    inicio: String(l.inicio).slice(0, 16).replace(" ", "T"),
+    fim: String(l.fim).slice(0, 16).replace(" ", "T"),
+  });
+  await callEdgeFunction("wa-enviar", {
+    ownerId,
+    conversationId: `${fone}@s.whatsapp.net`,
+    content: texto,
+    // Mensagem automática do sistema: não tira a conversa da assistente.
+    assumir: false,
+  });
+  await adm
+    .from("locacoes")
+    .update({ aviso_enviado_em: new Date().toISOString() })
+    .eq("id", l.id)
+    .eq("owner_id", ownerId);
+}
 
 /**
  * Confirma que a locação aconteceu: grava as horas realmente usadas e o valor
@@ -659,17 +719,110 @@ export const listarPacientesDosLocatarios = createServerFn({ method: "GET" })
  *  ambos opcionais: nem todo locatário é dentista. */
 export const salvarMeuPerfil = createServerFn({ method: "POST" })
   .middleware([exigeLocatario])
-  .inputValidator((input: { profissao?: string | null; registro?: string | null }) => ({
-    profissao: limpa(input?.profissao, 80),
-    registro: limpa(input?.registro, 60),
-  }))
+  .inputValidator(
+    (input: { profissao?: string | null; registro?: string | null; avisos?: boolean }) => ({
+      avisos: input?.avisos === true,
+      profissao: limpa(input?.profissao, 80),
+      registro: limpa(input?.registro, 60),
+    }),
+  )
   .handler(async ({ data, context }) => {
     const adm = await clienteAdmin();
     const { error } = await adm
       .from("clinic_members")
-      .update({ profissao: data.profissao, registro_profissional: data.registro })
+      .update({
+        profissao: data.profissao,
+        registro_profissional: data.registro,
+        avisos_automaticos: data.avisos,
+      })
       .eq("user_id", context.userId)
       .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
     return { ok: true as const };
+  });
+
+// ── Prontuário dos pacientes do locatário ────────────────────────────────
+
+export interface RegistroDeProntuario {
+  id: string;
+  data: string;
+  texto: string;
+}
+
+const registrosDe = (rows: any[]): RegistroDeProntuario[] =>
+  rows.map((r) => ({ id: String(r.id), data: String(r.data), texto: String(r.texto) }));
+
+export const listarMeuProntuario = createServerFn({ method: "GET" })
+  .middleware([exigeLocatario])
+  .inputValidator((input: { pacienteId: string }) => ({
+    pacienteId: String(input?.pacienteId ?? ""),
+  }))
+  .handler(async ({ data, context }): Promise<RegistroDeProntuario[]> => {
+    const adm = await clienteAdmin();
+    const { data: rows, error } = await adm
+      .from("locatario_prontuario")
+      .select("id, data, texto")
+      .eq("owner_id", context.ownerId)
+      .eq("tenant_user_id", context.userId)
+      .eq("paciente_id", data.pacienteId)
+      .order("data", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error) throw new Error(error.message);
+    return registrosDe(rows ?? []);
+  });
+
+export const adicionarAoMeuProntuario = createServerFn({ method: "POST" })
+  .middleware([exigeLocatario])
+  .inputValidator((input: { pacienteId: string; texto: string; data?: string }) => {
+    const texto = String(input?.texto ?? "")
+      .trim()
+      .slice(0, 5000);
+    if (!texto) throw new Error("Escreva o registro.");
+    const dia = /^\d{4}-\d{2}-\d{2}$/.test(String(input?.data)) ? String(input.data) : null;
+    return { pacienteId: String(input?.pacienteId ?? ""), texto, data: dia };
+  })
+  .handler(async ({ data, context }) => {
+    const adm = await clienteAdmin();
+    // O paciente tem de ser DESTE locatário.
+    const { data: pac } = await adm
+      .from("locatario_pacientes")
+      .select("id")
+      .eq("id", data.pacienteId)
+      .eq("owner_id", context.ownerId)
+      .eq("tenant_user_id", context.userId)
+      .maybeSingle();
+    if (!pac) throw new Error("Paciente não encontrado.");
+    const { error } = await adm.from("locatario_prontuario").insert({
+      owner_id: context.ownerId,
+      unit_id: context.unitId,
+      tenant_user_id: context.userId,
+      paciente_id: data.pacienteId,
+      texto: data.texto,
+      ...(data.data ? { data: data.data } : {}),
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+/** A clínica lê o prontuário dos pacientes dos locatários. */
+export const listarProntuarioParaEquipe = createServerFn({ method: "GET" })
+  .middleware([exigeAgenda])
+  .inputValidator((input: { pacienteId: string }) => ({
+    pacienteId: String(input?.pacienteId ?? ""),
+  }))
+  .handler(async ({ data, context }): Promise<RegistroDeProntuario[]> => {
+    const adm = await clienteAdmin();
+    let q = adm
+      .from("locatario_prontuario")
+      .select("id, data, texto")
+      .eq("owner_id", context.ownerId)
+      .eq("paciente_id", data.pacienteId)
+      .order("data", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (!context.isAdmin && context.unitId) q = q.eq("unit_id", context.unitId);
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    return registrosDe(rows ?? []);
   });
