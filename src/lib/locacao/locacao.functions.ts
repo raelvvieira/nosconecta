@@ -41,6 +41,7 @@ export interface MinhaLocacao {
   fim: string;
   status: "pending" | "approved" | "rejected" | "cancelled" | "completed";
   podeCancelar: boolean;
+  paciente: string | null;
 }
 
 const dia = (s: string) => String(s ?? "").slice(0, 10);
@@ -137,7 +138,14 @@ export const ocupacaoDasSalas = createServerFn({ method: "GET" })
 export const pedirLocacao = createServerFn({ method: "POST" })
   .middleware([exigeLocatario])
   .inputValidator(
-    (input: { roomId: string; inicio: string; fim: string; observacao?: string }) => ({
+    (input: {
+      roomId: string;
+      inicio: string;
+      fim: string;
+      observacao?: string;
+      pacienteId?: string | null;
+    }) => ({
+      pacienteId: input?.pacienteId ? String(input.pacienteId) : null,
       roomId: String(input?.roomId ?? ""),
       inicio: String(input?.inicio ?? ""),
       fim: String(input?.fim ?? ""),
@@ -182,9 +190,22 @@ export const pedirLocacao = createServerFn({ method: "POST" })
       )
         throw new Error("Esse horário já está ocupado nessa sala.");
     }
+    // O paciente, se vier, tem de ser DESTE locatário.
+    if (data.pacienteId) {
+      const { data: pac } = await adm
+        .from("locatario_pacientes")
+        .select("id")
+        .eq("id", data.pacienteId)
+        .eq("owner_id", context.ownerId)
+        .eq("tenant_user_id", context.userId)
+        .eq("arquivado", false)
+        .maybeSingle();
+      if (!pac) throw new Error("Paciente não encontrado.");
+    }
     const { data: criada, error } = await adm
       .from("locacoes")
       .insert({
+        paciente_id: data.pacienteId,
         owner_id: context.ownerId,
         unit_id: context.unitId,
         room_id: data.roomId,
@@ -209,7 +230,7 @@ export const minhasLocacoes = createServerFn({ method: "GET" })
     const adm = await clienteAdmin();
     const { data } = await adm
       .from("locacoes")
-      .select("id, room_id, inicio, fim, status, clinic_chairs(name)")
+      .select("id, room_id, inicio, fim, status, clinic_chairs(name), locatario_pacientes(nome)")
       .eq("owner_id", context.ownerId)
       .eq("tenant_user_id", context.userId)
       .order("inicio", { ascending: false })
@@ -224,6 +245,7 @@ export const minhasLocacoes = createServerFn({ method: "GET" })
         inicio,
         fim: String(l.fim).slice(0, 16).replace(" ", "T"),
         status: l.status,
+        paciente: l.locatario_pacientes?.nome ?? null,
         podeCancelar:
           (l.status === "pending" || l.status === "approved") && podeCancelar(inicio, agora),
       };
@@ -271,6 +293,7 @@ export interface LocacaoDaEquipe {
   valorHora: number | null;
   total: number | null;
   valorHoraPadrao: number;
+  paciente: string | null;
 }
 
 export const listarLocacoes = createServerFn({ method: "GET" })
@@ -280,7 +303,7 @@ export const listarLocacoes = createServerFn({ method: "GET" })
     let q = adm
       .from("locacoes")
       .select(
-        "id, unit_id, inicio, fim, status, tenant_nome, observacao, horas_reais, valor_hora, total, clinic_chairs(name), clinic_units(preco_hora_locacao)",
+        "id, unit_id, inicio, fim, status, tenant_nome, observacao, horas_reais, valor_hora, total, clinic_chairs(name), clinic_units(preco_hora_locacao), locatario_pacientes(nome)",
       )
       .eq("owner_id", context.ownerId)
       .order("inicio", { ascending: false })
@@ -301,6 +324,7 @@ export const listarLocacoes = createServerFn({ method: "GET" })
       valorHora: l.valor_hora == null ? null : Number(l.valor_hora),
       total: l.total == null ? null : Number(l.total),
       valorHoraPadrao: Number(l.clinic_units?.preco_hora_locacao ?? VALOR_HORA_PADRAO),
+      paciente: l.locatario_pacientes?.nome ?? null,
     }));
   });
 
@@ -428,4 +452,188 @@ export const cancelarLocacaoDaEquipe = createServerFn({ method: "POST" })
       .eq("owner_id", context.ownerId);
     if (error) throw new Error(error.message);
     return { ok: true as const };
+  });
+
+// ── Pacientes do locatário ───────────────────────────────────────────────
+
+export interface PacienteDoLocatario {
+  id: string;
+  nome: string;
+  telefone: string | null;
+  email: string | null;
+  nascimento: string | null;
+  observacao: string | null;
+}
+
+const limpa = (v: unknown, max: number) => {
+  const t = String(v ?? "")
+    .trim()
+    .slice(0, max);
+  return t || null;
+};
+
+/** Só os pacientes DESTE locatário: o filtro é pelo login dele, nunca pelo que
+ *  veio da tela. */
+export const listarMeusPacientes = createServerFn({ method: "GET" })
+  .middleware([exigeLocatario])
+  .handler(async ({ context }): Promise<PacienteDoLocatario[]> => {
+    const adm = await clienteAdmin();
+    const { data, error } = await adm
+      .from("locatario_pacientes")
+      .select("id, nome, telefone, email, nascimento, observacao")
+      .eq("owner_id", context.ownerId)
+      .eq("tenant_user_id", context.userId)
+      .eq("arquivado", false)
+      .order("nome")
+      .limit(1000);
+    if (error) throw new Error(error.message);
+    return ((data ?? []) as any[]).map((p) => ({
+      id: String(p.id),
+      nome: String(p.nome),
+      telefone: p.telefone ?? null,
+      email: p.email ?? null,
+      nascimento: p.nascimento ?? null,
+      observacao: p.observacao ?? null,
+    }));
+  });
+
+const validaPaciente = (input: {
+  id?: string;
+  nome: string;
+  telefone?: string | null;
+  email?: string | null;
+  nascimento?: string | null;
+  observacao?: string | null;
+}) => {
+  const nome = limpa(input?.nome, 120);
+  if (!nome) throw new Error("Informe o nome do paciente.");
+  const nasc = limpa(input?.nascimento, 10);
+  if (nasc && !/^\d{4}-\d{2}-\d{2}$/.test(nasc)) throw new Error("Data de nascimento inválida.");
+  return {
+    id: input?.id ? String(input.id) : null,
+    nome,
+    telefone: limpa(input?.telefone, 30),
+    email: limpa(input?.email, 120),
+    nascimento: nasc,
+    observacao: limpa(input?.observacao, 500),
+  };
+};
+
+export const salvarMeuPaciente = createServerFn({ method: "POST" })
+  .middleware([exigeLocatario])
+  .inputValidator(validaPaciente)
+  .handler(async ({ data, context }): Promise<{ id: string }> => {
+    const adm = await clienteAdmin();
+    const campos = {
+      nome: data.nome,
+      telefone: data.telefone,
+      email: data.email,
+      nascimento: data.nascimento,
+      observacao: data.observacao,
+      updated_at: new Date().toISOString(),
+    };
+    if (data.id) {
+      const { error } = await adm
+        .from("locatario_pacientes")
+        .update(campos)
+        .eq("id", data.id)
+        .eq("owner_id", context.ownerId)
+        .eq("tenant_user_id", context.userId);
+      if (error) throw new Error(error.message);
+      return { id: data.id };
+    }
+    const { data: criado, error } = await adm
+      .from("locatario_pacientes")
+      .insert({
+        ...campos,
+        owner_id: context.ownerId,
+        unit_id: context.unitId,
+        tenant_user_id: context.userId,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return { id: String(criado.id) };
+  });
+
+export const arquivarMeuPaciente = createServerFn({ method: "POST" })
+  .middleware([exigeLocatario])
+  .inputValidator((input: { id: string }) => ({ id: String(input?.id ?? "") }))
+  .handler(async ({ data, context }) => {
+    const adm = await clienteAdmin();
+    const { error } = await adm
+      .from("locatario_pacientes")
+      .update({ arquivado: true, updated_at: new Date().toISOString() })
+      .eq("id", data.id)
+      .eq("owner_id", context.ownerId)
+      .eq("tenant_user_id", context.userId);
+    if (error) throw new Error(error.message);
+    return { ok: true as const };
+  });
+
+// ── A clínica vê os pacientes dos locatários ─────────────────────────────
+
+export interface PacienteDeLocatarioParaEquipe extends PacienteDoLocatario {
+  locatario: string;
+  /** Mesmo telefone de um paciente da clínica: provável mesma pessoa. */
+  tambemDaClinica: boolean;
+}
+
+const soDigitos = (t: string | null | undefined) => String(t ?? "").replace(/\D/g, "");
+
+export const listarPacientesDosLocatarios = createServerFn({ method: "GET" })
+  .middleware([exigeAgenda])
+  .handler(async ({ context }): Promise<PacienteDeLocatarioParaEquipe[]> => {
+    const adm = await clienteAdmin();
+    let q = adm
+      .from("locatario_pacientes")
+      .select("id, unit_id, tenant_user_id, nome, telefone, email, nascimento, observacao")
+      .eq("owner_id", context.ownerId)
+      .eq("arquivado", false)
+      .order("nome")
+      .limit(1000);
+    if (!context.isAdmin && context.unitId) q = q.eq("unit_id", context.unitId);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    const linhas = (data ?? []) as any[];
+    if (linhas.length === 0) return [];
+
+    // Quem é o locatário de cada um.
+    const ids = [...new Set(linhas.map((l) => l.tenant_user_id))];
+    const { data: membros } = await adm
+      .from("clinic_members")
+      .select("user_id, name")
+      .eq("owner_id", context.ownerId)
+      .in("user_id", ids);
+    const nomeDe = new Map<string, string>(
+      ((membros ?? []) as any[]).map((m) => [String(m.user_id), String(m.name ?? "")]),
+    );
+
+    // Provável mesma pessoa: telefone igual ao de um paciente da clínica.
+    const fones = new Set(
+      linhas.map((l) => soDigitos(l.telefone).slice(-8)).filter((f) => f.length === 8),
+    );
+    const iguais = new Set<string>();
+    if (fones.size > 0) {
+      const { data: pac } = await adm
+        .from("patients")
+        .select("phone")
+        .eq("owner_id", context.ownerId)
+        .not("phone", "is", null)
+        .limit(20000);
+      for (const p of (pac ?? []) as any[]) {
+        const f = soDigitos(p.phone).slice(-8);
+        if (fones.has(f)) iguais.add(f);
+      }
+    }
+    return linhas.map((l) => ({
+      id: String(l.id),
+      nome: String(l.nome),
+      telefone: l.telefone ?? null,
+      email: l.email ?? null,
+      nascimento: l.nascimento ?? null,
+      observacao: l.observacao ?? null,
+      locatario: nomeDe.get(String(l.tenant_user_id)) || "Locatário",
+      tambemDaClinica: iguais.has(soDigitos(l.telefone).slice(-8)),
+    }));
   });

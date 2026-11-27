@@ -9,11 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ResponsiveRouteState } from "@/components/layout/ResponsiveRouteState";
 import {
+  arquivarMeuPaciente,
   cancelarMinhaLocacao,
+  listarMeusPacientes,
   minhasLocacoes,
   ocupacaoDasSalas,
   pedirLocacao,
   salasDoLocatario,
+  salvarMeuPaciente,
+  type PacienteDoLocatario,
 } from "@/lib/locacao/locacao.functions";
 import { sobrepoe, type CategoriaDaSala } from "@/lib/locacao/regras";
 import { clinicTodayStr } from "@/lib/date";
@@ -60,16 +64,26 @@ function MinhasLocacoes() {
   const getMinhas = useServerFn(minhasLocacoes);
   const doPedir = useServerFn(pedirLocacao);
   const doCancelar = useServerFn(cancelarMinhaLocacao);
+  const getPacientes = useServerFn(listarMeusPacientes);
+  const doSalvarPaciente = useServerFn(salvarMeuPaciente);
+  const doArquivar = useServerFn(arquivarMeuPaciente);
 
   const [dia, setDia] = useState(clinicTodayStr());
   const [filtro, setFiltro] = useState<"todas" | CategoriaDaSala>("todas");
   const [sel, setSel] = useState<{ roomId: string; a: number; b: number | null } | null>(null);
   const [obs, setObs] = useState("");
+  const [pacienteId, setPacienteId] = useState("");
+  const [edit, setEdit] = useState<Partial<PacienteDoLocatario> | null>(null);
 
   const salasQ = useQuery({ queryKey: ["loc-salas"], queryFn: () => getSalas(), retry: false });
   const ocupQ = useQuery({
     queryKey: ["loc-ocupacao", dia],
     queryFn: () => getOcupacao({ data: { de: dia, ate: dia } }),
+    retry: false,
+  });
+  const pacientesQ = useQuery({
+    queryKey: ["loc-pacientes"],
+    queryFn: () => getPacientes(),
     retry: false,
   });
   const minhasQ = useQuery({ queryKey: ["loc-minhas"], queryFn: () => getMinhas(), retry: false });
@@ -104,15 +118,42 @@ function MinhasLocacoes() {
           inicio: `${dia}T${hhmm(sel!.a)}`,
           fim: `${dia}T${hhmm(fim)}`,
           observacao: obs,
+          pacienteId: pacienteId || null,
         },
       }),
     onSuccess: () => {
       toast.success("Pedido enviado. A clínica vai confirmar o horário.");
       setSel(null);
       setObs("");
+      setPacienteId("");
       qc.invalidateQueries({ queryKey: ["loc-ocupacao"] });
       qc.invalidateQueries({ queryKey: ["loc-minhas"] });
     },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const salvarPaciente = useMutation({
+    mutationFn: () =>
+      doSalvarPaciente({
+        data: {
+          id: edit?.id,
+          nome: edit?.nome ?? "",
+          telefone: edit?.telefone ?? null,
+          email: edit?.email ?? null,
+          nascimento: edit?.nascimento ?? null,
+          observacao: edit?.observacao ?? null,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Paciente salvo.");
+      setEdit(null);
+      qc.invalidateQueries({ queryKey: ["loc-pacientes"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const arquivar = useMutation({
+    mutationFn: (id: string) => doArquivar({ data: { id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["loc-pacientes"] }),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -251,6 +292,19 @@ function MinhasLocacoes() {
             {!livreNaFaixa && (
               <p className="mt-1 text-xs text-destructive">Há horário ocupado nessa faixa.</p>
             )}
+            <select
+              value={pacienteId}
+              onChange={(e) => setPacienteId(e.target.value)}
+              className="mt-2 h-10 w-full rounded-xl border border-border bg-background px-3 text-sm"
+              aria-label="Paciente"
+            >
+              <option value="">Paciente (opcional)</option>
+              {(pacientesQ.data ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nome}
+                </option>
+              ))}
+            </select>
             <Input
               value={obs}
               onChange={(e) => setObs(e.target.value)}
@@ -291,6 +345,7 @@ function MinhasLocacoes() {
                   <p className="text-xs text-muted-foreground">
                     {l.inicio.slice(0, 10).split("-").reverse().join("/")} · {l.inicio.slice(11)} às{" "}
                     {l.fim.slice(11)} · {ROTULO_STATUS[l.status]}
+                    {l.paciente ? ` · ${l.paciente}` : ""}
                   </p>
                 </div>
                 {l.podeCancelar && (
@@ -309,6 +364,103 @@ function MinhasLocacoes() {
           <p className="mt-2 text-xs text-muted-foreground">
             O cancelamento é possível até 24 horas antes do horário.
           </p>
+        </section>
+
+        <section className="mt-8">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-2xs font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
+              Meus pacientes
+            </h2>
+            <Button size="sm" variant="outline" onClick={() => setEdit({})}>
+              Adicionar paciente
+            </Button>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Estes pacientes são seus. A clínica também os vê, com a origem "Locatário".
+          </p>
+          {edit && (
+            <form
+              className="mt-3 space-y-2 rounded-2xl border border-border/70 bg-card p-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                salvarPaciente.mutate();
+              }}
+            >
+              <Input
+                value={edit.nome ?? ""}
+                onChange={(e) => setEdit({ ...edit, nome: e.target.value })}
+                placeholder="Nome do paciente"
+                maxLength={120}
+                required
+              />
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Input
+                  value={edit.telefone ?? ""}
+                  onChange={(e) => setEdit({ ...edit, telefone: e.target.value })}
+                  placeholder="WhatsApp (com DDD)"
+                  inputMode="tel"
+                />
+                <Input
+                  value={edit.email ?? ""}
+                  onChange={(e) => setEdit({ ...edit, email: e.target.value })}
+                  placeholder="E-mail"
+                  type="email"
+                />
+              </div>
+              <Input
+                type="date"
+                value={edit.nascimento ?? ""}
+                onChange={(e) => setEdit({ ...edit, nascimento: e.target.value || null })}
+                aria-label="Nascimento"
+                className="sm:w-56"
+              />
+              <Input
+                value={edit.observacao ?? ""}
+                onChange={(e) => setEdit({ ...edit, observacao: e.target.value })}
+                placeholder="Observação (opcional)"
+                maxLength={500}
+              />
+              <div className="flex gap-2">
+                <Button type="submit" variant="premium" disabled={salvarPaciente.isPending}>
+                  {salvarPaciente.isPending ? "Salvando…" : "Salvar"}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setEdit(null)}>
+                  Cancelar
+                </Button>
+              </div>
+            </form>
+          )}
+          <div className="mt-2 space-y-2">
+            {(pacientesQ.data ?? []).length === 0 && !edit && (
+              <p className="text-sm text-muted-foreground">Nenhum paciente cadastrado ainda.</p>
+            )}
+            {(pacientesQ.data ?? []).map((p) => (
+              <div
+                key={p.id}
+                className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card px-4 py-3"
+              >
+                <div className="min-w-0 text-sm">
+                  <p className="truncate font-medium">{p.nome}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {[p.telefone, p.email].filter(Boolean).join(" · ") || "Sem contato"}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setEdit(p)}>
+                    Editar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={arquivar.isPending}
+                    onClick={() => arquivar.mutate(p.id)}
+                  >
+                    Remover
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
       </div>
     </div>

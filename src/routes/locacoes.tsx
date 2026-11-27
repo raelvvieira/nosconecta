@@ -21,6 +21,7 @@ import {
   concluirLocacao,
   decidirLocacao,
   listarLocacoes,
+  listarPacientesDosLocatarios,
   type LocacaoDaEquipe,
 } from "@/lib/locacao/locacao.functions";
 import { horasEntre, totalDaLocacao } from "@/lib/locacao/regras";
@@ -49,9 +50,15 @@ function Locacoes() {
   const qc = useQueryClient();
   const listar = useServerFn(listarLocacoes);
   const decidir = useServerFn(decidirLocacao);
+  const listarPac = useServerFn(listarPacientesDosLocatarios);
   const concluir = useServerFn(concluirLocacao);
   const cancelar = useServerFn(cancelarLocacaoDaEquipe);
   const q = useQuery({ queryKey: ["locacoes-equipe"], queryFn: () => listar(), retry: false });
+  const pacQ = useQuery({
+    queryKey: ["pacientes-locatarios"],
+    queryFn: () => listarPac(),
+    retry: false,
+  });
   const [fechando, setFechando] = useState<LocacaoDaEquipe | null>(null);
   const [horas, setHoras] = useState("");
   const [valor, setValor] = useState("");
@@ -117,6 +124,7 @@ function Locacoes() {
               <div className="min-w-0 text-sm">
                 <p className="truncate font-medium">
                   {l.locatario || "Locatário"} · {l.sala}
+                  {l.paciente ? ` · paciente ${l.paciente}` : ""}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {dataBr(l.inicio)} · {l.inicio.slice(11)} às {l.fim.slice(11)} ·{" "}
@@ -167,6 +175,30 @@ function Locacoes() {
             </div>
           ))}
         </div>
+
+        <section className="mt-8">
+          <h2 className="text-2xs font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
+            Pacientes dos locatários
+          </h2>
+          <div className="mt-2 space-y-2">
+            {(pacQ.data ?? []).length === 0 && (
+              <p className="text-sm text-muted-foreground">Nenhum ainda.</p>
+            )}
+            {(pacQ.data ?? []).map((p) => (
+              <div
+                key={p.id}
+                className="rounded-xl border border-border/70 bg-card px-4 py-3 text-sm"
+              >
+                <p className="truncate font-medium">{p.nome}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  Origem: Locatário {p.locatario}
+                  {p.telefone ? ` · ${p.telefone}` : ""}
+                  {p.tambemDaClinica ? " · provavelmente também é paciente da clínica" : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
 
         <Dialog open={!!fechando} onOpenChange={(o) => !o && setFechando(null)}>
           <DialogContent>
